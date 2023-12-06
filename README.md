@@ -20,6 +20,8 @@ conda create -y --name testcerr python=3.8
 conda activate testcerr
 python -m pip install --upgrade pip
 pip install C:\Users\username\software\pycerr
+import sys
+sys.path.insert(0, r'C:\Users\username\software\pycerr')
 ````    
 The above steps will install CERR under ...\envs\testcerr\Lib\site-packages. 
 
@@ -37,18 +39,19 @@ Run python from the above Anaconda environment and try out the following code sa
     planC = pc.load_dcm_dir(dcm_dir)
 
 
-### visualize scan, dose and segmentation
-    num_structs = len(planC.structure)
-    str_num_list = np.arange(num_structs)
+### visualize scan, dose and segmentation    
     scan_num = [0]
     dose_num = [0]
+    num_structs = len(planC.structure)
     str_num_list = np.arange(num_structs)
-    viewer, scan_layer, dose_layer, labels_layer = vwr.show_scan_struct_dose(scan_num,str_num_list,dose_num,planC)
+    viewer, scan_layer, dose_layer, labels_layer = vwr.show_scan_struct_dose(scan_num, str_num_list, dose_num, planC)
 
 
 ### Compute DVH-based metrics
     from cerr import dvh
-    dosesV, volsV, isErr = dvh.getDVH(0,0,planC)
+    structNum = 0
+    doseNum = 0
+    dosesV, volsV, isErr = dvh.getDVH(structNum, doseNum, planC)
     binWidth = 0.025
     doseBinsV,volHistV = dvh.doseHist(dosesV, volsV, binWidth)
     percent = 70
