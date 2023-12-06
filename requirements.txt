@@ -1,0 +1,12 @@
+numpy
+pydicom
+python-dateutil
+scipy
+SimpleITK
+matplotlib
+nibabel
+scikit-learn
+scikit-image
+PyWavelets
+pandas
+napari[all]

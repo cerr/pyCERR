@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pycerr"
+version = "0.0.1a1"
+authors = [
+  { name="Aditya P. Apte", email="aptea@mskcc.org" },
+  { name="Aditi Iyer", email="iyera@mskcc.org" },
+  { name="Eve LoCastro", email="locastre@mskcc.org" },
+  { name="CERR User community", email="cerr-forum@googlegroups.com"},
+  { name="Joseph O. Deasy", email="deasyj@mskcc.org" }
+]
+description = "A Computational Environment for Radiological Research"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    'numpy',
+    'pydicom',
+    'python-dateutil',
+    'scipy',
+    'SimpleITK',
+    'matplotlib',
+    'nibabel',
+    'scikit-learn',
+    'scikit-image',
+    'PyWavelets',
+    'pandas',
+    'napari[all]'
+]
+
+[project.urls]
+"Homepage" = "https://github.com/cerr/pyCERR"
+"Bug Tracker" = "https://github.com/cerr/pyCERR/issues"
