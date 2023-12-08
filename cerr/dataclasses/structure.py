@@ -211,7 +211,57 @@ def load_structure(file_list):
 
     return struct_list
 
-def load_nii_structure(file_list, assocScanNum, planC, labels_dict = {}):
+def import_mask(mask3M, assocScanNum, structName, planC):
+    dt = datetime.now()
+    struct_meta = Structure()
+    struct_meta.structureName = structName
+    struct_meta.dateWritten = dt.strftime("%Y%m%d")
+    struct_meta.roiNumber = ""
+    #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
+    struct_meta.strUID = uid.createUID("structure")
+    struct_meta.structSetSopInstanceUID = generate_uid()
+    struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
+    contour_list = np.empty((0),Contour)
+    dim = mask3M.shape
+    for slc in range(dim[2]):
+        if not np.any(mask3M[:,:,slc]):
+            continue
+        contours = measure.find_contours(mask3M[:,:,slc] == 1, 0.5)
+        ind = slc
+        # _,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
+        # ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
+        # if len(ind[0]) == 1:
+        #     ind = ind[0][0]
+        # else:
+        #     raise Exception('No matching slices found.')
+        sopClassUID = planC.scan[assocScanNum].scanInfo[ind].sopClassUID
+        sopInstanceUID = planC.scan[assocScanNum].scanInfo[ind].sopInstanceUID
+
+        num_contours = len(contours)
+        for iContour, contour in enumerate(contours):
+            contObj = Contour()
+            segment = np.empty((contour.shape[0],3))
+            colV = contour[:, 1]
+            rowV = contour[:, 0]
+            slcV = np.ones_like(rowV) * slc
+            ptsM = np.asarray((colV,rowV,slcV))
+            ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
+            ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
+            contObj.segments = ptsM
+            contObj.referencedSopInstanceUID = sopInstanceUID
+            contObj.referencedSopClassUID = sopClassUID
+            #contour_list.append(contObj)
+            contour_list = np.append(contour_list,contObj)
+        struct_meta.contour = contour_list
+#     struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
+    numOrigStructs = len(planC.structure)
+    planC.structure.append(struct_meta)
+    str_num = len(planC.structure) - 1
+    planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
+    planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
+    return planC
+
+def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
     if isinstance(file_list,str) and os.path.exists(file_list):
         file_list = [file_list]
     struct_list = []
