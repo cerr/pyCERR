@@ -40,11 +40,13 @@ Run python from the above Anaconda environment and try out the following code sa
 
 
 ### visualize scan, dose and segmentation    
-    scan_num = [0]
-    dose_num = [0]
-    num_structs = len(planC.structure)
-    str_num_list = np.arange(num_structs)
-    viewer, scan_layer, dose_layer, labels_layer = vwr.show_scan_struct_dose(scan_num, str_num_list, dose_num, planC)
+    scanNumList = [0]
+    doseNumList = [0]
+    numStructs = len(planC.structure)
+    strNumList = np.arange(numStructs)
+    displayMode = '2d' # '2d' or '3d'
+    viewer, scan_layer, dose_layer, struct_layer = \
+        vwr.show_scan_struct_dose(scanNumList, strNumList, doseNumList, planC, displayMode)
 
 
 ### Compute DVH-based metrics
