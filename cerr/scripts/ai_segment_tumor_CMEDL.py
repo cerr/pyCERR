@@ -1,5 +1,6 @@
 from cerr import plan_container as pc
 import cerr.contour.rasterseg as rs
+import cerr.dataclasses.structure as strct
 from cerr.utils.bbox import compute_boundingbox
 from cerr.radiomics.preprocess import imgResample3D, getResampledGrid
 
@@ -63,7 +64,25 @@ if __name__ == "__main__":
 
 
     # Call inference for the cropped scan
-    seg3M = resamp3M > 500
+    #segLung3M = inferLungSeg(ctScan3M, xV, yV, zV)
+    #segTumor3M = inferTumor(ctScan3M, segLung3M, xV, yV, zV)
+
+    # seg3M = resamp3M > 500
+
+    # Resample back to original scan resolution
+    seg3M = ctScan3M > 1000
+    assocScanNum = 0
+    structName = 'test'
+    # planC = strct.import_mask(seg3M, assocScanNum, structName, planC)
+
+
+    # CMEDL, MRRN Lung tumor segmentation
+    # Inputs - ctScan3M numpy array, x,y,z grid
+    # Output - tumor segmentation numpy array
+
+    # CBCT pipeline
+    # Inputs - planning CT nii, CBCT nii, planning CT segmentations .nii
+    # Output - nii segmentation on CBCT
 
 
     # Store resulting segmentation in planC
@@ -77,9 +96,13 @@ if __name__ == "__main__":
     # Show scan, structure and dose overlay in 3D
     from cerr import viewer as vwr
     import numpy as np
-    scan_num = [0]
-    dose_num = []
-    num_structs = len(planC.structure)
-    str_num_list = np.arange(num_structs)
-    str_num_list = [num_structs]
-    viewer, scan_layer, dose_layer, labels_layer = vwr.show_scan_struct_dose(scan_num, str_num_list, dose_num, planC)
+    scanNum = [0]
+    doseNum = [0]
+    numStructs = len(planC.structure)
+    strNumList = np.arange(numStructs)
+    strNumList = [numStructs-1]
+    strNumList = 7
+    displayMode = '2d' # 'path' or 'surface'
+    viewer, scan_layer, dose_layer, struct_layer = \
+        vwr.show_scan_struct_dose(scanNum, strNumList, doseNum, planC, displayMode)
+
