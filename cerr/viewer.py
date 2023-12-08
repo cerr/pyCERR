@@ -8,7 +8,26 @@ from skimage import measure
 import vispy.color
 import cerr.dataclasses.scan as scn
 
-def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC):
+
+def getContours(strNum, assocScanNum, planC):
+    numSlcs = len(planC.structure[strNum].contour)
+    polygons = []
+    for slc in range(numSlcs):
+        if planC.structure[strNum].contour[slc]:
+            for seg in planC.structure[strNum].contour[slc].segments:
+                rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
+                pts = np.array((rowV, colV, slc*rowV**0), dtype=float).T
+                polygons.append(pts)
+    return polygons
+
+def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
+
+    if not isinstance(scan_nums, list):
+        scan_nums = [scan_nums]
+    if not isinstance(str_nums, list):
+        str_nums = [str_nums]
+    if not isinstance(dose_nums, list):
+        dose_nums = [dose_nums]
 
     # scan_num = 0
     # sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
@@ -87,7 +106,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC):
     mins = np.array([min(y), min(x), min(z)])
     maxes = np.array([max(y), max(x), max(z)])
     ranges = maxes - mins
-    labels_layer = np.empty(len(str_nums))
+    struct_layer = np.empty(len(str_nums))
     for i,str_num in enumerate(str_nums):
         mask3M = rs.getStrMask(str_num,planC)
         str_name = planC.structure[str_num].structureName
@@ -103,18 +122,29 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC):
         dy = y[1] - y[0]
         dz = z[1] - z[0]
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
-        labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
-                                          affine=scan_affine, name=str_name,colormap=cmap)
-        labels_layer = np.append(labels_layer,labl)
-        #labels_layer = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
-        #                                 num_colors=1,opacity=0.5,visible=False,
-        #                                 color={1:np.asarray(tableau20[i])/255})
+        if displayMode.lower() == '3d':
+            labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
+                                              affine=scan_affine, name=str_name,colormap=cmap)
+            struct_layer = np.append(struct_layer, labl)
+            # #labels_layer = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
+            # #                                 num_colors=1,opacity=0.5,visible=False,
+            # #                                 color={1:np.asarray(tableau20[i])/255})
+        elif displayMode.lower() == '2d':
+            polygons = getContours(str_num, scan_num, planC)
 
-    viewer.dims.ndisplay = 3
+            shp = viewer.add_shapes(polygons, shape_type='path', edge_width=2,
+                              edge_color=np.array(tableau20[i])/255, face_color=[0]*4,
+                              affine=scan_affine, name=str_name)
+            struct_layer = np.append(struct_layer, shp)
+
+    viewer.dims.ndisplay = 2
+    if displayMode == '3d':
+        viewer.dims.ndisplay = 3
     viewer.dims.axis_labels = ["A-P","L-R","S-I"]
+    viewer.dims.order = (2, 0, 1)
     napari.run()
 
-    return viewer, scan_layers, dose_layers, labels_layer
+    return viewer, scan_layers, dose_layers, struct_layer
 
     # mask3M = rs.getStrMask(struct_num,planC)
     # sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset

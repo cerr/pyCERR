@@ -139,7 +139,7 @@ def load_nii_scan(nii_file_name, planC = pc.PlanC):
     pass
 
 def load_nii_structure(nii_file_name, assocScanNum, planC = pc.PlanC, labels_dict = {}):
-    struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
+    struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
     numOrigStructs = len(planC.structure)
     planC.structure.extend(struct_meta)
     numStructs = len(planC.structure)
