@@ -509,14 +509,55 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
 
 def load_sorted_scan_info(file_list):
     scan = Scan()
-    scan_info = [] #scn_info.ScanInfo()
-    scan_array = []
+    #scan_info = [] #scn_info.ScanInfo()
+    #scan_array = []
+    scan_array = [] #np.empty(len(file_list))
+    scan_info = np.empty(len(file_list),dtype=scn_info.ScanInfo)
+    count = 0
     for file in file_list:
         ds = dcmread(file)
         if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
             si_pixel_data = parse_scan_info_fields(ds)
-            scan_info.append(si_pixel_data[0])
-            scan_array.append(si_pixel_data[1])
+            #scan_info.append(si_pixel_data[0])
+            #scan_array.append(si_pixel_data[1])
+            scan_info[count] = si_pixel_data[0]
+            if not isinstance(scan_array, np.ndarray) and not scan_array:
+                imgSiz = list(si_pixel_data[1].shape)
+                imgSiz.append(len(file_list))
+                scan_array = np.empty(imgSiz)
+            scan_array[:,:,count] = si_pixel_data[1]
+            count += 1
+    if count < scan_array.shape[2]:
+        scan_array = np.delete(scan_array,np.arange(count,scan_array.shape[2]),axis=2)
+        scan_info = np.delete(scan_info,np.arange(count,scan_array.shape[2]),axis=0)
+
+    #sorted_indices = scan_info.sort(key=get_slice_position, reverse=False)
+    sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
+    #scan_array = np.array(scan_array)
+    #scan_array = np.moveaxis(scan_array,[0,1,2],[2,0,1])
+    #scan_info = np.array(scan_info)
+    scan_info = scan_info[sort_index]
+    scan_array = scan_array[:,:,sort_index]
+    scan_info = scn_info.deduce_voxel_thickness(scan_info)
+    scan.scanInfo = scan_info
+    scan.scanArray = scan_array
+    scan.scanUID = "CT." + si_pixel_data[2]
+    return scan
+
+def import_nii(file_list, planC):
+    pass
+
+def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
+    scan = Scan()
+    scan_info = [] #scn_info.ScanInfo()
+    scan_array = []
+    siz = scan3M.shape
+    for slc in range(siz[2]):
+        #ds = dcmread(file)
+        #si_pixel_data = parse_scan_info_fields(ds)
+        si_pixel_data = (0,0)
+        scan_info.append(si_pixel_data[0])
+        scan_array.append(si_pixel_data[1])
     #sorted_indices = scan_info.sort(key=get_slice_position, reverse=False)
     sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
     scan_array = np.array(scan_array)
