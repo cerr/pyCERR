@@ -109,7 +109,7 @@ class Structure:
             if len(seg_matches[0]) == 0:
                 matches = []
                 for iCtr,ctr in enumerate(dcm_contour_list):
-                    if np.all((tempb[:,2] - zValsV[slc_num])**2 < 1e-5):
+                    if np.all((ctr.segments[:,2] - zValsV[slc_num])**2 < 1e-5):
                         matches.append(iCtr)
                 seg_matches = (np.asarray(matches,dtype='int64'),)
             segments = []
