@@ -472,9 +472,9 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
     if hasattr(ds,"PatientID"): s_info.patientID = ds.PatientID
     if hasattr(ds,"AcquisitionDate"): s_info.acquisitionDate = ds.AcquisitionDate
     if hasattr(ds,"AcquisitionTime"): s_info.acquisitionTime = ds.AcquisitionTime
-    s_info.seriesDate = ds.SeriesDate
+    if hasattr(ds,"SeriesDate"): s_info.seriesDate = ds.SeriesDate
     if hasattr(ds,"SeriesTime"): s_info.seriesTime = ds.SeriesTime
-    s_info.studyDate = ds.StudyDate
+    if hasattr(ds,"StudyDate"): s_info.studyDate = ds.StudyDate
     if hasattr(ds,"StudyTime"): s_info.studyTime = ds.StudyTime
     if hasattr(ds,"StudyDescription"): s_info.studyDescription = ds.StudyDescription
     if hasattr(ds,"CorrectedImage"): s_info.correctedImage = ds.CorrectedImage
