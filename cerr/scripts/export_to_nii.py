@@ -3,7 +3,7 @@ from cerr import plan_container as pc
 if __name__ == "__main__":
 
     # Path to a DICOM dataset for an image
-    #dcm_dir = r"\\path\to\DICOM\Pt1"
+    dcm_dir = r"\\path\to\DICOM\Pt1"
 
     import time
     t = time.time()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     str_num = 5
     str_name = planC.structure[str_num].structureName
-    strNiiName = os.path.join(r'r'\\path\to\save\nii\structure',str_name+'.nii.gz')
+    strNiiName = os.path.join(r'\\path\to\save\nii\structure',str_name+'.nii.gz')
     planC.structure[str_num].save_nii(strNiiName,planC)
 
     dose_num = 0

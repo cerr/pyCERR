@@ -112,7 +112,23 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     return xResampleV, yResampleV, zResampleV
 
 def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResampleV, method, extrapVal=0):
+    """
 
+    Args:
+        img3M: 3D numpy Array. e.g. planC.scan[scanNum].getScanArray()
+        xValsV: 1D array of x-coordinates i.e. along columns of img3M. Must be monotonically increasing order as per CERR coordinate system.
+        yValsV: 1D array of y-coordinates i.e. along rows of img3M. Must be monotonically decreasing order as per CERR coordinate system.
+        zValsV: 1D array of z-coordinates i.e. along slices of img3M. Must be monotonically increasing order as per CERR coordinate system.
+        xResampleV: 1D array of new x-coordinates i.e. along columns of resampled image
+        yResampleV: 1D array of new y-coordinates i.e. along rows of resampled image
+        zResampleV: 1D array of new z-coordinates i.e. along slices of resampled image
+        method: string representing one of the supported methods from 'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
+                    'sitkHammingWindowedSinc', 'sitkCosineWindowedSinc', 'sitkWelchWindowedSinc',
+                    'sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
+
+    Returns:
+        3D numpy Array reampled at xResampleV, yResampleV, zResampleV
+    """
 
     sitkMethods = {'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
                     'sitkHammingWindowedSinc', 'sitkCosineWindowedSinc', 'sitkWelchWindowedSinc',
@@ -121,10 +137,12 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
     img_from_sitk_3m = None
     if method in sitkMethods:
         # SimpleITK based interpolation
-        sitk_img = sitk.GetImageFromArray(np.moveaxis(img3M,[0,1,2],[2,1,0]))
+        # Flip along slices as CERR z slices increase from head to toe (opposite to DICOM)
+        sitk_img = sitk.GetImageFromArray(np.moveaxis(np.flip(img3M,axis=2),[0,1,2],[2,1,0]))
+        sitk_img.SetDirection((1,0,0,0,1,0,0,0,1))
         #img_from_sitk_3m = sitk.GetArrayFromImage(sitk_img)
         #img_from_sitk_3m = np.moveaxis(img_from_sitk_3m,[0,1,2],[2,1,0])
-        originV = xValsV[0],yValsV[-1],zValsV[-1]
+        originV = xValsV[0],-yValsV[0],-zValsV[-1]
         spacing_v = xValsV[1]-xValsV[0], yValsV[0]-yValsV[1], zValsV[1]-zValsV[0]
         sitk_img.SetOrigin(originV)
         sitk_img.SetSpacing(spacing_v)
@@ -133,9 +151,10 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
                              yResampleV[0]-yResampleV[1], \
                              zResampleV[1]-zResampleV[0]
         resample_img_size_v = len(yResampleV),len(xResampleV),len(zResampleV)
-        resample_orig_v = xResampleV[0],yResampleV[-1],zResampleV[-1]
+        resample_orig_v = xResampleV[0],-yResampleV[0],-zResampleV[-1]
         resample = sitk.ResampleImageFilter()
         resample.SetOutputSpacing(resample_img_spacing_v)
+        resample.SetOutputDirection((1,0,0,0,1,0,0,0,1))
         resample.SetSize(resample_img_size_v)
         resample.SetOutputDirection(sitk_img.GetDirection())
         resample.SetOutputOrigin(resample_orig_v)
@@ -150,6 +169,8 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
 
         img_from_sitk_3m = sitk.GetArrayFromImage(sitk_resamp_img)
         img_from_sitk_3m = np.moveaxis(img_from_sitk_3m,[0,1,2],[2,1,0])
+        # flip slices in CERR z-slice order which increases from head to toe
+        img_from_sitk_3m = np.flip(img_from_sitk_3m, axis=2)
 
     return img_from_sitk_3m
 
@@ -263,7 +284,13 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             paramS["settings"]['resample']['resolutionYCm'], \
             paramS["settings"]['resample']['resolutionYCm']
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
-        scanInterpMethod = 'sitkLinear' #whichFeatS.resample.interpMethod
+        scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod
+        if scanInterpMethod == "linear":
+            scanInterpMethod = 'sitkLinear'
+        if scanInterpMethod == "bspline":
+            scanInterpMethod = 'sitkBSpline'
+        if scanInterpMethod == "sinc":
+            scanInterpMethod = 'sitkLanczosWindowedSinc'
         grid_resample_method = 'center'
         maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
     else:
