@@ -9,23 +9,21 @@ It is recommended to install CERR in an isolated environment such as Anaconda or
 
 ## Install pyCERR
 
-1. Open Git Bash and run the following commands to clone CERR from github.
-````    
-cd C:\Users\username\software
-git clone https://github.com/cerr/pyCERR/pyCERR.git
-````    
-2. Launch Miniconda terminal, create a Conda environment with Python 3.8 and install CERR. Note that CERR requires Python version >= 3.8 to use Napari Viewer.
+Launch Miniconda terminal, create a Conda environment with Python 3.8 and install CERR. Note that CERR requires Python version >= 3.8 to use Napari Viewer.
 ````
 conda create -y --name testcerr python=3.8
 conda activate testcerr
-python -m pip install --upgrade pip
-pip install C:\Users\username\software\pycerr
-import sys
-sys.path.insert(0, r'C:\Users\username\software\pycerr')
+pip install git+https://github.com/cerr/pyCERR/
 ````    
-The above steps will install CERR under ...\envs\testcerr\Lib\site-packages. 
+The above steps will install CERR under testcerr/Lib/site-packages. 
 
-## Example scripts
+## Example Notebooks
+Example notebooks are hosted at https://github.com/cerr/pyCERR-Notebooks/ . Clone this repository to use notebooks as a starting point.
+````
+git clone https://github.com/cerr/pyCERR-Notebooks.git
+````
+
+## Example snippets
 
 Run python from the above Anaconda environment and try out the following code samples.
 
