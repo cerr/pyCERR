@@ -17,6 +17,11 @@ pip install git+https://github.com/cerr/pyCERR/
 ````    
 The above steps will install CERR under testcerr/Lib/site-packages. 
 
+Install Jupyter Lab or Notebook to try out example notebooks.
+````
+pip install jupyterlab
+````
+
 ## Example Notebooks
 Example notebooks are hosted at https://github.com/cerr/pyCERR-Notebooks/ . Clone this repository to use notebooks as a starting point.
 ````
