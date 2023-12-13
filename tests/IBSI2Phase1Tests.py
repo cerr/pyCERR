@@ -10,7 +10,7 @@ import os
 import numpy as np
 import scipy.io
 from cerr import plan_container
-from cerr.radiomics import preprocess, filters
+from cerr.radiomics import preprocess, textureFilters
 import matplotlib.pyplot as plt
 
 currPath = os.path.abspath(__file__)
@@ -83,13 +83,13 @@ def run_tests_phase1():
 
     # Path to settings file
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
 
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS, planC)
-    paddedResponseS = filters.processImage(filterTypes[0],procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0],procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['mean']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '1a1.mat'
@@ -99,12 +99,12 @@ def run_tests_phase1():
     print('Testing setting 1.a.2')
     config = '1a2'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS, planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['mean']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '1a2.mat'
@@ -114,12 +114,12 @@ def run_tests_phase1():
     print('Testing setting 1.a.3')
     config = '1a3'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['mean']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '1a3.mat'
@@ -129,12 +129,12 @@ def run_tests_phase1():
     print('Testing setting 1.a.4')
     config = '1a4'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['mean']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '1a4.mat'
@@ -146,12 +146,12 @@ def run_tests_phase1():
 
     config = '1b1'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['mean']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '1b1.mat'
@@ -165,12 +165,12 @@ def run_tests_phase1():
 
     config = '2a'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['LoG']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '2a.mat'
@@ -182,12 +182,12 @@ def run_tests_phase1():
 
     config = '2b'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['LoG']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '2b.mat'
@@ -197,12 +197,12 @@ def run_tests_phase1():
     print('Testing setting 2.c')
     config = '2c'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     paddedResponse3M = paddedResponseS['LoG']
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
     refMapName = '2c.mat'
@@ -216,12 +216,12 @@ def run_tests_phase1():
 
     config = '3a1'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -232,12 +232,12 @@ def run_tests_phase1():
     print('Testing setting 3.a.2')
     config = '3a2'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -248,12 +248,12 @@ def run_tests_phase1():
     print('Testing setting 3.a.3')
     config = '3a3'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -267,12 +267,12 @@ def run_tests_phase1():
 
     config = '3b1'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -283,12 +283,12 @@ def run_tests_phase1():
     print('Testing setting 3.b.2')
     config = '3b2'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -299,12 +299,12 @@ def run_tests_phase1():
     print('Testing setting 3.b.3')
     config = '3b3'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     lawsType = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[lawsType]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -319,12 +319,12 @@ def run_tests_phase1():
 
     config = '4a1'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     gaborKey = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[gaborKey]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -335,12 +335,12 @@ def run_tests_phase1():
     print('Testing setting 4.a.2')
     config = '4a2'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     gaborKey = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[gaborKey]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -354,12 +354,12 @@ def run_tests_phase1():
 
     config = '4b1'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     gaborKey = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[gaborKey]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
@@ -370,12 +370,12 @@ def run_tests_phase1():
     print('Testing setting 4.b.2')
     config = '4b2'
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    paramS, filterTypes = filters.loadSettingsFromFile(settingsFile, scanNum, planC)
+    paramS, filterTypes = textureFilters.loadSettingsFromFile(settingsFile, scanNum, planC)
     filterParamS = paramS['imageType'][filterTypes[0]]
     paddingS = paramS['settings']['padding'][0]
 
     procScan3M, procMask3M, __, __, __ = preprocess.preProcessForRadiomics(scanNum, mask3M, paramS,planC)
-    paddedResponseS = filters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
+    paddedResponseS = textureFilters.processImage(filterTypes[0], procScan3M, procMask3M, filterParamS)
     gaborKey = list(paddedResponseS.keys())[0]
     paddedResponse3M = paddedResponseS[gaborKey]
     responseMap3M = preprocess.unpadScan(paddedResponse3M, paddingS['method'], paddingS['size'])
