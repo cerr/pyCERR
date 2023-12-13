@@ -1,18 +1,154 @@
 """
- This module contains definitions of image texture filters. These include: "meanFilter", "sobelFilter",
- "LoGFilter", "gaborFilter", "gaborFilter3d", "lawsFilter", "lawsEnergyFilter",
- "rotationInvariantLawsFilter", "rotationInvariantLawsEnergyFilter"
+ This module contains definitions of image texture filters and a wrapper function to apply any of them.
+ Supported filters include: "mean", "sobel", "LoG", "gabor", "gabor3d", "laws", "lawsEnergy"
+ "rotationInvariantLaws", "rotationInvariantLawsEnergy"
 """
-
-import numpy as np
+import json
 import pywt
+import numpy as np
 from scipy.signal import convolve2d
 from scipy.signal import convolve
 from scipy.ndimage import rotate
-# from scipy.sparse import coo_matrix
-
 from cerr.radiomics.preprocess import padScan
 
+
+def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
+    """ Load filter parameters from user-input JSON file"""
+
+    # Read settings
+    with open(settingsFile) as json_file:
+        paramS = json.load(json_file)
+
+    # Copy voxel dimensions and padding settings to filter parameter dictionary
+    filterTypes = list(paramS['imageType'].keys())
+    if scanNum is not None:
+        voxelSizemmV = planC.scan[scanNum].getScanSpacing() * 10
+        for n in range(len(filterTypes)):
+            paramS['imageType'][filterTypes[n]]['VoxelSize_mm'] = voxelSizemmV
+            if 'padding'in paramS['settings'].keys():
+                paramS['imageType'][filterTypes[n]]['padding'] = paramS['settings']['padding'][0]
+
+    return paramS, filterTypes
+
+
+def processImage(filterType, scan3M, mask3M, paramS):
+    """
+    Process scan using selected filter and parameters
+
+    filterType : Name of supported filter
+    scan3M     : 3D scan array
+    mask3M     : 3D mask
+    paramS     : Dictionary of parameters (read from JSON)
+    """
+
+    filterType = filterType.strip().lower()
+    scan3M = scan3M.astype(float)
+    outS = dict()
+
+    if filterType == 'mean':
+
+        absFlag=False
+        kernelSize = np.array(paramS['KernelSize'])
+        if 'Absolute' in paramS.keys():
+            absFlag = paramS['Absolute'].lower()=='yes'
+        mean3M = meanFilter(scan3M, kernelSize, absFlag)
+        outS['mean'] = mean3M
+
+    elif filterType == 'sobel':
+
+        mag3M, dir3M = sobelFilt(scan3M)
+        outS['SobelMag'] = mag3M
+        outS['SobelDir'] = dir3M
+
+    elif filterType == 'log':
+
+        sigmaV = paramS['Sigma_mm']
+        cutOffV = np.array(paramS['CutOff_mm'])
+        voxelSizeV = np.array(paramS['VoxelSize_mm'])
+        LoG3M = LoGFilter(scan3M, sigmaV, cutOffV, voxelSizeV)
+        outS['LoG'] = LoG3M
+
+    elif filterType in ['gabor','gabor3d']:
+
+        voxelSizV = np.array(paramS['VoxelSize_mm'])
+        sigma = paramS['Sigma_mm']/voxelSizV[0]
+        wavelength = paramS['Wavlength_mm']/voxelSizV[0]
+        thetaV = np.array(paramS['Orientation'])
+        gamma = paramS['SpatialAspectRatio']
+        radius = None
+        paddingV = None
+
+        if 'radius' in paramS.keys():
+            radius = paramS['radius']
+        if 'padding' in paramS.keys():
+            paddingV = paramS['padding']['size']
+
+        if filterType ==  'gabor':
+            if 'OrientationAggregation' in paramS.keys():
+                aggS ={'OrientationAggregation': paramS['OrientationAggregation']}
+                outS, __  = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+            else:
+                outS, __  = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius, paddingV)
+        elif filterType == 'gabor3d':
+            aggS = {'PlaneAggregation': paramS['PlaneAggregation']}
+            if 'OrientationAggregation' in paramS.keys():
+                aggS['OrientationAggregation'] = paramS['OrientationAggregation']
+            outS, __ = gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+
+    elif filterType in ['laws','rotationinvariantlaws']:
+
+        voxelSizV = np.array(paramS['VoxelSize_mm'])
+        direction = paramS['Direction']
+        type = paramS['Type']
+        normFlag = 0
+        if 'Normalize' in paramS.keys():
+            normFlag = paramS['Normalize']
+        if filterType == 'laws':
+            outS = lawsFilter(scan3M, direction, type, normFlag)
+        elif filterType == 'rotationinvariantlaws':
+            rotS = paramS['RotationInvariance']
+            out3M = rotationInvariantLawsFilter(scan3M, direction, type, normFlag, rotS)
+            outS[type] = out3M
+
+    elif filterType in ['lawsenergy','rotationinvariantlawsenergy']:
+
+        direction = paramS['Direction']
+        type = paramS['Type']
+        normFlag = 0
+        lawsPadSizeV = np.array([0,0,0])
+        energyKernelSizeV = paramS['EnergyKernelSize']
+        energyPadSizeV = paramS['EnergyPadSize']
+        energyPadMethod = paramS['EnergyPadMethod']
+        if 'Normalize' in paramS.keys():
+            normFlag = paramS['Normalize']
+        if 'padding' in paramS.keys():
+            lawsPadSizeV = paramS['padding']['size']
+        if filterType == 'lawsenergy':
+            outS = lawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
+                                    energyKernelSizeV, energyPadSizeV, energyPadMethod)
+        elif filterType == 'rotationinvariantlawsenergy':
+            rotS = paramS['RotationInvariance']
+            out3M = rotationInvariantLawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
+                                                      energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS)
+            outS[type+'_Energy'] = out3M
+
+    elif filterType in ['wavelets', 'rotationinvariantwavelets']:
+
+        waveType = paramS['Wavelets']
+        direction = paramS['Direction']
+        level = 1 #Default
+        if 'level' in paramS.keys():
+            level = paramS['Level']
+        if 'Index' in paramS and paramS['Index'] is not None:
+            waveType += str(paramS['Index'])
+        if filterType == 'rotationInvariantLawsEnergyFilter':
+            outS = waveletFilter(scan3M, waveType, direction, level)
+        #elif filterType == 'rotationInvariantWavelets':
+
+    else:
+        raise Exception('Unknown filter name ' + filterType)
+
+    return outS
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
     """meanFilter
@@ -65,7 +201,7 @@ def sobelFilter(scan3M):
     return outMag3M, outDiR3M
 
 
-def LoGFilter(scan3M, sigmaV, cutoffV, pixelSizeV):
+def LoGFilter(scan3M, sigmaV, cutoffV, voxelSizeV):
     """LoGFilter
     Returns IBSI-compatible Laplacian of Gaussian filter response
 
@@ -73,13 +209,13 @@ def LoGFilter(scan3M, sigmaV, cutoffV, pixelSizeV):
     sigmaV      : 1-D numpy array of Gaussian smoothing widths
                   [sigmaRows,sigmaCols,sigmaSlc] in mm.
     cutoffV     : 1-D numpy array of filter cutoffs [cutOffRow, cutOffCol cutOffSlc] in mm. Filter size = 2.*cutoffV+1
-    pixelSizeV : 1-D numpy array [dx, dy, dz] of scan voxel dimensions in mm.
+    voxelSizeV  : 1-D numpy array [dx, dy, dz] of scan voxel dimensions in mm.
     """
 
     # Convert from physical to voxel units
     nDims = len(cutoffV)  # Determnines if 2d or 3d
-    cutoffV = np.round(cutoffV / pixelSizeV[:nDims]).astype(int)
-    sigmaV = sigmaV / pixelSizeV[:nDims]
+    cutoffV = np.round(cutoffV / voxelSizeV[:nDims]).astype(int)
+    sigmaV = sigmaV / voxelSizeV[:nDims]
     filtSizeV = np.floor(2 * cutoffV + 1).astype(int)
 
     if len(sigmaV) == 3:  # 3D filter
@@ -124,8 +260,7 @@ def LoGFilter(scan3M, sigmaV, cutoffV, pixelSizeV):
 
     return out3M
 
-
-def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius=None, paddingV=None):
+def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None, paddingV=None):
     """gaborFilter
     Returns 2D Gabor filter response (IBSI-compatible)
 
@@ -135,19 +270,20 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius=None, paddingV=
     gamma       : Spatial aspect ratio
     thetaV     : Vector of orientations (degrees)
     --- Optional---
+    aggS        : Parameter dictionary for averaging responses across orientations
     radius      : Kernel radius in voxels [nRows nCols]
-    paddingV     : Amount of paddingV applied to scan3M in voxels [nRows nCols]
+    paddingV    : Amount of paddingV applied to scan3M in voxels [nRows nCols]
     """
 
     # Convert input orientation(s) to list
-    if type(thetaV) is not list and type(thetaV) is not np.ndarray:
-        thetaV = [thetaV]
+    if thetaV.ndim == 0:
+        thetaV = (thetaV,)
 
     # Check for user-input radius
     scanSizeV = np.shape(scan3M)
     if radius is None:
         # Otherwise, use default suggestion (IBSI)
-        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 * paddingV[:2]
+        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 * np.array(paddingV[:2])
         evenIdxV = inPlaneSizeV % 2 == 0
         inPlaneSizeV[evenIdxV] = inPlaneSizeV[evenIdxV] + 1
         radius = np.floor(inPlaneSizeV / 2)
@@ -161,7 +297,7 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius=None, paddingV=
     x, y = np.meshgrid(np.arange(-radius[1], radius[1] + 1), np.arange(-radius[0], radius[0] + 1))
 
     # Loop over input orientations
-    outTheta = dict()
+    outS = dict()
     gaborEvenFilters = dict()
     gaborOddFilters = dict()
     for theta in thetaV:
@@ -183,39 +319,56 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius=None, paddingV=
             # Return modulus
             out3M[:, :, slcNum] = np.abs(outM)
         fieldName = f'gabor_{str(theta)}'
-        outTheta[fieldName] = out3M
+        outS[fieldName] = out3M
         gaborEvenFilters[fieldName] = hGaborEven
         gaborOddFilters[fieldName] = hGaborOdd
 
+    # Aggregate responses across orientations
+    gaborThetas = dict()
+    if len(thetaV) > 1:
+        if 'OrientationAggregation' in aggS:
+            gaborThetas4M = [filt_response3M for theta, filt_response3M in outS.items()]
+            aggMethod = aggS['OrientationAggregation']
+            if aggMethod == 'average':
+                gaborAggThetaS3M = np.mean(gaborThetas4M, axis=0)
+            elif aggMethod == 'max':
+                gaborAggThetaS3M = np.max(gaborThetas4M, axis=0)
+            elif aggMethod == 'std':
+                gaborAggThetaS3M = np.std(gaborThetas4M, axis=0)
+
+            angleStr = '_'.join(map(lambda x: str(x).replace('.', 'p').replace('-', 'M'), thetaV))
+            fieldName = f'gabor_{angleStr}_{aggMethod}'
+            # if len(fieldName) > 39:
+            #    fieldName = fieldName[:39]
+            gaborThetas[fieldName] = gaborAggThetaS3M
+            fieldName = [fieldName]
+    else:
+        gaborThetas = outS
+
     # Return results as n-d arrays/dicts for single/multiple input orientations
     hGabor = dict()
-    if len(thetaV) == 1:
-        fieldName = f'gabor_{str(thetaV[0])}'
-        out_s = outTheta[fieldName]
-        hGabor['even'] = gaborEvenFilters
-        hGabor['odd'] = gaborOddFilters
-    else:
-        out_s = outTheta
-        hGabor['even'] = gaborEvenFilters
-        hGabor['odd'] = gaborOddFilters
+    hGabor['even'] = gaborEvenFilters
+    hGabor['odd'] = gaborOddFilters
 
-    return out_s, hGabor
+    return gaborThetas, hGabor
 
-
-def gaborFilter3d(scan3M, agg, sigma, wavelength, gamma, thetaV, radius=None, paddingV=None):
+def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, paddingV=None):
     """gaborFilter3d
     Returns Gabor filter responses aggregated across the 3 orthogonal planes (IBSI-compatible)
 
     scan3M     : 3D scan (numpy) array
-    agg       : Dictionary with fields 'orientation', 'plane'. Each may have value ''
-    sigma       : Std. dev. of Gaussian envelope (no. voxels)
-    lambda      : Wavelength (no. voxels)
-    gamma       : Spatial aspect ratio
+    sigma      : Std. dev. of Gaussian envelope (no. voxels)
+    lambda     : Wavelength (no. voxels)
+    gamma      : Spatial aspect ratio
     thetaV     : List of orientations (degrees)
+    aggS       : Parameter dictionary for aggregation of responses across orientations and/or planes.
     --- Optional---
     radius      : Kernel radius in voxels [nRows nCols]
     paddingV     : Amount of paddingV applied to scan3M in voxels [nRows nCols]
     """
+
+    if thetaV.ndim == 0:
+        thetaV = (thetaV,)
 
     # Loop over image planes
     planes = ['axial', 'sagittal', 'coronal']
@@ -226,11 +379,12 @@ def gaborFilter3d(scan3M, agg, sigma, wavelength, gamma, thetaV, radius=None, pa
     scanSizeV = np.shape(scan3M)
     if radius is None:
         # Otherwise, use default suggestion (IBSI)
-        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 * paddingV[:2]
+        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 *np.array(paddingV[:2])
         evenIdxV = inPlaneSizeV % 2 == 0
         inPlaneSizeV[evenIdxV] = inPlaneSizeV[evenIdxV] + 1
         radius = np.floor(inPlaneSizeV / 2)
 
+    gaborThetaPlanes = dict()
     for nPlane in range(len(planes)):
         plane = planes[nPlane].lower()
         # Flip scan
@@ -242,83 +396,57 @@ def gaborFilter3d(scan3M, agg, sigma, wavelength, gamma, thetaV, radius=None, pa
             scan3M = np.transpose(scan3M, (2, 1, 0))
 
         # Apply filter
-        gabor, hGabor = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius, paddingV)
-
-        # Aggregate results from different orientations
-        if len(thetaV) > 1:
-            if 'orientation' in agg:
-                gaborThetas4M = [filt_response3M for theta, filt_response3M in gabor.items()]
-                aggMethod = agg['orientation']
-                if aggMethod == 'average':
-                    gaborAggThetaS3M = np.mean(gaborThetas4M, axis=0)
-                elif aggMethod == 'max':
-                    gaborAggThetaS3M = np.max(gaborThetas4M, axis=0)
-                elif aggMethod == 'std':
-                    gaborAggThetaS3M = np.std(gaborThetas4M, axis=0)
-
-                angleStr = '_'.join(map(lambda x: str(x).replace('.', 'p').replace('-', 'M'), thetaV))
-                fieldName = f'gabor_{plane}_{angleStr}_{aggMethod}'
-                # if len(fieldName) > 39:
-                #    fieldName = fieldName[:39]
-                gaborThetas[fieldName] = gaborAggThetaS3M
-                fieldName = [fieldName]
-            else:
-                fieldName = {}
-                for theta in thetaV:
-                    currFieldName = [f'gabor_{str(theta)}']
-                    gaborThetas[currFieldName] = gabor[theta]
-                    fieldName = [fieldName, currFieldName]
-        else:
-            gaborThetas = gabor
+        gaborThetas, hGabor = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+        for fieldName in gaborThetas.keys():
+            gaborThetaPlanes[(plane+'_') + fieldName] = gaborThetas[fieldName]
 
         # Re-orient results for cross-plane aggregation
-        if 'plane' in agg:
-            for idx in range(len(fieldName)):
-                gabor_plane3M = gaborThetas[fieldName[idx]]
-                if plane == 'axial':
-                    # do nothing
-                    pass
-                elif plane == 'sagittal':
-                    gabor_plane3M = np.transpose(gabor_plane3M, (1, 2, 0))
-                    scan3M = np.transpose(scan3M, (1, 2, 0))
-                elif plane == 'coronal':
-                    gabor_plane3M = np.transpose(gabor_plane3M, (2, 1, 0))
-                    scan3M = np.transpose(scan3M, (2, 1, 0))
+        for fieldName in gaborThetaPlanes.keys():
+            gabor_plane3M = gaborThetaPlanes[fieldName]
+            if plane == 'axial':
+                # do nothing
+                pass
+            elif plane == 'sagittal':
+                gabor_plane3M = np.transpose(gabor_plane3M, (1, 2, 0))
+                scan3M = np.transpose(scan3M, (1, 2, 0))
+            elif plane == 'coronal':
+                gabor_plane3M = np.transpose(gabor_plane3M, (2, 1, 0))
+                scan3M = np.transpose(scan3M, (2, 1, 0))
 
-            gaborThetas[fieldName[idx]] = gabor_plane3M
-            hGaborPlane[plane] = hGabor
+        gaborThetaPlanes[fieldName] = gabor_plane3M
+        hGaborPlane[plane] = hGabor
 
     # Gather results from common settings
-    settings = list(gaborThetas.keys())
+    settings = list(gaborThetaPlanes.keys())
     commonSettings = [val.replace('axial_', '').replace('sagittal_', '').replace('coronal_', '') for val in settings]
     uqSettings = np.unique(commonSettings)
 
     # Aggregate results across orthogonal planes
     aggMethod = None
     gaborOut = dict()
-    if 'plane' in agg:
-        aggMethod = agg['plane']
+    if 'PlaneAggregation' in aggS:
+        aggMethod = aggS['PlaneAggregation']
 
         for key in range(len(uqSettings)):
             matchIdxV = [idx for idx, val in enumerate(commonSettings) if val == uqSettings[key]]
             matchFields = [settings[match_idx] for match_idx in matchIdxV]
             if type(matchFields) is not list:
                 matchFields = [matchFields]
-            gaborPlanes4M = getMatchFields(gaborThetas, *matchFields)
+            gaborPlanes4M = getMatchFields(gaborThetaPlanes, *matchFields)
 
             if aggMethod == 'average':
-                gaboR3M = np.mean(gaborPlanes4M, axis=0)
+                gabor3M = np.mean(gaborPlanes4M, axis=0)
             elif aggMethod == 'max':
-                gaboR3M = np.max(gaborPlanes4M, axis=0)
+                gabor3M = np.max(gaborPlanes4M, axis=0)
             elif aggMethod == 'std':
-                gaboR3M = np.std(gaborPlanes4M, axis=0)
+                gabor3M = np.std(gaborPlanes4M, axis=0)
 
         if len(uqSettings) > 1:
             planesStr = '_'.join(planes)
             fieldName = f'{uqSettings[key]}_{planesStr}_{aggMethod}'
-            gaborOut[fieldName] = gaboR3M
+            gaborOut[fieldName] = gabor3M
         else:
-            gaborOut = gaboR3M
+            gaborOut[uqSettings[key]] = gabor3M
     else:
         gaborOut = gaborThetas
 
@@ -616,7 +744,7 @@ def lawsFilter(scan3M, direction, filterDim, normFlag):
 
 
 def energyFilter(tex3M, texPadSizeV, energyKernelSizeV, energyPadSizeV, energyPadMethod):
-    """lawsEnergyFilter
+    """energyFilter
     Returns local mean of absolute values
 
     tex3M              : Response map
@@ -682,7 +810,7 @@ def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
     # Compute Laws filter(s) reponse(s)
     lawMaps = lawsFilter(scan3M, direction, filterDim, normFlag)
 
-    out_s = dict()
+    outS = dict()
     # Loop over response maps
     for type in lawMaps.keys():
         # Compute energy
@@ -693,24 +821,24 @@ def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
                                        energyPadMethod)
 
     out_field = f"{type}_energy"
-    out_s[out_field] = lawsEnergyPad3M
+    outS[out_field] = lawsEnergyPad3M
 
-    return out_s
+    return outS
 
 
-def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rot_s):
+def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS):
     filter = {"lawsFilter": lawsFilter}
     mask3M = np.array([])
-    response = rotationInvariantFilt(scan3M, [], filter, direction, filterDim, normFlag, rot_s)
+    response = rotationInvariantFilt(scan3M, [], filter, direction, filterDim, normFlag, rotS)
     out3M = response[filterDim]
 
     return out3M
 
 
 def rotationInvariantLawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
-                                      energyKernelSizeV, energyPadSizeV, energyPadMethod, rot_s):
+                                      energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS):
     # Compute rotation-invariant Laws response map
-    lawsAggTex3m = rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rot_s)
+    lawsAggTex3m = rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS)
     origSizeV = lawsAggTex3m.shape
 
     # Compute energy on aggregated response
@@ -792,6 +920,61 @@ def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
 
     return subbands
 
+def waveletFilter(vol3M, waveType, direction, level):
+
+    if len(direction) == 3:
+        dim = '3d'
+    elif len(direction) == 2:
+        dim = '2d'
+
+    if dim == '3d':
+        dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
+    elif dim == '2d':
+        dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
+
+    outS = dict()
+    if direction == 'All':
+        for n in range(1, len(dir_list)):
+
+            out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
+            subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+
+            if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+                perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
+                match_dir = f"{perm_dir_list[0]}_{waveType}"
+                out3M = subbandsS[match_dir]
+
+                for perm_dir in perm_dir_list[1:]:
+                    match_dir = f"{perm_dir}_{waveType}"
+                    out3M += subbandsS[match_dir]
+
+                out3M /= len(perm_dir_list)
+            else:
+                match_dir = f"{dir_list[n]}_{waveType}"
+                out3M = subbandsS[match_dir]
+
+            outS[out_name] = out3M
+
+    else:
+        out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
+        subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+
+        if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+            perm_dir_list = [''.join(p) for p in permutations(direction)]
+            match_dir = f"{perm_dir_list[0]}_{waveType}"
+            out3M = subbandsS[match_dir]
+
+            for perm_dir in perm_dir_list[1:]:
+                match_dir = f"{perm_dir}_{waveType}"
+                out3M += subbandsS[match_dir]
+
+            out3M /= len(perm_dir_list)
+        else:
+            match_dir = f"{direction}_{waveType}"
+            out3M = subbandsS[match_dir]
+        outS[out_name] = out3M
+
+    return outS
 
 ### Functions for rotation-invariant filtering and pooling
 
@@ -886,8 +1069,8 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
 
     # Parameters for rotation invariance
     rot = params[-1]
-    aggregationMethod = rot['aggregationMethod']
-    dim = rot['dim']
+    aggregationMethod = rot['AggregationMethod']
+    dim = rot['Dim']
     if waveletFlag:
         numRotations = 4 if dim.lower() == '2d' else 8
     else:
@@ -954,12 +1137,12 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
 
     # Aggregate responses across orientations
     if isinstance(rotTextureTypes[0], dict):
-        agg = dict()
+        aggS = dict()
         for type in rotTextureTypes[0].keys():
             rotTextureType = [rotTextures[type] for rotTextures in rotTextureTypes]
             agg3M = aggregateRotatedResponses(rotTextureType, aggregationMethod)
-        agg[key] = agg3M
+        aggS[key] = agg3M
     else:
-        agg = aggregateRotatedResponses(rotTextureTypes, aggregationMethod)
+        aggS = aggregateRotatedResponses(rotTextureTypes, aggregationMethod)
 
-    return agg
+    return aggS
