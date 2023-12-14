@@ -162,8 +162,8 @@ class Scan:
         # the 1st slice according to DICOM convention.
         cerrDcmSliceDirMatch = self.isCerrSliceOrderMatchDcm()
         if cerrDcmSliceDirMatch:
-            info1 = self.scanInfo[1]
-            info2 = self.scanInfo[2]
+            info1 = self.scanInfo[0]
+            info2 = self.scanInfo[1]
         else:
             info1 = self.scanInfo[-1]
             info2 = self.scanInfo[-2]
