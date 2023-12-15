@@ -72,8 +72,8 @@ class Structure:
         # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
         mask3M = np.moveaxis(mask3M,[0,1],[1,0])
         #mask3M = np.flip(mask3M,axis=[0,1])
-        if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
-            mask3M = np.flip(mask3M,axis=2)
+        #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+        mask3M = np.flip(mask3M,axis=2)
         str_img = nib.Nifti1Image(mask3M.astype('uint16'), affine3M)
         nib.save(str_img, niiFileName)
 

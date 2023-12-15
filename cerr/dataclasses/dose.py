@@ -162,9 +162,13 @@ class Dose:
         scan_image_coords = np.matmul(position_matrix_inv, dose_dcm_phys_coords)
         scan_phys_coords = np.matmul(im_to_virtual_phys_transM, scan_image_coords)
         self.zValues = scan_phys_coords[2,:]
-        xV,yV,zV = planC.scan[assoc_scan_num].getScanXYZVals()
-        self.cerrDcmSliceDirMatch = np.sign(self.zValues[-1] - self.zValues[0]) == np.sign(zV[-1]-zV[0])
-        if not self.cerrDcmSliceDirMatch:
+        #xV,yV,zV = planC.scan[assoc_scan_num].getScanXYZVals()
+        #self.cerrDcmSliceDirMatch = np.sign(self.zValues[-1] - self.zValues[0]) == np.sign(zV[-1]-zV[0])
+        #if not self.cerrDcmSliceDirMatch:
+        # Order doseArray in decreasing order of iP . imgOri
+        self.cerrDcmSliceDirMatch = True
+        if self.zValues[1] < self.zValues[0]:
+            self.cerrDcmSliceDirMatch = False
             self.doseArray = np.flip(self.doseArray,axis=2)
             self.zValues = np.flip(self.zValues,axis=0)
         return self
@@ -228,16 +232,16 @@ def load_dose(file_list):
             gridFrameOffVec = ds.GridFrameOffsetVector
             img_ori = np.array(ds.ImageOrientationPatient)
             img_ori = img_ori.reshape(6,1)
-            ipp = np.array(ds.ImagePositionPatient) / 10
+            ipp = np.array(ds.ImagePositionPatient)
             slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
                            - img_ori[[2,0,1]] * img_ori[[4,5,3]]
             if gridFrameOffVec[0] == 0:
                 doseZstart = np.sum(slice_normal * ipp)
-                doseZValuesV = doseZstart + gridFrameOffVec
+                doseZValuesV = (doseZstart + gridFrameOffVec)
             else:
                 doseZValuesV = gridFrameOffVec # as per DICOM documentation, this case is valid only for HFS [1,0,0,0,1,0]
             doseZValuesV = doseZValuesV / 10
-            dose_meta.zValues = doseZValuesV
+            dose_meta.zValues = -doseZValuesV
 
             # build image to physical units transformation matrix for dose
 

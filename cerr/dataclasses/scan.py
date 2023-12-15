@@ -33,7 +33,6 @@ class Scan:
     Image2PhysicalTransM: np.ndarray = field(default_factory=get_empty_np_array)
     Image2VirtualPhysicalTransM: np.ndarray = field(default_factory=get_empty_np_array)
     cerrToDcmTransM:  np.ndarray = field(default_factory=get_empty_np_array)
-    cerrDcmSliceDirMatch: bool = False
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -64,16 +63,15 @@ class Scan:
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
-        if not self.cerrDcmSliceDirMatch:
-            scan3M = np.flip(scan3M,axis=2)
+        scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
         img = nib.Nifti1Image(scan3M, affine3M)
         success = nib.save(img, niiFileName)
         return success
 
     def getSitkImage(self):
         sitkArray = np.moveaxis(self.getScanArray(),[0,1,2],[1,2,0])
-        if not self.cerrDcmSliceDirMatch:
-            sitkArray = np.flip(sitkArray, axis = 0)
+        # CERR slice ordering is opposite of DICOM
+        sitkArray = np.flip(sitkArray, axis = 0)
         originXyz = list(np.matmul(self.Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
         xV, yV, zV = self.getScanXYZVals()
         dx = np.abs(xV[1] - xV[0])
@@ -122,29 +120,13 @@ class Scan:
         spacing_v = np.array([dx, dy, dz])
         return spacing_v
 
-    def isCerrSliceOrderMatchDcm(self):
-        img_ori = self.scanInfo[0].imageOrientationPatient
-        img_ori = img_ori.reshape(6,1)
-        slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
-                       - img_ori[[2,0,1]] * img_ori[[4,5,3]]
-        lastCerrZ = self.scanInfo[-1].zValue
-        firstCerrZ = self.scanInfo[0].zValue
-        ippFirst = self.scanInfo[0].imagePositionPatient
-        ippLast = self.scanInfo[-1].imagePositionPatient
-        ippDistFirstSlc = np.sum(slice_normal * ippFirst.reshape(slice_normal.shape))
-        ippDistLastSlc = np.sum(slice_normal * ippLast.reshape(slice_normal.shape))
-        #cerrDcmSliceDirMatch = np.sign(ippDistLastSlc - ippDistFirstSlc) == np.sign(lastCerrZ - firstCerrZ)
-        cerrDcmSliceDirMatch = ippDistLastSlc > ippDistFirstSlc
-        self.cerrDcmSliceDirMatch = cerrDcmSliceDirMatch
-        return cerrDcmSliceDirMatch
-
     def convertDcmToCerrVirtualCoords(self):
 
         # Compute slice normal
         img_ori = self.scanInfo[0].imageOrientationPatient
         img_ori = img_ori.reshape(6,1)
-        slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
-                       - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+        # slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+        #                - img_ori[[2,0,1]] * img_ori[[4,5,3]]
 
         # # Calculate the distance of ‘ImagePositionPatient’ along the slice direction cosine
         # numSlcs = len(self.scanInfo)
@@ -154,20 +136,14 @@ class Scan:
         #     distV[slcNum] = np.sum(slice_normal * ipp.reshape(slice_normal.shape))
 
         # Construct DICOM Affine transformation matrix
-        # CERR scanArray and scanInfo are sorted in reverse direction of imagePositionPatient
-        # along imageOrieintationPatient. This results in order of CERR scanArray slices to match
-        # DICOM slice direction for orientations such as HFP and opposite to DICOM slice direction
-        # for orientations such as HFS. To construct DICOM affine transformation matrix it is
-        # necessary to figure out whether CERR slice direction matches DICOM to get the position of
-        # the 1st slice according to DICOM convention.
-        cerrDcmSliceDirMatch = self.isCerrSliceOrderMatchDcm()
-        if cerrDcmSliceDirMatch:
-            info1 = self.scanInfo[0]
-            info2 = self.scanInfo[1]
-        else:
-            info1 = self.scanInfo[-1]
-            info2 = self.scanInfo[-2]
-
+        # To construct DICOM affine transformation matrix it is necessary to figure out
+        # whether CERR slice direction matches DICOM to get the position of the 1st slice
+        # according to DICOM convention. Since slices are sorted according to decreasing order of
+        # dot product between ImagePositionPatient and ImageOrientationPatient, CERR scanArray
+        # and scanInfo are sorted in reverse direction of DICOM convention. i.e. the 1st slice in DICOM
+        # will correspond to the last slice in scanArray and the last element in scanInfo.
+        info1 = self.scanInfo[-1]
+        info2 = self.scanInfo[-2]
         pos1V = info1.imagePositionPatient / 10  # cm
         pos2V = info2.imagePositionPatient / 10  # cm
         deltaPosV = pos2V - pos1V
@@ -200,10 +176,8 @@ class Scan:
         dy = ys[1] - ys[0]
         slice_distance = zs[1] - zs[0]
         # Transformation for DICOM Image to CERR physical coordinates
-        if cerrDcmSliceDirMatch:  # DICOM 1st slice is CERR's 1st slice (i.e. zs[0])
-            virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, slice_distance, zs[0]], [0, 0, 0, 1]])
-        else: # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
-            virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
+        # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
+        virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
         self.Image2VirtualPhysicalTransM = virPosMtx
 
         # Construct transformation matrix to convert cerr-xyz to dicom-xyz
@@ -556,10 +530,7 @@ def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     scan_info = [] #scn_info.ScanInfo()
     siz = scan3M.shape
     # Get DICOM ImagePositionPatient i.e. x,y,z of 1at voxel
-    if planC.scan[assocScanNum].cerrDcmSliceDirMatch:
-        cerrImgPatPos = [xV[0], yV[0], zV[0]]
-    else:
-        cerrImgPatPos = [xV[0], yV[0], zV[-1]]
+    cerrImgPatPos = [xV[0], yV[0], zV[-1]]
     dcmImgPos = planC.scan[0].cerrToDcmTransM * cerrImgPatPos
     forUID = planC.scan[assocScanNum].scanInfo[0].frameOfReferenceUID
     dcmImgOri = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
@@ -591,7 +562,6 @@ def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     scan.scanInfo = scan_info
     scan.scanArray = scan3M
     scan.scanUID = "CT." + seriesInstanceUID
-    scan.cerrDcmSliceDirMatch = planC.scan[assocScanNum].cerrDcmSliceDirMatch
     scan.Image2PhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
     scan.Image2VirtualPhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
     scan.cerrToDcmTransM = [] # assign transformation matrix based on imgOri, imgPatPos
