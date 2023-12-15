@@ -59,10 +59,9 @@ class Scan:
         affine3M[2,:] = affine3M[2,:] * 10 # cm to mm
         return affine3M
 
-
     def save_nii(self, niiFileName):
         affine3M = self.get_nii_affine()
-        scan3M = self.scanArray - self.scanInfo[0].CTOffset
+        scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
         if not self.cerrDcmSliceDirMatch:
@@ -131,10 +130,11 @@ class Scan:
         lastCerrZ = self.scanInfo[-1].zValue
         firstCerrZ = self.scanInfo[0].zValue
         ippFirst = self.scanInfo[0].imagePositionPatient
-        ippLast = self.scanInfo[0].imagePositionPatient
+        ippLast = self.scanInfo[-1].imagePositionPatient
         ippDistFirstSlc = np.sum(slice_normal * ippFirst.reshape(slice_normal.shape))
         ippDistLastSlc = np.sum(slice_normal * ippLast.reshape(slice_normal.shape))
-        cerrDcmSliceDirMatch = np.sign(ippDistLastSlc - ippDistFirstSlc) == np.sign(lastCerrZ - firstCerrZ)
+        #cerrDcmSliceDirMatch = np.sign(ippDistLastSlc - ippDistFirstSlc) == np.sign(lastCerrZ - firstCerrZ)
+        cerrDcmSliceDirMatch = ippDistLastSlc > ippDistFirstSlc
         self.cerrDcmSliceDirMatch = cerrDcmSliceDirMatch
         return cerrDcmSliceDirMatch
 
@@ -173,6 +173,7 @@ class Scan:
         deltaPosV = pos2V - pos1V
         pixelSpacing = [info1.grid2Units, info1.grid1Units]
 
+        # Transformation for DICOM Image to DICOM physical coordinates
         # Pt coordinate to DICOM image coordinate mapping
         # Based on ref: https://nipy.org/nibabel/dicom/dicom_orientation.html
         position_matrix = np.hstack((np.matmul(img_ori.reshape(3, 2,order="F"),np.diag(pixelSpacing)),
@@ -197,11 +198,11 @@ class Scan:
         xs, ys, zs = self.getScanXYZVals()
         dx = xs[1] - xs[0]
         dy = ys[1] - ys[0]
-        if cerrDcmSliceDirMatch:
-            slice_distance = (info2.zValue - info1.zValue) # 2nd - 1st
+        slice_distance = zs[1] - zs[0]
+        # Transformation for DICOM Image to CERR physical coordinates
+        if cerrDcmSliceDirMatch:  # DICOM 1st slice is CERR's 1st slice (i.e. zs[0])
             virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, slice_distance, zs[0]], [0, 0, 0, 1]])
-        else: # Apply reflection transform along slices
-            slice_distance = (info1.zValue - info2.zValue) # last - secondFromLast
+        else: # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
             virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
         self.Image2VirtualPhysicalTransM = virPosMtx
 
