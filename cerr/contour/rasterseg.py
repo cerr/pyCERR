@@ -271,7 +271,7 @@ def generate_rastersegs(strObj, planC):
             zValue = ptsM[0, 2]
             maskM = poly_fill(rowV,colV,num_rows,num_cols)
             if (ptsM.shape[0] == 1) or \
-                (ptsM.shape[0] == 2 and np.equal(ptsM[0,:], ptsM[1,:])):
+                (ptsM.shape[0] == 2 and np.all(np.equal(ptsM[0,:], ptsM[1,:]))):
                 maskM[int(np.round(rowV[0])), int(np.round(colV[0]))] = 1
             mask3M[:,:,seg_num] = maskM
         maskM = np.sum(mask3M,2) == 1
