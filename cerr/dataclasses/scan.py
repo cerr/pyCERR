@@ -63,7 +63,12 @@ class Scan:
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
-        scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
+        dcmImgOri = self.scanInfo[0].imageOrientationPatient
+        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+               - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        if np.sign(zDiff) > 0:
+            scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
         img = nib.Nifti1Image(scan3M, affine3M)
         success = nib.save(img, niiFileName)
         return success
@@ -142,8 +147,16 @@ class Scan:
         # dot product between ImagePositionPatient and ImageOrientationPatient, CERR scanArray
         # and scanInfo are sorted in reverse direction of DICOM convention. i.e. the 1st slice in DICOM
         # will correspond to the last slice in scanArray and the last element in scanInfo.
-        info1 = self.scanInfo[-1]
-        info2 = self.scanInfo[-2]
+        dcmImgOri = self.scanInfo[0].imageOrientationPatient
+        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+               - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        if np.sign(zDiff) > 0:
+            info1 = self.scanInfo[-1]
+            info2 = self.scanInfo[-2]
+        else:
+            info1 = self.scanInfo[0]
+            info2 = self.scanInfo[1]
         pos1V = info1.imagePositionPatient / 10  # cm
         pos2V = info2.imagePositionPatient / 10  # cm
         deltaPosV = pos2V - pos1V
@@ -177,7 +190,10 @@ class Scan:
         slice_distance = zs[1] - zs[0]
         # Transformation for DICOM Image to CERR physical coordinates
         # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
-        virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
+        if np.sign(zDiff) > 0:
+            virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
+        else:
+            virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, slice_distance, zs[0]], [0, 0, 0, 1]])
         self.Image2VirtualPhysicalTransM = virPosMtx
 
         # Construct transformation matrix to convert cerr-xyz to dicom-xyz
