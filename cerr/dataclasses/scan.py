@@ -63,6 +63,7 @@ class Scan:
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
+        # Determine whether CERR slice order matches DICOM
         dcmImgOri = self.scanInfo[0].imageOrientationPatient
         slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
                - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
@@ -144,9 +145,13 @@ class Scan:
         # To construct DICOM affine transformation matrix it is necessary to figure out
         # whether CERR slice direction matches DICOM to get the position of the 1st slice
         # according to DICOM convention. Since slices are sorted according to decreasing order of
-        # dot product between ImagePositionPatient and ImageOrientationPatient, CERR scanArray
-        # and scanInfo are sorted in reverse direction of DICOM convention. i.e. the 1st slice in DICOM
-        # will correspond to the last slice in scanArray and the last element in scanInfo.
+        # dot product between ImagePositionPatient and ImageOrientationPatient.
+        #
+        # Determining order of scanArray slices
+        # If (slice_normal . ipp_2nd_slice - slice_normal . ipp_1st_slice) > 0,
+        # then DICOM slice order is reverse of CERR scanArray and scanInfo.
+        # i.e. the 1st slice in DICOM will correspond to the last slice in
+        # scanArray and the last element in scanInfo.
         dcmImgOri = self.scanInfo[0].imageOrientationPatient
         slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
                - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]

@@ -12,6 +12,7 @@ from skimage import measure
 from datetime import datetime
 from pydicom.uid import generate_uid
 import json
+from cerr.radiomics.preprocess import imgResample3D
 
 def get_empty_list():
     return []
@@ -69,11 +70,16 @@ class Structure:
         scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
         affine3M = planC.scan[scan_num].get_nii_affine()
         mask3M = rs.getStrMask(str_num,planC)
-        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
         mask3M = np.moveaxis(mask3M,[0,1],[1,0])
-        #mask3M = np.flip(mask3M,axis=[0,1])
-        #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
-        mask3M = np.flip(mask3M,axis=2)
+        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+        dcmImgOri = planC.scan[scan_num].scanInfo[0].imageOrientationPatient
+        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+               - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        zDiff = np.matmul(slice_normal, planC.scan[scan_num].scanInfo[1].imagePositionPatient) \
+                - np.matmul(slice_normal, planC.scan[scan_num].scanInfo[0].imagePositionPatient)
+        if np.sign(zDiff) > 0:
+            #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+            mask3M = np.flip(mask3M,axis=2)
         str_img = nib.Nifti1Image(mask3M.astype('uint16'), affine3M)
         nib.save(str_img, niiFileName)
 
@@ -359,9 +365,23 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
     return struct_list
 
 
-def create_structure_from_mask(mask3M, assocScanNum, planC):
+def create_from_mask(mask3M, assocScanNum, planC):
 
     pass
+
+def copyToScan(structNum, scanNum, planC):
+    # Get associated scan number for structNum
+    origScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+    mask3M = rs.getStrMask(origScanNum,planC)
+    # Get x,y,z, grid for the original scan
+    xOrigV, yOrigV, zOrigV = planC.scan[origScanNum].getScanXYZVals()
+    # Get x,y,z grid for the new scan
+    xNewV, yNewV, zNewV = planC.scan[scanNum].getScanXYZVals()
+    # Interpolate mask from original scan to the new scan
+    newMask3M = imgResample3D(mask3M.astype(int), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
+    structName = planC.structure[structNum].structureName
+    planC = import_mask(newMask3M, scanNum, structName, planC)
+    return planC
 
 
 def getStructNumFromUID(assocStrUID, planC) -> int:
