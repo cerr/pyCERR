@@ -62,9 +62,9 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
 
     viewer = napari.Viewer()
 
-    scan_colormaps = ["gray","bop orange","bop purple"]
+    scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
     scan_layers = []
-    for scan_num in scan_nums:
+    for i, scan_num in enumerate(scan_nums):
         sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
         #sa = np.flip(sa,axis=0)
         x,y,z = planC.scan[scan_num].getScanXYZVals()
@@ -76,7 +76,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         opacity = 0.5
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
-                                           opacity=opacity, colormap=scan_colormaps[scan_num],
+                                           opacity=opacity, colormap=scan_colormaps[i],
                                             blending="additive",interpolation2d="linear",
                                             interpolation3d="linear"))
 
