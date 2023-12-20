@@ -139,7 +139,11 @@ def load_planC_from_pkl(file_name=""):
 def save_scan_to_nii(scan_num, nii_file_name, planC):
     pass
 
-def load_nii_scan(nii_file_name, planC = pc.PlanC()):
+def load_nii_scan(nii_file_name, initplanC = ''):
+    if not isinstance(initplanC, pc.PlanC):
+        planC = pc.PlanC()
+    else:
+        planC = initplanC
     reader = sitk.ImageFileReader()
     reader.SetFileName(nii_file_name)
     reader.LoadPrivateTagsOn()
@@ -182,28 +186,6 @@ def load_nii_scan(nii_file_name, planC = pc.PlanC()):
     current_date = str(date.today())
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
-    # # Get DICOM ImagePositionPatient i.e. x,y,z of 1at voxel
-    # cerrImgPatPos = [xV[0], yV[0], zV[-1]]
-    # dcmImgPos = planC.scan[0].cerrToDcmTransM * cerrImgPatPos
-    # forUID = planC.scan[assocScanNum].scanInfo[0].frameOfReferenceUID
-    # dcmImgOri = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
-    # studyInstanceUID = planC.scan[0].scanInfo[0].studyInstanceUID
-    # studyDescription = planC.scan[0].scanInfo[0].studyDescription
-    # studyDate = planC.scan[0].scanInfo[0].studyDate
-    # studyTime = planC.scan[0].scanInfo[0].studyTime
-    # studyNumberOfOrigin = planC.scan[0].scanInfo[0].studyNumberOfOrigin
-    #
-    # s_info.grid1Units = ds.PixelSpacing[1] / 10
-    # s_info.grid2Units = ds.PixelSpacing[0] / 10
-    # s_info.sizeOfDimension1 = ds.Rows
-    # s_info.sizeOfDimension2 = ds.Columns
-    # s_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
-    # s_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
-    # slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
-    #                - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
-    # s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-    #
-    #
     count = 0
     for slc in range(siz[2]):
         s_info = scn_info.ScanInfo()
@@ -236,15 +218,10 @@ def load_nii_scan(nii_file_name, planC = pc.PlanC()):
     scan.convertDcmToCerrVirtualCoords()
     scan.convertDcmToRealWorldUnits()
     planC.scan.append(scan)
-
-    # scan.Image2PhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-    # scan.Image2VirtualPhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-    # scan.cerrToDcmTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-
     return planC
 
 
-def load_nii_structure(nii_file_name, assocScanNum, planC = pc.PlanC, labels_dict = {}):
+def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
     struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
     numOrigStructs = len(planC.structure)
     planC.structure.extend(struct_meta)
@@ -257,7 +234,7 @@ def load_nii_structure(nii_file_name, assocScanNum, planC = pc.PlanC, labels_dic
     return planC
 
 
-def load_nii_dose(nii_file_name, planC = pc.PlanC):
+def load_nii_dose(nii_file_name, planC):
     pass
 
 def parse_dcm_dir(dcm_dir):
