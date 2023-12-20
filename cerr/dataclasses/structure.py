@@ -375,13 +375,13 @@ def create_from_mask(mask3M, assocScanNum, planC):
 def copyToScan(structNum, scanNum, planC):
     # Get associated scan number for structNum
     origScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
-    mask3M = rs.getStrMask(origScanNum,planC)
+    mask3M = rs.getStrMask(structNum,planC)
     # Get x,y,z, grid for the original scan
     xOrigV, yOrigV, zOrigV = planC.scan[origScanNum].getScanXYZVals()
     # Get x,y,z grid for the new scan
     xNewV, yNewV, zNewV = planC.scan[scanNum].getScanXYZVals()
     # Interpolate mask from original scan to the new scan
-    newMask3M = imgResample3D(mask3M.astype(int), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
+    newMask3M = imgResample3D(mask3M.astype(float), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
     structName = planC.structure[structNum].structureName
     planC = import_mask(newMask3M, scanNum, structName, planC)
     return planC
