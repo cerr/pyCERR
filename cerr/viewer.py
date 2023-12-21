@@ -78,7 +78,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
                                            opacity=opacity, colormap=scan_colormaps[i],
                                             blending="additive",interpolation2d="linear",
-                                            interpolation3d="linear"))
+                                            interpolation3d="linear"
+                                            ))
 
     dose_layers = []
     for dose_num in dose_nums:
@@ -93,7 +94,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dose_layers.append(viewer.add_image(doseArray,name='dose',affine=dose_affine,
                                   opacity=0.5,colormap="gist_earth",
                                   blending="additive",interpolation2d="linear",
-                                  interpolation3d="linear"))
+                                  interpolation3d="linear"
+                                   ))
 
     # reference: https://gist.github.com/AndiH/c957b4d769e628f506bd
     tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),
@@ -124,7 +126,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
         if displayMode.lower() == '3d':
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
-                                              affine=scan_affine, name=str_name,colormap=cmap)
+                                              affine=scan_affine, name=str_name,
+                                              colormap=cmap)
             struct_layer = np.append(struct_layer, labl)
             # #labels_layer = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
             # #                                 num_colors=1,opacity=0.5,visible=False,
@@ -140,8 +143,20 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.dims.ndisplay = 2
     if displayMode == '3d':
         viewer.dims.ndisplay = 3
-    viewer.dims.axis_labels = ["A-P","L-R","S-I"]
+    if len(scan_nums) > 0:
+        scan_num = 0
+        orientPos = ['L', 'P', 'S']
+        orientNeg = ['R', 'A', 'I']
+        flipDict = {}
+        for i in range(len(orientPos)):
+            flipDict[orientPos[i]] = orientNeg[i]
+            flipDict[orientNeg[i]] = orientPos[i]
+        ori = planC.scan[scan_num].getScanOrientation()
+        labels_list = [flipDict[dir] + ' --> ' + dir for dir in ori]
+        labels_list = [labels_list[1], labels_list[0], labels_list[2]]
+        viewer.dims.axis_labels = labels_list
     viewer.dims.order = (2, 0, 1)
+    viewer.dims.displayed_order = (2,0,1)
     napari.run()
 
     return viewer, scan_layers, dose_layers, struct_layer

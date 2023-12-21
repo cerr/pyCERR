@@ -120,8 +120,8 @@ class Scan:
         return (xvals,yvals,zvals)
 
     def getScanOrientation(self):
-        orientPos = ['L' 'P', 'S']
-        orientNeg = ['R' 'A', 'I']
+        orientPos = ['L', 'P', 'S']
+        orientNeg = ['R', 'A', 'I']
         flipDict = {}
         for i in range(len(orientPos)):
             flipDict[orientPos[i]] = orientNeg[i]

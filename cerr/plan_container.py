@@ -243,6 +243,7 @@ def parse_dcm_dir(dcm_dir):
     import os
     import numpy as np
     from pydicom.tag import Tag
+    from pydicom import dataelem
 
     # Patient Name, Ptient ID, StudyInstanceUID, SeriesInstanceUID,
     # Modality, b-value * 3, temporalIndex, trigger, numSlices
@@ -258,7 +259,14 @@ def parse_dcm_dir(dcm_dir):
             file_path = os.path.join(root, file)
             if is_dicom(file_path):
                 ds = dcmread(file_path,specific_tags=tag_list)
-            tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
+            #tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
+            tag_vals = []
+            for t in tag_list:
+                if t in ds:
+                    val = ds[t].value
+                if isinstance(val, dataelem.MultiValue):
+                    val = tuple(val)
+                tag_vals.append(val)
             tag_vals.append(ds.filename)
             img_meta.append(tag_vals)
     df = pd.DataFrame(img_meta,columns=tag_heading)
