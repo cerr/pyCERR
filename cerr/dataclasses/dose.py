@@ -235,8 +235,9 @@ def load_dose(file_list):
             ipp = np.array(ds.ImagePositionPatient)
             slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
                            - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+            slice_normal = slice_normal.reshape((1,3))
             if gridFrameOffVec[0] == 0:
-                doseZstart = np.sum(slice_normal * ipp)
+                doseZstart = np.matmul(slice_normal, ipp)
                 doseZValuesV = (doseZstart + gridFrameOffVec)
             else:
                 doseZValuesV = gridFrameOffVec # as per DICOM documentation, this case is valid only for HFS [1,0,0,0,1,0]

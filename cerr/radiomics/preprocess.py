@@ -269,12 +269,12 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     diagS = {}
     scanArray3M = planC.scan[scanNum].getScanArray()
 
-    if structNum.ndim == 3:
-        #Input is structure mask
-        mask3M = structNum
-    else:
+    if isinstance(structNum, (int, float)):
         # Get structure mask
         mask3M = rs.getStrMask(structNum,planC)
+    else:
+        #Input is structure mask
+        mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
     #if yValsV[0] > yValsV[1]:
     #    yValsV = np.flip(yValsV)

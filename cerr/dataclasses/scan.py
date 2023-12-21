@@ -64,11 +64,13 @@ class Scan:
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
         # Determine whether CERR slice order matches DICOM
-        dcmImgOri = self.scanInfo[0].imageOrientationPatient
-        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
-               - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-        zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
-        if np.sign(zDiff) > 0:
+        # dcmImgOri = self.scanInfo[0].imageOrientationPatient
+        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        # slice_normal = slice_normal.reshape((1,3))
+        # zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        # ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
+        if flipSliceOrderFlag(self): #np.all(np.sign(zDiff) < 0):
             scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
         img = nib.Nifti1Image(scan3M, affine3M)
         success = nib.save(img, niiFileName)
@@ -77,7 +79,8 @@ class Scan:
     def getSitkImage(self):
         sitkArray = np.moveaxis(self.getScanArray(),[0,1,2],[1,2,0])
         # CERR slice ordering is opposite of DICOM
-        sitkArray = np.flip(sitkArray, axis = 0)
+        if flipSliceOrderFlag(self):
+            sitkArray = np.flip(sitkArray, axis = 0)
         originXyz = list(np.matmul(self.Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
         xV, yV, zV = self.getScanXYZVals()
         dx = np.abs(xV[1] - xV[0])
@@ -116,6 +119,35 @@ class Scan:
 
         return (xvals,yvals,zvals)
 
+    def getScanOrientation(self):
+        orientPos = ['L' 'P', 'S']
+        orientNeg = ['R' 'A', 'I']
+        flipDict = {}
+        for i in range(len(orientPos)):
+            flipDict[orientPos[i]] = orientNeg[i]
+            flipDict[orientNeg[i]] = orientPos[i]
+        img_ori = self.scanInfo[0].imageOrientationPatient
+        img_ori = img_ori.reshape(6,1)
+        slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+                       - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+        slice_normal = slice_normal.reshape((1,3))
+        # img_ori = np.vstack((img_ori, slice_normal.reshape((3,1))))
+        # dir_cosine_mat = img_ori.reshape(3, 3,order="F")
+        # itk_direction = dir_cosine_mat.reshape(9, order="C")
+        itk_direction = getITKDirection(self)
+        itk_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(itk_direction)
+        zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
+        if np.all(np.sign(zDiff) < 0):
+            # cerr slice direction is opposite to ITK/DICOM order. Hence, flip.
+            zOri = flipDict[itk_orient_str[-1]]
+        else:
+            # cerr slice direction is opposite to ITK/DICOM order
+            zOri = itk_orient_str[-1]
+        orientString = itk_orient_str[:2]
+        orientString = orientString + zOri
+        return orientString
+
     def getScanSpacing(self):
         x_vals_v, y_vals_v, z_vals_v = self.getScanXYZVals()
         if y_vals_v[0] > y_vals_v[1]:
@@ -128,19 +160,6 @@ class Scan:
 
     def convertDcmToCerrVirtualCoords(self):
 
-        # Compute slice normal
-        img_ori = self.scanInfo[0].imageOrientationPatient
-        img_ori = img_ori.reshape(6,1)
-        # slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
-        #                - img_ori[[2,0,1]] * img_ori[[4,5,3]]
-
-        # # Calculate the distance of ‘ImagePositionPatient’ along the slice direction cosine
-        # numSlcs = len(self.scanInfo)
-        # distV = np.zeros(numSlcs)
-        # for slcNum in range(numSlcs):
-        #     ipp = self.scanInfo[slcNum].imagePositionPatient
-        #     distV[slcNum] = np.sum(slice_normal * ipp.reshape(slice_normal.shape))
-
         # Construct DICOM Affine transformation matrix
         # To construct DICOM affine transformation matrix it is necessary to figure out
         # whether CERR slice direction matches DICOM to get the position of the 1st slice
@@ -152,11 +171,15 @@ class Scan:
         # then DICOM slice order is reverse of CERR scanArray and scanInfo.
         # i.e. the 1st slice in DICOM will correspond to the last slice in
         # scanArray and the last element in scanInfo.
+        # Compute slice normal
         dcmImgOri = self.scanInfo[0].imageOrientationPatient
-        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
-               - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-        zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
-        if np.sign(zDiff) > 0:
+        dcmImgOri = dcmImgOri.reshape(6,1)
+        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        # slice_normal = slice_normal.reshape((1,3))
+        # zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        # ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
+        if flipSliceOrderFlag(self): # np.all(np.sign(zDiff) < 0):
             info1 = self.scanInfo[-1]
             info2 = self.scanInfo[-2]
         else:
@@ -170,7 +193,7 @@ class Scan:
         # Transformation for DICOM Image to DICOM physical coordinates
         # Pt coordinate to DICOM image coordinate mapping
         # Based on ref: https://nipy.org/nibabel/dicom/dicom_orientation.html
-        position_matrix = np.hstack((np.matmul(img_ori.reshape(3, 2,order="F"),np.diag(pixelSpacing)),
+        position_matrix = np.hstack((np.matmul(dcmImgOri.reshape(3, 2,order="F"),np.diag(pixelSpacing)),
                                     np.array([[deltaPosV[0], pos1V[0]], [deltaPosV[1], pos1V[1]], [deltaPosV[2], pos1V[2]]])))
 
         position_matrix = np.vstack((position_matrix, np.array([0, 0, 0, 1])))
@@ -182,8 +205,8 @@ class Scan:
         # This serves as the reference point for the image volume.
         sizV = self.scanArray.shape
         xyzCtrV = position_matrix * np.array([(sizV[1] - 1) / 2, (sizV[0] - 1) / 2, 0, 1])
-        xOffset = np.sum(np.matmul(np.transpose(img_ori[:3,:]), xyzCtrV[:3]))
-        yOffset = -np.sum(np.matmul(np.transpose(img_ori[3:,:]), xyzCtrV[:3]))  # (-)ve since CERR y-coordinate is opposite of column vector.
+        xOffset = np.sum(np.matmul(np.transpose(dcmImgOri[:3,:]), xyzCtrV[:3]))
+        yOffset = -np.sum(np.matmul(np.transpose(dcmImgOri[3:,:]), xyzCtrV[:3]))  # (-)ve since CERR y-coordinate is opposite of column vector.
 
         for i in range(len(self.scanInfo)):
             self.scanInfo[i].xOffset = xOffset
@@ -195,7 +218,7 @@ class Scan:
         slice_distance = zs[1] - zs[0]
         # Transformation for DICOM Image to CERR physical coordinates
         # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
-        if np.sign(zDiff) > 0:
+        if flipSliceOrderFlag(self): #np.all(np.sign(zDiff) < 0):
             virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, -slice_distance, zs[-1]], [0, 0, 0, 1]])
         else:
             virPosMtx = np.array([[dx, 0, 0, xs[0]], [0, dy, 0, ys[0]], [0, 0, slice_distance, zs[0]], [0, 0, 0, 1]])
@@ -405,6 +428,27 @@ class Scan:
             self.scanInfo[slcNum].imageUnits = imageUnits
 
         self.scanArray = suv3M
+
+
+def flipSliceOrderFlag(scan):
+    dcmImgOri = scan.scanInfo[0].imageOrientationPatient
+    slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+           - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+    slice_normal = slice_normal.reshape((1,3))
+    zDiff = np.matmul(slice_normal, scan.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, scan.scanInfo[0].imagePositionPatient)
+    ippDiffV = scan.scanInfo[1].imagePositionPatient - scan.scanInfo[0].imagePositionPatient
+    return np.all(np.sign(zDiff) < 0)
+
+def getITKDirection(scan):
+    img_ori = scan.scanInfo[0].imageOrientationPatient
+    img_ori = img_ori.reshape(6,1)
+    slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+                   - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+    slice_normal = slice_normal.reshape((1,3))
+    img_ori = np.vstack((img_ori, slice_normal.reshape((3,1))))
+    dir_cosine_mat = img_ori.reshape(3, 3,order="F")
+    itk_direction = dir_cosine_mat.reshape(9, order="C")
+    return itk_direction
 
 def dcm_hhmmss(time_str):
     hh = int(time_str[0:2])
