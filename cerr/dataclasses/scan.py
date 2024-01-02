@@ -475,7 +475,10 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
         s_info.realWorldValueIntercept = ds["0040","9096"][0]["0040","9224"].value
         s_info.realWorldValueSlope = ds["0040","9096"][0]["0040","9225"].value
         if ("0040","08EA") in ds["0040","9096"][0]:
-            s_info.realWorldMeasurCodeMeaning = ds["0040","9096"][0]["0040","08EA"][0]["0008","0119"].value
+            if ("0008","0100") in ds["0040","9096"][0]["0040","08EA"][0]:
+                s_info.realWorldMeasurCodeMeaning = ds["0040","9096"][0]["0040","08EA"][0]["0008","0100"].value
+            elif ("0008","0119") in ds["0040","9096"][0]["0040","08EA"][0]:
+                s_info.realWorldMeasurCodeMeaning = ds["0040","9096"][0]["0040","08EA"][0]["0008","0119"].value
 
     if ("2005","140B") in ds: s_info.philipsImageUnits = ds["2005","140B"].value
     if ("2005","140A") in ds: s_info.philipsRescaleSlope = ds["2005","140A"].value
