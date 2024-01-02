@@ -283,7 +283,7 @@ def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     scan.scanArray = scan3M
     scan.scanUID = "CT." + seriesInstanceUID
     scan.convertDcmToCerrVirtualCoords()
-    scan.convertDcmToRealWorldUnits()
+    #scan.convertDcmToRealWorldUnits()
     planC.scan.append(scan)
     return planC
 
