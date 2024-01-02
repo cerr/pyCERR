@@ -585,53 +585,6 @@ def load_sorted_scan_info(file_list):
     scan.scanUID = "CT." + si_pixel_data[2]
     return scan
 
-def import_nii(file_list, planC):
-    pass
-
-def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
-    org_root = '1.3.6.1.4.1.9590.100.1.2.' # to assign
-    seriesInstanceUID = generate_uid(prefix=org_root)
-    scan = Scan()
-    scan_info = [] #scn_info.ScanInfo()
-    siz = scan3M.shape
-    # Get DICOM ImagePositionPatient i.e. x,y,z of 1at voxel
-    cerrImgPatPos = [xV[0], yV[0], zV[-1]]
-    dcmImgPos = planC.scan[0].cerrToDcmTransM * cerrImgPatPos
-    forUID = planC.scan[assocScanNum].scanInfo[0].frameOfReferenceUID
-    dcmImgOri = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
-    studyInstanceUID = planC.scan[0].scanInfo[0].studyInstanceUID
-    studyDescription = planC.scan[0].scanInfo[0].studyDescription
-    studyDate = planC.scan[0].scanInfo[0].studyDate
-    studyTime = planC.scan[0].scanInfo[0].studyTime
-    studyNumberOfOrigin = planC.scan[0].scanInfo[0].studyNumberOfOrigin
-    dx = xV[1] - xV[0]
-    dy = yV[0] - yV[1]
-    for slc in range(siz[2]):
-        s_info = scn_info.ScanInfo()
-        s_info.frameOfReferenceUID = forUID
-        s_info.imagePositionPatient = dcmImgPos
-        s_info.imageOrientationPatient = dcmImgOri
-        s_info.grid1Units = dy
-        s_info.grid2Units = dx
-        s_info.sizeOfDimension1 = siz[0]
-        s_info.sizeOfDimension2 = siz[1]
-        s_info.imageType = modality
-        s_info.seriesInstanceUID = seriesInstanceUID
-        s_info.studyInstanceUID = studyInstanceUID
-        s_info.studyDescription = studyDescription
-        s_info.studyDate = studyDate
-        s_info.studyTime = studyTime
-        s_info.studyNumberOfOrigin = studyNumberOfOrigin
-        scan_info.append(s_info)
-    scan_info = scn_info.deduce_voxel_thickness(scan_info)
-    scan.scanInfo = scan_info
-    scan.scanArray = scan3M
-    scan.scanUID = "CT." + seriesInstanceUID
-    scan.Image2PhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-    scan.Image2VirtualPhysicalTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-    scan.cerrToDcmTransM = [] # assign transformation matrix based on imgOri, imgPatPos
-    return scan
-
 def getScanNumFromUID(assocScanUID,planC) -> int:
     uid_list = [s.scanUID for s in planC.scan]
     if assocScanUID in uid_list:

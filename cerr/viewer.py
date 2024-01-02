@@ -156,7 +156,9 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         labels_list = [labels_list[1], labels_list[0], labels_list[2]]
         viewer.dims.axis_labels = labels_list
     viewer.dims.order = (2, 0, 1)
-    viewer.dims.displayed_order = (2,0,1)
+    #viewer.dims.displayed_order = (2,0,1)
+    viewer.scale_bar.visible = True
+    viewer.axes.visible = True
     napari.run()
 
     return viewer, scan_layers, dose_layers, struct_layer

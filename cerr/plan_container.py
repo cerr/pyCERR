@@ -183,9 +183,9 @@ def load_nii_scan(nii_file_name, initplanC = ''):
     siz = scanArray3M.shape
     scan_info = np.empty(siz[2],dtype=scn_info.ScanInfo) #scn_info.ScanInfo()
     #pixelSiz = image.GetSpacing()
-    current_date = str(date.today())
+    currentDate = str(date.today())
     now = datetime.now()
-    current_time = now.strftime("%H:%M:%S")
+    currentTime = now.strftime("%H:%M:%S")
     count = 0
     for slc in range(siz[2]):
         s_info = scn_info.ScanInfo()
@@ -201,8 +201,8 @@ def load_nii_scan(nii_file_name, initplanC = ''):
         s_info.seriesInstanceUID = seriesInstanceUID
         s_info.studyInstanceUID = studyInstanceUID
         s_info.studyDescription = ''
-        s_info.studyDate = current_date
-        s_info.studyTime = current_time
+        s_info.seriesDate = currentDate
+        s_info.seriesTime = currentTime
         s_info.studyNumberOfOrigin = ''
         #scan_info.append(s_info)
         scan_info[count] = s_info
@@ -236,6 +236,56 @@ def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
 
 def load_nii_dose(nii_file_name, planC):
     pass
+
+def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
+    org_root = '1.3.6.1.4.1.9590.100.1.2.' # to create seriesInstanceUID
+    seriesInstanceUID = generate_uid(prefix=org_root)
+    scan = scn.Scan()
+    scan_info = [] #scn_info.ScanInfo()
+    siz = scan3M.shape
+    # Get DICOM ImagePositionPatient i.e. x,y,z of 1at voxel
+    forUID = planC.scan[assocScanNum].scanInfo[0].frameOfReferenceUID
+    dcmImgOri = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+    studyInstanceUID = planC.scan[assocScanNum].scanInfo[0].studyInstanceUID
+    studyDescription = planC.scan[assocScanNum].scanInfo[0].studyDescription
+    studyDate = planC.scan[assocScanNum].scanInfo[0].studyDate
+    studyTime = planC.scan[assocScanNum].scanInfo[0].studyTime
+    studyNumberOfOrigin = planC.scan[assocScanNum].scanInfo[0].studyNumberOfOrigin
+    currentDate = str(date.today())
+    now = datetime.now()
+    currentTime = now.strftime("%H:%M:%S")
+    dx = xV[1] - xV[0]
+    dy = yV[0] - yV[1]
+    for slc in range(siz[2]):
+        cerrImgPatPos = [xV[0], yV[0], zV[slc], 1]
+        dcmImgPos = np.matmul(planC.scan[assocScanNum].cerrToDcmTransM, cerrImgPatPos)[:3]
+        s_info = scn_info.ScanInfo()
+        s_info.frameOfReferenceUID = forUID
+        s_info.imagePositionPatient = dcmImgPos
+        s_info.imageOrientationPatient = dcmImgOri
+        s_info.grid1Units = dy
+        s_info.grid2Units = dx
+        s_info.zValue = zV[slc]
+        s_info.sizeOfDimension1 = siz[0]
+        s_info.sizeOfDimension2 = siz[1]
+        s_info.imageType = modality
+        s_info.seriesInstanceUID = seriesInstanceUID
+        s_info.studyInstanceUID = studyInstanceUID
+        s_info.studyDescription = studyDescription
+        s_info.studyDate = studyDate
+        s_info.studyTime = studyTime
+        s_info.seriesDate = currentDate
+        s_info.seriesTime = currentTime
+        s_info.studyNumberOfOrigin = studyNumberOfOrigin
+        scan_info.append(s_info)
+    scan_info = scn_info.deduce_voxel_thickness(scan_info)
+    scan.scanInfo = scan_info
+    scan.scanArray = scan3M
+    scan.scanUID = "CT." + seriesInstanceUID
+    scan.convertDcmToCerrVirtualCoords()
+    scan.convertDcmToRealWorldUnits()
+    planC.scan.append(scan)
+    return planC
 
 def parse_dcm_dir(dcm_dir):
     from pydicom.misc import is_dicom
