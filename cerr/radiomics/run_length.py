@@ -190,8 +190,8 @@ def rlmToScalarFeatures(rlmM, numVoxels):
 
     for dirNum in range(numDirs):
         nL = rlmM[dirNum].shape[0]
-        lenV = np.arange(1, rlmM[dirNum].shape[1] + 1)
-        levV = np.arange(1, nL + 1)
+        lenV = np.arange(1, rlmM[dirNum].shape[1] + 1, dtype = np.uint64)
+        levV = np.arange(1, nL + 1, dtype = np.uint64)
         lenV = lenV[None,:]
         levV = levV[None,:]
 

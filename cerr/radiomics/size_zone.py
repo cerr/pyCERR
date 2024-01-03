@@ -24,13 +24,10 @@ def szmToScalarFeatures(szmM, numVoxels):
     featureS = {}
 
     nL, maxLength = szmM.shape
-    lenV = np.arange(1, maxLength + 1, dtype=float)
-    levV = np.arange(1, nL + 1, dtype = float)
-
-    lenV = np.arange(1, maxLength + 1)
-    levV = np.arange(1, nL + 1)
-    lenV = lenV[None,:].astype(np.int64)
-    levV = levV[None,:].astype(np.int64)
+    lenV = np.arange(1, maxLength + 1, dtype = np.uint64)
+    levV = np.arange(1, nL + 1, dtype = np.uint64)
+    lenV = lenV[None,:]
+    levV = levV[None,:]
 
     szmM = szmM.astype(float)
 

@@ -102,7 +102,7 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
     # Contrast
     Ng = np.sum(p > 0)
     numLevels = len(p)
-    indV = np.arange(1, numLevels + 1)
+    indV = np.arange(1, numLevels + 1, dtype = np.uint64)
     indV = indV[:,None]
     term1 = 0
     term2 = 0

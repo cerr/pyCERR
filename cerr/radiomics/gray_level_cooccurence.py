@@ -131,13 +131,13 @@ def cooccurToScalarFeatures(cooccurM):
 
     for n in range(nL):
         # indices for p(x-y), contrast
-        indCtrst1V = np.arange(0, nL - n )
-        indCtrst2V = np.arange(0 + n, nL)
+        indCtrst1V = np.arange(0, nL - n, dtype = np.uint64)
+        indCtrst2V = np.arange(0 + n, nL, dtype = np.uint64)
         indCtrstTmpV = np.concatenate((indCtrst1V + indCtrst2V * nL, indCtrst2V + indCtrst1V * nL))
         indCtrstC[n] = np.unique(indCtrstTmpV)
 
         # indices for px
-        indPxC[n] = np.arange(nL * n, nL * (n + 1))
+        indPxC[n] = np.arange(nL * n, nL * (n + 1), dtype = np.uint64)
 
         for col in range(cooccurM.shape[1]):
             px[n, col] = np.sum(cooccurM[indPxC[n], col])
@@ -256,8 +256,8 @@ def cooccurToScalarFeatures(cooccurM):
             featureS['sumVar'][off] += (n - featureS['sumAvg'][off])**2 * pXplusY[n - 1, off]
 
     # Weighted Pixel Average (mu), Weighted Pixel Variance (sig)
-    mu = np.matmul(np.reshape(np.arange(1,nL+1),(1,nL)),px)
-    sig = np.reshape(np.arange(1,nL+1),(nL,1)) - mu
+    mu = np.matmul(np.reshape(np.arange(1,nL+1, dtype = np.uint64),(1,nL)),px)
+    sig = np.reshape(np.arange(1,nL+1, dtype = np.uint64),(nL,1)) - mu
     sig = np.sum(sig * sig * px, axis = 0)
     sig = sig[:,None]
 

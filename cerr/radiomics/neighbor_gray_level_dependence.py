@@ -90,8 +90,8 @@ def ngldmToScalarFeatures(s, numVoxels):
     Ns = np.sum(s)
     Nn = s.shape[1]
     Ng = s.shape[0]
-    lenV = np.arange(1, Nn + 1)
-    levV = np.arange(1, Ng + 1)
+    lenV = np.arange(1, Nn + 1, dtype = np.uint64)
+    levV = np.arange(1, Ng + 1, dtype = np.uint64)
     levV = levV[None,:].astype(np.int64)
     lenV = lenV[None,:].astype(np.int64)
 
