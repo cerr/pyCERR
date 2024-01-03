@@ -1,0 +1,89 @@
+{
+
+"structures": ["tumor"],
+
+"imageType": {
+  		  "Original": {}
+	    },
+
+"settings": {		   
+
+ 		"resample": {
+				 	"resolutionXCm": 0.1,
+				 	"resolutionYCm": 0.1,
+				 	"resolutionZCm": 0.1,
+					"interpMethod": "linear"
+				  },
+				  
+		"padding": [{
+				     "cropToMaskBounds": "yes",
+				     "method": "expand",  
+				     "size": [6,6,6]
+				}],
+				
+		"shape": {
+				"rcs": []
+			      },
+
+	     "firstOrder" :{ 
+				            "offsetForEnergy": 1000,
+                            "binWidthEntropy": 5
+                   },
+                   
+                   
+		  "texture" :{ 
+                        "minSegThreshold": -1000,
+                        "maxSegThreshold": 300,
+                        "minClipIntensity": -1000,
+                        "maxClipIntensity": 300,
+		   				"binwidth": 5,
+		                "directionality": "3D",
+		   				"avgType": "feature",
+		   				"voxelOffset": 1,
+		   				"patchRadiusVox": [1, 1, 1],
+		   				"imgDiffThresh": 5
+		                }
+		   
+		   		
+	},
+		   
+		   
+	"featureClass":{
+		   			
+		   		"shape": {
+						      "featureList": ["all"]
+                	     },
+		   
+		        "firstOrder": {
+		   			    	  "featureList": ["all"]
+		   		      },
+		   
+		   		"glcm": {
+		   			    	  "featureList": ["all"]
+		                           },
+		   
+		   		"glrlm": {
+		   			    	  "featureList": ["all"]
+		                                    
+		   		         },
+		   
+		   		"glszm": {
+		   			          "featureList": ["all"]  
+		                            },
+		   
+		   		"gldm": {
+		   			          "featureList": ["all"]
+		                           },
+		   
+		   		"gtdm": {			    	
+		                         "featureList": ["all"]               
+		   		        }
+		   
+		   
+            },
+"Author" : { "name": "Aditya Apte",
+	     	 "email": "aptea@mskcc.org",
+	     	 "date": "06/12/23"
+                }
+           
+}
