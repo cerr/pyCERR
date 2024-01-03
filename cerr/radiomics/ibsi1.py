@@ -3,7 +3,7 @@ import numpy as np
 from cerr.radiomics import first_order, gray_level_cooccurence, run_length,\
     size_zone, neighbor_gray_level_dependence, neighbor_gray_tone
 from cerr.utils import bbox
-from cerr.radiomics import preprocess
+from cerr.radiomics import preprocess, textureFilters
 import json
 
 def getDirectionOffsets(direction):
@@ -162,9 +162,12 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             featDict = calcRadiomicsForImgType(processedScan3M, processedMask3M, gridS, radiomicsSettingS)
         else:
             # Call filtering routines here for imgType other than Original
-            #filteredScan3M = ...
-            #featDict = calcRadiomicsForImgType(filteredScan3M, processedMask3M, gridS, radiomicsSettingS)
-            pass
+            filterParamS = radiomicsSettingS['imageType'][imgType]
+            paddedResponseS = textureFilters.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
+            filterName = paddedResponseS.keys()[0] # must be single output
+            filteredScan3M = paddedResponseS[filterName]
+            featDict = calcRadiomicsForImgType(filteredScan3M, processedMask3M, gridS, radiomicsSettingS)
+            #imgType = imgType + equivalent of createFieldNameFromParameters
         featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgType)}
     return featDictAllTypes
 
