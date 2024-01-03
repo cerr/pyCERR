@@ -23,7 +23,7 @@ def vector_norm3d(v):
     return np.linalg.norm(v, axis=1)
 
 def eig(a):
-    return np.sort(np.linalg.eig(a).eigenvalues)
+    return np.sort(np.linalg.eig(a)[0])
 
 def sepsq(a, b):
     return np.sum((a - b)**2, axis=0)
