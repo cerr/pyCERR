@@ -216,7 +216,7 @@ def getStrMask(str_num,planC):
     assocScanUID = planC.structure[str_num].assocScanUID
     scan_num = scn.getScanNumFromUID(assocScanUID,planC)
     num_rows,num_cols,num_slcs = planC.scan[scan_num].scanArray.shape
-    mask3M = np.empty((num_rows,num_cols,num_slcs),bool)
+    mask3M = np.zeros((num_rows,num_cols,num_slcs),dtype = bool)
     slcMask3M,slicesV = raster_to_mask(rasterSegments, scan_num, planC)
     slicesV = np.asarray(slicesV,int)
     mask3M[:,:,slicesV] = slcMask3M
