@@ -9,14 +9,14 @@ import vispy.color
 import cerr.dataclasses.scan as scn
 
 
-def getContours(strNum, assocScanNum, planC):
+def getContourPolygons(strNum, assocScanNum, planC):
     numSlcs = len(planC.structure[strNum].contour)
     polygons = []
     for slc in range(numSlcs):
         if planC.structure[strNum].contour[slc]:
             for seg in planC.structure[strNum].contour[slc].segments:
                 rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
-                pts = np.array((rowV, colV, slc*rowV**0), dtype=float).T
+                pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float32).T
                 polygons.append(pts)
     return polygons
 
@@ -29,50 +29,30 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     if not isinstance(dose_nums, list):
         dose_nums = [dose_nums]
 
-    # scan_num = 0
-    # sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
-    # #sa = np.flip(sa,axis=0)
-    # x,y,z = planC.scan[0].getScanXYZVals()
-    # y = -y
-    # dx = x[1] - x[0]
-    # dy = y[1] - y[0]
-    # dz = z[1] - z[0]
-    # scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
-
-    #rotate = np.eye(3)
-    #shear = np.eye(3)
-    #scale = [dy,dx,dz]
-    #translate = y[0],x[0],z[0]
-    #scan_affine = transforms.Affine(scale, translate, rotate=rotate, shear=shear, name='scan2world')
-
-    # dose_num = 0
-    # doseArray = planC.dose[dose_num].doseArray
-    # #doseArray= np.flip(doseArray,axis=0)
-    # xd,yd,zd = planC.dose[0].getDoseXYZVals()
-    # yd = -yd
-    # dx = xd[1] - xd[0]
-    # dy = yd[1] - yd[0]
-    # dz = zd[1] - zd[0]
-    # dose_affine = np.array([[dy, 0, 0, yd[0]], [0, dx, 0, xd[0]], [0, 0, dz, zd[0]], [0, 0, 0, 1]])
-
-    #scale = [dy,dx,dz]
-    #translate = y[0],x[0],z[0]
-    #dose_affine = transforms.Affine(scale, translate, rotate=rotate, shear=shear, name='dose2world')
-    #viewer, image_layer = napari.imshow(sa.astype(float), name='scan', affine=scan_affine)
-
-    viewer = napari.Viewer()
-
-    scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
-    scan_layers = []
-    for i, scan_num in enumerate(scan_nums):
-        sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
-        #sa = np.flip(sa,axis=0)
+    # Get Scan affines
+    assocScanV = []
+    for str_num in str_nums:
+        assocScanV.append(scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC))
+    allScanNums = scan_nums.copy()
+    allScanNums.extend(assocScanV)
+    allScanNums = np.unique(allScanNums)
+    scanAffineDict = {}
+    for scan_num in allScanNums:
         x,y,z = planC.scan[scan_num].getScanXYZVals()
         y = -y # negative since napari viewer y increases from top to bottom
         dx = x[1] - x[0]
         dy = y[1] - y[0]
         dz = z[1] - z[0]
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
+        scanAffineDict[scan_num] = scan_affine
+
+    viewer = napari.Viewer()
+
+    scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
+    scan_layers = []
+    for i, scan_num in enumerate(scan_nums):
+        sa = planC.scan[scan_num].getScanArray()
+        scan_affine = scanAffineDict[scan_num]
         opacity = 0.5
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
@@ -105,37 +85,33 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
              (188, 189, 34), (219, 219, 141), (23, 190, 207), (158, 218, 229)] * 4
 
     # Get x,y,z ranges for scaling results of marching cubes mesh
-    mins = np.array([min(y), min(x), min(z)])
-    maxes = np.array([max(y), max(x), max(z)])
-    ranges = maxes - mins
+    # mins = np.array([min(y), min(x), min(z)])
+    # maxes = np.array([max(y), max(x), max(z)])
+    # ranges = maxes - mins
     struct_layer = []
     for i,str_num in enumerate(str_nums):
-        mask3M = rs.getStrMask(str_num,planC)
-        str_name = planC.structure[str_num].structureName
-        verts, faces, _, _ = measure.marching_cubes(volume=mask3M, level=0.5)
-        verts_scaled = verts * ranges / np.array(mask3M.shape) - mins
-        colr = np.asarray(tableau20[i])/255
-        cmap = vispy.color.Colormap([colr,colr])
         # Get scan affine
         scan_num = scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC)
-        x,y,z = planC.scan[scan_num].getScanXYZVals()
-        y = -y # negative since napari viewer y increases from top to bottom
-        dx = x[1] - x[0]
-        dy = y[1] - y[0]
-        dz = z[1] - z[0]
-        scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
+        scan_affine = scanAffineDict[scan_num]
+        colr = np.asarray(tableau20[i])/255
+        cmap = vispy.color.Colormap([colr,colr])
+        str_name = planC.structure[str_num].structureName
+
         if displayMode.lower() == '3d':
+            #mins = np.array([min(y), min(x), min(z)])
+            #maxes = np.array([max(y), max(x), max(z)])
+            #ranges = maxes - mins
+            mask3M = rs.getStrMask(str_num,planC)
+            verts, faces, _, _ = measure.marching_cubes(volume=mask3M, level=0.5)
+            #verts_scaled = verts * ranges / np.array(mask3M.shape) - mins
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
                                               affine=scan_affine, name=str_name,
                                               colormap=cmap)
             struct_layer.append(labl)
-            # #labels_layer = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
-            # #                                 num_colors=1,opacity=0.5,visible=False,
-            # #                                 color={1:np.asarray(tableau20[i])/255})
         elif displayMode.lower() == '2d':
-            polygons = getContours(str_num, scan_num, planC)
+            polygons = getContourPolygons(str_num, scan_num, planC)
 
-            shp = viewer.add_shapes(polygons, shape_type='path', edge_width=2,
+            shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
                               edge_color=np.array(tableau20[i])/255, face_color=[0]*4,
                               affine=scan_affine, name=str_name)
             struct_layer.append(shp)
@@ -158,7 +134,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.dims.order = (2, 0, 1)
     #viewer.dims.displayed_order = (2,0,1)
     viewer.scale_bar.visible = True
-    viewer.axes.visible = True
+    #viewer.axes.visible = True
     napari.run()
 
     return viewer, scan_layers, dose_layers, struct_layer
