@@ -262,7 +262,7 @@ def generate_rastersegs(strObj, planC):
         if not strObj.contour[slc_num]:
             continue
         num_segs = len(strObj.contour[slc_num].segments)
-        mask3M = np.empty((num_rows,num_cols,num_segs),bool)
+        mask3M = np.zeros((num_rows,num_cols,num_segs), dtype=bool)
         for seg_num in range(num_segs):
             ptsM = strObj.contour[slc_num].segments[seg_num].points
             rowV,colV = xytom(ptsM[:, 0],

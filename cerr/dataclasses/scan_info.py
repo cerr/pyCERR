@@ -122,7 +122,7 @@ def deduce_voxel_thickness(scan_info) -> ScanInfo:
         thick_fwd = np.diff(zValsV)
         thick_bkw = - np.diff(zValsV[::-1])
         thick_bkw = thick_bkw[::-1]
-        voxel_thickness = np.empty(len(zValsV))
+        voxel_thickness = np.zeros(len(zValsV), dtype = float)
         voxel_thickness[1:-1] = (thick_fwd[1:] + thick_bkw[:-1]) / 2
         voxel_thickness[0] = thick_fwd[0]
         voxel_thickness[-1] = thick_fwd[-1]

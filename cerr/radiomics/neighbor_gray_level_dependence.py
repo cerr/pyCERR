@@ -54,8 +54,8 @@ def calcNGLDM(scan_array, patch_size, num_grayscale_levels, a):
 
         slcNeighborSiz = slc_v.size * nbhood_size
 
-        q_m = np.empty((slcNeighborSiz, num_calc_voxels), dtype=np.float32)
-        m_m = np.empty((slcNeighborSiz, num_calc_voxels), dtype=np.float32)
+        q_m = np.zeros((slcNeighborSiz, num_calc_voxels), dtype=np.float32)
+        m_m = np.zeros((slcNeighborSiz, num_calc_voxels), dtype=np.float32)
 
         count = 0
         for i_slc in slc_v:

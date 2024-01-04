@@ -52,8 +52,8 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
         slc_v = np.arange(slc_num - patch_size[2], slc_num + patch_size[2] + 1)
         nbhood_size = indSlcM.shape[0]
 
-        q_m = np.empty((slc_v.size * nbhood_size, num_calc_voxels), dtype=np.float32)
-        m_m = np.empty((slc_v.size * nbhood_size, num_calc_voxels), dtype=np.float32)
+        q_m = np.zeros((slc_v.size * nbhood_size, num_calc_voxels), dtype=np.float32)
+        m_m = np.zeros((slc_v.size * nbhood_size, num_calc_voxels), dtype=np.float32)
 
         count = 0
         for i_slc in slc_v:

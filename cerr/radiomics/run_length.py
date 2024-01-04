@@ -34,7 +34,7 @@ def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
     colIndM = np.repeat(colV,siz[0], axis = 0)[:,:,None]
     rowIndM = np.repeat(rowIndM, siz[2], axis = 2)
     colIndM = np.repeat(colIndM, siz[2], axis = 2)
-    slcIndM = np.empty(siz,dtype = np.uint16)
+    slcIndM = np.zeros(siz,dtype = np.uint16)
     for slc in range(siz[2]):
         slcIndM[:,:,slc] = slc
 

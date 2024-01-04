@@ -108,7 +108,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     mins = np.array([min(y), min(x), min(z)])
     maxes = np.array([max(y), max(x), max(z)])
     ranges = maxes - mins
-    struct_layer = np.empty(len(str_nums))
+    struct_layer = []
     for i,str_num in enumerate(str_nums):
         mask3M = rs.getStrMask(str_num,planC)
         str_name = planC.structure[str_num].structureName
@@ -128,7 +128,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
                                               affine=scan_affine, name=str_name,
                                               colormap=cmap)
-            struct_layer = np.append(struct_layer, labl)
+            struct_layer.append(labl)
             # #labels_layer = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
             # #                                 num_colors=1,opacity=0.5,visible=False,
             # #                                 color={1:np.asarray(tableau20[i])/255})
@@ -138,7 +138,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             shp = viewer.add_shapes(polygons, shape_type='path', edge_width=2,
                               edge_color=np.array(tableau20[i])/255, face_color=[0]*4,
                               affine=scan_affine, name=str_name)
-            struct_layer = np.append(struct_layer, shp)
+            struct_layer.append(shp)
 
     viewer.dims.ndisplay = 2
     if displayMode == '3d':
