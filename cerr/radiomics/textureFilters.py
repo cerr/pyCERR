@@ -56,7 +56,7 @@ def processImage(filterType, scan3M, mask3M, paramS):
 
     elif filterType == 'sobel':
 
-        mag3M, dir3M = sobelFilt(scan3M)
+        mag3M, dir3M = sobelFilter(scan3M)
         outS['SobelMag'] = mag3M
         outS['SobelDir'] = dir3M
 
