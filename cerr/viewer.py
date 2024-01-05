@@ -94,7 +94,6 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_num = scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC)
         scan_affine = scanAffineDict[scan_num]
         colr = np.asarray(tableau20[i])/255
-        cmap = vispy.color.Colormap([colr,colr])
         str_name = planC.structure[str_num].structureName
 
         if displayMode.lower() == '3d':
@@ -104,6 +103,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             mask3M = rs.getStrMask(str_num,planC)
             verts, faces, _, _ = measure.marching_cubes(volume=mask3M, level=0.5)
             #verts_scaled = verts * ranges / np.array(mask3M.shape) - mins
+            cmap = vispy.color.Colormap([colr,colr])
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
                                               affine=scan_affine, name=str_name,
                                               colormap=cmap)
@@ -112,7 +112,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             polygons = getContourPolygons(str_num, scan_num, planC)
 
             shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
-                              edge_color=np.array(tableau20[i])/255, face_color=[0]*4,
+                              edge_color=colr, face_color=[0]*4,
                               affine=scan_affine, name=str_name)
             struct_layer.append(shp)
 
@@ -134,6 +134,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.dims.order = (2, 0, 1)
     #viewer.dims.displayed_order = (2,0,1)
     viewer.scale_bar.visible = True
+    viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
     napari.run()
 
