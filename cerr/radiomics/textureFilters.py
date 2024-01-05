@@ -921,60 +921,61 @@ def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
     return subbands
 
 def waveletFilter(vol3M, waveType, direction, level):
+    pass
 
-    if len(direction) == 3:
-        dim = '3d'
-    elif len(direction) == 2:
-        dim = '2d'
-
-    if dim == '3d':
-        dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
-    elif dim == '2d':
-        dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
-
-    outS = dict()
-    if direction == 'All':
-        for n in range(1, len(dir_list)):
-
-            out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
-            subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-
-            if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-                perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
-                match_dir = f"{perm_dir_list[0]}_{waveType}"
-                out3M = subbandsS[match_dir]
-
-                for perm_dir in perm_dir_list[1:]:
-                    match_dir = f"{perm_dir}_{waveType}"
-                    out3M += subbandsS[match_dir]
-
-                out3M /= len(perm_dir_list)
-            else:
-                match_dir = f"{dir_list[n]}_{waveType}"
-                out3M = subbandsS[match_dir]
-
-            outS[out_name] = out3M
-
-    else:
-        out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
-        subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-
-        if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-            perm_dir_list = [''.join(p) for p in permutations(direction)]
-            match_dir = f"{perm_dir_list[0]}_{waveType}"
-            out3M = subbandsS[match_dir]
-
-            for perm_dir in perm_dir_list[1:]:
-                match_dir = f"{perm_dir}_{waveType}"
-                out3M += subbandsS[match_dir]
-
-            out3M /= len(perm_dir_list)
-        else:
-            match_dir = f"{direction}_{waveType}"
-            out3M = subbandsS[match_dir]
-        outS[out_name] = out3M
-
-    return outS
+    # if len(direction) == 3:
+    #     dim = '3d'
+    # elif len(direction) == 2:
+    #     dim = '2d'
+    #
+    # if dim == '3d':
+    #     dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
+    # elif dim == '2d':
+    #     dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
+    #
+    # outS = dict()
+    # if direction == 'All':
+    #     for n in range(1, len(dir_list)):
+    #
+    #         out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
+    #         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+    #
+    #         if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+    #             perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
+    #             match_dir = f"{perm_dir_list[0]}_{waveType}"
+    #             out3M = subbandsS[match_dir]
+    #
+    #             for perm_dir in perm_dir_list[1:]:
+    #                 match_dir = f"{perm_dir}_{waveType}"
+    #                 out3M += subbandsS[match_dir]
+    #
+    #             out3M /= len(perm_dir_list)
+    #         else:
+    #             match_dir = f"{dir_list[n]}_{waveType}"
+    #             out3M = subbandsS[match_dir]
+    #
+    #         outS[out_name] = out3M
+    #
+    # else:
+    #     out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
+    #     subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+    #
+    #     if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+    #         perm_dir_list = [''.join(p) for p in permutations(direction)]
+    #         match_dir = f"{perm_dir_list[0]}_{waveType}"
+    #         out3M = subbandsS[match_dir]
+    #
+    #         for perm_dir in perm_dir_list[1:]:
+    #             match_dir = f"{perm_dir}_{waveType}"
+    #             out3M += subbandsS[match_dir]
+    #
+    #         out3M /= len(perm_dir_list)
+    #     else:
+    #         match_dir = f"{direction}_{waveType}"
+    #         out3M = subbandsS[match_dir]
+    #     outS[out_name] = out3M
+    #
+    # return outS
 
 ### Functions for rotation-invariant filtering and pooling
 
@@ -1127,7 +1128,7 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
         else:
             if waveletFlag:
                 out3M = flipSequenceForWavelets(filterResult, index - 1, -1)
-                out3M = np.flip(rotOut3M, axis=2)
+                #out3M = np.flip(rotOut3M, axis=2)
             else:
                 if dim.lower() == '2d':
                     filterResult = np.rot90(filterResult, k=-(index - 1))
