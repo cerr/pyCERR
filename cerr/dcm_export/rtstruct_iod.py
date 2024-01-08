@@ -148,7 +148,7 @@ def get_roi_contour_seq(structNumV, planC):
     roiContourSeq = Sequence()
     for iStr in structNumV:
         dsROIContour = Dataset()
-        dsROIContour.ReferencedROINumber = planC.structure[iStr].roiNumber
+        dsROIContour.ReferencedROINumber = iStr + 1 #planC.structure[iStr].roiNumber
         if len(planC.structure[0].structureColor) > 0:
             dsROIContour.ROIDisplayColor = planC.structure[iStr].structureColor
         contourSeq = Sequence()
