@@ -234,7 +234,7 @@ def raster_to_mask(rasterSegments, scanNum, planC):
         return dataSet, uniqueSlices
 
     # Figure out how many unique slices we need
-    uniqueSlices = np.unique(rasterSegments[:, 5])
+    uniqueSlices = np.unique(rasterSegments[:, 5]).astype(int)
     nUniqueSlices = len(uniqueSlices)
     dataSet = np.zeros((y, x, nUniqueSlices), dtype=bool)
 
