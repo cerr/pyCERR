@@ -96,9 +96,9 @@ def processImage(filterType, scan3M, mask3M, paramS):
 
         direction = paramS['Direction']
         type = paramS['Type']
-        normFlag = 0
+        normFlag = 'false'
         if 'Normalize' in paramS.keys():
-            normFlag = paramS['Normalize']
+            normFlag = paramS['Normalize'].lower()=='yes'
         if filterType == 'laws':
             outS = textureFilters.lawsFilter(scan3M, direction, type, normFlag)
         elif filterType == 'rotationinvariantlaws':
