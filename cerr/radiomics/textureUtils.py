@@ -129,18 +129,18 @@ def processImage(filterType, scan3M, mask3M, paramS):
                                                                      rotS)
             outS[type + '_Energy'] = out3M
 
-    elif filterType in ['wavelets', 'rotationinvariantwavelets']:
-
-        waveType = paramS['Wavelets']
-        direction = paramS['Direction']
-        level = 1  # Default
-        if 'level' in paramS.keys():
-            level = paramS['Level']
-        if 'Index' in paramS and paramS['Index'] is not None:
-            waveType += str(paramS['Index'])
-        if filterType == 'rotationInvariantWaveletFilter':
-            outS = waveletFilter(scan3M, waveType, direction, level)
-        # elif filterType == 'rotationInvariantWavelets':
+    # elif filterType in ['wavelets', 'rotationinvariantwavelets']:
+    #
+    #     waveType = paramS['Wavelets']
+    #     direction = paramS['Direction']
+    #     level = 1  # Default
+    #     if 'level' in paramS.keys():
+    #         level = paramS['Level']
+    #     if 'Index' in paramS and paramS['Index'] is not None:
+    #         waveType += str(paramS['Index'])
+    #     if filterType == 'rotationInvariantWaveletFilter':
+    #         outS = waveletFilter(scan3M, waveType, direction, level)
+    #     # elif filterType == 'rotationInvariantWavelets':
 
     else:
         raise Exception('Unknown filter name ' + filterType)
