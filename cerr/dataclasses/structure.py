@@ -136,6 +136,32 @@ class Structure:
         self.contour = contour_list
         return self
 
+    def getStructureAssociatedScan(self, planC):
+        """
+        Returns associated scan index for structure object based on the scan UID associated with
+        the structure.
+        """
+
+        # Preallocate memory
+        scanUID = [None] * len(planC.scan)
+
+        # Get all associated scan UID from structures
+        allAssocScanUID = [struct['assocScanUID'] for struct in planC.structure]
+
+        # Get the scan UID from the scan field under planC
+        scanUID = [scan['scanUID'] for scan in planC.scan]
+
+        # Get associated scan UID's
+        assocScanUID = self['assocScanUID']
+
+        # Match all the UID to check which scan the structure belongs to.
+        assocScansV = []
+        for uid in assocScanUID:
+            ind = next((i for i, x in enumerate(scanUID) if x == uid), 0)
+            assocScansV.append(ind)
+
+        return assocScansV
+
 @dataclass
 class Contour:
     #sopInstanceUID: str = ""

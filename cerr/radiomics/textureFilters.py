@@ -3,7 +3,6 @@
  Supported filters include: "mean", "sobel", "LoG", "gabor", "gabor3d", "laws", "lawsEnergy"
  "rotationInvariantLaws", "rotationInvariantLawsEnergy"
 """
-import json
 import pywt
 import numpy as np
 from scipy.signal import convolve2d
@@ -11,144 +10,6 @@ from scipy.signal import convolve
 from scipy.ndimage import rotate
 from cerr.radiomics.preprocess import padScan
 
-
-def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
-    """ Load filter parameters from user-input JSON file"""
-
-    # Read settings
-    with open(settingsFile) as json_file:
-        paramS = json.load(json_file)
-
-    # Copy voxel dimensions and padding settings to filter parameter dictionary
-    filterTypes = list(paramS['imageType'].keys())
-    if scanNum is not None:
-        voxelSizemmV = planC.scan[scanNum].getScanSpacing() * 10
-        for n in range(len(filterTypes)):
-            paramS['imageType'][filterTypes[n]]['VoxelSize_mm'] = voxelSizemmV
-            if 'padding'in paramS['settings'].keys():
-                paramS['imageType'][filterTypes[n]]['padding'] = paramS['settings']['padding'][0]
-
-    return paramS, filterTypes
-
-
-def processImage(filterType, scan3M, mask3M, paramS):
-    """
-    Process scan using selected filter and parameters
-
-    filterType : Name of supported filter
-    scan3M     : 3D scan array
-    mask3M     : 3D mask
-    paramS     : Dictionary of parameters (read from JSON)
-    """
-
-    filterType = filterType.strip().lower()
-    scan3M = scan3M.astype(float)
-    outS = dict()
-
-    if filterType == 'mean':
-
-        absFlag=False
-        kernelSize = np.array(paramS['KernelSize'])
-        if 'Absolute' in paramS.keys():
-            absFlag = paramS['Absolute'].lower()=='yes'
-        mean3M = meanFilter(scan3M, kernelSize, absFlag)
-        outS['mean'] = mean3M
-
-    elif filterType == 'sobel':
-
-        mag3M, dir3M = sobelFilter(scan3M)
-        outS['SobelMag'] = mag3M
-        outS['SobelDir'] = dir3M
-
-    elif filterType == 'log':
-
-        sigmaV = paramS['Sigma_mm']
-        cutOffV = np.array(paramS['CutOff_mm'])
-        voxelSizeV = np.array(paramS['VoxelSize_mm'])
-        LoG3M = LoGFilter(scan3M, sigmaV, cutOffV, voxelSizeV)
-        outS['LoG'] = LoG3M
-
-    elif filterType in ['gabor','gabor3d']:
-
-        voxelSizV = np.array(paramS['VoxelSize_mm'])
-        sigma = paramS['Sigma_mm']/voxelSizV[0]
-        wavelength = paramS['Wavlength_mm']/voxelSizV[0]
-        thetaV = np.array(paramS['Orientation'])
-        gamma = paramS['SpatialAspectRatio']
-        radius = None
-        paddingV = None
-
-        if 'radius' in paramS.keys():
-            radius = paramS['radius']
-        if 'padding' in paramS.keys():
-            paddingV = paramS['padding']['size']
-
-        if filterType ==  'gabor':
-            if 'OrientationAggregation' in paramS.keys():
-                aggS ={'OrientationAggregation': paramS['OrientationAggregation']}
-                outS, __  = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
-            else:
-                outS, __  = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius, paddingV)
-        elif filterType == 'gabor3d':
-            aggS = {'PlaneAggregation': paramS['PlaneAggregation']}
-            if 'OrientationAggregation' in paramS.keys():
-                aggS['OrientationAggregation'] = paramS['OrientationAggregation']
-            outS, __ = gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
-
-    elif filterType in ['laws','rotationinvariantlaws']:
-
-        voxelSizV = np.array(paramS['VoxelSize_mm'])
-        direction = paramS['Direction']
-        type = paramS['Type']
-        normFlag = 0
-        if 'Normalize' in paramS.keys():
-            normFlag = paramS['Normalize']
-        if filterType == 'laws':
-            outS = lawsFilter(scan3M, direction, type, normFlag)
-        elif filterType == 'rotationinvariantlaws':
-            rotS = paramS['RotationInvariance']
-            out3M = rotationInvariantLawsFilter(scan3M, direction, type, normFlag, rotS)
-            outS[type] = out3M
-
-    elif filterType in ['lawsenergy','rotationinvariantlawsenergy']:
-
-        direction = paramS['Direction']
-        type = paramS['Type']
-        normFlag = 0
-        lawsPadSizeV = np.array([0,0,0])
-        energyKernelSizeV = paramS['EnergyKernelSize']
-        energyPadSizeV = paramS['EnergyPadSize']
-        energyPadMethod = paramS['EnergyPadMethod']
-        if 'Normalize' in paramS.keys():
-            normFlag = paramS['Normalize']
-        if 'padding' in paramS.keys():
-            lawsPadSizeV = paramS['padding']['size']
-        if filterType == 'lawsenergy':
-            outS = lawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
-                                    energyKernelSizeV, energyPadSizeV, energyPadMethod)
-        elif filterType == 'rotationinvariantlawsenergy':
-            rotS = paramS['RotationInvariance']
-            out3M = rotationInvariantLawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
-                                                      energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS)
-            outS[type+'_Energy'] = out3M
-
-    elif filterType in ['wavelets', 'rotationinvariantwavelets']:
-
-        waveType = paramS['Wavelets']
-        direction = paramS['Direction']
-        level = 1 #Default
-        if 'level' in paramS.keys():
-            level = paramS['Level']
-        if 'Index' in paramS and paramS['Index'] is not None:
-            waveType += str(paramS['Index'])
-        if filterType == 'rotationInvariantLawsEnergyFilter':
-            outS = waveletFilter(scan3M, waveType, direction, level)
-        #elif filterType == 'rotationInvariantWavelets':
-
-    else:
-        raise Exception('Unknown filter name ' + filterType)
-
-    return outS
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
     """meanFilter
@@ -260,6 +121,7 @@ def LoGFilter(scan3M, sigmaV, cutoffV, voxelSizeV):
 
     return out3M
 
+
 def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None, paddingV=None):
     """gaborFilter
     Returns 2D Gabor filter response (IBSI-compatible)
@@ -352,6 +214,7 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
 
     return gaborThetas, hGabor
 
+
 def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, paddingV=None):
     """gaborFilter3d
     Returns Gabor filter responses aggregated across the 3 orthogonal planes (IBSI-compatible)
@@ -379,7 +242,7 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, p
     scanSizeV = np.shape(scan3M)
     if radius is None:
         # Otherwise, use default suggestion (IBSI)
-        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 *np.array(paddingV[:2])
+        inPlaneSizeV = np.array(scanSizeV[:2]) - 2 * np.array(paddingV[:2])
         evenIdxV = inPlaneSizeV % 2 == 0
         inPlaneSizeV[evenIdxV] = inPlaneSizeV[evenIdxV] + 1
         radius = np.floor(inPlaneSizeV / 2)
@@ -398,7 +261,7 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, p
         # Apply filter
         gaborThetas, hGabor = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
         for fieldName in gaborThetas.keys():
-            gaborThetaPlanes[(plane+'_') + fieldName] = gaborThetas[fieldName]
+            gaborThetaPlanes[(plane + '_') + fieldName] = gaborThetas[fieldName]
 
         # Re-orient results for cross-plane aggregation
         for fieldName in gaborThetaPlanes.keys():
@@ -815,7 +678,7 @@ def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
     for type in lawMaps.keys():
         # Compute energy
         lawsTex3M = lawMaps[type]
-        origSizeV = lawsTex3M.shape
+        #origSizeV = lawsTex3M.shape
 
         lawsEnergyPad3M = energyFilter(lawsTex3M, lawsPadSizeV, energyKernelSizeV, energyPadSizeV,
                                        energyPadMethod)
@@ -848,134 +711,134 @@ def rotationInvariantLawsEnergyFilter(scan3M, direction, filterDim, normFlag, la
     return lawsEnergyAggPad3M
 
 
-def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
-    """ getWaveletSubbands
-    Copyright (C) 2017-2019 Martin Vallières
-    All rights reserved.
-    https://github.com/mvallieres/radiomics-develop
-    ------------------------------------------------------------------------
-    IMPORTANT:
-    - THIS FUNCTION IS TEMPORARY AND NEEDS BENCHMARKING. ALSO, IT
-    ONLY WORKS WITH AXIAL SCANS FOR NOW. USING DICOM CONVENTIONS(NOT MATLAB).
-    - Strategy: 2D transform for each axial slice. Then 1D transform for each
-    axial line. I need to find a faster way to do that with 3D convolutions
-    of wavelet filters, this is too slow now. Using GPUs would be ideal.
-    ------------------------------------------------------------------------
-    """
+# def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
+#     """ getWaveletSubbands
+#     Copyright (C) 2017-2019 Martin Vallières
+#     All rights reserved.
+#     https://github.com/mvallieres/radiomics-develop
+#     ------------------------------------------------------------------------
+#     IMPORTANT:
+#     - THIS FUNCTION IS TEMPORARY AND NEEDS BENCHMARKING. ALSO, IT
+#     ONLY WORKS WITH AXIAL SCANS FOR NOW. USING DICOM CONVENTIONS(NOT MATLAB).
+#     - Strategy: 2D transform for each axial slice. Then 1D transform for each
+#     axial line. I need to find a faster way to do that with 3D convolutions
+#     of wavelet filters, this is too slow now. Using GPUs would be ideal.
+#     ------------------------------------------------------------------------
+#     """
+#
+#     # Initialization
+#     if dim not in ['2d', '3d']:
+#         raise ValueError("Invalid 'dim' value. Supported values are '2d' and '3d'.")
+#
+#     sizeV = scan3M.shape
+#     subbands = {}
+#
+#     # Step 1: Making sure the volume has even size
+#     if sizeV[0] % 2 == 1:
+#         scan3M = np.concatenate((scan3M, scan3M[-1][np.newaxis, :, :]), axis=0)
+#     if sizeV[1] % 2 == 1:
+#         scan3M = np.concatenate((scan3M, scan3M[:, -1][:, np.newaxis, :]), axis=1)
+#     if dim == '3d' and sizeV[2] % 2 == 1:
+#         scan3M = np.concatenate((scan3M, scan3M[:, :, -1][:, :, np.newaxis]), axis=2)
+#
+#     # Step 2: Compute all sub-bands
+#     names = []
+#     if dim == '2d':
+#         names = ['LL', 'LH', 'HL', 'HH']
+#     elif dim == '3d':
+#         names = ['LLL', 'LLH', 'LHL', 'LHH', 'HLL', 'HLH', 'HHL', 'HHH']
+#
+#     # Ensure odd filter dimensions
+#     loFilt, hiFilt = pywt.Wavelet(waveletName).filter_bank[0]
+#
+#     # First pass using 2D stationary wavelet transform in axial direction
+#     for k in range(sizeV[2]):
+#         coeffs = pywt.swt2(scan3M[:, :, k], wavelet=waveletName, level=level)
+#         for s, name in enumerate(names):
+#             subbands[name][:, :, k] = coeffs[s][0][:, :, level]
+#
+#     # Second pass using 1D stationary wavelet transform for all axial lines
+#     if dim == '3d':
+#         for j in range(sizeV[1]):
+#             for i in range(sizeV[0]):
+#                 for s, name in enumerate(names[:4]):
+#                     vector = subbands[name][i, j, :]
+#                     L, H = pywt.swt(vector, wavelet=waveletName, level=level)
+#                     subbands[name][i, j, :] = L[level]
+#                 for s, name in enumerate(names[4:]):
+#                     vector = subbands[name][i, j, :]
+#                     L, H = pywt.swt(vector, wavelet=waveletName, level=level)
+#                     subbands[name][i, j, :] = L[level]
+#
+#     # Removing unnecessary data added in step 1
+#     if sizeV[0] % 2 == 1:
+#         for name in names:
+#             subbands[name] = subbands[name][:-1, :, :]
+#     if sizeV[1] % 2 == 1:
+#         for name in names:
+#             subbands[name] = subbands[name][:, :-1, :]
+#     if dim == '3d' and sizeV[2] % 2 == 1:
+#         for name in names:
+#             subbands[name] = subbands[name][:, :, :-1]
+#
+#     return subbands
+#
+#
+# def waveletFilter(vol3M, waveType, direction, level):
+#     if len(direction) == 3:
+#         dim = '3d'
+#     elif len(direction) == 2:
+#         dim = '2d'
+#
+#     if dim == '3d':
+#         dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
+#     elif dim == '2d':
+#         dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
+#
+#     outS = dict()
+#     if direction == 'All':
+#         for n in range(1, len(dir_list)):
+#
+#             out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
+#             subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+#
+#             if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+#                 perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
+#                 match_dir = f"{perm_dir_list[0]}_{waveType}"
+#                 out3M = subbandsS[match_dir]
+#
+#                 for perm_dir in perm_dir_list[1:]:
+#                     match_dir = f"{perm_dir}_{waveType}"
+#                     out3M += subbandsS[match_dir]
+#
+#                 out3M /= len(perm_dir_list)
+#             else:
+#                 match_dir = f"{dir_list[n]}_{waveType}"
+#                 out3M = subbandsS[match_dir]
+#
+#             outS[out_name] = out3M
+#
+#     else:
+#         out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
+#         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+#
+#         if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
+#             perm_dir_list = [''.join(p) for p in permutations(direction)]
+#             match_dir = f"{perm_dir_list[0]}_{waveType}"
+#             out3M = subbandsS[match_dir]
+#
+#             for perm_dir in perm_dir_list[1:]:
+#                 match_dir = f"{perm_dir}_{waveType}"
+#                 out3M += subbandsS[match_dir]
+#
+#             out3M /= len(perm_dir_list)
+#         else:
+#             match_dir = f"{direction}_{waveType}"
+#             out3M = subbandsS[match_dir]
+#         outS[out_name] = out3M
+#
+#     return outS
 
-    # Initialization
-    if dim not in ['2d', '3d']:
-        raise ValueError("Invalid 'dim' value. Supported values are '2d' and '3d'.")
-
-    sizeV = scan3M.shape
-    subbands = {}
-
-    # Step 1: Making sure the volume has even size
-    if sizeV[0] % 2 == 1:
-        scan3M = np.concatenate((scan3M, scan3M[-1][np.newaxis, :, :]), axis=0)
-    if sizeV[1] % 2 == 1:
-        scan3M = np.concatenate((scan3M, scan3M[:, -1][:, np.newaxis, :]), axis=1)
-    if dim == '3d' and sizeV[2] % 2 == 1:
-        scan3M = np.concatenate((scan3M, scan3M[:, :, -1][:, :, np.newaxis]), axis=2)
-
-    # Step 2: Compute all sub-bands
-    names = []
-    if dim == '2d':
-        names = ['LL', 'LH', 'HL', 'HH']
-    elif dim == '3d':
-        names = ['LLL', 'LLH', 'LHL', 'LHH', 'HLL', 'HLH', 'HHL', 'HHH']
-
-    # Ensure odd filter dimensions
-    loFilt, hiFilt = pywt.Wavelet(waveletName).filter_bank[0]
-
-    # First pass using 2D stationary wavelet transform in axial direction
-    for k in range(sizeV[2]):
-        coeffs = pywt.swt2(scan3M[:, :, k], wavelet=waveletName, level=level)
-        for s, name in enumerate(names):
-            subbands[name][:, :, k] = coeffs[s][0][:, :, level]
-
-    # Second pass using 1D stationary wavelet transform for all axial lines
-    if dim == '3d':
-        for j in range(sizeV[1]):
-            for i in range(sizeV[0]):
-                for s, name in enumerate(names[:4]):
-                    vector = subbands[name][i, j, :]
-                    L, H = pywt.swt(vector, wavelet=waveletName, level=level)
-                    subbands[name][i, j, :] = L[level]
-                for s, name in enumerate(names[4:]):
-                    vector = subbands[name][i, j, :]
-                    L, H = pywt.swt(vector, wavelet=waveletName, level=level)
-                    subbands[name][i, j, :] = L[level]
-
-    # Removing unnecessary data added in step 1
-    if sizeV[0] % 2 == 1:
-        for name in names:
-            subbands[name] = subbands[name][:-1, :, :]
-    if sizeV[1] % 2 == 1:
-        for name in names:
-            subbands[name] = subbands[name][:, :-1, :]
-    if dim == '3d' and sizeV[2] % 2 == 1:
-        for name in names:
-            subbands[name] = subbands[name][:, :, :-1]
-
-    return subbands
-
-def waveletFilter(vol3M, waveType, direction, level):
-    pass
-
-    # if len(direction) == 3:
-    #     dim = '3d'
-    # elif len(direction) == 2:
-    #     dim = '2d'
-    #
-    # if dim == '3d':
-    #     dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
-    # elif dim == '2d':
-    #     dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
-    #
-    # outS = dict()
-    # if direction == 'All':
-    #     for n in range(1, len(dir_list)):
-    #
-    #         out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
-    #         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-    #
-    #         if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-    #             perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
-    #             match_dir = f"{perm_dir_list[0]}_{waveType}"
-    #             out3M = subbandsS[match_dir]
-    #
-    #             for perm_dir in perm_dir_list[1:]:
-    #                 match_dir = f"{perm_dir}_{waveType}"
-    #                 out3M += subbandsS[match_dir]
-    #
-    #             out3M /= len(perm_dir_list)
-    #         else:
-    #             match_dir = f"{dir_list[n]}_{waveType}"
-    #             out3M = subbandsS[match_dir]
-    #
-    #         outS[out_name] = out3M
-    #
-    # else:
-    #     out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
-    #     subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-    #
-    #     if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-    #         perm_dir_list = [''.join(p) for p in permutations(direction)]
-    #         match_dir = f"{perm_dir_list[0]}_{waveType}"
-    #         out3M = subbandsS[match_dir]
-    #
-    #         for perm_dir in perm_dir_list[1:]:
-    #             match_dir = f"{perm_dir}_{waveType}"
-    #             out3M += subbandsS[match_dir]
-    #
-    #         out3M /= len(perm_dir_list)
-    #     else:
-    #         match_dir = f"{direction}_{waveType}"
-    #         out3M = subbandsS[match_dir]
-    #     outS[out_name] = out3M
-    #
-    # return outS
 
 ### Functions for rotation-invariant filtering and pooling
 

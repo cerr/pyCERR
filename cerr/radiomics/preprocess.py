@@ -216,12 +216,12 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
         maxr = inputSizeV[0]
         maxc = inputSizeV[1]
         maxs = inputSizeV[2]
-        minr = max(minr - marginV[0], 0)
-        maxr = min(maxr + marginV[0], mask3M.shape[0] - 1)
-        minc = max(minc - marginV[1], 0)
-        maxc = min(maxc + marginV[1], mask3M.shape[1] - 1)
-        mins = max(mins - marginV[2], 0)
-        maxs = min(maxs + marginV[2], mask3M.shape[2] - 1)
+        minr = minr - marginV[0]
+        maxr = maxr + marginV[0]
+        minc = minc - marginV[1]
+        maxc = maxc + marginV[1]
+        mins = mins - marginV[2]
+        maxs = maxs + marginV[2]
         croppedScan3M = scan3M
         croppedMask3M = mask3M
 
@@ -252,6 +252,7 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
 
     return outScan3M, outMask3M, outLimitsV
 
+
 def unpadScan(padScan3M, method, marginV):
     """Return original array after stripping off specified padding margin"""
 
@@ -281,13 +282,10 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     #if yValsV[0] > yValsV[1]:
     #    yValsV = np.flip(yValsV)
 
-    # Minimum padding size if 5,5,5
-    minPadSizeV = [5,5,5]
-    cropForResamplingFlag = True
-
     # Get pixelSpacing of the new grid
+    cropForResamplingFlag = False
     if 'resample' in paramS["settings"] and len(paramS["settings"]['resample']) > 0:
-        pixel_spacing_x, pixel_spacing_y, pixel_spacing_z = \
+        pixelSpacingX, pixelSpacingY, pixelSpacingZ = \
             paramS["settings"]['resample']['resolutionXCm'], \
             paramS["settings"]['resample']['resolutionYCm'], \
             paramS["settings"]['resample']['resolutionYCm']
@@ -301,65 +299,134 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             scanInterpMethod = 'sitkLanczosWindowedSinc'
         grid_resample_method = 'center'
         maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
+        if 'cropForResampling' in paramS["settings"]['resample']:
+           cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling']
     else:
-        pixel_spacing_x = np.median(xValsV)
-        pixel_spacing_y = np.median(yValsV)
-        pixel_spacing_z = np.median(zValsV)
-        xResampleV = xValsV
-        yResampleV = yValsV
-        zResampleV = zValsV
+        pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
+        pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
+        pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
 
-    outputResV = [pixel_spacing_x, pixel_spacing_y, pixel_spacing_z]
+    outputResV = np.array([pixelSpacingX, pixelSpacingY, pixelSpacingZ])
 
-    # Pad and crop
-    if 'padding' in paramS["settings"] and len(paramS["settings"]['padding']) > 0:
-        pad_method = 'expand'
-        pad_method = paramS["settings"]['padding'][0]['method']
-        pad_siz_v = paramS["settings"]['padding'][0]['size']
+    #Crop and pad scan for resampling
+    #Get padding settings
+    padSizeV = []
+    padMethod = 'none'
+    if cropForResamplingFlag:
+        padMethod = 'expand'     #Default:Pad by 5 voxels (from original image) before resampling
+        padSizeV = [5,5,5]
+        if 'padding' in paramS["settings"] and len(paramS["settings"]['padding']) > 0:
+            padMethod = paramS["settings"]['padding'][0]['method']
+            padSizeV = paramS["settings"]['padding'][0]['size']
 
-        input_res_v = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
-        if input_res_v[0] * pad_siz_v[1] < outputResV[0] * pad_siz_v[1]:
-            pad_siz_v[1] = np.ceil(outputResV[0] * pad_siz_v[1] / input_res_v[0])
-        if input_res_v[1] * pad_siz_v[0] < outputResV[1] * pad_siz_v[0]:
-            pad_siz_v[0] = np.ceil(outputResV[1] * pad_siz_v[0] / input_res_v[1])
-        if input_res_v[2] * pad_siz_v[2] < outputResV[2] * pad_siz_v[2]:
-            pad_siz_v[1] = np.ceil(outputResV[2] * pad_siz_v[1] / input_res_v[2])
+            inputResV = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
+            if inputResV[0] * padSizeV[1] < outputResV[0] * padSizeV[1]:
+                padSizeV[1] = np.ceil(outputResV[0] * padSizeV[1] / inputResV[0])
+            if inputResV[1] * padSizeV[0] < outputResV[1] * padSizeV[0]:
+                padSizeV[0] = np.ceil(outputResV[1] * padSizeV[0] / inputResV[1])
+            if inputResV[2] * padSizeV[2] < outputResV[2] * padSizeV[2]:
+                padSizeV[1] = np.ceil(outputResV[2] * padSizeV[1] / inputResV[2])
 
-        (padScanBoundsForResamp3M,padMaskBoundsForResamp3M,outLimitsV) = \
-            padScan(scanArray3M, mask3M, pad_method, pad_siz_v, cropForResamplingFlag)
-        xValsV = xValsV[outLimitsV[2]:outLimitsV[3]+1]
-        yValsV = yValsV[outLimitsV[0]:outLimitsV[1]+1]
-        zValsV = zValsV[outLimitsV[4]:outLimitsV[5]+1]
+    #Crop to ROI and pad
+    (padScanBoundsForResamp3M,padMaskBoundsForResamp3M,outLimitsV) = \
+            padScan(scanArray3M, mask3M, padMethod, padSizeV, cropForResamplingFlag)
+    xValsV = xValsV[outLimitsV[2]:outLimitsV[3]+1]
+    yValsV = yValsV[outLimitsV[0]:outLimitsV[1]+1]
+    zValsV = zValsV[outLimitsV[4]:outLimitsV[5]+1]
 
-
-    # Interpolate using the method defined in settings file
+    # Interpolate image as defined in settings file
     if 'resample' in paramS["settings"] and len(paramS["settings"]['resample']) > 0:
 
         #Get resampling grid
         [xResampleV,yResampleV,zResampleV] = getResampledGrid(outputResV,\
                                                  xValsV, yValsV, zValsV, grid_resample_method)
-
-        gridS = {'xValsV': xResampleV,
-                 'yValsV': yResampleV,
-                 'zValsV': zResampleV,
-                 'pixelSpacingV': outputResV}
-
         #Resample scan
         resampScanBounds3M = imgResample3D(padScanBoundsForResamp3M, xValsV, yValsV, zValsV,\
                                 xResampleV, yResampleV, zResampleV, scanInterpMethod)
+        # Round image intensities
+        if 'intensityRounding' in paramS["settings"]['resample'] and \
+                paramS["settings"]['resample']['intensityRounding'].lower =='on':
+            resampScanBounds3M = np.round(resampScanBounds3M)
 
         #Resample mask
-        maskBoundingBox3M = imgResample3D(padMaskBoundsForResamp3M.astype(float),xValsV,yValsV,zValsV,\
+        resampMaskBounds3M = imgResample3D(padMaskBoundsForResamp3M.astype(float),xValsV,yValsV,zValsV,\
             xResampleV,yResampleV,zResampleV,roiInterpMethod) >= (0.5 - maskInterpTol)
         #maskBoundingBox3M = maskBoundingBox3M.astype(bool)
 
     else:
+        xResampleV = xValsV
+        yResampleV = yValsV
+        zResampleV = zValsV
         resampScanBounds3M = padScanBoundsForResamp3M
-        maskBoundingBox3M = padMaskBoundsForResamp3M
-        gridS = {'xValsV': xResampleV,
-                 'yValsV': yResampleV,
-                 'zValsV': zResampleV,
-                 'pixelSpacingV': outputResV}
+        resampMaskBounds3M = padMaskBoundsForResamp3M
+
+
+    # Pad scan as required for convolutional filtering
+    filtPadMethod = 'none'
+    filtPadSizeV = [0,0,0]
+    cropFlag = True
+    if not cropForResamplingFlag:
+        if 'padding' in paramS['settings']:
+            if 'cropToMaskBounds' in  paramS['settings']['padding']:
+                cropFlag = paramS['settings']['padding'][0]['cropToMaskBounds'].lower() == 'yes'
+            if 'method' in paramS['settings']['padding'][0] and paramS['settings']['padding'][0]['method'].lower()!='none':
+                filtPadMethod = paramS['settings']['padding'][0]['method']
+                filtPadSizeV = paramS['settings']['padding'][0]['size']
+                if len(filtPadSizeV)==2:
+                    filtPadSizeV = [filtPadSizeV,0]
+        [volToEval,maskBoundingBox3M,outLimitsV] = padScan(resampScanBounds3M,\
+        resampMaskBounds3M,filtPadMethod,filtPadSizeV,cropFlag)
+
+        # Extend resampling grid if padding original image (cropFlag: False)
+        if outLimitsV[0]<0:
+            numPad = -outLimitsV[0]
+            padCountV = np.arange(1,numPad+1,1)
+            yExtendV = yResampleV[0]-padCountV*outputResV[1]
+            yResampleV = [yExtendV,yResampleV]
+            outLimitsV[0] = outLimitsV[0] + numPad
+            outLimitsV[1] = outLimitsV[1] + numPad
+
+        if outLimitsV[2]<0:
+            numPad = -outLimitsV[2]
+            padCountV = np.arange(1,numPad+1,1)
+            xExtendV = xResampleV[0]-padCountV*outputResV[0]
+            xResampleV = [xExtendV,xResampleV]
+            outLimitsV[2] = outLimitsV[2] + numPad
+            outLimitsV[3] = outLimitsV[3] + numPad
+
+        if outLimitsV[4]<0:
+            numPad = -outLimitsV[4]
+            padCountV = np.arange(1,numPad+1,1)
+            zExtendV = zResampleV[0]-padCountV*outputResV[2]
+            zResampleV = [zExtendV,zResampleV]
+            outLimitsV[4] = outLimitsV[4] + numPad
+            outLimitsV[5] = outLimitsV[5] + numPad
+
+        if outLimitsV[1]>len(yResampleV)-1:
+            numPad = outLimitsV[1] - len(yResampleV) + 1
+            padCountV = np.arange(1,numPad+1,1)
+            yExtendV = yResampleV[-1] + padCountV*outputResV[1]
+            yResampleV = [yResampleV,yExtendV]
+
+        if outLimitsV[3]>len(xResampleV)-1:
+            numPad = outLimitsV[3] - len(xResampleV) + 1
+            padCountV = np.arange(1,numPad+1,1)
+            xExtendV = xResampleV[-1] + padCountV*outputResV[0]
+            xResampleV = [xResampleV,xExtendV]
+
+        if outLimitsV[5]>len(zResampleV):
+            numPad = outLimitsV[5] - len(zResampleV) + 1
+            padCountV = np.arange(1,numPad+1,1)
+            zExtendV = zResampleV[-1] + padCountV*outputResV[2]
+            zResampleV = [zResampleV,zExtendV]
+
+        xResampleV = xResampleV[outLimitsV[2]:outLimitsV[3]+1]
+        yResampleV = yResampleV[outLimitsV[0]:outLimitsV[1]+1]
+        zResampleV = zResampleV[outLimitsV[4]:outLimitsV[5]+1]
+
+    else:
+        volToEval = resampScanBounds3M
+        maskBoundingBox3M = resampMaskBounds3M
 
 
     # Ignore voxels below and above cutoffs, if defined ----
@@ -371,14 +438,21 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         if 'maxSegThreshold' in paramS['settings']['texture']:
             maxSegThreshold = paramS['settings']['texture']['maxSegThreshold']
         if isinstance(minSegThreshold,int) or isinstance(minSegThreshold,float):
-            maskBoundingBox3M[resampScanBounds3M < minSegThreshold] = 0
+            maskBoundingBox3M[volToEval < minSegThreshold] = 0
         if isinstance(maxSegThreshold,int) or isinstance(maxSegThreshold,float):
-            maskBoundingBox3M[resampScanBounds3M > maxSegThreshold] = 0
+            maskBoundingBox3M[volToEval > maxSegThreshold] = 0
 
-    scanV = resampScanBounds3M[maskBoundingBox3M]
+    # Record diagnostic stats
+    scanV = volToEval[maskBoundingBox3M]
     diagS['numVoxelsInterpReseg'] = maskBoundingBox3M.sum()
     diagS['meanIntensityInterpReseg'] = scanV.mean()
     diagS['maxIntensityInterpReseg'] = scanV.max()
     diagS['minIntensityInterpReseg'] = scanV.min()
 
-    return resampScanBounds3M, maskBoundingBox3M, gridS, paramS, diagS
+    # Return output image grid
+    gridS = {'xValsV': xResampleV,
+             'yValsV': yResampleV,
+             'zValsV': zResampleV,
+             'PixelSpacingV': outputResV}
+
+    return volToEval, maskBoundingBox3M, gridS, paramS, diagS
