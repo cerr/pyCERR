@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 currPath = os.path.abspath(__file__)
 cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)),'cerr')
 dataPath = os.path.join(cerrPath,'datasets','IBSIradiomicsDICOM','IBSI2Phase1')
-settingsPath = os.path.join(cerrPath, 'datasets','radiomics_settings','IBSI2settings')
+settingsPath = os.path.join(cerrPath, 'datasets','radiomics_settings', 'IBSIsettings','IBSI2Phase1')
 refPath = os.path.join(cerrPath,'datasets','referenceValuesForTests','IBSI2Phase1')
 
 def loadData(synthDataset):
@@ -279,6 +279,49 @@ def run_tests_phase1():
     print('Testing setting 3.b.3')
     config = '3b3'
     refMapName = '3b3.mat'
+
+    # Read filter settings
+    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
+    # Calc. filter response
+    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
+    filtIdx = len(planC.scan)-1
+    responseMap3M = planC.scan[filtIdx].getScanArray()
+    # Compare to reference std
+    compareMaps(responseMap3M, refMapName)
+
+
+    # Config. c1
+    print('Testing setting 3.c.1')
+    config = '3c1'
+    refMapName = '3c1.mat'
+
+    # Read filter settings
+    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
+    # Calc. filter response
+    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
+    filtIdx = len(planC.scan)-1
+    responseMap3M = planC.scan[filtIdx].getScanArray()
+    # Compare to reference std
+    compareMaps(responseMap3M, refMapName)
+
+    # Config. c2
+    print('Testing setting 3.c.2')
+    config = '3c2'
+    refMapName = '3c2.mat'
+
+    # Read filter settings
+    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
+    # Calc. filter response
+    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
+    filtIdx = len(planC.scan)-1
+    responseMap3M = planC.scan[filtIdx].getScanArray()
+    # Compare to reference std
+    compareMaps(responseMap3M, refMapName)
+
+    # Config. c3
+    print('Testing setting 3.c.3')
+    config = '3c3'
+    refMapName = '3c3.mat'
 
     # Read filter settings
     settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')

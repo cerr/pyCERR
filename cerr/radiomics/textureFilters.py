@@ -177,7 +177,7 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
         out3M = np.zeros_like(scan3M)
         for slcNum in range(scanSizeV[2]):
             scanM = scan3M[:, :, slcNum]
-            outM = convolve2d(scanM, h, mode='same', boundary='fill')
+            outM = convolve2d(scanM, h, mode='same', boundary='fill', fillvalue=0)
             # Return modulus
             out3M[:, :, slcNum] = np.abs(outM)
         fieldName = f'gabor_{str(theta)}'
@@ -600,7 +600,12 @@ def lawsFilter(scan3M, direction, filterDim, normFlag):
 
     for i in range(num_features):
         filter_weights = lawsMasks[fieldNames[i]]
-        response3M = convolve(scan3M, lawsMasks[fieldNames[i]], mode='same')
+        if direction.lower() == '3d':
+            response3M = convolve(scan3M, filter_weights, mode='same')
+        elif direction.lower() == '2d':
+            response3M = np.empty_like(scan3M)
+            for slc in range(scan3M.shape[2]):
+                response3M[:, :, slc] = convolve2d(scan3M[:, :, slc], filter_weights, mode='same')
         out_dict[fieldNames[i]] = response3M
 
     return out_dict
@@ -640,16 +645,21 @@ def energyFilter(tex3M, texPadSizeV, energyKernelSizeV, energyPadSizeV, energyPa
 
     # Reapply original paddingV
     texEnergyPad3M = np.full(origSizeV, np.nan)
-    texEnergyPad3M[texPadSizeV[0]: -texPadSizeV[0],
-    texPadSizeV[1]: -texPadSizeV[1],
-    texPadSizeV[2]: -texPadSizeV[2]] = texEnergy3M
+    if texPadSizeV[2] == 0:
+        texEnergyPad3M[texPadSizeV[0]: -texPadSizeV[0],
+        texPadSizeV[1]: -texPadSizeV[1],:] = texEnergy3M
+    else:
+        texEnergyPad3M[texPadSizeV[0]: -texPadSizeV[0],
+        texPadSizeV[1]: -texPadSizeV[1],
+        texPadSizeV[2]: -texPadSizeV[2]] = texEnergy3M
 
     texEnergyPad3M[0: texPadSizeV[0], :, :] = tex3M[0: texPadSizeV[0], :, :]
     texEnergyPad3M[-texPadSizeV[0]:, :, :] = tex3M[-texPadSizeV[0]:, :, :]
     texEnergyPad3M[:, 0: texPadSizeV[1], :] = tex3M[:, 0: texPadSizeV[1], :]
     texEnergyPad3M[:, -texPadSizeV[1]:, :] = tex3M[:, -texPadSizeV[1]:, :]
-    texEnergyPad3M[:, :, 0: texPadSizeV[2]] = tex3M[:, :, 0: texPadSizeV[2]]
-    texEnergyPad3M[:, :, -texPadSizeV[2]:] = tex3M[:, :, -texPadSizeV[2]:]
+    if texPadSizeV[2] != 0:
+        texEnergyPad3M[:, :, 0: texPadSizeV[2]] = tex3M[:, :, 0: texPadSizeV[2]]
+        texEnergyPad3M[:, :, -texPadSizeV[2]:] = tex3M[:, :, -texPadSizeV[2]:]
 
     return texEnergyPad3M
 
