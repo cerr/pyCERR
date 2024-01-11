@@ -16,7 +16,4 @@ def test_scan_export_import():
     planC = pc.load_nii_scan(scanNiiFile, planC)
     scanArrayDcm = planC.scan[scanNum].getScanArray()
     scanArrayNii = planC.scan[scanNum+1].getScanArray()
-    equalCheck = np.testing.assert_almost_equal(scanArrayDcm, scanArrayNii)
-    if not equalCheck:
-        equalCheck = True
-    return equalCheck
+    assert np.testing.assert_almost_equal(scanArrayDcm, scanArrayNii)

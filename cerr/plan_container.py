@@ -70,11 +70,11 @@ def load_dcm_dir(dcm_dir, initplanC = ''):
         d = group_content.to_dict()
         files = group_content.iloc[:,-1]
         modality = group_content.iloc[0,4]
-        if np.any(modality == np.array(["CT","PT", "MR"])):
+        if modality in ["CT","PT", "MR"]:
             # populate scan attributes
             scan_meta = populate_planC_field('scan', files)
             planC.scan.extend(scan_meta)
-        elif modality == "RTSTRUCT":
+        elif modality in ["RTSTRUCT", "SEG"]:
             # populate structure attributes
             struct_meta = populate_planC_field('structure', files)
             planC.structure.extend(struct_meta)
@@ -309,16 +309,16 @@ def parse_dcm_dir(dcm_dir):
             file_path = os.path.join(root, file)
             if is_dicom(file_path):
                 ds = dcmread(file_path,specific_tags=tag_list)
-            #tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
-            tag_vals = []
-            for t in tag_list:
-                if t in ds:
-                    val = ds[t].value
-                if isinstance(val, dataelem.MultiValue):
-                    val = tuple(val)
-                tag_vals.append(val)
-            tag_vals.append(ds.filename)
-            img_meta.append(tag_vals)
+                #tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
+                tag_vals = []
+                for t in tag_list:
+                    if t in ds:
+                        val = ds[t].value
+                    if isinstance(val, dataelem.MultiValue):
+                        val = tuple(val)
+                    tag_vals.append(val)
+                tag_vals.append(ds.filename)
+                img_meta.append(tag_vals)
     df = pd.DataFrame(img_meta,columns=tag_heading)
     return df
 

@@ -575,6 +575,13 @@ def load_sorted_scan_info(file_list):
         scan_array = np.delete(scan_array,np.arange(count,scan_array.shape[2]),axis=2)
         scan_info = np.delete(scan_info,np.arange(count,scan_array.shape[2]),axis=0)
 
+    # Filter out duplicate SOP Instances
+    allSOPs = [s.sopInstanceUID for s in scan_info]
+    uniqSOPs, uniqInds = np.unique(allSOPs, return_index=True)
+    duplicateIDs = list(set(range(len(scan_info))) - set(uniqInds))
+    scan_array = np.delete(scan_array,duplicateIDs,axis=2)
+    scan_info = np.delete(scan_info,duplicateIDs,axis=0)
+
     #sorted_indices = scan_info.sort(key=get_slice_position, reverse=False)
     sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
     #scan_array = np.array(scan_array)

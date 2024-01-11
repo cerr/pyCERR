@@ -51,6 +51,7 @@ class Structure:
     rasterized: bool = False
     referencedFrameOfReferenceUID: str = ""
     referencedSeriesUID: str = ""
+    structureFileFormat: str = ""
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -91,12 +92,28 @@ class Structure:
         im_to_phys_transM = planC.scan[scan_num].Image2PhysicalTransM
         position_matrix_inv = np.linalg.inv(im_to_phys_transM)
         _,_,zValsV = planC.scan[scan_num].getScanXYZVals()
+        isRTSTRUCT = self.structureFileFormat in ["RTSTRUCT", "NPARRAY"]
+        scan_sop_inst_list = np.array([scan_info.sopInstanceUID for scan_info in planC.scan[scan_num].scanInfo])
+        numSlcs = len(planC.scan[scan_num].scanInfo)
         for ctr_num,contour in enumerate(self.contour):
             if np.any(contour.segments):
-                tempa = np.hstack((contour.segments, np.ones((contour.segments.shape[0], 1))))
-                tempa = np.matmul(position_matrix_inv, tempa.T)
-                # Round the z-coordinates (slice) of 'tempa'
-                tempa[2, :] = np.round(tempa[2, :])
+                if isRTSTRUCT:
+                    tempa = np.hstack((contour.segments, np.ones((contour.segments.shape[0], 1))))
+                    tempa = np.matmul(position_matrix_inv, tempa.T)
+                    # Round the z-coordinates (slice) of 'tempa'
+                    tempa[2, :] = np.round(tempa[2, :])
+                else:
+                    slcNum = np.argwhere(scan_sop_inst_list == contour.referencedSopInstanceUID)
+                    slcNum = slcNum[0,0]
+                    if scn.flipSliceOrderFlag(planC.scan[scan_num]):
+                        slcNum = numSlcs - slcNum - 1
+                    #tempa = np.hstack((contour.segments, np.ones((contour.segments.shape[0], 1))))
+                    #tempa[:, 2] = slcNum
+                    #tempa = np.matmul(im_to_phys_transM, tempa.T)
+                    tempa = contour.segments
+                    tempa[:,2] = slcNum
+                    tempa = np.hstack((tempa, np.ones((contour.segments.shape[0], 1)))).T
+
                 tempb = np.matmul(im_to_virtual_phys_transM, tempa)
                 tempb = tempb[:3,:].T
                 self.contour[ctr_num].segments = tempb
@@ -231,6 +248,7 @@ def load_structure(file_list):
                 struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
                 struct_meta.strUID = uid.createUID("structure")
                 struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID
+                struct_meta.structureFileFormat = "RTSTRUCT"
                 #structureColor
                 struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
                 if ("3006","0038") in str_roi:
@@ -244,12 +262,80 @@ def load_structure(file_list):
                         # Associated scan found. Break out of for loop
                         break
                 struct_list.append(struct_meta)
+        elif ds.Modality == "SEG":
+            # Read segmentation mask
+            mask3M = ds.pixel_array
+            mask3M = np.transpose(mask3M,[1,2,0])
+            numStructs = len(ds.SegmentSequence)
+            if hasattr(ds.PerFrameFunctionalGroupsSequence[0], 'SegmentIdentificationSequence'):
+                refSegNums = np.array([segId.SegmentIdentificationSequence[0].ReferencedSegmentNumber for segId in ds.PerFrameFunctionalGroupsSequence])
+            else:
+                numFrames = len(ds.SharedFunctionalGroupsSequence[0].DerivationImageSequence[0].SourceImageSequence)
+                refSegNums = np.array([segId.ReferencedSegmentNumber for segId in ds.SharedFunctionalGroupsSequence[0].SegmentIdentificationSequence] * numFrames)
+            for strNum in range(numStructs):
+                struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
+                struct_meta.structureFileFormat = "SEG"
+                struct_meta.patientName = ds.PatientName
+                struct_meta.writer = ds.Manufacturer
+                struct_meta.dateWritten = ds.SeriesDate
+                if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
+                struct_meta.roiNumber = ds.SegmentSequence[strNum].SegmentNumber
+                struct_meta.structureName = ds.SegmentSequence[strNum].SegmentLabel
+                struct_meta.numberOfScans = len(ds.PerFrameFunctionalGroupsSequence) # number of scan slices
+                struct_meta.strUID = uid.createUID("structure")
+                struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID
+                if hasattr(ds.SegmentSequence[strNum], 'SegmentAlgorithmType'):
+                    struct_meta.roiGenerationAlgorithm = ds.SegmentSequence[strNum].SegmentAlgorithmType
+                if hasattr(ds.SegmentSequence[strNum], 'SegmentAlgorithmName'):
+                    struct_meta.roiGenerationDescription  = ds.SegmentSequence[strNum].SegmentAlgorithmName
+                if hasattr(ds.SegmentSequence[strNum], 'RecommendedDisplayCIELabValue'):
+                    struct_meta.structureColor = ds.SegmentSequence[strNum].RecommendedDisplayCIELabValue
+                ref_FOR_uid = ds.FrameOfReferenceUID
+                refSeriesInstanceUID = ds.ReferencedSeriesSequence[0].SeriesInstanceUID
+                struct_meta.assocScanUID = "CT." + refSeriesInstanceUID
+                # Segment number
+                perFrameSegNum = np.argwhere(refSegNums == ds.SegmentSequence[strNum].SegmentNumber)
+                perFrameSegNum = perFrameSegNum[:,0]
+                contour_list = np.empty((0),Contour)
+                for frameNum in perFrameSegNum:
+                    if hasattr(ds.PerFrameFunctionalGroupsSequence[0], 'DerivationImageSequence'):
+                        sopInstanceUID = ds.PerFrameFunctionalGroupsSequence[frameNum].DerivationImageSequence[0].SourceImageSequence[0].ReferencedSOPInstanceUID
+                        sopClassUID = ds.PerFrameFunctionalGroupsSequence[frameNum].DerivationImageSequence[0].SourceImageSequence[0].ReferencedSOPClassUID
+                    else:
+                        sopInstanceUID = ds.SharedFunctionalGroupsSequence[0].DerivationImageSequence[0].SourceImageSequence[frameNum].ReferencedSOPInstanceUID
+                        sopClassUID = ds.SharedFunctionalGroupsSequence[0].DerivationImageSequence[0].SourceImageSequence[frameNum].ReferencedSOPClassUID
+
+                    mask2D = mask3M[:,:,frameNum]
+                    if not np.any(mask2D):
+                        continue
+
+                    contours = measure.find_contours(mask2D == 1, 0.5)
+                    num_contours = len(contours)
+                    for iContour, contour in enumerate(contours):
+                        contObj = Contour()
+                        segment = np.empty((contour.shape[0],3))
+                        colV = contour[:, 1]
+                        rowV = contour[:, 0]
+                        slcV = np.ones_like(rowV) # just a paceholder. This is assigned later on based on SOPInstance UID match
+                        ptsM = np.asarray((colV,rowV,slcV))
+                        ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
+                        #ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
+                        contObj.segments = ptsM[:3,:].T
+                        contObj.referencedSopInstanceUID = sopInstanceUID
+                        contObj.referencedSopClassUID = sopClassUID
+                        #contour_list.append(contObj)
+                        contour_list = np.append(contour_list,contObj)
+                struct_meta.contour = contour_list
+
+                struct_list.append(struct_meta)
 
     return struct_list
+
 
 def import_mask(mask3M, assocScanNum, structName, planC):
     dt = datetime.now()
     struct_meta = Structure()
+    struct_meta.structureFileFormat = "NPARRAY"
     struct_meta.structureName = structName
     struct_meta.dateWritten = dt.strftime("%Y%m%d")
     struct_meta.roiNumber = ""
@@ -258,20 +344,24 @@ def import_mask(mask3M, assocScanNum, structName, planC):
     struct_meta.structSetSopInstanceUID = generate_uid()
     struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
     contour_list = np.empty((0),Contour)
+    numSlcs = len(planC.scan[assocScanNum].scanInfo)
     dim = mask3M.shape
     for slc in range(dim[2]):
         if not np.any(mask3M[:,:,slc]):
             continue
         contours = measure.find_contours(mask3M[:,:,slc] == 1, 0.5)
-        ind = slc
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+            slcNum = numSlcs - slc - 1
+        else:
+            slcNum = slc
         # _,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
         # ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
         # if len(ind[0]) == 1:
         #     ind = ind[0][0]
         # else:
         #     raise Exception('No matching slices found.')
-        sopClassUID = planC.scan[assocScanNum].scanInfo[ind].sopClassUID
-        sopInstanceUID = planC.scan[assocScanNum].scanInfo[ind].sopInstanceUID
+        sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
+        sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
 
         num_contours = len(contours)
         for iContour, contour in enumerate(contours):
@@ -279,7 +369,7 @@ def import_mask(mask3M, assocScanNum, structName, planC):
             segment = np.empty((contour.shape[0],3))
             colV = contour[:, 1]
             rowV = contour[:, 0]
-            slcV = np.ones_like(rowV) * slc
+            slcV = np.ones_like(rowV) * slcNum
             ptsM = np.asarray((colV,rowV,slcV))
             ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
             ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
