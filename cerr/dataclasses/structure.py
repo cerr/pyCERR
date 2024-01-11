@@ -180,6 +180,31 @@ class Structure:
 
         return assocScansV
 
+def getSitkImage(structNum, planC):
+    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID)
+    mask3M = rs.getStrMask(structNum, planC)
+    sitkArray = np.transpose(mask3M, (2, 0, 1))
+    # CERR slice ordering is opposite of DICOM
+    if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+        sitkArray = np.flip(sitkArray, axis = 0)
+    originXyz = list(np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
+    xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
+    dx = np.abs(xV[1] - xV[0])
+    dy = np.abs(yV[1] - yV[0])
+    dz = np.abs(zV[1] - zV[0])
+    spacing = list([dx, dy, dz] * 10)
+    img_ori = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+    slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+                   - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+    # Get row-major directions for ITK
+    dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
+    direction = dir_cosine_mat.reshape(9,order='C')
+    img = sitk.GetImageFromArray(sitkArray)
+    img.SetOrigin(originXyz)
+    img.SetSpacing(spacing)
+    img.SetDirection(direction)
+    return img
+
 @dataclass
 class Contour:
     #sopInstanceUID: str = ""

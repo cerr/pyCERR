@@ -91,7 +91,9 @@ class Scan:
         img_ori = self.scanInfo[0].imageOrientationPatient
         slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
                        - img_ori[[2,0,1]] * img_ori[[4,5,3]]
-        direction = list(np.hstack((img_ori,slice_normal)))
+        # Get row-major directions for ITK
+        dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
+        direction = dir_cosine_mat.reshape(9,order='C')
         img = sitk.GetImageFromArray(sitkArray)
         img.SetOrigin(originXyz)
         img.SetSpacing(spacing)
