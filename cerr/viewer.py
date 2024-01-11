@@ -111,7 +111,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         elif displayMode.lower() == '2d':
             polygons = getContourPolygons(str_num, scan_num, planC)
 
-            shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
+            shp = viewer.add_shapes(polygons, shape_type='path', edge_width=2,
                               edge_color=colr, face_color=[0]*4,
                               affine=scan_affine, name=str_name)
             struct_layer.append(shp)
