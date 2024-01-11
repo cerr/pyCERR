@@ -8,7 +8,6 @@ from cerr.radiomics import textureFilters
 from cerr.radiomics.preprocess import preProcessForRadiomics
 from cerr.utils.bbox import compute_boundingbox
 
-
 def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
     """ Load filter parameters from user-input JSON file"""
 
@@ -162,6 +161,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
         mask3M = strNum
         _, _, slicesV = np.where(mask3M)
         uniqueSlicesV = np.unique(slicesV)
+        strName = 'ROI'
     else:
         scanNum = planC.structure[strNum].getStructureAssociatedScan(planC)[0]
         scan3M = planC.scan[scanNum].getScanArray()
@@ -170,6 +170,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
         rasterSegM = planC.structure[strNum].rasterSegments
         slcMask3M, uniqueSlicesV = rs.raster_to_mask(rasterSegM, scanNum, planC)
         mask3M[:, :, uniqueSlicesV] = slcMask3M
+        strName = planC.structure[strNum].structureName
 
     # Read config file
     paramS, __ = loadSettingsFromFile(configFilePath)
@@ -220,10 +221,10 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 ]
 
                 filtScan3M = filtScan3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
-                             validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
-                             validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
+                                        validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
+                                        validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
 
-                filtMask3M = procMask3M[validPadSizeV[0] + 1 : texSizeV[0] - validPadSizeV[1],
+                filtMask3M = procMask3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
                                         validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
                                         validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
                 [__, __, __, __, mins, maxs, __] = compute_boundingbox(filtMask3M)
@@ -235,6 +236,9 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 zV = gridS['zValsV']
                 zV = zV[maskSlcV]
 
-                planC = pc.import_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
+                planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
+                assocScanNum = len(planC.scan)-1
+                assocStrName = 'processed_' + strName
+                planC = pc.import_structure_mask(filtMask3M.astype(int), assocScanNum, assocStrName, planC)
 
     return planC
