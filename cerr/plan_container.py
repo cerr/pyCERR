@@ -2,22 +2,28 @@
 This module defines the container class PlanC and methods to import metadata from DICOM and NifTI formats.
 """
 
-from dataclasses import dataclass, field
-from typing import List
-from cerr.dataclasses import scan as scn
-import cerr.plan_container as pc
-from cerr.dataclasses import structure as structr
-from cerr.dataclasses import dose as rtds
-from cerr.dataclasses import beams as bms
-import pickle
-import pandas as pd
-import numpy as np
-from cerr.contour import rasterseg as rs
 import json
-import SimpleITK as sitk
-from pydicom.uid import generate_uid
-import cerr.dataclasses.scan_info as scn_info
+import pickle
+from dataclasses import dataclass, field
 from datetime import datetime, date
+from typing import List
+
+import SimpleITK as sitk
+import numpy as np
+import pandas as pd
+from pydicom.uid import generate_uid
+from skimage import measure
+
+import cerr.dataclasses.scan_info as scn_info
+import cerr.plan_container as pc
+from cerr.contour import rasterseg as rs
+from cerr.dataclasses import beams as bms
+from cerr.dataclasses import dose as rtds
+from cerr.dataclasses import scan as scn
+from cerr.dataclasses import structure as structr
+from cerr.dataclasses.structure import Contour
+from cerr.utils import uid
+
 #import sys
 #import scipy.io as sio
 #import SimplaITK as sitk
@@ -237,7 +243,7 @@ def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
 def load_nii_dose(nii_file_name, planC):
     pass
 
-def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
+def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     org_root = '1.3.6.1.4.1.9590.100.1.2.' # to create seriesInstanceUID
     seriesInstanceUID = generate_uid(prefix=org_root)
     scan = scn.Scan()
@@ -282,16 +288,72 @@ def import_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     scan.scanInfo = scan_info
     scan.scanArray = scan3M
     scan.scanUID = "CT." + seriesInstanceUID
+    scan.scanType = modality
     scan.convertDcmToCerrVirtualCoords()
     #scan.convertDcmToRealWorldUnits()
     planC.scan.append(scan)
     return planC
 
+def import_structure_mask(mask3M, assocScanNum, structName, planC):
+    dt = datetime.now()
+    struct_meta = Structure()
+    struct_meta.structureFileFormat = "NPARRAY"
+    struct_meta.structureName = structName
+    struct_meta.dateWritten = dt.strftime("%Y%m%d")
+    struct_meta.roiNumber = ""
+    #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
+    struct_meta.strUID = uid.createUID("structure")
+    struct_meta.structSetSopInstanceUID = generate_uid()
+    struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
+    contour_list = np.empty((0),Contour)
+    numSlcs = len(planC.scan[assocScanNum].scanInfo)
+    dim = mask3M.shape
+    for slc in range(dim[2]):
+        if not np.any(mask3M[:,:,slc]):
+            continue
+        contours = measure.find_contours(mask3M[:,:,slc] == 1, 0.5)
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+            slcNum = numSlcs - slc - 1
+        else:
+            slcNum = slc
+        # _,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
+        # ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
+        # if len(ind[0]) == 1:
+        #     ind = ind[0][0]
+        # else:
+        #     raise Exception('No matching slices found.')
+        sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
+        sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
+
+        num_contours = len(contours)
+        for iContour, contour in enumerate(contours):
+            contObj = Contour()
+            segment = np.empty((contour.shape[0],3))
+            colV = contour[:, 1]
+            rowV = contour[:, 0]
+            slcV = np.ones_like(rowV) * slcNum
+            ptsM = np.asarray((colV,rowV,slcV))
+            ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
+            ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
+            contObj.segments = ptsM
+            contObj.referencedSopInstanceUID = sopInstanceUID
+            contObj.referencedSopClassUID = sopClassUID
+            #contour_list.append(contObj)
+            contour_list = np.append(contour_list,contObj)
+        struct_meta.contour = contour_list
+#     struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
+    numOrigStructs = len(planC.structure)
+    planC.structure.append(struct_meta)
+    str_num = len(planC.structure) - 1
+    planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
+    planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
+    return planC
+
+
 def parse_dcm_dir(dcm_dir):
     from pydicom.misc import is_dicom
     from pydicom import dcmread
     import os
-    import numpy as np
     from pydicom.tag import Tag
     from pydicom import dataelem
 
