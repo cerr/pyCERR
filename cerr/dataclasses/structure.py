@@ -13,6 +13,7 @@ from datetime import datetime
 from pydicom.uid import generate_uid
 import json
 from cerr.radiomics.preprocess import imgResample3D
+import cerr.plan_container as pc
 
 def get_empty_list():
     return []
@@ -444,7 +445,7 @@ def copyToScan(structNum, scanNum, planC):
     # Interpolate mask from original scan to the new scan
     newMask3M = imgResample3D(mask3M.astype(float), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
     structName = planC.structure[structNum].structureName
-    planC = import_mask(newMask3M, scanNum, structName, planC)
+    planC = pc.import_structure_mask(newMask3M, scanNum, structName, planC)
     return planC
 
 
