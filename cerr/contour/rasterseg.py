@@ -219,7 +219,8 @@ def getStrMask(str_num,planC):
     mask3M = np.zeros((num_rows,num_cols,num_slcs),dtype = bool)
     slcMask3M,slicesV = raster_to_mask(rasterSegments, scan_num, planC)
     slicesV = np.asarray(slicesV,int)
-    mask3M[:,:,slicesV] = slcMask3M
+    if len(slicesV) > 0:
+        mask3M[:,:,slicesV] = slcMask3M
     return mask3M
 
 def raster_to_mask(rasterSegments, scanNum, planC):

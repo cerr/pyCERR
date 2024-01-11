@@ -295,8 +295,11 @@ def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     return planC
 
 def import_structure_mask(mask3M, assocScanNum, structName, planC):
+    # Pad mask to account for boundary edges
+    paddedMask3M = mask3M.astype(int)
+    paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
     dt = datetime.now()
-    struct_meta = Structure()
+    struct_meta = structr.Structure()
     struct_meta.structureFileFormat = "NPARRAY"
     struct_meta.structureName = structName
     struct_meta.dateWritten = dt.strftime("%Y%m%d")
@@ -307,11 +310,11 @@ def import_structure_mask(mask3M, assocScanNum, structName, planC):
     struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
     contour_list = np.empty((0),Contour)
     numSlcs = len(planC.scan[assocScanNum].scanInfo)
-    dim = mask3M.shape
+    dim = paddedMask3M.shape
     for slc in range(dim[2]):
-        if not np.any(mask3M[:,:,slc]):
+        if not np.any(paddedMask3M[:,:,slc]):
             continue
-        contours = measure.find_contours(mask3M[:,:,slc] == 1, 0.5)
+        contours = measure.find_contours(paddedMask3M[:,:,slc] == 1, 0.5)
         if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
             slcNum = numSlcs - slc - 1
         else:
@@ -329,8 +332,8 @@ def import_structure_mask(mask3M, assocScanNum, structName, planC):
         for iContour, contour in enumerate(contours):
             contObj = Contour()
             segment = np.empty((contour.shape[0],3))
-            colV = contour[:, 1]
-            rowV = contour[:, 0]
+            colV = contour[:, 1] - 1 # - 1 to account for padding
+            rowV = contour[:, 0] - 1 # - 1 to account for padding
             slcV = np.ones_like(rowV) * slcNum
             ptsM = np.asarray((colV,rowV,slcV))
             ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
