@@ -93,7 +93,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         # Get scan affine
         scan_num = scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC)
         scan_affine = scanAffineDict[scan_num]
-        colr = np.asarray(tableau20[i])/255
+        #colr = np.asarray(tableau20[i])/255
+        colr = np.array(planC.structure[str_num].structureColor) / 255
         str_name = planC.structure[str_num].structureName
 
         if displayMode.lower() == '3d':
@@ -111,7 +112,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         elif displayMode.lower() == '2d':
             polygons = getContourPolygons(str_num, scan_num, planC)
 
-            shp = viewer.add_shapes(polygons, shape_type='path', edge_width=2,
+            shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
                               edge_color=colr, face_color=[0]*4,
                               affine=scan_affine, name=str_name)
             struct_layer.append(shp)

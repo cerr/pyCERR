@@ -34,7 +34,7 @@ class Structure:
     structureEdition: str = ""
     writer: str = ""
     dateWritten: str = ""
-    structureColor: str = ""
+    structureColor: List = field(default_factory=get_empty_np_array)
     structureDescription: str = ""
     roiGenerationAlgorithm: str = ""
     roiGenerationDescription: str = ""
@@ -93,17 +93,17 @@ class Structure:
         im_to_phys_transM = planC.scan[scan_num].Image2PhysicalTransM
         position_matrix_inv = np.linalg.inv(im_to_phys_transM)
         _,_,zValsV = planC.scan[scan_num].getScanXYZVals()
-        isRTSTRUCT = self.structureFileFormat in ["RTSTRUCT", "NPARRAY"]
+        isPhysicalCoords = self.structureFileFormat in ["RTSTRUCT", "NPARRAY", "NIFTI"]
         scan_sop_inst_list = np.array([scan_info.sopInstanceUID for scan_info in planC.scan[scan_num].scanInfo])
         numSlcs = len(planC.scan[scan_num].scanInfo)
         for ctr_num,contour in enumerate(self.contour):
             if np.any(contour.segments):
-                if isRTSTRUCT:
+                if isPhysicalCoords:
                     tempa = np.hstack((contour.segments, np.ones((contour.segments.shape[0], 1))))
                     tempa = np.matmul(position_matrix_inv, tempa.T)
                     # Round the z-coordinates (slice) of 'tempa'
                     tempa[2, :] = np.round(tempa[2, :])
-                else:
+                else: # image coords
                     slcNum = np.argwhere(scan_sop_inst_list == contour.referencedSopInstanceUID)
                     slcNum = slcNum[0,0]
                     if scn.flipSliceOrderFlag(planC.scan[scan_num]):
@@ -246,7 +246,6 @@ def parse_structure_fields(roi_contour,str_roi) -> Structure:
     struct.roiNumber = str_roi.ROINumber #getattr(ds,'ROINumber',"")
     struct.structureName = str_roi.ROIName
     struct.numberOfScans = len(len(roi_contour.ContourSequence)) # number of scan slices
-    #structureColor
     struct.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
     if ("3006","0038") in str_roi:
         struct.roiGenerationDescription  = str_roi["3006","0038"].value
@@ -272,6 +271,11 @@ def load_structure(file_list):
                 if not hasattr(roi_contour,"ContourSequence"):
                     continue
                 struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
+                if hasattr(roi_contour, "ROIDisplayColor"):
+                    colorTriplet = roi_contour.ROIDisplayColor
+                    struct_meta.structureColor  = [int(val) for val in colorTriplet]
+                else:
+                    struct_meta.structureColor = getColorForStructNum(str_num)
                 struct_meta.strUID = uid.createUID("structure")
                 struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID
                 struct_meta.structureFileFormat = "RTSTRUCT"
@@ -316,6 +320,7 @@ def load_structure(file_list):
                     struct_meta.roiGenerationDescription  = ds.SegmentSequence[strNum].SegmentAlgorithmName
                 if hasattr(ds.SegmentSequence[strNum], 'RecommendedDisplayCIELabValue'):
                     struct_meta.structureColor = ds.SegmentSequence[strNum].RecommendedDisplayCIELabValue
+                struct_meta.structureColor = getColorForStructNum(strNum)
                 ref_FOR_uid = ds.FrameOfReferenceUID
                 refSeriesInstanceUID = ds.ReferencedSeriesSequence[0].SeriesInstanceUID
                 struct_meta.assocScanUID = "CT." + refSeriesInstanceUID
@@ -361,6 +366,8 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
     if isinstance(file_list,str) and os.path.exists(file_list):
         file_list = [file_list]
     struct_list = []
+    numStructs = len(planC.structure)
+    numAdded = 0
     for file in file_list:
         reader = sitk.ImageFileReader()
         reader.SetFileName(file)
@@ -396,7 +403,8 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
         cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
         dcmIm2PhysTransM = planC.scan[assocScanNum].Image2PhysicalTransM
-        zDicomV = np.empty((len(zV),1))
+        numSlcs = len(planC.scan[assocScanNum].scanInfo)
+        #zDicomV = np.empty((len(zV),1))
         all_labels = np.unique(niiSegArray3M)
         all_labels = all_labels[all_labels != 0]
         if len(labels_dict) == 0:
@@ -404,15 +412,18 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                 labels_dict[label] = "Label " + str(label)
         slcMatchTol = 1e-6
         dt = datetime.now()
-        for i in range(len(zV)):
-            zDicomV[i] = np.matmul(cerrToDcmTransM, np.asarray((xV[0],yV[0],zV[i], 1)).T)[2]
+        #for i in range(len(zV)):
+        #    zDicomV[i] = np.matmul(cerrToDcmTransM, np.asarray((xV[0],yV[0],zV[i], 1)).T)[2]
         for label in labels_dict.keys():
             struct_meta = Structure()
             struct_meta.structureName = labels_dict[label]
             struct_meta.dateWritten = dt.strftime("%Y%m%d")
             struct_meta.roiNumber = ""
+            strNum = numStructs + numAdded
+            struct_meta.structureColor = getColorForStructNum(strNum)
             #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
             struct_meta.strUID = uid.createUID("structure")
+            struct_meta.structureFileFormat = "NIFTI"
             struct_meta.structSetSopInstanceUID = generate_uid()
             struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
             contour_list = np.empty((0),Contour)
@@ -420,7 +431,7 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                 if not np.any(niiSegArray3M[:,:,slc]):
                     continue
                 contours = measure.find_contours(niiSegArray3M[:,:,slc] == label, 0.5)
-                ind = np.where((zV - structZvalsV[slc])**2 < slcMatchTol)
+                ind = np.argwhere((zV - structZvalsV[slc])**2 < slcMatchTol)
                 #_,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
                 #ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
                 #ipp = image.TransformIndexToPhysicalPoint((0,0,slc))
@@ -430,6 +441,10 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                     ind = ind[0][0]
                 else:
                     raise Exception('No matching slices found.')
+                if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+                    slcNum = numSlcs - ind - 1
+                else:
+                    slcNum = ind
                 sopClassUID = planC.scan[assocScanNum].scanInfo[ind].sopClassUID
                 sopInstanceUID = planC.scan[assocScanNum].scanInfo[ind].sopInstanceUID
 
@@ -439,7 +454,7 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                     segment = np.empty((contour.shape[0],3))
                     colV = contour[:, 1]
                     rowV = contour[:, 0]
-                    slcV = np.ones_like(rowV) * slc
+                    slcV = np.ones_like(rowV) * slcNum
                     ptsM = np.asarray((colV,rowV,slcV))
                     ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
                     ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
@@ -451,13 +466,43 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                 struct_meta.contour = contour_list
 
             struct_list.append(struct_meta)
+            numAdded += 1
 
     return struct_list
 
+def getColorForStructNum(structNum):
+    colorMat = np.array([[ 230,   161,     0],
+           [0,   230,     0],
+           [230,     0,     0],
+           [ 0,   207,   207],
+           [172,     0,   172],
+           [172,   172,     0],
+           [138,   172,   230],
+           [184,    57,    57],
+           [230,     0,   230],
+           [172,   115,     0],
+           [ 0,   230,   115],
+           [230,   115,   230],
+           [115,   230,     0],
+           [69,     0,   207],
+           [0,   161,    69],
+           [161,    69,     0],
+           [0,   184,   207],
+           [161,     0,   184],
+           [207,   138,     0],
+           [76,   151,   230],
+           [230,    76,    76],
+           [230,     0,   207],
+           [207,   115,     0],
+           [0,   230,    92],
+           [207,   138,   207],
+           [138,   207,     0],
+           [161,    92,   184],
+           [138,   207,    46]])
+    # cycle colors
+    colorIndex = np.mod(structNum, colorMat.shape[0])
+    return list(colorMat[colorIndex,:])
 
-def create_from_mask(mask3M, assocScanNum, planC):
-
-    pass
 
 def copyToScan(structNum, scanNum, planC):
     # Get associated scan number for structNum

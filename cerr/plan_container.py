@@ -145,7 +145,7 @@ def load_planC_from_pkl(file_name=""):
 def save_scan_to_nii(scan_num, nii_file_name, planC):
     pass
 
-def load_nii_scan(nii_file_name, initplanC = ''):
+def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC = ''):
     if not isinstance(initplanC, pc.PlanC):
         planC = pc.PlanC()
     else:
@@ -203,7 +203,7 @@ def load_nii_scan(nii_file_name, initplanC = ''):
         s_info.sizeOfDimension1 = siz[0]
         s_info.sizeOfDimension2 = siz[1]
         s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-        s_info.imageType = 'MR SCAN'
+        s_info.imageType = imageType
         s_info.seriesInstanceUID = seriesInstanceUID
         s_info.studyInstanceUID = studyInstanceUID
         s_info.studyDescription = ''
@@ -304,6 +304,8 @@ def import_structure_mask(mask3M, assocScanNum, structName, planC):
     struct_meta.structureName = structName
     struct_meta.dateWritten = dt.strftime("%Y%m%d")
     struct_meta.roiNumber = ""
+    strNum = len(planC.structure)
+    struct_meta.structureColor = structr.getColorForStructNum(strNum)
     #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
     struct_meta.strUID = uid.createUID("structure")
     struct_meta.structSetSopInstanceUID = generate_uid()
