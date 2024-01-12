@@ -605,3 +605,11 @@ def getScanNumFromUID(assocScanUID,planC) -> int:
     else:
         return None
 
+def getCERRScanArrayFromITK(itkImage, assocScanNum, planC):
+    if isinstance(itkImage, sitk.Image):
+        itkImage = sitk.GetArrayFromImage(itkImage)
+    cerrArray = np.transpose(itkImage, (1, 2, 0))
+    # flip slices in CERR z-slice order which increases from head to toe
+    if flipSliceOrderFlag(planC.scan[assocScanNum]):
+        cerrArray = np.flip(cerrArray, axis=2)
+    return cerrArray

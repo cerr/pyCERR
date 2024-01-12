@@ -388,6 +388,9 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         dcmImgOrient = orient_nii.reshape(9,order='F')[:6]
         scanOrientV = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
         if np.max((dcmImgOrient - scanOrientV)**2) > 1e-5:
+            #scanOrientV
+            #scanDirection = []
+            #image.SetDirection(scanDirection)
             raise Exception("nii file orientation does not match the associated scan")
         slice_normal = dcmImgOrient[[1,2,0]] * dcmImgOrient[[5,3,4]] \
                - dcmImgOrient[[2,0,1]] * dcmImgOrient[[4,5,3]]
