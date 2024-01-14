@@ -300,7 +300,8 @@ def load_structure(file_list):
             if hasattr(ds.PerFrameFunctionalGroupsSequence[0], 'SegmentIdentificationSequence'):
                 refSegNums = np.array([segId.SegmentIdentificationSequence[0].ReferencedSegmentNumber for segId in ds.PerFrameFunctionalGroupsSequence])
             else:
-                numFrames = len(ds.SharedFunctionalGroupsSequence[0].DerivationImageSequence[0].SourceImageSequence)
+                #numFrames = len(ds.SharedFunctionalGroupsSequence[0].DerivationImageSequence[0].SourceImageSequence)
+                numFrames = len(ds.PerFrameFunctionalGroupsSequence)
                 refSegNums = np.array([segId.ReferencedSegmentNumber for segId in ds.SharedFunctionalGroupsSequence[0].SegmentIdentificationSequence] * numFrames)
             for strNum in range(numStructs):
                 struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
