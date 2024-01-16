@@ -179,7 +179,7 @@ def createFlatFeatureDict(featDict, imageType):
             if featClass in ["glcm", "glrlm"]:
                 flatFeatDict[imageType + '_' + featClass + '_Mean_' + item[0]] = np.mean(item[1])
                 flatFeatDict[imageType + '_' + featClass + '_Median_' + item[0]] = np.median(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_StdDev_' + item[0]] = np.std(item[1])
+                flatFeatDict[imageType + '_' + featClass + '_StdDev_' + item[0]] = np.std(item[1], ddof=1)
                 flatFeatDict[imageType + '_' + featClass + '_Min_' + item[0]] = np.min(item[1])
                 flatFeatDict[imageType + '_' + featClass + '_Max_' + item[0]] = np.max(item[1])
             else:
