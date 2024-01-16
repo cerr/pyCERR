@@ -366,10 +366,10 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     if not cropForResamplingFlag:
         if 'padding' in paramS['settings']:
             if 'cropToMaskBounds' in  paramS['settings']['padding']:
-                cropFlag = paramS['settings']['padding'][0]['cropToMaskBounds'].lower() == 'yes'
-            if 'method' in paramS['settings']['padding'][0] and paramS['settings']['padding'][0]['method'].lower()!='none':
-                filtPadMethod = paramS['settings']['padding'][0]['method']
-                filtPadSizeV = paramS['settings']['padding'][0]['size']
+                cropFlag = paramS['settings']['padding']['cropToMaskBounds'].lower() == 'yes'
+            if 'method' in paramS['settings']['padding'] and paramS['settings']['padding']['method'].lower()!='none':
+                filtPadMethod = paramS['settings']['padding']['method']
+                filtPadSizeV = paramS['settings']['padding']['size']
                 if len(filtPadSizeV)==2:
                     filtPadSizeV = [filtPadSizeV,0]
         [volToEval,maskBoundingBox3M,outLimitsV] = padScan(resampScanBounds3M,\

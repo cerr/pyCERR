@@ -41,7 +41,11 @@ def processImage(filterType, scan3M, mask3M, paramS):
     scan3M = scan3M.astype(float)
     outS = dict()
 
-    if filterType == 'mean':
+    if filterType == 'original':
+        # Do nothing
+        outS['original'] = scan3M
+
+    elif filterType == 'mean':
 
         absFlag = False
         kernelSize = np.array(paramS['KernelSize'])
@@ -181,21 +185,21 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
 
     # Extract settings to reverse preprocessing transformations
     padSizeV = [0,0,0]
-    if 'padding' in paramS["settings"] and len(paramS["settings"]['padding']) > 0:
-        padSizeV = paramS["settings"]['padding'][0]['size']
+    if 'padding' in paramS["settings"] and paramS["settings"]["padding"]["method"].lower()!='none':
+        padSizeV = paramS["settings"]["padding"]["size"]
 
     # Apply filter(s)
     filterTypes = list(paramS['imageType'].keys())
     for filterType in filterTypes:
 
         # Read filter parameters
-        filtParamS = paramS['imageType'][filterType]
+        filtParamS = paramS["imageType"][filterType]
         if not isinstance(filtParamS,list):
             filtParamS = [filtParamS]
 
         for numPar in range(len(filtParamS)):  # Loop over different settings for a filter
 
-            voxSizeV = gridS['PixelSpacingV']
+            voxSizeV = gridS["PixelSpacingV"]
             currFiltParamS = filtParamS[numPar]
             currFiltParamS["VoxelSize_mm"]  = voxSizeV * 10
             currFiltParamS["Padding"] = padSizeV
