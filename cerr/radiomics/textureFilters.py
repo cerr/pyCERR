@@ -9,6 +9,7 @@ from scipy.signal import convolve2d
 from scipy.signal import convolve
 from scipy.ndimage import rotate
 from cerr.radiomics.preprocess import padScan
+from cerr.utils.bbox import compute_boundingbox
 
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
@@ -611,77 +612,94 @@ def lawsFilter(scan3M, direction, filterDim, normFlag):
     return out_dict
 
 
-def energyFilter(tex3M, texPadSizeV, energyKernelSizeV, energyPadSizeV, energyPadMethod):
+def energyFilter(tex3M, mask3M, texPadSizeV, texPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
     """energyFilter
     Returns local mean of absolute values
 
     tex3M              : Response map
-    texPadSizeV      : Padding applied in computing tex3M
-    energyKernelSizeV: Patch size for mean filtering [numRows numCols num_slc] in voxels
-    energyPadMethod   : Padding method for mean filter
-    energyPadSizeV   : Padding for mean filter [numRows numCols num_slc] in voxels
+    mask3M             : Pre-processed mask
+    texPadSizeV        : Padding applied in computing tex3M
+    texPadMethod       : Padding method applied prior to computing tex3M
+    energyKernelSizeV  : Patch size for mean filtering [numRows numCols num_slc] in voxels
+    energyPadMethod    : Padding method for mean filter
+    energyPadSizeV     : Padding for mean filter [numRows numCols num_slc] in voxels
     """
 
+    # Calc. padding applied
     origSizeV = tex3M.shape
+    if texPadMethod.lower=='expand':
+        minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
+        valOrigPadV = [np.min(texPadSizeV[0], minr), np.min(texPadSizeV[0], origSizeV[0]-maxr),\
+                   np.min(texPadSizeV[1], minc), np.min(texPadSizeV[1], origSizeV[1]-maxc),\
+                   np.min(texPadSizeV[2], mins), np.min(texPadSizeV[2], origSizeV[2]-maxs)]
+    else:
+        valOrigPadV = [texPadSizeV[0], texPadSizeV[0], texPadSizeV[1], texPadSizeV[1], \
+                       texPadSizeV[2], texPadSizeV[2]]
 
     # Pad for mean filter
     calcMask3M = np.ones_like(tex3M, dtype=bool)
-    calcMask3M[0:texPadSizeV[0], :, :] = False
-    calcMask3M[origSizeV[0] - texPadSizeV[0]:origSizeV[0], :, :] = False
-    calcMask3M[:, 0:texPadSizeV[1], :] = False
-    calcMask3M[:, origSizeV[1] - texPadSizeV[1]:origSizeV[1], :] = False
-    calcMask3M[:, :, 0:texPadSizeV[2]] = False
-    calcMask3M[:, :, origSizeV[2] - texPadSizeV[2]:origSizeV[2]] = False
-    padTexBbox3M, __, __ = padScan(tex3M, calcMask3M, energyPadMethod, energyPadSizeV, True)
+    calcMask3M[0:valOrigPadV[0], :, :] = False
+    calcMask3M[origSizeV[0]-valOrigPadV[1]:origSizeV[0], :, :] = False
+    calcMask3M[:, 0:valOrigPadV[2], :] = False
+    calcMask3M[:, origSizeV[1]-valOrigPadV[3]:origSizeV[1], :] = False
+    calcMask3M[:, :, 0:valOrigPadV[4]] = False
+    calcMask3M[:, :, origSizeV[2]-valOrigPadV[5]:origSizeV[2]] = False
+    padTexBbox3M, outMask3M, extentsV = padScan(tex3M, calcMask3M, energyPadMethod, energyPadSizeV, True)
 
     # Apply mean filter
     texEnergyPad3M = meanFilter(padTexBbox3M, energyKernelSizeV, True)
     padResponseSizeV = texEnergyPad3M.shape
 
     # Remove paddingV
-    texEnergy3M = texEnergyPad3M[energyPadSizeV[0]: padResponseSizeV[0] - energyPadSizeV[0],
-                  energyPadSizeV[1]: padResponseSizeV[1] - energyPadSizeV[1],
-                  energyPadSizeV[2]: padResponseSizeV[2] - energyPadSizeV[2]]
+    if energyPadMethod.lower=='expand':
+        valEnergyPadV = [np.min(energyPadSizeV[0], extentsV[0]),\
+                         np.min(energyPadSizeV[0], origSizeV[0]-extentsV[1]),\
+                         np.min(energyPadSizeV[1], extentsV[2]),\
+                         np.min(energyPadSizeV[1], origSizeV[1]-extentsV[3]),\
+                         np.min(energyPadSizeV[2],extentsV[4]),\
+                         np.min(energyPadSizeV[2], origSizeV[2]-extentsV[5])]
+    else:
+        valEnergyPadV = [energyPadSizeV[0],energyPadSizeV[0],energyPadSizeV[1],\
+                         energyPadSizeV[1],energyPadSizeV[2],energyPadSizeV[2]]
+
+    texEnergy3M = texEnergyPad3M[valEnergyPadV[0]:padResponseSizeV[0]-valEnergyPadV[1],\
+                                 valEnergyPadV[2]:padResponseSizeV[1]-valEnergyPadV[3],\
+                                 valEnergyPadV[4]:padResponseSizeV[2]-valEnergyPadV[5]]
 
     # Reapply original paddingV
-    texEnergyPad3M = np.full(origSizeV, np.nan)
+    texEnergyPad3M = tex3M
     if texPadSizeV[2] == 0:
-        texEnergyPad3M[texPadSizeV[0]: -texPadSizeV[0],
-        texPadSizeV[1]: -texPadSizeV[1],:] = texEnergy3M
+        texEnergyPad3M[valOrigPadV[0]: -valOrigPadV[1],
+                       valOrigPadV[2]: -valOrigPadV[3],:] = texEnergy3M
     else:
-        texEnergyPad3M[texPadSizeV[0]: -texPadSizeV[0],
-        texPadSizeV[1]: -texPadSizeV[1],
-        texPadSizeV[2]: -texPadSizeV[2]] = texEnergy3M
-
-    texEnergyPad3M[0: texPadSizeV[0], :, :] = tex3M[0: texPadSizeV[0], :, :]
-    texEnergyPad3M[-texPadSizeV[0]:, :, :] = tex3M[-texPadSizeV[0]:, :, :]
-    texEnergyPad3M[:, 0: texPadSizeV[1], :] = tex3M[:, 0: texPadSizeV[1], :]
-    texEnergyPad3M[:, -texPadSizeV[1]:, :] = tex3M[:, -texPadSizeV[1]:, :]
-    if texPadSizeV[2] != 0:
-        texEnergyPad3M[:, :, 0: texPadSizeV[2]] = tex3M[:, :, 0: texPadSizeV[2]]
-        texEnergyPad3M[:, :, -texPadSizeV[2]:] = tex3M[:, :, -texPadSizeV[2]:]
+        texEnergyPad3M[valOrigPadV[0]: -valOrigPadV[1],
+                       valOrigPadV[2]: -valOrigPadV[3],
+                       valOrigPadV[4]: -valOrigPadV[5]] = texEnergy3M
 
     return texEnergyPad3M
 
 
-def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
-                     energyKernelSizeV, energyPadSizeV, energyPadMethod):
+def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadSizeV,
+                     lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
     """lawsEnergyFilter
     Returns local mean of absolute values of laws filter response
 
    scan3M             : 3D scan (numpy) array
-   direction           : '2d', '3d' or 'All'
+   mask3M             : 3D mask
+   direction          : '2d', '3d' or 'All'
    filterDim          : '3', '5', 'all', or a combination of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
    normFlag           : False - no normalization (default) or True - normalize  ( Normalization ensures average pixel in filtered image
                          is as bright as the average pixel in the original image)
-   lawsPadSizeV     :
-   energyKernelSizeV:
-   energyPadMethod   :
-   energyPadSizeV   :
+   lawsPadSizeV       :
+   lawsPadMethod      :
+   energyKernelSizeV  :
+   energyPadMethod    :
+   energyPadSizeV     :
    """
 
     # Compute Laws filter(s) reponse(s)
     lawMaps = lawsFilter(scan3M, direction, filterDim, normFlag)
+
 
     outS = dict()
     # Loop over response maps
@@ -690,8 +708,8 @@ def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
         lawsTex3M = lawMaps[type]
         #origSizeV = lawsTex3M.shape
 
-        lawsEnergyPad3M = energyFilter(lawsTex3M, lawsPadSizeV, energyKernelSizeV, energyPadSizeV,
-                                       energyPadMethod)
+        lawsEnergyPad3M = energyFilter(lawsTex3M, mask3M, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+                                       energyPadSizeV,energyPadMethod)
 
     out_field = f"{type}_energy"
     outS[out_field] = lawsEnergyPad3M
@@ -701,22 +719,21 @@ def lawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
 
 def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS):
     filter = {"lawsFilter": lawsFilter}
-    mask3M = np.array([])
     response = rotationInvariantFilt(scan3M, [], filter, direction, filterDim, normFlag, rotS)
     out3M = response[filterDim]
 
     return out3M
 
 
-def rotationInvariantLawsEnergyFilter(scan3M, direction, filterDim, normFlag, lawsPadSizeV,
+def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadSizeV, lawsPadMethod,\
                                       energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS):
+
     # Compute rotation-invariant Laws response map
     lawsAggTex3m = rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS)
-    origSizeV = lawsAggTex3m.shape
 
     # Compute energy on aggregated response
-    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, lawsPadSizeV, energyKernelSizeV, energyPadSizeV,
-                                      energyPadMethod)
+    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, mask3M, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+                                      energyPadSizeV, energyPadMethod)
 
     return lawsEnergyAggPad3M
 
