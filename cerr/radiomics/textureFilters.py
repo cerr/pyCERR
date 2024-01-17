@@ -157,7 +157,14 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
 
     # Define filter extents
     d = 4
-    x, y = np.meshgrid(np.arange(-radius[1], radius[1] + 1), np.arange(-radius[0], radius[0] + 1))
+    if isinstance(radius[0],int) and isinstance(radius[1],int):
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0]+1 ,1))
+    elif isinstance(radius[0],int):
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0]+1 ,1))
+    elif isinstance(radius[1],int):
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0] ,1))
+    else:
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0] ,1))
 
     # Loop over input orientations
     outS = dict()

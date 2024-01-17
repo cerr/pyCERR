@@ -284,8 +284,6 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         #Input is structure mask
         mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
-    if yValsV[0] > yValsV[1]:
-        yValsV = np.flip(yValsV)
 
     # Get pixelSpacing of the new grid
     cropForResamplingFlag = False
