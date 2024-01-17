@@ -78,8 +78,8 @@ def processImage(filterType, scan3M, mask3M, paramS):
         radius = None
         paddingV = None
 
-        if 'Radius' in paramS.keys():
-            radius = paramS['Radius']
+        if 'Radius_mm' in paramS.keys():
+            radius = np.array([paramS['Radius_mm'],paramS['Radius_mm']])
         if 'Padding' in paramS.keys():
             paddingV = paramS['Padding']['Size']
 
@@ -248,8 +248,8 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 zV = zV[np.arange(mins,maxs+1,1)]
 
                 planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
-                assocScanNum = len(planC.scan)-1
-                assocStrName = 'processed_' + strName
-                planC = pc.import_structure_mask(filtMask3M.astype(int), assocScanNum, assocStrName, planC)
+                #assocScanNum = len(planC.scan)-1
+                #assocStrName = 'processed_' + strName
+                #planC = pc.import_structure_mask(filtMask3M.astype(int), assocScanNum, assocStrName, planC)
 
     return planC
