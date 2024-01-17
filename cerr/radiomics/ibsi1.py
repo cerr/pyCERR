@@ -186,7 +186,7 @@ def createFlatFeatureDict(featDict, imageType):
                 flatFeatDict[imageType + '_' + featClass + '_' + item[0]] = item[1]
     return flatFeatDict
 
-def writeFeaturesToFile(featList, csvFileName):
+def writeFeaturesToFile(featList, csvFileName, writeHeader = True):
     import csv
     if not isinstance(featList,list):
         featList = [featList]
@@ -194,6 +194,7 @@ def writeFeaturesToFile(featList, csvFileName):
         flatFeatDict = featList[0]
         fieldnames = flatFeatDict.keys()
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
+        if writeHeader:
+            writer.writeheader()
         for flatFeatDict in featList:
             writer.writerow(flatFeatDict)
