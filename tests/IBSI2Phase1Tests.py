@@ -10,7 +10,7 @@ import os
 import numpy as np
 import scipy.io
 from cerr import plan_container
-from cerr.radiomics import preprocess, textureFilters, textureUtils
+from cerr.radiomics import textureUtils
 import matplotlib.pyplot as plt
 
 currPath = os.path.abspath(__file__)
