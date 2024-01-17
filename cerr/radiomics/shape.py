@@ -111,13 +111,25 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     shapeS['max2dDiameterCoronalPlane'] = dmax
 
     # Surface Area
+    # Pad mask to account for contribution from edge slices
+    maskForShape3M = np.pad(maskForShape3M, ((1,1),(1,1),(1,1)),
+                            mode='constant', constant_values=((0, 0),))
+    xPre = 2 * xValsV[0] - xValsV[1]
+    yPre = 2 * yValsV[0] - yValsV[1]
+    zPre = 2 * zValsV[0] - zValsV[1]
+    xPost = 2 * xValsV[-1] - xValsV[-2]
+    yPost = 2 * yValsV[-1] - yValsV[-2]
+    zPost = 2 * zValsV[-1] - zValsV[-2]
+    xValsPadV = np.pad(xValsV,(1,1),mode='constant',constant_values=(xPre, xPost))
+    yValsPadV = np.pad(yValsV,(1,1),mode='constant',constant_values=(yPre, yPost))
+    zValsPadV = np.pad(zValsV,(1,1),mode='constant',constant_values=(zPre, zPost))
     verts, faces, normals, values = measure.marching_cubes(maskForShape3M, level=0.5)
     # scale vcertices to physical cooordinates
-    xRange = xValsV[-1] - xValsV[0]
-    yRange = yValsV[-1] - yValsV[0]
-    zRange = zValsV[-1] - zValsV[0]
+    xRange = xValsPadV[-1] - xValsPadV[0]
+    yRange = yValsPadV[-1] - yValsPadV[0]
+    zRange = zValsPadV[-1] - zValsPadV[0]
     ranges = [yRange, xRange, zRange]
-    mins = [yValsV[0], xValsV[0], zValsV[0]]
+    mins = [yValsPadV[0], xValsPadV[0], zValsPadV[0]]
     verts_phys = verts * ranges / np.array(maskForShape3M.shape) + mins
     shapeS['surfArea'] = trimeshSurfaceArea(verts_phys,faces)
 
