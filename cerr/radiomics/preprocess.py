@@ -202,12 +202,12 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
         minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
         croppedScan3M = scan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
         croppedMask3M = mask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
-        minr = max(minr - marginV[0], 0)
-        maxr = min(maxr + marginV[0], mask3M.shape[0] - 1)
-        minc = max(minc - marginV[1], 0)
-        maxc = min(maxc + marginV[1], mask3M.shape[1] - 1)
-        mins = max(mins - marginV[2], 0)
-        maxs = min(maxs + marginV[2], mask3M.shape[2] - 1)
+        minr = minr - marginV[0]
+        maxr = maxr + marginV[0]
+        minc = minc - marginV[1]
+        maxc = maxc + marginV[1]
+        mins = mins - marginV[2]
+        maxs = maxs + marginV[2]
     else:
         inputSizeV = scan3M.shape
         minr, minc, mins = 0, 0, 0
@@ -228,6 +228,13 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
     if method.lower() == 'expand':
         if not cropFlag:
             raise ValueError("Set crop_flag=True to use method 'expand'")
+        minr = max(minr, 0)
+        maxr = min(maxr, mask3M.shape[0] - 1)
+        minc = max(minc, 0)
+        maxc = min(maxc, mask3M.shape[1] - 1)
+        mins = max(mins, 0)
+        maxs = min(maxs, mask3M.shape[2] - 1)
+        outLimitsV = [minr, maxr, minc, maxc, mins, maxs]
         outScan3M = scan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
         outMask3M = mask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
     elif method.lower() == 'padzeros':
@@ -277,8 +284,8 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         #Input is structure mask
         mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
-    #if yValsV[0] > yValsV[1]:
-    #    yValsV = np.flip(yValsV)
+    if yValsV[0] > yValsV[1]:
+        yValsV = np.flip(yValsV)
 
     # Get pixelSpacing of the new grid
     cropForResamplingFlag = False
@@ -378,25 +385,25 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         # Extend resampling grid if padding original image (cropFlag: False)
         if outLimitsV[0]<0:
             numPad = -outLimitsV[0]
-            padCountV = np.arange(1,numPad+1,1)
+            padCountV = np.arange(numPad,0,-1)
             yExtendV = yResampleV[0]-padCountV*outputResV[1]
-            yResampleV = [yExtendV,yResampleV]
+            yResampleV = np.concatenate((yExtendV,yResampleV))
             outLimitsV[0] = outLimitsV[0] + numPad
             outLimitsV[1] = outLimitsV[1] + numPad
 
         if outLimitsV[2]<0:
             numPad = -outLimitsV[2]
-            padCountV = np.arange(1,numPad+1,1)
+            padCountV = np.arange(numPad,0,-1)
             xExtendV = xResampleV[0]-padCountV*outputResV[0]
-            xResampleV = [xExtendV,xResampleV]
+            xResampleV = np.concatenate((xExtendV,xResampleV))
             outLimitsV[2] = outLimitsV[2] + numPad
             outLimitsV[3] = outLimitsV[3] + numPad
 
         if outLimitsV[4]<0:
             numPad = -outLimitsV[4]
-            padCountV = np.arange(1,numPad+1,1)
+            padCountV = np.arange(numPad,0,-1)
             zExtendV = zResampleV[0]-padCountV*outputResV[2]
-            zResampleV = [zExtendV,zResampleV]
+            zResampleV = np.concatenate((zExtendV,zResampleV))
             outLimitsV[4] = outLimitsV[4] + numPad
             outLimitsV[5] = outLimitsV[5] + numPad
 
@@ -404,19 +411,19 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             numPad = outLimitsV[1] - len(yResampleV) + 1
             padCountV = np.arange(1,numPad+1,1)
             yExtendV = yResampleV[-1] + padCountV*outputResV[1]
-            yResampleV = [yResampleV,yExtendV]
+            yResampleV = np.concatenate((yResampleV,yExtendV))
 
         if outLimitsV[3]>len(xResampleV)-1:
             numPad = outLimitsV[3] - len(xResampleV) + 1
             padCountV = np.arange(1,numPad+1,1)
             xExtendV = xResampleV[-1] + padCountV*outputResV[0]
-            xResampleV = [xResampleV,xExtendV]
+            xResampleV = np.concatenate((xResampleV,xExtendV))
 
         if outLimitsV[5]>len(zResampleV):
             numPad = outLimitsV[5] - len(zResampleV) + 1
             padCountV = np.arange(1,numPad+1,1)
             zExtendV = zResampleV[-1] + padCountV*outputResV[2]
-            zResampleV = [zResampleV,zExtendV]
+            zResampleV = np.concatenate((zResampleV,zExtendV))
 
         xResampleV = xResampleV[outLimitsV[2]:outLimitsV[3]+1]
         yResampleV = yResampleV[outLimitsV[0]:outLimitsV[1]+1]

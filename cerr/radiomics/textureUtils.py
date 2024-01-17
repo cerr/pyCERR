@@ -81,7 +81,7 @@ def processImage(filterType, scan3M, mask3M, paramS):
         if 'Radius' in paramS.keys():
             radius = paramS['Radius']
         if 'Padding' in paramS.keys():
-            paddingV = paramS['Padding']
+            paddingV = paramS['Padding']['Size']
 
         if filterType == 'gabor':
             if 'OrientationAggregation' in paramS.keys():
@@ -121,15 +121,16 @@ def processImage(filterType, scan3M, mask3M, paramS):
         if 'Normalize' in paramS.keys():
             normFlag = paramS['Normalize']
         if 'Padding' in paramS.keys():
-            lawsPadSizeV = paramS['Padding']
+            lawsPadSizeV = paramS['Padding']['Size']
+            lawsPadMethod = paramS['Padding']['Method']
         if filterType == 'lawsenergy':
-            outS = textureFilters.lawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
-                                                   energyKernelSizeV, energyPadSizeV, energyPadMethod)
+            outS = textureFilters.lawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, lawsPadSizeV,
+                                                   lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod)
         elif filterType == 'rotationinvariantlawsenergy':
             rotS = paramS['RotationInvariance']
-            out3M = textureFilters.rotationInvariantLawsEnergyFilter(scan3M, direction, type, normFlag, lawsPadSizeV,
-                                                                     energyKernelSizeV, energyPadSizeV, energyPadMethod,
-                                                                     rotS)
+            out3M = textureFilters.rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, \
+                                                                     lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+                                                                     energyPadSizeV, energyPadMethod, rotS)
             outS[type + '_Energy'] = out3M
 
     # elif filterType in ['wavelets', 'rotationinvariantwavelets']:
@@ -185,8 +186,10 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
 
     # Extract settings to reverse preprocessing transformations
     padSizeV = [0,0,0]
+    padMethod = "none"
     if 'padding' in paramS["settings"] and paramS["settings"]["padding"]["method"].lower()!='none':
         padSizeV = paramS["settings"]["padding"]["size"]
+        padMethod = paramS["settings"]["padding"]["method"]
 
     # Apply filter(s)
     filterTypes = list(paramS['imageType'].keys())
@@ -202,7 +205,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
             voxSizeV = gridS["PixelSpacingV"]
             currFiltParamS = filtParamS[numPar]
             currFiltParamS["VoxelSize_mm"]  = voxSizeV * 10
-            currFiltParamS["Padding"] = padSizeV
+            currFiltParamS["Padding"] = {"Size":padSizeV,"Method": padMethod}
 
             # Filter scan
             outS = processImage(filterType, procScan3M, procMask3M, currFiltParamS)
@@ -215,14 +218,18 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 texSizeV = filtScan3M.shape
 
                 # Remove padding
-                validPadSizeV = [
+                if "method" in currFiltParamS["Padding"]["Method"].lower()=='expand':
+                    validPadSizeV = [
                     min(padSizeV[0], minr),
                     min(padSizeV[0], procMask3M.shape[0] - maxr),
                     min(padSizeV[1], minc),
                     min(padSizeV[1], procMask3M.shape[1] - maxc),
                     min(padSizeV[2], mins),
                     min(padSizeV[2], procMask3M.shape[2] - maxs)
-                ]
+                    ]
+                else:
+                    validPadSizeV = [padSizeV[0],padSizeV[0],padSizeV[1],padSizeV[1],\
+                                    padSizeV[2],padSizeV[2]]
 
                 filtScan3M = filtScan3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
                                         validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
@@ -231,14 +238,14 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 filtMask3M = procMask3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
                                         validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
                                         validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
-                [__, __, __, __, mins, maxs, __] = compute_boundingbox(filtMask3M)
-                maskSlcV = np.arange(mins,maxs+1,1)
 
                 # Add filter response map to planC
                 xV = gridS['xValsV']
                 yV = gridS['yValsV']
                 zV = gridS['zValsV']
-                zV = zV[maskSlcV]
+                xV = xV[np.arange(minc,maxc+1,1)]
+                yV = yV[np.arange(minr,maxr+1,1)]
+                zV = zV[np.arange(mins,maxs+1,1)]
 
                 planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
                 assocScanNum = len(planC.scan)-1
