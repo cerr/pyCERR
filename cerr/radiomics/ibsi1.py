@@ -190,7 +190,7 @@ def writeFeaturesToFile(featList, csvFileName, writeHeader = True):
     import csv
     if not isinstance(featList,list):
         featList = [featList]
-    with open(csvFileName, 'w', newline='') as csvfile:
+    with open(csvFileName, 'a', newline='') as csvfile:
         flatFeatDict = featList[0]
         fieldnames = flatFeatDict.keys()
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
