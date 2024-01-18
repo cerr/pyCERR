@@ -322,13 +322,13 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             padMethod = paramS["settings"]['padding'][0]['method']
             padSizeV = paramS["settings"]['padding'][0]['size']
 
-            inputResV = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
-            if inputResV[0] * padSizeV[1] < outputResV[0] * padSizeV[1]:
-                padSizeV[1] = np.ceil(outputResV[0] * padSizeV[1] / inputResV[0])
-            if inputResV[1] * padSizeV[0] < outputResV[1] * padSizeV[0]:
-                padSizeV[0] = np.ceil(outputResV[1] * padSizeV[0] / inputResV[1])
-            if inputResV[2] * padSizeV[2] < outputResV[2] * padSizeV[2]:
-                padSizeV[1] = np.ceil(outputResV[2] * padSizeV[1] / inputResV[2])
+            # inputResV = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
+            # if inputResV[0] * padSizeV[1] < outputResV[0] * padSizeV[1]:
+            #     padSizeV[1] = np.ceil(outputResV[0] * padSizeV[1] / inputResV[0])
+            # if inputResV[1] * padSizeV[0] < outputResV[1] * padSizeV[0]:
+            #     padSizeV[0] = np.ceil(outputResV[1] * padSizeV[0] / inputResV[1])
+            # if inputResV[2] * padSizeV[2] < outputResV[2] * padSizeV[2]:
+            #     padSizeV[1] = np.ceil(outputResV[2] * padSizeV[1] / inputResV[2])
 
     #Crop to ROI and pad
     (padScanBoundsForResamp3M,padMaskBoundsForResamp3M,outLimitsV) = \
