@@ -303,7 +303,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         grid_resample_method = 'center'
         maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
         if 'cropForResampling' in paramS["settings"]['resample']:
-           cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling']
+           cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling'] == "yes"
     else:
         pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
         pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
