@@ -78,7 +78,7 @@ class Scan:
 
     def getSitkImage(self):
         #sitkArray = np.moveaxis(self.getScanArray(),[0,1,2],[1,2,0])
-        sitkArray = np.transpose(self.getScanArray(), (2, 0, 1))
+        sitkArray = np.transpose(self.getScanArray(), (2, 1, 0))
         # CERR slice ordering is opposite of DICOM
         if flipSliceOrderFlag(self):
             sitkArray = np.flip(sitkArray, axis = 0)
@@ -608,7 +608,7 @@ def getScanNumFromUID(assocScanUID,planC) -> int:
 def getCERRScanArrayFromITK(itkImage, assocScanNum, planC):
     if isinstance(itkImage, sitk.Image):
         itkImage = sitk.GetArrayFromImage(itkImage)
-    cerrArray = np.transpose(itkImage, (1, 2, 0))
+    cerrArray = np.transpose(itkImage, (2, 1, 0))
     # flip slices in CERR z-slice order which increases from head to toe
     if flipSliceOrderFlag(planC.scan[assocScanNum]):
         cerrArray = np.flip(cerrArray, axis=2)

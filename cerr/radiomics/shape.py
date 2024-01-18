@@ -44,10 +44,10 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     filled_volume = voxel_volume * np.sum(maskForShape3M)
 
     # Get x/y/z coordinates of all the voxels
-    iV, jV, kV = np.where(maskForShape3M)
-    xV = xValsV[jV]
-    yV = yValsV[iV]
-    zV = zValsV[kV]
+    indM = np.argwhere(maskForShape3M)
+    xV = xValsV[indM[:, 1]]
+    yV = yValsV[indM[:, 0]]
+    zV = zValsV[indM[:, 2]]
     xyzM = np.column_stack((xV, yV, zV))
     meanV = np.mean(xyzM, axis=0)
     xyzM = (xyzM - meanV) / np.sqrt(xyzM.shape[0])
