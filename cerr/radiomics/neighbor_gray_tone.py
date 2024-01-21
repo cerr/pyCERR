@@ -108,7 +108,7 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
     term2 = 0
     for lev in range(1, numLevels + 1):
         term1 += np.sum(p * np.roll(p, lev) * (indV - np.roll(indV, lev))**2)
-        term2 += s[lev - 1]
+        term2 += s[lev - 1, 0]
     featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / numVoxels
 
     # Busyness
