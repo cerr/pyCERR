@@ -15,52 +15,53 @@ from magicgui import magicgui
 import cerr.plan_container as pc
 from napari.utils.events import Event
 from napari import Viewer
+from magicgui.widgets import FunctionGui
 
-@magicgui(label={'label': 'Select Structure'}, call_button = 'Save updates')
-def struct_save(label: Labels, structure_name=None):
-    # do something with whatever layer the user has selected
-    # note: it *may* be None! so your function should handle the null case
-    if label is None:
-        return
-    planC = label.metadata['planC']
-    structNum = label.metadata['structNum']
-    assocScanNum = label.metadata['assocScanNum']
-    structName = label.name
-    planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
-    return planC
 
-@magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
-def struct_add(image: Image, structure_name = "") -> Labels:
-    # do something with whatever layer the user has selected
-    # note: it *may* be None! so your function should handle the null case
-    # planC = label.metadata['planC']
-    # structNum = label.metadata['structNum']
-    # assocScanNum = label.metadata['assocScanNum']
-    # structName = label.name
-    #print(label.name)
-    #print(planC.structure[structNum].structureName)
-    #planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
-    if image is None:
-        return
-    mask3M = np.zeros(image.data.shape, dtype=bool)
-    scan_affine = image.affine.affine_matrix
-    planC = image.metadata['planC']
-    strNum = len(planC.structure)
-    colr = np.array(cerrStr.getColorForStructNum(strNum)) / 255
-    scanNum = image.metadata['scanNum']
-    shp = Labels(mask3M, name=structure_name, affine=scan_affine,
-                            num_colors=1, blending='translucent',
-                            color = {1: colr, 0: np.array([0,0,0,0])},
-                            opacity = 1, metadata = {'planC': planC,
-                                                       'structNum': strNum,
-                                                       'assocScanNum': scanNum})
-    shp.contour = 2
-    return shp
+def initialize_struct_save_widget() -> FunctionGui:
+    @magicgui(label={'label': 'Select Structure'}, call_button = 'Save updates')
+    def struct_save(label: Labels, structure_name=None):
+        # do something with whatever layer the user has selected
+        # note: it *may* be None! so your function should handle the null case
+        if label is None:
+            return
+        planC = label.metadata['planC']
+        structNum = label.metadata['structNum']
+        assocScanNum = label.metadata['assocScanNum']
+        structName = label.name
+        planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
+        return planC
+    return struct_save
 
-@struct_add.call_button.clicked.connect
-def update_structure_names(event):
-    print(type(event))
-    #len(viewer.layers)
+def initialize_struct_add_widget() -> FunctionGui:
+    @magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
+    def struct_add(image: Image, structure_name = "") -> Labels:
+        # do something with whatever layer the user has selected
+        # note: it *may* be None! so your function should handle the null case
+        # planC = label.metadata['planC']
+        # structNum = label.metadata['structNum']
+        # assocScanNum = label.metadata['assocScanNum']
+        # structName = label.name
+        #print(label.name)
+        #print(planC.structure[structNum].structureName)
+        #planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
+        if image is None:
+            return
+        mask3M = np.zeros(image.data.shape, dtype=bool)
+        scan_affine = image.affine.affine_matrix
+        planC = image.metadata['planC']
+        strNum = len(planC.structure)
+        colr = np.array(cerrStr.getColorForStructNum(strNum)) / 255
+        scanNum = image.metadata['scanNum']
+        shp = Labels(mask3M, name=structure_name, affine=scan_affine,
+                                num_colors=1, blending='translucent',
+                                color = {1: colr, 0: np.array([0,0,0,0])},
+                                opacity = 1, metadata = {'planC': planC,
+                                                           'structNum': strNum,
+                                                           'assocScanNum': scanNum})
+        shp.contour = 2
+        return shp
+    return struct_add
 
 
 def getContourPolygons(strNum, assocScanNum, planC):
@@ -207,7 +208,9 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
     if len(struct_layer)> 0:
-        viewer.window.add_dock_widget([struct_add, struct_save], area='left', name="Structure", tabify=True)
+        struct_add_widget = initialize_struct_add_widget()
+        struct_save_widget = initialize_struct_save_widget()
+        viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Structure", tabify=True)
         #viewer.layers.selection.events.changed.connect(struct_show)
     napari.run()
 
