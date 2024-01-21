@@ -7,6 +7,60 @@ import numpy as np
 from skimage import measure
 import vispy.color
 import cerr.dataclasses.scan as scn
+import cerr.dataclasses.structure as cerrStr
+from napari.layers import Layer
+from napari.types import LabelsData, ImageData
+from napari.layers import Labels, Image
+from magicgui import magicgui
+import cerr.plan_container as pc
+from napari.utils.events import Event
+from napari import Viewer
+
+@magicgui(label={'label': 'Select Structure'}, call_button = 'Save updates')
+def struct_save(label: Labels, structure_name=None):
+    # do something with whatever layer the user has selected
+    # note: it *may* be None! so your function should handle the null case
+    if label is None:
+        return
+    planC = label.metadata['planC']
+    structNum = label.metadata['structNum']
+    assocScanNum = label.metadata['assocScanNum']
+    structName = label.name
+    planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
+    return planC
+
+@magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
+def struct_add(image: Image, structure_name = "") -> Labels:
+    # do something with whatever layer the user has selected
+    # note: it *may* be None! so your function should handle the null case
+    # planC = label.metadata['planC']
+    # structNum = label.metadata['structNum']
+    # assocScanNum = label.metadata['assocScanNum']
+    # structName = label.name
+    #print(label.name)
+    #print(planC.structure[structNum].structureName)
+    #planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
+    if image is None:
+        return
+    mask3M = np.zeros(image.data.shape, dtype=bool)
+    scan_affine = image.affine.affine_matrix
+    planC = image.metadata['planC']
+    strNum = len(planC.structure)
+    colr = np.array(cerrStr.getColorForStructNum(strNum)) / 255
+    scanNum = image.metadata['scanNum']
+    shp = Labels(mask3M, name=structure_name, affine=scan_affine,
+                            num_colors=1, blending='translucent',
+                            color = {1: colr, 0: np.array([0,0,0,0])},
+                            opacity = 1, metadata = {'planC': planC,
+                                                       'structNum': strNum,
+                                                       'assocScanNum': scanNum})
+    shp.contour = 2
+    return shp
+
+@struct_add.call_button.clicked.connect
+def update_structure_names(event):
+    print(type(event))
+    #len(viewer.layers)
 
 
 def getContourPolygons(strNum, assocScanNum, planC):
@@ -16,7 +70,7 @@ def getContourPolygons(strNum, assocScanNum, planC):
         if planC.structure[strNum].contour[slc]:
             for seg in planC.structure[strNum].contour[slc].segments:
                 rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
-                pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float32).T
+                pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
                 polygons.append(pts)
     return polygons
 
@@ -43,6 +97,9 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dx = x[1] - x[0]
         dy = y[1] - y[0]
         dz = z[1] - z[0]
+        #if tiled:
+        #    if scan_num > 0 and np.mod(scan_num,2) == 0:
+        #        x += x[-1] + 2
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
         scanAffineDict[scan_num] = scan_affine
 
@@ -57,8 +114,10 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
                                            opacity=opacity, colormap=scan_colormaps[i],
-                                            blending="additive",interpolation2d="linear",
-                                            interpolation3d="linear"
+                                            blending="additive",interpolation2d="lanczos",
+                                            interpolation3d="lanczos",
+                                            metadata = {'planC': planC,
+                                                     'scanNum': scan_num}
                                             ))
 
     dose_layers = []
@@ -73,8 +132,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dose_affine = np.array([[dy, 0, 0, yd[0]], [0, dx, 0, xd[0]], [0, 0, dz, zd[0]], [0, 0, 0, 1]])
         dose_layers.append(viewer.add_image(doseArray,name='dose',affine=dose_affine,
                                   opacity=0.5,colormap="gist_earth",
-                                  blending="additive",interpolation2d="linear",
-                                  interpolation3d="linear"
+                                  blending="additive",interpolation2d="lanczos",
+                                  interpolation3d="lanczos"
                                    ))
 
     # reference: https://gist.github.com/AndiH/c957b4d769e628f506bd
@@ -95,6 +154,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_affine = scanAffineDict[scan_num]
         #colr = np.asarray(tableau20[i])/255
         colr = np.array(planC.structure[str_num].structureColor) / 255
+        colr = np.append(colr,1)
         str_name = planC.structure[str_num].structureName
 
         if displayMode.lower() == '3d':
@@ -110,11 +170,20 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
                                               colormap=cmap)
             struct_layer.append(labl)
         elif displayMode.lower() == '2d':
-            polygons = getContourPolygons(str_num, scan_num, planC)
-
-            shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
-                              edge_color=colr, face_color=[0]*4,
-                              affine=scan_affine, name=str_name)
+            # polygons = getContourPolygons(str_num, scan_num, planC)
+            #
+            # shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
+            #                   edge_color=colr, face_color=[0]*4,
+            #                   affine=scan_affine, name=str_name)
+            mask3M = rs.getStrMask(str_num,planC)
+            mask3M[mask3M] = int(str_num + 1)
+            shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
+                                    num_colors=1, blending='translucent',
+                                    color = {1: colr, 0: np.array([0,0,0,0])},
+                                    opacity = 1, metadata = {'planC': planC,
+                                                               'structNum': str_num,
+                                                               'assocScanNum': scan_num})
+            shp.contour = 2
             struct_layer.append(shp)
 
     viewer.dims.ndisplay = 2
@@ -137,6 +206,9 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.scale_bar.visible = True
     viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
+    if len(struct_layer)> 0:
+        viewer.window.add_dock_widget([struct_add, struct_save], area='left', name="Structure", tabify=True)
+        #viewer.layers.selection.events.changed.connect(struct_show)
     napari.run()
 
     return viewer, scan_layers, dose_layers, struct_layer
