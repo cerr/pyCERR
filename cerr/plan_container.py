@@ -294,22 +294,24 @@ def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     planC.scan.append(scan)
     return planC
 
-def import_structure_mask(mask3M, assocScanNum, structName, planC):
+def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
     # Pad mask to account for boundary edges
     paddedMask3M = mask3M.astype(int)
     paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
     dt = datetime.now()
-    struct_meta = structr.Structure()
+    if isinstance(structNum,int):
+        struct_meta = planC.structure[structNum]
+    else:
+        struct_meta = structr.Structure()
+        structNum = len(planC.structure)
+        struct_meta.structureColor = structr.getColorForStructNum(structNum)
+        struct_meta.strUID = uid.createUID("structure")
+        struct_meta.structSetSopInstanceUID = generate_uid()
+        struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
     struct_meta.structureFileFormat = "NPARRAY"
     struct_meta.structureName = structName
     struct_meta.dateWritten = dt.strftime("%Y%m%d")
     struct_meta.roiNumber = ""
-    strNum = len(planC.structure)
-    struct_meta.structureColor = structr.getColorForStructNum(strNum)
-    #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
-    struct_meta.strUID = uid.createUID("structure")
-    struct_meta.structSetSopInstanceUID = generate_uid()
-    struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
     contour_list = np.empty((0),Contour)
     numSlcs = len(planC.scan[assocScanNum].scanInfo)
     dim = paddedMask3M.shape
@@ -349,9 +351,9 @@ def import_structure_mask(mask3M, assocScanNum, structName, planC):
 #     struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
     numOrigStructs = len(planC.structure)
     planC.structure.append(struct_meta)
-    str_num = len(planC.structure) - 1
-    planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
-    planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
+    #str_num = len(planC.structure) - 1
+    planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
+    planC.structure[structNum].rasterSegments = rs.generate_rastersegs(planC.structure[structNum],planC)
     return planC
 
 

@@ -519,7 +519,8 @@ def copyToScan(structNum, scanNum, planC):
     # Interpolate mask from original scan to the new scan
     newMask3M = imgResample3D(mask3M.astype(float), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
     structName = planC.structure[structNum].structureName
-    planC = pc.import_structure_mask(newMask3M, scanNum, structName, planC)
+    structNum = None
+    planC = pc.import_structure_mask(newMask3M, scanNum, structName, structNum, planC)
     return planC
 
 

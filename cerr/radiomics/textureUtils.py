@@ -250,6 +250,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
                 #assocScanNum = len(planC.scan)-1
                 #assocStrName = 'processed_' + strName
-                #planC = pc.import_structure_mask(filtMask3M.astype(int), assocScanNum, assocStrName, planC)
+                #strNum = None
+                #planC = pc.import_structure_mask(filtMask3M.astype(int), assocScanNum, assocStrName, strNum, planC)
 
     return planC

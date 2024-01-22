@@ -9,18 +9,19 @@ import vispy.color
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
 from napari.layers import Layer
-from napari.types import LabelsData, ImageData
+from napari.types import LabelsData, ImageData, LayerDataTuple
 from napari.layers import Labels, Image
 from magicgui import magicgui
 import cerr.plan_container as pc
 from napari.utils.events import Event
 from napari import Viewer
 from magicgui.widgets import FunctionGui
+from qtpy.QtWidgets import QTabBar
 
 
 def initialize_struct_save_widget() -> FunctionGui:
-    @magicgui(label={'label': 'Select Structure'}, call_button = 'Save updates')
-    def struct_save(label: Labels, structure_name=None):
+    @magicgui(label={'label': 'Select Structure'}, call_button = 'Save')
+    def struct_save(label: Labels, overwrite_existing_structure = True) -> LayerDataTuple:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
         if label is None:
@@ -29,8 +30,28 @@ def initialize_struct_save_widget() -> FunctionGui:
         structNum = label.metadata['structNum']
         assocScanNum = label.metadata['assocScanNum']
         structName = label.name
-        planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
-        return planC
+        mask3M = label.data
+        if overwrite_existing_structure and structNum:
+            origMask3M = rs.getStrMask(structNum, planC)
+            siz = mask3M.shape
+            slcToUpdateV = []
+            for slc in range(siz[2]):
+                if not np.all(mask3M[:,:,slc] == origMask3M[:,:,slc]):
+                    slcToUpdateV.append(slc)
+        planC = pc.import_structure_mask(mask3M, assocScanNum, structName, structNum, planC)
+        if not structNum:
+            structNum = len(planC.structure) - 1
+        scanNum = label.metadata['assocScanNum']
+        scan_affine = label.affine
+        colr = label.color[1]
+        labelDict = {'name': structName, 'affine': scan_affine,
+                     'num_colors': 1, 'blending': 'translucent',
+                     'contour': 2, 'opacity': 1,
+                     'color': {1: colr, 0: np.array([0,0,0,0])},
+                      'metadata': {'planC': planC,
+                                   'structNum': structNum,
+                                   'assocScanNum': scanNum} }
+        return (mask3M, labelDict, "labels")
     return struct_save
 
 def initialize_struct_add_widget() -> FunctionGui:
@@ -38,13 +59,6 @@ def initialize_struct_add_widget() -> FunctionGui:
     def struct_add(image: Image, structure_name = "") -> Labels:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
-        # planC = label.metadata['planC']
-        # structNum = label.metadata['structNum']
-        # assocScanNum = label.metadata['assocScanNum']
-        # structName = label.name
-        #print(label.name)
-        #print(planC.structure[structNum].structureName)
-        #planC = pc.import_structure_mask(label.data, assocScanNum, structName, planC)
         if image is None:
             return
         mask3M = np.zeros(image.data.shape, dtype=bool)
@@ -55,11 +69,12 @@ def initialize_struct_add_widget() -> FunctionGui:
         scanNum = image.metadata['scanNum']
         shp = Labels(mask3M, name=structure_name, affine=scan_affine,
                                 num_colors=1, blending='translucent',
+                                opacity = 1,
                                 color = {1: colr, 0: np.array([0,0,0,0])},
-                                opacity = 1, metadata = {'planC': planC,
-                                                           'structNum': strNum,
-                                                           'assocScanNum': scanNum})
-        shp.contour = 2
+                                metadata = {'planC': planC,
+                                            'structNum': None,
+                                            'assocScanNum': scanNum})
+        shp.contour = 0
         return shp
     return struct_add
 
@@ -207,11 +222,18 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.scale_bar.visible = True
     viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
-    if len(struct_layer)> 0:
-        struct_add_widget = initialize_struct_add_widget()
-        struct_save_widget = initialize_struct_save_widget()
-        viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Structure", tabify=True)
-        #viewer.layers.selection.events.changed.connect(struct_show)
+    #if len(struct_layer)> 0:
+    struct_add_widget = initialize_struct_add_widget()
+    struct_save_widget = initialize_struct_save_widget()
+    structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Structure", tabify=True)
+    # This line sets the index of the active DockWidget
+    structWidget.parent().findChildren(QTabBar)[0].setCurrentIndex(0)
+
+    viewer.layers.events.inserted.connect(struct_add_widget.reset_choices)
+    viewer.layers.events.inserted.connect(struct_save_widget.reset_choices)
+    viewer.layers.events.removed.connect(struct_add_widget.reset_choices)
+    viewer.layers.events.removed.connect(struct_save_widget.reset_choices)
+
     napari.run()
 
     return viewer, scan_layers, dose_layers, struct_layer
