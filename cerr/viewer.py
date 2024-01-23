@@ -192,7 +192,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             #                   edge_color=colr, face_color=[0]*4,
             #                   affine=scan_affine, name=str_name)
             mask3M = rs.getStrMask(str_num,planC)
-            mask3M[mask3M] = int(str_num + 1)
+            mask3M[mask3M] = 1 #int(str_num + 1)
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
                                     num_colors=1, blending='translucent',
                                     color = {1: colr, 0: np.array([0,0,0,0])},
