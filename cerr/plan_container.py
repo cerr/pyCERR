@@ -350,7 +350,8 @@ def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
         struct_meta.contour = contour_list
 #     struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
     numOrigStructs = len(planC.structure)
-    planC.structure.append(struct_meta)
+    if structNum == numOrigStructs:
+        planC.structure.append(struct_meta)
     #str_num = len(planC.structure) - 1
     planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
     planC.structure[structNum].rasterSegments = rs.generate_rastersegs(planC.structure[structNum],planC)
