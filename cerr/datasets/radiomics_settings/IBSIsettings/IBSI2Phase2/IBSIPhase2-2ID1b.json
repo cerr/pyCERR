@@ -1,0 +1,37 @@
+{
+
+"structures": ["ROI"],
+
+"imageType": {
+  		  "Original": {}
+	    },
+
+"settings": {		   
+                "resample": {
+                     "resolutionXCm": 0.1,
+				     "resolutionYCm": 0.1,
+				     "resolutionZCm": 0.1,
+				     "interpMethod": "bspline",
+                     "intensityRounding": "On"
+			        },
+
+                   "padding": {
+                                "method": "none"
+			       },
+
+                   "texture" :{ 
+		                "minSegThreshold": -1000,
+		                "maxSegThreshold": 400
+	               },
+
+                   "firstOrder" :{ 
+				            "offsetForEnergy": 0,
+                            "binWidthEntropy":0
+                   }
+ },
+                
+ "featureClass": { 
+		   				"firstOrder": {"featureList": ["all"]}
+                        }
+
+}
