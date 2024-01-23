@@ -157,11 +157,11 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
 
     # Define filter extents
     d = 4
-    if isinstance(radius[0],int) and isinstance(radius[1],int):
+    if int(radius[0])==radius[0] and int(radius[1])==radius[1]:
         x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0]+1 ,1))
-    elif isinstance(radius[0],int):
+    elif int(radius[0])==radius[0]:
         x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0]+1 ,1))
-    elif isinstance(radius[1],int):
+    elif int(radius[1])==radius[1]:
         x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0] ,1))
     else:
         x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0] ,1))
@@ -347,14 +347,14 @@ def getLawsMasks(direction='all', filterType='all', normFlag=False):
     filterType = filterType.upper()
 
     # Define 1-D filter kernels
-    L3 = np.array([1, 2, 1], dtype=float)
-    E3 = np.array([-1, 0, 1], dtype=float)
-    S3 = np.array([-1, 2, -1], dtype=float)
-    L5 = np.array([1, 4, 6, 4, 1], dtype=float)
-    E5 = np.array([-1, -2, 0, 2, 1], dtype=float)
-    S5 = np.array([-1, 0, 2, 0, -1], dtype=float)
-    R5 = np.array([1, -4, 6, -4, 1], dtype=float)
-    W5 = np.array([-1, 2, 0, -2, 1], dtype=float)
+    L3 = np.array([1, 2, 1], dtype=np.double)
+    E3 = np.array([-1, 0, 1], dtype=np.double)
+    S3 = np.array([-1, 2, -1], dtype=np.double)
+    L5 = np.array([1, 4, 6, 4, 1], dtype=np.double)
+    E5 = np.array([-1, -2, 0, 2, 1], dtype=np.double)
+    S5 = np.array([-1, 0, 2, 0, -1], dtype=np.double)
+    R5 = np.array([1, -4, 6, -4, 1], dtype=np.double)
+    W5 = np.array([-1, 2, 0, -2, 1], dtype=np.double)
 
     if normFlag:
         L3 /= np.sqrt(6)
@@ -619,7 +619,7 @@ def lawsFilter(scan3M, direction, filterDim, normFlag):
     return out_dict
 
 
-def energyFilter(tex3M, mask3M, texPadSizeV, texPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
+def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
     """energyFilter
     Returns local mean of absolute values
 
@@ -634,7 +634,9 @@ def energyFilter(tex3M, mask3M, texPadSizeV, texPadMethod, energyKernelSizeV, en
 
     # Calc. padding applied
     origSizeV = tex3M.shape
-    if texPadMethod.lower=='expand':
+    if not texPadFlag:
+        valOrigPadV = [0,0,0,0,0,0]
+    elif texPadMethod.lower=='expand':
         minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
         valOrigPadV = [np.min(texPadSizeV[0], minr), np.min(texPadSizeV[0], origSizeV[0]-maxr),\
                    np.min(texPadSizeV[1], minc), np.min(texPadSizeV[1], origSizeV[1]-maxc),\
@@ -675,18 +677,19 @@ def energyFilter(tex3M, mask3M, texPadSizeV, texPadMethod, energyKernelSizeV, en
 
     # Reapply original paddingV
     texEnergyPad3M = tex3M
-    if texPadSizeV[2] == 0:
-        texEnergyPad3M[valOrigPadV[0]: -valOrigPadV[1],
-                       valOrigPadV[2]: -valOrigPadV[3],:] = texEnergy3M
-    else:
-        texEnergyPad3M[valOrigPadV[0]: -valOrigPadV[1],
-                       valOrigPadV[2]: -valOrigPadV[3],
-                       valOrigPadV[4]: -valOrigPadV[5]] = texEnergy3M
+    if texPadFlag:
+        if texPadSizeV[2] == 0:
+            texEnergyPad3M[valOrigPadV[0]: origSizeV[0]-valOrigPadV[1],
+                       valOrigPadV[2]: origSizeV[1]-valOrigPadV[3],:] = texEnergy3M
+        else:
+            texEnergyPad3M[valOrigPadV[0]: origSizeV[0]-valOrigPadV[1],
+                       valOrigPadV[2]: origSizeV[1]-valOrigPadV[3],
+                       valOrigPadV[4]: origSizeV[2]-valOrigPadV[5]] = texEnergy3M
 
     return texEnergyPad3M
 
 
-def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadSizeV,
+def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadFlag, lawsPadSizeV,
                      lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
     """lawsEnergyFilter
     Returns local mean of absolute values of laws filter response
@@ -715,8 +718,8 @@ def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadSize
         lawsTex3M = lawMaps[type]
         #origSizeV = lawsTex3M.shape
 
-        lawsEnergyPad3M = energyFilter(lawsTex3M, mask3M, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
-                                       energyPadSizeV,energyPadMethod)
+        lawsEnergyPad3M = energyFilter(lawsTex3M, mask3M, lawsPadFlag, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+                                       energyPadSizeV, energyPadMethod)
 
     out_field = f"{type}_energy"
     outS[out_field] = lawsEnergyPad3M
@@ -732,14 +735,14 @@ def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS):
     return out3M
 
 
-def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadSizeV, lawsPadMethod,\
-                                      energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS):
+def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadFlag, lawsPadSizeV,\
+                                      lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS):
 
     # Compute rotation-invariant Laws response map
     lawsAggTex3m = rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS)
 
     # Compute energy on aggregated response
-    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, mask3M, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, mask3M, lawsPadFlag, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
                                       energyPadSizeV, energyPadMethod)
 
     return lawsEnergyAggPad3M
@@ -879,7 +882,7 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim, norm
 def getMatchFields(dictIn, *args):
     """Return vals in list of dictionaries matching input key"""
 
-    return [dictIn[field] for field in args]
+    return np.array([dictIn[field] for field in args])
 
 
 def aggregateRotatedResponses(rotTexture, aggregationMethod):

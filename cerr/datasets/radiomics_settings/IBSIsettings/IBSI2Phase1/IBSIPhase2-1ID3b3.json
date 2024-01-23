@@ -19,11 +19,11 @@
 
 "settings": {		   
 
-                   "padding": [{
+                   "padding": {
                                 "method": "mirror",  
                                 "size": [2,2,2]
 			       }
-                              ]
+                              
 	    }
 
 }

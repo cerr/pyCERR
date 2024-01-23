@@ -14,11 +14,11 @@
 
 "settings": {		   
 
-                   "padding": [{
+                   "padding": {
                                 "method": "padzeros",  
                                 "size": [41,41,0]
 			       }
-                              ]
+                              
 	    }
 
 }

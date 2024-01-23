@@ -121,16 +121,18 @@ def processImage(filterType, scan3M, mask3M, paramS):
         if 'Normalize' in paramS.keys():
             normFlag = paramS['Normalize']
         if 'Padding' in paramS.keys():
+            lawsPadFlag = paramS['Padding']['Flag']
             lawsPadSizeV = paramS['Padding']['Size']
             lawsPadMethod = paramS['Padding']['Method']
         if filterType == 'lawsenergy':
-            outS = textureFilters.lawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, lawsPadSizeV,
+            outS = textureFilters.lawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, lawsPadFlag, lawsPadSizeV,\
                                                    lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod)
         elif filterType == 'rotationinvariantlawsenergy':
             rotS = paramS['RotationInvariance']
             out3M = textureFilters.rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, \
-                                                                     lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
-                                                                     energyPadSizeV, energyPadMethod, rotS)
+                                                                     lawsPadFlag, lawsPadSizeV, lawsPadMethod, \
+                                                                     energyKernelSizeV, energyPadSizeV, \
+                                                                     energyPadMethod, rotS)
             outS[type + '_Energy'] = out3M
 
     # elif filterType in ['wavelets', 'rotationinvariantwavelets']:
@@ -185,11 +187,13 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
     minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(procMask3M)
 
     # Extract settings to reverse preprocessing transformations
+    padFlag = False
     padSizeV = [0,0,0]
     padMethod = "none"
     if 'padding' in paramS["settings"] and paramS["settings"]["padding"]["method"].lower()!='none':
         padSizeV = paramS["settings"]["padding"]["size"]
         padMethod = paramS["settings"]["padding"]["method"]
+        padFlag = True
 
     # Apply filter(s)
     filterTypes = list(paramS['imageType'].keys())
@@ -205,7 +209,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
             voxSizeV = gridS["PixelSpacingV"]
             currFiltParamS = filtParamS[numPar]
             currFiltParamS["VoxelSize_mm"]  = voxSizeV * 10
-            currFiltParamS["Padding"] = {"Size":padSizeV,"Method": padMethod}
+            currFiltParamS["Padding"] = {"Size":padSizeV,"Method": padMethod, "Flag": padFlag}
 
             # Filter scan
             outS = processImage(filterType, procScan3M, procMask3M, currFiltParamS)

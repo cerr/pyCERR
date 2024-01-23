@@ -1,0 +1,27 @@
+{
+
+"structures": ["ROI"],
+
+"imageType": {
+  		  "Original": {}
+	    },
+
+"settings": {		   
+
+                   "padding": {
+                                "method": "none"
+			       },
+                   "texture" :{ 
+		                "minSegThreshold": -1000,
+		                "maxSegThreshold": 400
+                       },
+                   "firstOrder" :{ 
+				            "offsetForEnergy": 0,
+                            		    "binWidthEntropy":0 }
+                 },
+                   
+"featureClass": { 
+				"firstOrder": {"featureList": ["all"]}
+                        }
+
+}

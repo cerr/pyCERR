@@ -1,25 +1,32 @@
 import numpy as np
-from scipy.stats import skew, kurtosis, entropy, describe, iqr, scoreatpercentile
+from scipy.stats import skew, kurtosis, entropy
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.plan_container as pc
+
+
+def quantile(x,q):
+    n = len(x)
+    y = np.sort(x)
+    return(np.interp(q, np.linspace(1/(2*n), (2*n-1)/(2*n), n), y))
+
+def prctile(x,p):
+    """Equivalent to Matlab's prctile"""
+    y = x[~np.isnan(x)]
+    return(quantile(y,np.array(p)/100))
+
 
 def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     if isinstance(planC, pc.PlanC):
         # Get structure Mask
         maskStruct3M = rs.getStrMask(structNum,planC)
 
-        # Get uniformized scan mask in HU
+        # Get uniformized scan in HU
         assocScanUID = planC.structure[structNum].assocScanUID
         scanNum = scn.getScanNumFromUID(assocScanUID,planC)
-
-        maskScan3M = planC.scan[scanNum].scanArray
-
-        # Convert to HU if image is of type CT
-        maskScan3M = maskScan3M - planC.scan[scanNum].scanInfo[0].CTOffset
+        maskScan3M = np.double(planC.scan[scanNum].getScanArray())
 
         # Offset for energy calculation
-        offsetForEnergy = 0
         if offsetForEnergy is None:
             offsetForEnergy = planC.scan[scanNum].scanInfo[0].CTOffset
 
@@ -46,8 +53,8 @@ def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=No
     RadiomicsFirstOrderS['max'] = np.nanmax(Iarray)
     RadiomicsFirstOrderS['mean'] = np.nanmean(Iarray)
     RadiomicsFirstOrderS['range'] = np.ptp(Iarray)
-    RadiomicsFirstOrderS['std'] = np.std(Iarray, ddof=1)
-    RadiomicsFirstOrderS['var'] = np.var(Iarray, ddof=1)
+    RadiomicsFirstOrderS['std'] = np.nanstd(Iarray, ddof=0)
+    RadiomicsFirstOrderS['var'] = np.nanvar(Iarray, ddof=0)
     RadiomicsFirstOrderS['median'] = np.nanmedian(Iarray)
 
     # Skewness is a measure of the asymmetry of the data around the sample mean.
@@ -64,12 +71,15 @@ def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=No
         binWidth = (xmax - xmin) / binNum
     elif binWidth is None:
         binWidth = 25
-    N = np.ceil((xmax - edgeMin) / binWidth).astype(int)
-    offsetForEntropy = -np.min(Iarray.min(),0)
-    xmin = 0
-    xmax = np.max(Iarray) + offsetForEntropy + binWidth/2
-    counts, _ = np.histogram(Iarray + offsetForEntropy, bins= np.arange(xmin,xmax,binWidth))
-    RadiomicsFirstOrderS['entropy'] = entropy(counts, base=2)
+    if binWidth == 0:
+        RadiomicsFirstOrderS['entropy'] = 0
+    else:
+        N = np.ceil((xmax - edgeMin) / binWidth).astype(int)
+        offsetForEntropy = -np.min(Iarray.min(),0)
+        xmin = 0
+        xmax = np.max(Iarray) + offsetForEntropy + binWidth/2
+        counts, _ = np.histogram(Iarray + offsetForEntropy, bins= np.arange(xmin,xmax,binWidth))
+        RadiomicsFirstOrderS['entropy'] = entropy(counts, base=2)
 
     # Root mean square (RMS)
     RadiomicsFirstOrderS['rms'] = np.sqrt(np.nansum((Iarray + offsetForEnergy) ** 2) / Iarray.size)
@@ -87,10 +97,10 @@ def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=No
     RadiomicsFirstOrderS['medianAbsDev'] = np.nansum(np.abs(Iarray - RadiomicsFirstOrderS['median'])) / Iarray.size
 
     # P10
-    RadiomicsFirstOrderS['P10'] = scoreatpercentile(Iarray, 10)
+    RadiomicsFirstOrderS['P10'] = prctile(Iarray, 10)
 
     # P90
-    RadiomicsFirstOrderS['P90'] = scoreatpercentile(Iarray, 90)
+    RadiomicsFirstOrderS['P90'] = prctile(Iarray, 90)
 
     Iarray10_90 = Iarray.copy()
     idx10_90 = (Iarray >= RadiomicsFirstOrderS['P10']) & (Iarray <= RadiomicsFirstOrderS['P90'])
@@ -106,8 +116,8 @@ def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=No
 
     # Inter-Quartile Range (IQR)
     # P75 - P25
-    p75 = scoreatpercentile(Iarray, 75)
-    p25 = scoreatpercentile(Iarray, 25)
+    p75 = prctile(Iarray, 75)
+    p25 = prctile(Iarray, 25)
     RadiomicsFirstOrderS['interQuartileRange'] = p75 - p25
 
     # Quartile coefficient of Dispersion
