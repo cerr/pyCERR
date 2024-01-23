@@ -2,8 +2,8 @@ import numpy as np
 
 from cerr.radiomics import first_order, gray_level_cooccurence, run_length,\
     size_zone, neighbor_gray_level_dependence, neighbor_gray_tone
-from cerr.utils import bbox
-from cerr.radiomics import preprocess, textureFilters
+from cerr.utils.bbox import compute_boundingbox
+from cerr.radiomics import preprocess, textureUtils
 import json
 
 def getDirectionOffsets(direction):
@@ -39,7 +39,7 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
     featDict = {}
 
     # Get feature extraction settings
-    firstOrderOffsetEnergy = paramS['settings']['firstOrder']['offsetForEnergy']
+    firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
     firstOrderEntropyBinWidth = None
     firstOrderEntropyBinNum = None
     textureBinNum = None
@@ -51,8 +51,11 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
         and isinstance(paramS['settings']['firstOrder']['binNumEntropy'], (int, float)):
         firstOrderEntropyBinNum = paramS['settings']['firstOrder']['binNumEntropy']
     if 'texture' in paramS['settings'] and paramS['settings']['texture'] != {}:
-        patch_radius = paramS['settings']['texture']['patchRadiusVox']
-        difference_threshold = paramS['settings']['texture']['imgDiffThresh']
+        if 'gtdm' in paramS['featureClass'] :
+            patch_radius = paramS['settings']['texture']['patchRadiusVox']
+        if'gldm' in paramS['featureClass'] :
+            patch_radius = paramS['settings']['texture']['patchRadiusVox']
+            difference_threshold = paramS['settings']['texture']['imgDiffThresh']
         if 'binwidth' in paramS['settings']['texture'] \
             and isinstance(paramS['settings']['texture']['binwidth'], (int, float)):
             textureBinWidth = paramS['settings']['texture']['binwidth']
@@ -61,21 +64,22 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
             textureBinNum = paramS['settings']['texture']['binNum']
         if (textureBinNum is not None) and (textureBinWidth is not None):
             raise Exception("Please specify either the number of bins or bin-width for quantization")
-        dirString = paramS['settings']['texture']['directionality']
-        avgType = paramS['settings']['texture']['avgType']
-        glcmVoxelOffset = paramS['settings']['texture']['voxelOffset']
-        if avgType == 'feature':
-            cooccurType = 2
-            rlmType = 2
-        elif avgType == 'texture':
-            cooccurType = 1
-            rlmType = 1
-        if dirString == '3D':
-            direction = 1
-            szmDir = 1
-        elif dirString == '2D':
-            direction = 2
-            szmDir = 2
+        if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
+            dirString = paramS['settings']['texture']['directionality']
+            avgType = paramS['settings']['texture']['avgType']
+            glcmVoxelOffset = paramS['settings']['texture']['voxelOffset']
+            if avgType == 'feature':
+                cooccurType = 2
+                rlmType = 2
+            elif avgType == 'texture':
+                cooccurType = 1
+                rlmType = 1
+            if dirString == '3D':
+                direction = 1
+                szmDir = 1
+            elif dirString == '2D':
+                direction = 2
+                szmDir = 2
 
         # Min/Max for image quantization
         minClipIntensity = None
@@ -92,26 +96,29 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
         from cerr.radiomics.shape import compute_shape_features
         featDict['shape'] = compute_shape_features(maskBoundingBox3M,gridS['xValsV'],gridS['yValsV'],gridS['zValsV'])
 
-    # First order features
-    if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
-        voxelVol = np.prod(gridS["PixelSpacingV"]) * 1000 # units of mm
-        scanV = volToEval[maskBoundingBox3M]
-        featDict['firstOrder'] = first_order.radiomics_first_order_stats(scanV, voxelVol,
-                                        firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum)
-
     # Texture-based scalar features
     if 'texture' in paramS['settings']:
-        # Crop and Pad
-        (rmin,rmax,cmin,cmax,smin,smax,_) = bbox.compute_boundingbox(maskBoundingBox3M)
-        croppedScan3M = volToEval[rmin:rmax+1,cmin:cmax+1,smin:smax+1]
-        croppedMask3M = maskBoundingBox3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1]
-        croppedScan3M[~croppedMask3M] = np.NAN
-
         # Quantization
-        quantized3M = preprocess.imquantize_cerr(croppedScan3M, num_level=textureBinNum, xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
+        quantized3M = preprocess.imquantize_cerr(volToEval, num_level=textureBinNum,\
+                                                 xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
         nL = quantized3M.max()
-        offsetsM = getDirectionOffsets(direction)
-        offsetsM = offsetsM * glcmVoxelOffset
+
+
+
+        if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
+            offsetsM = getDirectionOffsets(direction)
+            offsetsM = offsetsM * glcmVoxelOffset
+    else:
+        quantized3M = volToEval
+
+    quantized3M[~maskBoundingBox3M] = np.nan
+
+     # First order features
+    if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
+        voxelVol = np.prod(gridS["PixelSpacingV"]) * 1000 # units of mm
+        scanV = quantized3M[maskBoundingBox3M]
+        featDict['firstOrder'] = first_order.radiomics_first_order_stats(scanV, voxelVol,
+                                        firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum)
 
     # GLCM
     if 'glcm' in paramS['featureClass'] and paramS['featureClass']['glcm']["featureList"] != {}:
@@ -151,25 +158,52 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
 
     # Pre-process Image
     (processedScan3M, processedMask3M, gridS, radiomicsSettingS, diagS) = \
-        preprocess.preProcessForRadiomics(scanNum, structNum, radiomicsSettingS, planC)
+       preprocess.preProcessForRadiomics(scanNum, structNum, radiomicsSettingS, planC)
+    minr,maxr,minc,maxc,mins,maxs,__ = compute_boundingbox(processedMask3M)
+    voxSizeV = gridS["PixelSpacingV"]
 
+    ############################################
     # Calculate IBSI-1 features
+    ############################################
     imgTypeDict = radiomicsSettingS['imageType']
     imgTypes = imgTypeDict.keys()
     featDictAllTypes = {}
+
+    # Loop over image filters
     for imgType in imgTypes:
         if imgType.lower() == "original":
-            featDict = calcRadiomicsForImgType(processedScan3M, processedMask3M, gridS, radiomicsSettingS)
+            # Calc. radiomic features
+            maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+            croppedScan3M = processedScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+            featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, gridS, radiomicsSettingS)
         else:
-            # Call filtering routines here for imgType other than Original
+            # Extract filter & padding parameters
             filterParamS = radiomicsSettingS['imageType'][imgType]
-            paddedResponseS = textureFilters.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
-            filterName = paddedResponseS.keys()[0] # must be single output
-            filteredScan3M = paddedResponseS[filterName]
-            featDict = calcRadiomicsForImgType(filteredScan3M, processedMask3M, gridS, radiomicsSettingS)
-            #imgType = imgType + equivalent of createFieldNameFromParameters
+            padSizeV = [0,0,0]
+            padMethod = "none"
+            if 'padding' in radiomicsSettingS["settings"] and radiomicsSettingS["settings"]["padding"]["method"].lower()!='none':
+                padSizeV = radiomicsSettingS["settings"]["padding"]["size"]
+                padMethod = radiomicsSettingS["settings"]["padding"]["method"]
+            filterParamS["VoxelSize_mm"]  = voxSizeV * 10
+            filterParamS["Padding"] = {"Size":padSizeV,"Method": padMethod,"Flag":False}
+
+            # Apply image filter
+            paddedResponseS = textureUtils.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
+            filterName = list(paddedResponseS.keys())[0] # must be single output
+            filteredPadScan3M = paddedResponseS[filterName]
+
+            # Remove padding
+            maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+            filteredScan3M = filteredPadScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+            filteredScan3M[~maskBoundingBox3M] = np.nan
+            # Calc. radiomic features
+            featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, gridS, radiomicsSettingS)
+
+        # Aggregate features
+        #imgType = imgType + equivalent of createFieldNameFromParameters
         featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgType)}
-    return featDictAllTypes
+
+    return featDictAllTypes, diagS
 
 def createFlatFeatureDict(featDict, imageType):
     featClasses = featDict.keys()
