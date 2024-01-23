@@ -10,12 +10,12 @@
 
 "settings": {		   
 
-                   "padding": [
+                   "padding": 
 			       {
                                 "method": "padzeros",  
                                 "size": [7,7,0]
 			       }
-                              ]
+                              
 	    }
 
 }

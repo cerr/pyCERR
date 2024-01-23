@@ -12,11 +12,11 @@
 
 "settings": {		   
 
-                   "padding": [{
+                   "padding": {
                                 "method": "padzeros",  
                                 "size": [2,2,2]
 			       }
-                              ]
+                              
 	    }
 
 }

@@ -10,12 +10,12 @@
 
 "settings": {		   
 
-                   "padding": [
+                   "padding": 
 			       {
                                 "method": "nearest",  
                                 "size": [7,7,7]
 			       }
-                              ]
+                              
 	    }
 
 }
