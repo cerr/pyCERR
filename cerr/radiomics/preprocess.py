@@ -59,12 +59,11 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     else:
         perturbX, perturbY, perturbZ = 0, 0, 0
 
-
     #Ensure ascending vals for interpolation
     flipY = 0
     if yValsV[0] > yValsV[1]:
-        flipY = 1
-        yValsV = np.flip(yValsV)
+       flipY = 1
+       yValsV = np.flip(yValsV)
 
     # Input origin and resolution
     originV = [xValsV[0], yValsV[0], zValsV[-1]]
@@ -73,6 +72,7 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     dz = abs(np.median(np.diff(zValsV)))
     origResolutionV = [dx, dy, dz]
 
+    # Correction to match DICOM convention
     origResolutionV[2] = -origResolutionV[2]
     resampResolutionV = resampResolutionV.copy()
     resampResolutionV[2] = -resampResolutionV[2]
@@ -89,17 +89,12 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
         resampOriginV = originV + (np.array(origResolutionV) * (np.array(origSizeV) - 1) \
                                    - np.array(resampResolutionV) * (np.array(resampSizeV) - 1)) / 2
 
-        xResampleV = np.arange(resampOriginV[0], resampOriginV[0] \
-                               + (resampSizeV[0] - 1) * resampResolutionV[0] \
-                               + resampResolutionV[0], resampResolutionV[0])
-        yResampleV = np.arange(resampOriginV[1], resampOriginV[1] \
-                               + (resampSizeV[1] - 1) * resampResolutionV[1] \
-                               + resampResolutionV[1], resampResolutionV[1])
+        xResampleV = resampOriginV[0] + np.arange(0,resampSizeV[0],1)*resampResolutionV[0]
+
+        yResampleV = resampOriginV[1] + np.arange(0,resampSizeV[1],1)*resampResolutionV[1]
 
         if resamp3dFlag:
-            zResampleV = np.arange(resampOriginV[2], resampOriginV[2] \
-                                   + (resampSizeV[2] - 1) * resampResolutionV[2] \
-                                   + resampResolutionV[2], resampResolutionV[2])
+            zResampleV = resampOriginV[2] + np.arange(0,resampSizeV[2],1)*resampResolutionV[2]
             zResampleV = np.flip(zResampleV)
         else:
             zResampleV = zValsV
@@ -122,13 +117,20 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         xResampleV: 1D array of new x-coordinates i.e. along columns of resampled image
         yResampleV: 1D array of new y-coordinates i.e. along rows of resampled image
         zResampleV: 1D array of new z-coordinates i.e. along slices of resampled image
-        method: string representing one of the supported methods from 'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
-                    'sitkHammingWindowedSinc', 'sitkCosineWindowedSinc', 'sitkWelchWindowedSinc',
-                    'sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
+        method: string representing one of the supported methods from 'sitkNearestNeighbor', 'sitkLinear',
+                    'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
+                    'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
 
     Returns:
         3D numpy Array reampled at xResampleV, yResampleV, zResampleV
     """
+
+    # Ensure yVals match CERR co-ordinate system (monotonically decreasing)
+    if yValsV[0] < yValsV[1]:
+        yValsV = np.flip(yValsV)
+    if yResampleV[0] < yResampleV[1]:
+        yResampleV = np.flip(yResampleV)
+
 
     sitkMethods = {'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
                     'sitkHammingWindowedSinc', 'sitkCosineWindowedSinc', 'sitkWelchWindowedSinc',
@@ -140,7 +142,7 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         # Flip along slices as CERR z slices increase from head to toe (opposite to DICOM)
         sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 1, 0)), axis = 0))
         sitk_img.SetDirection((1,0,0,0,1,0,0,0,1))
-        originV = xValsV[0],-yValsV[0],-zValsV[-1]
+        originV = xValsV[0], -yValsV[0], -zValsV[-1]
         spacing_v = xValsV[1]-xValsV[0], yValsV[0]-yValsV[1], zValsV[1]-zValsV[0]
         sitk_img.SetOrigin(originV)
         sitk_img.SetSpacing(spacing_v)
@@ -149,7 +151,7 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
                              yResampleV[0]-yResampleV[1], \
                              zResampleV[1]-zResampleV[0]
         resample_img_size_v = len(yResampleV),len(xResampleV),len(zResampleV)
-        resample_orig_v = xResampleV[0],-yResampleV[0],-zResampleV[-1]
+        resample_orig_v = xResampleV[0], -yResampleV[0], -zResampleV[-1]
         resample = sitk.ResampleImageFilter()
         resample.SetOutputSpacing(resample_img_spacing_v)
         resample.SetOutputDirection((1,0,0,0,1,0,0,0,1))
@@ -169,6 +171,8 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         img_from_sitk_3m = np.transpose(img_from_sitk_3m, (2, 1, 0))
         # flip slices in CERR z-slice order which increases from head to toe
         img_from_sitk_3m = np.flip(img_from_sitk_3m, axis=2)
+    else:
+        raise ValueError("imgResample3D: Invalid resampling method '" + method + "'." )
 
     return img_from_sitk_3m
 
@@ -275,7 +279,7 @@ def unpadScan(padScan3M, method, marginV):
 def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
     diagS = {}
-    scanArray3M = planC.scan[scanNum].getScanArray()
+    scanArray3M = np.double(planC.scan[scanNum].getScanArray())
 
     if isinstance(structNum, (int, float)):
         # Get structure mask
@@ -284,6 +288,8 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         #Input is structure mask
         mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
+    if yValsV[0] > yValsV[1]:
+        yValsV = np.flip(yValsV)
 
     # Get pixelSpacing of the new grid
     cropForResamplingFlag = False
@@ -291,7 +297,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         pixelSpacingX, pixelSpacingY, pixelSpacingZ = \
             paramS["settings"]['resample']['resolutionXCm'], \
             paramS["settings"]['resample']['resolutionYCm'], \
-            paramS["settings"]['resample']['resolutionYCm']
+            paramS["settings"]['resample']['resolutionZCm']
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
         scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod
         if scanInterpMethod == "linear":
@@ -311,7 +317,6 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
     outputResV = np.array([pixelSpacingX, pixelSpacingY, pixelSpacingZ])
 
-    #Crop and pad scan for resampling
     #Get padding settings
     padSizeV = []
     padMethod = 'none'
