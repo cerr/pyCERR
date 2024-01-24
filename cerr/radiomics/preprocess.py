@@ -139,19 +139,24 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
     img_from_sitk_3m = None
     if method in sitkMethods:
         # SimpleITK based interpolation
+
         # Flip along slices as CERR z slices increase from head to toe (opposite to DICOM)
-        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 1, 0)), axis = 0))
+        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 0, 1)), axis = 0))
+
+        # Set origin, direction, and spacing
         sitk_img.SetDirection((1,0,0,0,1,0,0,0,1))
         originV = xValsV[0], -yValsV[0], -zValsV[-1]
-        spacing_v = xValsV[1]-xValsV[0], yValsV[0]-yValsV[1], zValsV[1]-zValsV[0]
+        spacing_v = xValsV[1]-xValsV[0],  yValsV[0]-yValsV[1], zValsV[1]-zValsV[0]
         sitk_img.SetOrigin(originV)
         sitk_img.SetSpacing(spacing_v)
 
+        # Resample image
         resample_img_spacing_v = xResampleV[1]-xResampleV[0], \
-                             yResampleV[0]-yResampleV[1], \
-                             zResampleV[1]-zResampleV[0]
-        resample_img_size_v = len(yResampleV),len(xResampleV),len(zResampleV)
+                                 yResampleV[0]-yResampleV[1], \
+                                 zResampleV[1]-zResampleV[0]
+        resample_img_size_v = len(xResampleV),len(yResampleV),len(zResampleV)
         resample_orig_v = xResampleV[0], -yResampleV[0], -zResampleV[-1]
+
         resample = sitk.ResampleImageFilter()
         resample.SetOutputSpacing(resample_img_spacing_v)
         resample.SetOutputDirection((1,0,0,0,1,0,0,0,1))
@@ -161,14 +166,13 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         resample.SetTransform(sitk.Transform())
         resample.SetDefaultPixelValue(sitk_img.GetPixelIDValue())
         resample.SetUseNearestNeighborExtrapolator(True)
-
-        # resample.SetInterpolator(sitk.sitkLinear)
         resample.SetInterpolator(getattr(sitk,method))
 
+        # Convert to array
         sitk_resamp_img = resample.Execute(sitk_img)
-
         img_from_sitk_3m = sitk.GetArrayFromImage(sitk_resamp_img)
-        img_from_sitk_3m = np.transpose(img_from_sitk_3m, (2, 1, 0))
+        img_from_sitk_3m = np.transpose(img_from_sitk_3m, (1, 2, 0))
+
         # flip slices in CERR z-slice order which increases from head to toe
         img_from_sitk_3m = np.flip(img_from_sitk_3m, axis=2)
     else:
@@ -307,7 +311,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         if scanInterpMethod == "sinc":
             scanInterpMethod = 'sitkLanczosWindowedSinc'
         grid_resample_method = 'center'
-        maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
+        #maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
         if 'cropForResampling' in paramS["settings"]['resample']:
            cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling'] == "yes"
     else:
@@ -358,7 +362,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
         #Resample mask
         resampMaskBounds3M = imgResample3D(padMaskBoundsForResamp3M.astype(float),xValsV,yValsV,zValsV,\
-            xResampleV,yResampleV,zResampleV,roiInterpMethod) >= (0.5 - maskInterpTol)
+            xResampleV,yResampleV,zResampleV,roiInterpMethod) >= (0.5) #- maskInterpTol)
         #maskBoundingBox3M = maskBoundingBox3M.astype(bool)
 
     else:

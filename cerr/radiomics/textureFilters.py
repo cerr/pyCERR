@@ -676,8 +676,9 @@ def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod, energyKer
                                  valEnergyPadV[4]:padResponseSizeV[2]-valEnergyPadV[5]]
 
     # Reapply original paddingV
-    texEnergyPad3M = tex3M
+    texEnergyPad3M = texEnergy3M
     if texPadFlag:
+        texEnergyPad3M = tex3M
         if texPadSizeV[2] == 0:
             texEnergyPad3M[valOrigPadV[0]: origSizeV[0]-valOrigPadV[1],
                        valOrigPadV[2]: origSizeV[1]-valOrigPadV[3],:] = texEnergy3M
