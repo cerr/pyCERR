@@ -103,8 +103,6 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
                                                  xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
         nL = quantized3M.max()
 
-
-
         if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
             offsetsM = getDirectionOffsets(direction)
             offsetsM = offsetsM * glcmVoxelOffset
@@ -128,13 +126,13 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
     # RLM
     if 'glrlm' in paramS['featureClass'] and paramS['featureClass']['glrlm']["featureList"] != {}:
         rlmM = run_length.calcRLM(quantized3M,offsetsM,nL,rlmType)
-        numVoxels = croppedMask3M.sum()
+        numVoxels = np.sum(maskBoundingBox3M.astype(int))
         featDict['glrlm'] = run_length.rlmToScalarFeatures(rlmM, numVoxels)
 
     # SZM
     if 'glszm' in paramS['featureClass'] and paramS['featureClass']['glszm']["featureList"] != {}:
         szmM = size_zone.calcSZM(quantized3M,nL,szmDir)
-        numVoxels = croppedMask3M.sum()
+        numVoxels = np.sum(maskBoundingBox3M.astype(int))
         featDict['glszm'] = size_zone.szmToScalarFeatures(szmM, numVoxels)
 
     # NGLDM
