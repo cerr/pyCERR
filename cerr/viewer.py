@@ -1,23 +1,51 @@
 import matplotlib.pyplot as plt
 import cerr.contour.rasterseg as rs
 import napari
-#from napari.utils import transforms
 import numpy as np
-#import matplotlib.colors as mcolors
 from skimage import measure
 import vispy.color
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
-from napari.layers import Layer
 from napari.types import LabelsData, ImageData, LayerDataTuple
 from napari.layers import Labels, Image
 from magicgui import magicgui
 import cerr.plan_container as pc
-from napari.utils.events import Event
-from napari import Viewer
-from magicgui.widgets import FunctionGui
+from magicgui.widgets import FunctionGui, Select
 from qtpy.QtWidgets import QTabBar
+from enum import Enum
+from magicgui import magic_factory
 
+window_dict = {
+        '--- Select ---': (0, 300),
+        'Abd/Med': (-10, 330),
+        'Head': (45, 125),
+        'Liver': (80, 305),
+        'Lung': (-500, 1500),
+        'Spine': (30, 300),
+        'Vrt/Bone': (400, 1500),
+        'PET SUV': (5, 10)
+                }
+
+def initialize_scan_window_widget() -> FunctionGui:
+    @magicgui(CT_Window={"choices": window_dict.keys()}, call_button=False)
+    def scan_window(Scan: Image, CT_Window='--- Select ---', Center="", Width="") -> LayerDataTuple:
+        # do something with whatever layer the user has selected
+        # note: it *may* be None! so your function should handle the null case
+        if Scan is None:
+            return
+        ctr = float(Center)
+        wdth = float(Width)
+        minVal = ctr - wdth/2
+        maxVal = ctr + wdth/2
+        contrast_limits_range = [minVal, maxVal]
+        contrast_limits = [minVal, maxVal]
+        scanDict = {'name': Scan.name,
+                     'contrast_limits_range': contrast_limits_range,
+                     'contrast_limits': contrast_limits,
+                      'metadata': {'planC': Scan.metadata['planC'],
+                                   'scanNum': Scan.metadata['scanNum']} }
+        return (Scan.data, scanDict, "image")
+    return scan_window
 
 def initialize_struct_save_widget() -> FunctionGui:
     @magicgui(label={'label': 'Select Structure'}, call_button = 'Save')
@@ -44,13 +72,15 @@ def initialize_struct_save_widget() -> FunctionGui:
         scanNum = label.metadata['assocScanNum']
         scan_affine = label.affine
         colr = label.color[1]
+        isocenter = cerrStr.calcIsocenter(structNum, planC)
         labelDict = {'name': structName, 'affine': scan_affine,
                      'num_colors': 1, 'blending': 'translucent',
                      'contour': 2, 'opacity': 1,
                      'color': {1: colr, 0: np.array([0,0,0,0])},
                       'metadata': {'planC': planC,
                                    'structNum': structNum,
-                                   'assocScanNum': scanNum} }
+                                   'assocScanNum': scanNum,
+                                   'isocenter': isocenter} }
         return (mask3M, labelDict, "labels")
     return struct_save
 
@@ -73,7 +103,8 @@ def initialize_struct_add_widget() -> FunctionGui:
                                 color = {1: colr, 0: np.array([0,0,0,0])},
                                 metadata = {'planC': planC,
                                             'structNum': None,
-                                            'assocScanNum': scanNum})
+                                            'assocScanNum': scanNum,
+                                            'isocenter': [None, None, None]})
         shp.contour = 0
         return shp
     return struct_add
@@ -89,6 +120,7 @@ def getContourPolygons(strNum, assocScanNum, planC):
                 pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
                 polygons.append(pts)
     return polygons
+
 
 def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
 
@@ -139,7 +171,6 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     dose_layers = []
     for dose_num in dose_nums:
         doseArray = planC.dose[dose_num].doseArray
-        #doseArray= np.flip(doseArray,axis=0)
         xd,yd,zd = planC.dose[dose_num].getDoseXYZVals()
         yd = -yd # negative since napari viewer y increases from top to bottom
         dx = xd[1] - xd[0]
@@ -192,13 +223,15 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             #                   edge_color=colr, face_color=[0]*4,
             #                   affine=scan_affine, name=str_name)
             mask3M = rs.getStrMask(str_num,planC)
+            isocenter = cerrStr.calcIsocenter(str_num, planC)
             mask3M[mask3M] = 1 #int(str_num + 1)
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
                                     num_colors=1, blending='translucent',
                                     color = {1: colr, 0: np.array([0,0,0,0])},
                                     opacity = 1, metadata = {'planC': planC,
                                                                'structNum': str_num,
-                                                               'assocScanNum': scan_num})
+                                                               'assocScanNum': scan_num,
+                                                               'isocenter': isocenter})
             shp.contour = 2
             struct_layer.append(shp)
 
@@ -223,9 +256,58 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
     #if len(struct_layer)> 0:
+    scan_window_widget = initialize_scan_window_widget()
     struct_add_widget = initialize_struct_add_widget()
     struct_save_widget = initialize_struct_save_widget()
-    structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Structure", tabify=True)
+
+    def set_center_slice(label):
+        # update viewer to display the central slice and capture screenshot
+        strNum = label.metadata['structNum']
+        scanNum = label.metadata['assocScanNum']
+        isocenter = label.metadata['isocenter']
+        viewer.layers.selection.active = label
+        viewer.dims.set_point(2, isocenter[2])
+        viewer.dims.set_point(1, isocenter[0])
+        viewer.dims.set_point(0, - isocenter[1])
+        return
+
+    def image_changed(widgt):
+        #image = widgt[0].value
+        window_option = widgt.CT_Window.value
+        center = window_dict[window_option][0]
+        width = window_dict[window_option][1]
+        widgt.Center.value = center
+        widgt.Width.value = width
+        minVal = center - width/2
+        maxVal = center + width/2
+        rangeVal = [minVal, maxVal]
+        widgt.Scan.value.contrast_limits_range = rangeVal
+        widgt.Scan.value.contrast_limits = rangeVal
+        viewer.layers.selection.active = widgt.Scan.value
+        return
+
+    def label_changed(widgt):
+        label = widgt[0].value
+        if viewer.dims.ndisplay == 3 and isinstance(label.metadata['isocenter'][0], (int, float)):
+            set_center_slice(label)
+        return
+
+    def layer_active(event):
+        if viewer.dims.ndisplay == 3 or not hasattr(event, 'value'):
+            return
+        layer = event.value
+        if not hasattr(layer, 'metadata'):
+            return
+        if 'structNum' in layer.metadata:
+            struct_save_widget[0].value = layer
+            if isinstance(layer.metadata['isocenter'][0], (int, float)):
+                set_center_slice(layer)
+
+        # Change slice to center of that structure
+    struct_save_widget.changed.connect(label_changed)
+    scan_window_widget.changed.connect(image_changed)
+    scanWidget = viewer.window.add_dock_widget([scan_window_widget], area='left', name="Scan", tabify=True)
+    structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Segmentation", tabify=True)
     # This line sets the index of the active DockWidget
     structWidget.parent().findChildren(QTabBar)[0].setCurrentIndex(0)
 
@@ -233,6 +315,10 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.layers.events.inserted.connect(struct_save_widget.reset_choices)
     viewer.layers.events.removed.connect(struct_add_widget.reset_choices)
     viewer.layers.events.removed.connect(struct_save_widget.reset_choices)
+    viewer.layers.selection.events.active.connect(layer_active)
+    viewer.layers.selection.events.changed.connect(layer_active)
+
+    #viewer.layers.selection.active = struct_layer[0]
 
     napari.run()
 

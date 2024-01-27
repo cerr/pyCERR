@@ -537,3 +537,16 @@ def get_struct_num_from_sop_instance_uid(assocStrUID,planC) -> int:
         return uid_list.index(assocStrUID)
     else:
         return None
+
+def calcIsocenter(strNum, planC):
+    assocScanNum = scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC)
+    mask3M = rs.getStrMask(strNum,planC)
+    rV, cV, sV = np.where(mask3M)
+    midSliceInd = int(np.round(sV.mean()))
+    midRowInd = int(np.round(rV.mean()))
+    midColInd = int(np.round(cV.mean()))
+    # store isocenter to update viewer to display the central slice later on
+    xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
+    isocenter = [xV[midColInd], yV[midRowInd], zV[midSliceInd]]
+    return isocenter
+
