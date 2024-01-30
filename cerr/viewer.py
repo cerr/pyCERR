@@ -48,7 +48,7 @@ def initialize_scan_window_widget() -> FunctionGui:
     return scan_window
 
 def initialize_struct_save_widget() -> FunctionGui:
-    @magicgui(label={'label': 'Select Structure'}, call_button = 'Save')
+    @magicgui(label={'label': 'Select Structure', 'nullable': True}, call_button = 'Save')
     def struct_save(label: Labels, overwrite_existing_structure = True) -> LayerDataTuple:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
@@ -288,7 +288,11 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
 
     def label_changed(widgt):
         label = widgt[0].value
-        if viewer.dims.ndisplay == 3 and isinstance(label.metadata['isocenter'][0], (int, float)):
+        if label is None:
+            # Set active layer to scan
+            viewer.layers.selection.active = scan_layers[0]
+            return
+        if viewer.dims.ndisplay == 2 and isinstance(label.metadata['isocenter'][0], (int, float)):
             set_center_slice(label)
         return
 
@@ -318,7 +322,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.layers.selection.events.active.connect(layer_active)
     viewer.layers.selection.events.changed.connect(layer_active)
 
-    #viewer.layers.selection.active = struct_layer[0]
+    viewer.layers.selection.active = scan_layers[0]
 
     napari.run()
 
