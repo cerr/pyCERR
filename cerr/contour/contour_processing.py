@@ -14,10 +14,7 @@ Returns: updated planC
 '''
 
 def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
-    if replace_original:
-        struct_obj = copy.deepcopy(planC.structure[struct_idx])
-    else:
-        struct_obj = planC.structure[struct_idx]
+    struct_obj = copy.deepcopy(planC.structure[struct_idx])
     for contour_orig in struct_obj.contour:
         if contour_orig != []:
             for seg in contour_orig.segments:
@@ -33,6 +30,8 @@ def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "
     struct_obj.structureName = struct_obj.structureName + name_suffix
     if not replace_original:
         planC.structure.append(struct_obj)
+    else:
+        planC.structure[struct_idx] = struct_obj
     return planC
 
 
