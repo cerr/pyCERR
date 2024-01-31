@@ -13,7 +13,7 @@ Description: Get structure object from planC/container. Apply 2D smoothing. Opti
 Returns: updated planC
 '''
 
-def smooth_structure(planC, struct_idx, replace_original = True, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
+def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
     if replace_original:
         struct_obj = copy.deepcopy(planC.structure[struct_idx])
     else:
@@ -30,7 +30,7 @@ def smooth_structure(planC, struct_idx, replace_original = True, tol = 4, taubin
                 seg.points = np.hstack((X,Z))
     struct_obj.strUID = uid.createUID("structure")
     struct_obj.rasterSegments = rs.generate_rastersegs(struct_obj,planC)
-    struct_obj.structureName = struct_obj.structureName + ' smoothed'
+    struct_obj.structureName = struct_obj.structureName + name_suffix
     if not replace_original:
         planC.structure.append(struct_obj)
     return planC
