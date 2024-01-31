@@ -8,7 +8,7 @@ from shapelysmooth import taubin_smooth
 import copy
 
 '''
-smooth_structure(planC, struct_num, replace_original = True, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1)
+smooth_structure(planC, struct_num, replace_original = True, name_suffix = "", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1)
 Description: Get structure object from planC/container. Apply 2D smoothing. Option: replace original structure (default=True), or insert new structure
 Returns: updated planC
 '''
