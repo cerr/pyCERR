@@ -20,10 +20,8 @@ def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "
             for seg in contour_orig.segments:
                 C = seg.points
                 z_coord = C[0][2]
-                print(C.shape)
                 X, tr = smooth_2D_contour(C, tol, taubin_mu, taubin_factor,catmull_alpha)
                 Z = z_coord * np.ones((X.shape[0],1))
-                print(X.shape)
                 seg.points = np.hstack((X,Z))
     struct_obj.strUID = uid.createUID("structure")
     struct_obj.rasterSegments = rs.generate_rastersegs(struct_obj,planC)
