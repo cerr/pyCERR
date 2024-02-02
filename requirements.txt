@@ -9,4 +9,5 @@ scikit-learn
 scikit-image
 PyWavelets
 pandas
+shapelysmooth
 napari[all]
