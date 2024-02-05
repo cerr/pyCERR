@@ -14,6 +14,10 @@ from magicgui.widgets import FunctionGui, Select
 from qtpy.QtWidgets import QTabBar
 from enum import Enum
 from magicgui import magic_factory
+import warnings
+
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 window_dict = {
         '--- Select ---': (0, 300),
@@ -232,6 +236,10 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
                                                                'structNum': str_num,
                                                                'assocScanNum': scan_num,
                                                                'isocenter': isocenter})
+            # From napari 0.4.19 onwards
+            # from napari.utils import DirectLabelColormap
+            # cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
+            # shp.colormap = cmap
             shp.contour = 2
             struct_layer.append(shp)
 
