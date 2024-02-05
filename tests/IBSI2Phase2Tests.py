@@ -12,7 +12,6 @@ import pandas as pd
 from cerr import plan_container
 from cerr.radiomics import ibsi1
 
-
 # Paths to data and settings
 currPath = os.path.abspath(__file__)
 cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
@@ -20,20 +19,32 @@ dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2
 settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
 
 # Read reference values
-refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2', 'IBSIphase2-2_CERR_features.csv')
+refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
+                       'IBSIphase2-2_pyCERR_features.csv')
 refData = pd.read_csv(refFile)
 refColNames = list(refData.head())[4:]
-#refFeatNames = refData['feature_tag'][5:]
-
+# refFeatNames = refData['feature_tag'][5:]
 
 # Features to compare
-diagList = ['Number of voxels in intensity ROI-mask after interpolation and resegmentation', \
+diagList = ['Number of voxels in intensity ROI-mask before interpolation', \
+            'Number of voxels in intensity ROI-mask after interpolation and resegmentation', \
             'Mean intensity in intensity ROI-mask after interpolation and resegmentation', \
             'Max intensity in intensity ROI-mask after interpolation and resegmentation', \
             'Min intensity in intensity ROI-mask after interpolation and resegmentation']
 featList = ['mean', 'var', 'skewness', 'kurtosis', 'median', 'min', 'P10', 'P90', 'max', \
             'interQuartileRange', 'range', 'meanAbsDev', 'robustMeanAbsDev', 'medianAbsDev', \
             'coeffVariation', 'coeffDispersion', 'energy', 'rms']
+
+# List required output fields
+outFieldC = ['mean', 'var', 'skewness', 'kurtosis', 'median', 'min', 'P10', \
+             'P90', 'max', 'interQuartileRange', 'range', 'meanAbsDev', \
+             'robustMeanAbsDev', 'medianAbsDev', 'coeffVariation', \
+             'coeffDispersion', 'energy', 'rms']
+numStats = len(outFieldC)
+
+diagFieldC = ['NumVoxOrig', 'numVoxelsInterpReseg', \
+              'MeanIntensityInterpReseg', 'MaxIntensityInterpReseg', \
+              'MinIntensityInterpReseg']
 
 
 def loadData(niiDir):
@@ -76,14 +87,14 @@ def compareVals(imType, calcFeatS, diagS, refValsV):
     # Extract diagnostic features computed with pyCERR
     calcDiagV = np.array(list(diagS.values()))
     # Extract radiomic features computed with pyCERR
-    calcFeatV = np.array([calcFeatS[imType+'_firstOrder_' + key] for key in featList])
+    calcFeatV = np.array([calcFeatS[imType + '_firstOrder_' + key] for key in featList])
     # Extract reference diagnositc & radiomic features
-    refDiagV = refValsV[1:5]
+    refDiagV = refValsV[0:5]
     refFeatV = refValsV[5:]
 
     # Compare pyCERR calculations to reference std
-    diffDiagV =  calcDiagV - refDiagV
-    diffFeatV =  calcFeatV - refFeatV
+    diffDiagV = calcDiagV - refDiagV
+    diffFeatV = calcFeatV - refFeatV
 
     dispDiff(diffDiagV, 'diag')
     dispDiff(diffFeatV, 'feat')
@@ -97,12 +108,11 @@ def run_tests_phase2():
     scanNum = 0
     structNum = 0
 
-    configList =  ['1a','1b','2a','2b','3a','3b','4a','4b','5a','5b']
-    #TBD:'6a', '6b'. Wavelets not currently supported.
+    configList = ['1a','1b','2a','2b','3a','3b','4a','4b','5a','5b']
+    # TBD:'6a', '6b'. Wavelets not currently supported.
 
     # Loop over configurations
     for idx in range(len(configList)):
-
         config = configList[idx]
         colID = refColNames[idx]
 
@@ -112,6 +122,7 @@ def run_tests_phase2():
 
         # Calc. radiomics features
         calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
+
         imType = list(calcFeatS.keys())[0].split('_')[0]
 
         # Compare to reference std

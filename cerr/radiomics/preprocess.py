@@ -167,6 +167,7 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         resample.SetDefaultPixelValue(sitk_img.GetPixelIDValue())
         resample.SetUseNearestNeighborExtrapolator(True)
         resample.SetInterpolator(getattr(sitk,method))
+        #resample.SetDefaultPixelValue(extrapVal)
 
         # Convert to array
         sitk_resamp_img = resample.Execute(sitk_img)
@@ -456,6 +457,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
     # Record diagnostic stats
     scanV = volToEval[maskBoundingBox3M]
+    diagS['numVoxelsOrig'] = mask3M.sum()
     diagS['numVoxelsInterpReseg'] = maskBoundingBox3M.sum()
     diagS['meanIntensityInterpReseg'] = scanV.mean()
     diagS['maxIntensityInterpReseg'] = scanV.max()
