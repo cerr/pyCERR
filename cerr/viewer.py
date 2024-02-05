@@ -74,7 +74,7 @@ def initialize_struct_save_widget() -> FunctionGui:
         colr = label.color[1]
         isocenter = cerrStr.calcIsocenter(structNum, planC)
         labelDict = {'name': structName, 'affine': scan_affine,
-                     'num_colors': 1, 'blending': 'translucent',
+                     'blending': 'translucent',
                      'contour': 2, 'opacity': 1,
                      'color': {1: colr, 0: np.array([0,0,0,0])},
                       'metadata': {'planC': planC,
@@ -98,7 +98,7 @@ def initialize_struct_add_widget() -> FunctionGui:
         colr = np.array(cerrStr.getColorForStructNum(strNum)) / 255
         scanNum = image.metadata['scanNum']
         shp = Labels(mask3M, name=structure_name, affine=scan_affine,
-                                num_colors=1, blending='translucent',
+                                blending='translucent',
                                 opacity = 1,
                                 color = {1: colr, 0: np.array([0,0,0,0])},
                                 metadata = {'planC': planC,
@@ -151,7 +151,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
         scanAffineDict[scan_num] = scan_affine
 
-    viewer = napari.Viewer()
+    viewer = napari.Viewer(title='pyCERR')
 
     scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
     scan_layers = []
@@ -226,7 +226,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             isocenter = cerrStr.calcIsocenter(str_num, planC)
             mask3M[mask3M] = 1 #int(str_num + 1)
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
-                                    num_colors=1, blending='translucent',
+                                    blending='translucent',
                                     color = {1: colr, 0: np.array([0,0,0,0])},
                                     opacity = 1, metadata = {'planC': planC,
                                                                'structNum': str_num,
