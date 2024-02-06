@@ -141,7 +141,7 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         # SimpleITK based interpolation
 
         # Flip along slices as CERR z slices increase from head to toe (opposite to DICOM)
-        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 0, 1)), axis = 0))
+        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 0, 1)), axis = 0)) # z,y,x order
 
         # Set origin, direction, and spacing
         sitk_img.SetDirection((1,0,0,0,1,0,0,0,1))

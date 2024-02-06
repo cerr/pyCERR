@@ -78,7 +78,7 @@ class Scan:
 
     def getSitkImage(self):
         #sitkArray = np.moveaxis(self.getScanArray(),[0,1,2],[1,2,0])
-        sitkArray = np.transpose(self.getScanArray(), (2, 1, 0))
+        sitkArray = np.transpose(self.getScanArray(), (2, 0, 1)) # z,y,x order
         # CERR slice ordering is opposite of DICOM
         if flipSliceOrderFlag(self):
             sitkArray = np.flip(sitkArray, axis = 0)

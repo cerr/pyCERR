@@ -181,9 +181,9 @@ class Structure:
         return assocScansV
 
 def getSitkImage(structNum, planC):
-    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID)
+    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     mask3M = rs.getStrMask(structNum, planC)
-    sitkArray = np.transpose(mask3M, (2, 0, 1))
+    sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1)) # z,y,x order
     # CERR slice ordering is opposite of DICOM
     if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
         sitkArray = np.flip(sitkArray, axis = 0)
