@@ -189,10 +189,10 @@ def getSitkImage(structNum, planC):
         sitkArray = np.flip(sitkArray, axis = 0)
     originXyz = list(np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
     xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
-    dx = np.abs(xV[1] - xV[0])
-    dy = np.abs(yV[1] - yV[0])
-    dz = np.abs(zV[1] - zV[0])
-    spacing = list([dx, dy, dz] * 10)
+    dx = np.abs(xV[1] - xV[0]) * 10
+    dy = np.abs(yV[1] - yV[0]) * 10
+    dz = np.abs(zV[1] - zV[0]) * 10
+    spacing = [dx, dy, dz]
     img_ori = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
     slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
                    - img_ori[[2,0,1]] * img_ori[[4,5,3]]
