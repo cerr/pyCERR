@@ -15,6 +15,11 @@ from qtpy.QtWidgets import QTabBar
 from enum import Enum
 from magicgui import magic_factory
 import warnings
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+import matplotlib as mpl
+from matplotlib.colors import ListedColormap
+
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -70,21 +75,30 @@ def initialize_struct_save_widget() -> FunctionGui:
             for slc in range(siz[2]):
                 if not np.all(mask3M[:,:,slc] == origMask3M[:,:,slc]):
                     slcToUpdateV.append(slc)
+        strNames = [s.structureName for s in planC.structure]
+        if not overwrite_existing_structure and structName in strNames:
+            structName = structName + '_new'
+            structNum = None
+            # Set color of the layer
+            colr = np.array(planC.structure[-1].structureColor) / 255
+        else:
+            colr = label.color[1]
         planC = pc.import_structure_mask(mask3M, assocScanNum, structName, structNum, planC)
-        if not structNum:
+        if structNum is None:
+            # Assign the index of added structure
             structNum = len(planC.structure) - 1
         scanNum = label.metadata['assocScanNum']
         scan_affine = label.affine
-        colr = label.color[1]
         isocenter = cerrStr.calcIsocenter(structNum, planC)
         labelDict = {'name': structName, 'affine': scan_affine,
                      'blending': 'translucent',
-                     'contour': 2, 'opacity': 1,
-                     'color': {1: colr, 0: np.array([0,0,0,0])},
+                     'opacity': 1,
+                     'color': {1: colr, 0: np.array([0,0,0,0]), None: np.array([0,0,0,0])},
                       'metadata': {'planC': planC,
                                    'structNum': structNum,
                                    'assocScanNum': scanNum,
                                    'isocenter': isocenter} }
+        label.contour = 2
         return (mask3M, labelDict, "labels")
     return struct_save
 
@@ -112,6 +126,22 @@ def initialize_struct_add_widget() -> FunctionGui:
         shp.contour = 0
         return shp
     return struct_add
+
+def initialize_dose_select_widget() -> FunctionGui:
+    @magicgui(image={'label': 'Pick a Dose'}, call_button=False)
+    def dose_select(image:Image) -> LayerDataTuple:
+        # do something with whatever layer the user has selected
+        # note: it *may* be None! so your function should handle the null case
+        if image is None:
+            return
+        doseDict = {'name': image.name}
+        return (image.data, doseDict, "image")
+    return dose_select
+
+def initialize_dose_colorbar_widget() -> FunctionGui:
+    with plt.style.context('dark_background'):
+        mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 10)))
+    return mz_canvas
 
 
 def getContourPolygons(strNum, assocScanNum, planC):
@@ -168,7 +198,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
                                            opacity=opacity, colormap=scan_colormaps[i],
                                             blending="additive",interpolation2d="lanczos",
                                             interpolation3d="lanczos",
-                                            metadata = {'planC': planC,
+                                            metadata = {'dataclass': 'scan',
+                                                     'planC': planC,
                                                      'scanNum': scan_num}
                                             ))
 
@@ -181,11 +212,15 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dy = yd[1] - yd[0]
         dz = zd[1] - zd[0]
         dose_affine = np.array([[dy, 0, 0, yd[0]], [0, dx, 0, xd[0]], [0, 0, dz, zd[0]], [0, 0, 0, 1]])
-        dose_layers.append(viewer.add_image(doseArray,name='dose',affine=dose_affine,
+        dose_lyr = viewer.add_image(doseArray,name='dose',affine=dose_affine,
                                   opacity=0.5,colormap="gist_earth",
                                   blending="additive",interpolation2d="lanczos",
-                                  interpolation3d="lanczos"
-                                   ))
+                                  interpolation3d="lanczos",
+                                  metadata = {'dataclass': 'dose',
+                                           'planC': planC,
+                                           'doseNum': scan_num}
+                                   )
+        dose_layers.append(dose_lyr)
 
     # reference: https://gist.github.com/AndiH/c957b4d769e628f506bd
     tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),
@@ -232,10 +267,11 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
                                     blending='translucent',
                                     color = {1: colr, 0: np.array([0,0,0,0])},
-                                    opacity = 1, metadata = {'planC': planC,
-                                                               'structNum': str_num,
-                                                               'assocScanNum': scan_num,
-                                                               'isocenter': isocenter})
+                                    opacity = 1,
+                                    metadata = {'planC': planC,
+                                                'structNum': str_num,
+                                                'assocScanNum': scan_num,
+                                                'isocenter': isocenter})
             # From napari 0.4.19 onwards
             # from napari.utils import DirectLabelColormap
             # cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
@@ -267,6 +303,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     scan_window_widget = initialize_scan_window_widget()
     struct_add_widget = initialize_struct_add_widget()
     struct_save_widget = initialize_struct_save_widget()
+    dose_select_widget = initialize_dose_select_widget()
+    dose_colorbar_widget = initialize_dose_colorbar_widget()
 
     def set_center_slice(label):
         # update viewer to display the central slice and capture screenshot
@@ -292,6 +330,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         widgt.Scan.value.contrast_limits_range = rangeVal
         widgt.Scan.value.contrast_limits = rangeVal
         viewer.layers.selection.active = widgt.Scan.value
+        uptate_colorbar(widgt.Scan.value)
         return
 
     def label_changed(widgt):
@@ -314,14 +353,71 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
             struct_save_widget[0].value = layer
             if isinstance(layer.metadata['isocenter'][0], (int, float)):
                 set_center_slice(layer)
+        else:
+            uptate_colorbar(layer)
+
+
+    def dose_changed(widgt):
+        if widgt.image is None:
+            return
+        #mz_canvas = dose_colorbar_widget
+        dose = widgt[0].value
+        uptate_colorbar(dose)
+
+    def cmap_changed(event):
+        #print(event.value())
+        uptate_colorbar(viewer.layers.selection.active)
+        return
+
+    def uptate_colorbar(image):
+        # get Image units
+        imgType = image.metadata['dataclass']
+        planC = image.metadata['planC']
+        units = ''
+        if imgType == 'scan':
+            scanNum = image.metadata['scanNum']
+            units = planC.scan[scanNum].scanInfo[0].imageUnits
+        elif imgType == 'dose':
+            doseNum = image.metadata['doseNum']
+            units = planC.dose[doseNum].doseUnits
+
+        with plt.style.context('dark_background'):
+            #mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 0.1)))
+            mz_canvas = dose_colorbar_widget
+            mz_axes = mz_canvas.figure.axes
+            if len(mz_axes) == 0:
+                mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4]) #mz_canvas.figure.subplots()
+                mz_axes = mz_canvas.figure.axes
+            for ax in mz_axes:
+                colorbar_plt = ax.get_children()
+                for chld in colorbar_plt:
+                    del chld
+            minVal = image.contrast_limits_range[0]
+            maxVal = image.contrast_limits_range[1]
+            norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
+            cb1 = mpl.colorbar.ColorbarBase(mz_axes[0], cmap=ListedColormap(image.colormap.colors),
+                                norm=norm,
+                                orientation='vertical')
+            cb1.set_label(units)
+            mz_canvas.draw()
+            mz_canvas.flush_events()
+            #mz_axes.axis('image')
+            #mz_axes.imshow(dose_layers[-1].colormap.colors)
+            #mz_canvas.figure.tight_layout()
+        return
+
 
         # Change slice to center of that structure
     struct_save_widget.changed.connect(label_changed)
     scan_window_widget.changed.connect(image_changed)
     scanWidget = viewer.window.add_dock_widget([scan_window_widget], area='left', name="Scan", tabify=True)
     structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Segmentation", tabify=True)
+    colorbars_dock = viewer.window.add_dock_widget([dose_colorbar_widget], area='right', name="Colorbar", tabify=False)
+    #colorbars_dock.resize(5, 20)
+
     # This line sets the index of the active DockWidget
     structWidget.parent().findChildren(QTabBar)[0].setCurrentIndex(0)
+
 
     viewer.layers.events.inserted.connect(struct_add_widget.reset_choices)
     viewer.layers.events.inserted.connect(struct_save_widget.reset_choices)
@@ -329,6 +425,16 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.layers.events.removed.connect(struct_save_widget.reset_choices)
     viewer.layers.selection.events.active.connect(layer_active)
     viewer.layers.selection.events.changed.connect(layer_active)
+    viewer.layers.events.changed.connect(layer_active)
+
+    for dose_lyr in dose_layers:
+        #dose_lyr.events.contrast_limits_range.connect(layer_active)
+        dose_lyr.events.colormap.connect(cmap_changed)
+    for scan_lyr in scan_layers:
+        #scan_lyr.events.contrast_limits_range.connect(layer_active)
+        scan_lyr.events.colormap.connect(cmap_changed)
+
+    #dose_select_widget.changed.connect(dose_changed)
 
     viewer.layers.selection.active = scan_layers[0]
 
