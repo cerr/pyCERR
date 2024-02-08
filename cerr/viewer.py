@@ -196,8 +196,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
                                            opacity=opacity, colormap=scan_colormaps[i],
-                                            blending="additive",interpolation2d="lanczos",
-                                            interpolation3d="lanczos",
+                                            blending="additive",interpolation2d="linear",
+                                            interpolation3d="linear",
                                             metadata = {'dataclass': 'scan',
                                                      'planC': planC,
                                                      'scanNum': scan_num}
@@ -214,8 +214,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dose_affine = np.array([[dy, 0, 0, yd[0]], [0, dx, 0, xd[0]], [0, 0, dz, zd[0]], [0, 0, 0, 1]])
         dose_lyr = viewer.add_image(doseArray,name='dose',affine=dose_affine,
                                   opacity=0.5,colormap="gist_earth",
-                                  blending="additive",interpolation2d="lanczos",
-                                  interpolation3d="lanczos",
+                                  blending="additive",interpolation2d="linear",
+                                  interpolation3d="linear",
                                   metadata = {'dataclass': 'dose',
                                            'planC': planC,
                                            'doseNum': scan_num}
