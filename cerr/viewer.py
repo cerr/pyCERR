@@ -35,12 +35,12 @@ window_dict = {
         'PET SUV': (5, 10)
                 }
 
-def initialize_scan_window_widget() -> FunctionGui:
-    @magicgui(CT_Window={"choices": window_dict.keys()}, call_button=False)
-    def scan_window(Scan: Image, CT_Window='--- Select ---', Center="", Width="") -> LayerDataTuple:
+def initialize_image_window_widget() -> FunctionGui:
+    @magicgui(CT_Window={"choices": window_dict.keys()}, call_button="Set")
+    def image_window(image: Image, CT_Window='--- Select ---', Center="", Width="") -> LayerDataTuple:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
-        if Scan is None:
+        if image is None:
             return
         ctr = float(Center)
         wdth = float(Width)
@@ -48,13 +48,29 @@ def initialize_scan_window_widget() -> FunctionGui:
         maxVal = ctr + wdth/2
         contrast_limits_range = [minVal, maxVal]
         contrast_limits = [minVal, maxVal]
-        scanDict = {'name': Scan.name,
+        windowDict = {"name": CT_Window,
+                      "center": ctr,
+                      "width": wdth}
+        metaDict = image.metadata
+        if image.metadata['dataclass'] == 'scan':
+             metaDict =  {'dataclass': metaDict['dataclass'],
+                                   'planC': metaDict['planC'],
+                                   'scanNum': metaDict['scanNum'],
+                                   'window': windowDict}
+        elif image.metadata['dataclass'] == 'dose':
+            metaDict = {'dataclass': metaDict['dataclass'],
+                                   'planC': metaDict['planC'],
+                                   'doseNum': metaDict['doseNum'],
+                                   'window': windowDict}
+        else:
+            return
+
+        scanDict = {'name': image.name,
                      'contrast_limits_range': contrast_limits_range,
                      'contrast_limits': contrast_limits,
-                      'metadata': {'planC': Scan.metadata['planC'],
-                                   'scanNum': Scan.metadata['scanNum']} }
-        return (Scan.data, scanDict, "image")
-    return scan_window
+                      'metadata': metaDict }
+        return (image.data, scanDict, "image")
+    return image_window
 
 def initialize_struct_save_widget() -> FunctionGui:
     @magicgui(label={'label': 'Select Structure', 'nullable': True}, call_button = 'Save')
@@ -165,6 +181,11 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     if not isinstance(dose_nums, list):
         dose_nums = [dose_nums]
 
+    # Default scan window
+    scanWindow = {'name': "--- Select ---",
+                  'center': 0,
+                  'width': 300}
+
     # Get Scan affines
     assocScanV = []
     for str_num in str_nums:
@@ -200,7 +221,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
                                             interpolation3d="linear",
                                             metadata = {'dataclass': 'scan',
                                                      'planC': planC,
-                                                     'scanNum': scan_num}
+                                                     'scanNum': scan_num,
+                                                     'window': scanWindow},
                                             ))
 
     dose_layers = []
@@ -212,13 +234,21 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         dy = yd[1] - yd[0]
         dz = zd[1] - zd[0]
         dose_affine = np.array([[dy, 0, 0, yd[0]], [0, dx, 0, xd[0]], [0, 0, dz, zd[0]], [0, 0, 0, 1]])
+        minDose = doseArray.min()
+        maxDose = doseArray.max()
+        centerDose = (minDose + maxDose) / 2
+        widthDose = (maxDose - minDose)
+        doseWindow = {"name": "--- Select ---",
+                      "center": centerDose,
+                      "width": widthDose}
         dose_lyr = viewer.add_image(doseArray,name='dose',affine=dose_affine,
                                   opacity=0.5,colormap="gist_earth",
                                   blending="additive",interpolation2d="linear",
                                   interpolation3d="linear",
                                   metadata = {'dataclass': 'dose',
                                            'planC': planC,
-                                           'doseNum': scan_num}
+                                           'doseNum': dose_num,
+                                           'window': doseWindow}
                                    )
         dose_layers.append(dose_lyr)
 
@@ -300,7 +330,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     viewer.scale_bar.unit = "cm"
     #viewer.axes.visible = True
     #if len(struct_layer)> 0:
-    scan_window_widget = initialize_scan_window_widget()
+    image_window_widget = initialize_image_window_widget()
     struct_add_widget = initialize_struct_add_widget()
     struct_save_widget = initialize_struct_save_widget()
     dose_select_widget = initialize_dose_select_widget()
@@ -317,20 +347,47 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         viewer.dims.set_point(0, - isocenter[1])
         return
 
-    def image_changed(widgt):
+    def image_changed(image):
+        if image is None:
+            return
+        if 'structNum' in image.metadata:
+            return
+
         #image = widgt[0].value
-        window_option = widgt.CT_Window.value
-        center = window_dict[window_option][0]
-        width = window_dict[window_option][1]
-        widgt.Center.value = center
-        widgt.Width.value = width
+        # Set active layer to the one selected
+        viewer.layers.selection.active = image
+        #window_option = widgt.CT_Window.value
+        #center = window_dict[window_option][0]
+        #width = window_dict[window_option][1]
+        #
+        windows_name = image.metadata['window']['name']
+        center = image.metadata['window']['center']
+        width = image.metadata['window']['width']
         minVal = center - width/2
         maxVal = center + width/2
         rangeVal = [minVal, maxVal]
-        widgt.Scan.value.contrast_limits_range = rangeVal
-        widgt.Scan.value.contrast_limits = rangeVal
-        viewer.layers.selection.active = widgt.Scan.value
-        uptate_colorbar(widgt.Scan.value)
+        image_window_widget.Center.value = center
+        image_window_widget.Width.value = width
+        image_window_widget.CT_Window.value = windows_name
+        image.contrast_limits_range = rangeVal
+        image.contrast_limits = rangeVal
+        uptate_colorbar(image)
+        return
+
+    def window_changed(CT_Window):
+        if CT_Window is None:
+            return
+        ctrWidth = window_dict[CT_Window]
+        if CT_Window != '--- Select ---':
+            image_window_widget.Center.value = ctrWidth[0]
+            image_window_widget.Width.value = ctrWidth[1]
+            image_window_widget.CT_Window.value = CT_Window
+        return
+
+    def center_width_changed(ctrWidth):
+        if ctrWidth is None:
+            return
+        image_window_widget.CT_Window.value = '--- Select ---'
         return
 
     def label_changed(widgt):
@@ -344,17 +401,18 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         return
 
     def layer_active(event):
-        if viewer.dims.ndisplay == 3 or not hasattr(event, 'value'):
+        if not hasattr(event, 'value'):
             return
         layer = event.value
         if not hasattr(layer, 'metadata'):
             return
-        if 'structNum' in layer.metadata:
+        if 'structNum' in layer.metadata and viewer.dims.ndisplay == 2:
             struct_save_widget[0].value = layer
             if isinstance(layer.metadata['isocenter'][0], (int, float)):
                 set_center_slice(layer)
         else:
-            uptate_colorbar(layer)
+            #uptate_colorbar(layer)
+            image_changed(layer)
 
 
     def dose_changed(widgt):
@@ -409,8 +467,11 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
 
         # Change slice to center of that structure
     struct_save_widget.changed.connect(label_changed)
-    scan_window_widget.changed.connect(image_changed)
-    scanWidget = viewer.window.add_dock_widget([scan_window_widget], area='left', name="Scan", tabify=True)
+    image_window_widget.image.changed.connect(image_changed)
+    image_window_widget.CT_Window.changed.connect(window_changed)
+    image_window_widget.Center.changed.connect(center_width_changed)
+    image_window_widget.Width.changed.connect(center_width_changed)
+    scanWidget = viewer.window.add_dock_widget([image_window_widget], area='left', name="Window", tabify=True)
     structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Segmentation", tabify=True)
     colorbars_dock = viewer.window.add_dock_widget([dose_colorbar_widget], area='right', name="Colorbar", tabify=False)
     #colorbars_dock.resize(5, 20)
@@ -430,9 +491,11 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     for dose_lyr in dose_layers:
         #dose_lyr.events.contrast_limits_range.connect(layer_active)
         dose_lyr.events.colormap.connect(cmap_changed)
+        dose_lyr.events.contrast_limits_range.connect(cmap_changed)
     for scan_lyr in scan_layers:
         #scan_lyr.events.contrast_limits_range.connect(layer_active)
         scan_lyr.events.colormap.connect(cmap_changed)
+        scan_lyr.events.contrast_limits_range.connect(cmap_changed)
 
     #dose_select_widget.changed.connect(dose_changed)
 
