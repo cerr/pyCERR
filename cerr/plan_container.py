@@ -20,6 +20,7 @@ from cerr.contour import rasterseg as rs
 from cerr.dataclasses import beams as bms
 from cerr.dataclasses import dose as rtds
 from cerr.dataclasses import scan as scn
+from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
 from cerr.dataclasses.structure import Contour
 from cerr.utils import uid
@@ -37,6 +38,7 @@ class PlanC:
     structure: List[structr.Structure] = field(default_factory=get_empty_list) #structure.Structure()
     dose: List[rtds.Dose] = field(default_factory=get_empty_list) #dose.Dose()
     beams: List[bms.Beams] = field(default_factory=get_empty_list) #beams.Beams()
+    deform: List[dfrm.Deform] = field(default_factory=get_empty_list) #beams.Beams()
 
     def addScan(self, new_scan) -> scan:
         self.scan.append(new_scan)
