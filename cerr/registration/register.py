@@ -3,7 +3,9 @@ import tempfile
 import shutil
 from cerr.utils import uid
 from cerr.dataclasses import deform as cerrDeform
+from cerr.dataclasses import scan as scn
 import cerr.plan_container as pc
+import numpy as np
 
 def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir):
 
@@ -37,7 +39,7 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     shutil.copyfile(bspSourcePath, bspDestPath)
 
     # Create a deform object and add to planC
-    deform = cerrDeform.Deform
+    deform = cerrDeform.Deform()
     deform.deformUID = uid.createUID("deform")
     deform.baseScanUID = basePlanC.scan[baseScanIndex].scanUID
     deform.movScanUID = movPlanC.scan[movScanIndex].scanUID
@@ -91,3 +93,55 @@ def warp_structures():
     # dirpath = tempfile.mkdtemp()
     # rtst_warped_path = os.path.join(dirpath, 'struct.nii.gz')
     pass
+
+def get_vector_field(deformS, planC, baseScanNum, transformSaveDir):
+
+    # create temporary directory to hold registration files
+    dirpath = tempfile.mkdtemp()
+
+    # Write nii files for base and moving scans in dirpath
+    vf_nii_src = os.path.join(dirpath, 'vf.nii.gz')
+    vf_nii_dest = os.path.join(transformSaveDir, 'vf.nii.gz')
+
+    # Get x,y,z coordinate of the 1st voxel
+    xV, yV, zV = planC.scan[baseScanNum].getScanXYZVals()
+    spacing = [xV[1]-xV[0], yV[0]-yV[1], zV[1]-zV[0]]
+    if scn.flipSliceOrderFlag(planC.scan[baseScanNum]):
+        cerrImgPatPos = [xV[0], yV[0], zV[-1], 1]
+    else:
+        cerrImgPatPos = [xV[0], yV[0], zV[0], 1]
+    dcmImgPos = np.matmul(planC.scan[baseScanNum].cerrToDcmTransM, cerrImgPatPos)[:3]
+
+    bsplines_coeff_file = deformS.deformOutFilePath
+
+    plm_warp_str_cmd = "plastimatch xf-convert --input " + bsplines_coeff_file + \
+                  " --output " + vf_nii_src + \
+                  " --output-type vf" + \
+                  " --spacing " + str(spacing[0]) + ' ' + str(spacing[1]) + ' ' + str(spacing[2]) + \
+                  " -- origin " + str(dcmImgPos[0]) + ' ' + str(dcmImgPos[1]) + ' ' + str(dcmImgPos[2])
+
+    currDir = os.getcwd()
+    os.chdir(dirpath)
+    os.system(plm_warp_str_cmd)
+    os.chdir(currDir)
+
+    # Copy output to the user-specified directory
+    shutil.copyfile(vf_nii_src, vf_nii_dest)
+
+    # Create a deform object and add to planC
+    deform = cerrDeform.Deform()
+    deform.deformUID = uid.createUID("deform")
+    deform.baseScanUID = deformS.baseScanUID
+    deform.movScanUID = deformS.baseScanUID
+    deform.deformOutFileType = "vf"
+    deform.deformOutFilePath = vf_nii_dest
+    deform.registrationTool = deformS.registrationTool
+    deform.algorithm = deformS.algorithm
+
+    # Append to base planc
+    planC.deform.append(deform)
+
+    # Remove temporary directory
+    shutil.rmtree(dirpath)
+
+    return planC
