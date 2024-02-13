@@ -115,7 +115,7 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
         voxelVol = np.prod(gridS["PixelSpacingV"]) * 1000 # units of mm
-        scanV = quantized3M[maskBoundingBox3M]
+        scanV = volToEval[maskBoundingBox3M]
         featDict['firstOrder'] = first_order.radiomics_first_order_stats(scanV, voxelVol,
                                         firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum)
 
