@@ -96,6 +96,9 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
         from cerr.radiomics.shape import compute_shape_features
         featDict['shape'] = compute_shape_features(maskBoundingBox3M,gridS['xValsV'],gridS['yValsV'],gridS['zValsV'])
 
+    # Assign nan values outside the mask, so that min/max within the mask are used for quantization
+    volToEval[~maskBoundingBox3M] = np.nan
+
     # Texture-based scalar features
     if 'texture' in paramS['settings']:
         # Quantization
@@ -108,8 +111,6 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
             offsetsM = offsetsM * glcmVoxelOffset
     else:
         quantized3M = volToEval
-
-    quantized3M[~maskBoundingBox3M] = np.nan
 
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
