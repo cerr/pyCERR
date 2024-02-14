@@ -1,6 +1,6 @@
 import numpy as np
-from ..dataclasses import scan as scn
-
+from cerr.dataclasses import scan as scn
+from cerr.dataclasses import structure as cerrStr
 
 def poly_fill(rowV, colV, xSize, ySize):
     # Initialize the result matrix with zeros
@@ -212,8 +212,12 @@ def mtoaapm(Row, Col, Dims, gridUnits=[1, 1], offset=[0, 0]):
 
 
 def getStrMask(str_num,planC):
-    rasterSegments = planC.structure[str_num].rasterSegments
-    assocScanUID = planC.structure[str_num].assocScanUID
+    if isinstance(str_num, cerrStr.Structure):
+        rasterSegments = str_num.rasterSegments
+        assocScanUID = str_num.assocScanUID
+    else:
+        rasterSegments = planC.structure[str_num].rasterSegments
+        assocScanUID = planC.structure[str_num].assocScanUID
     scan_num = scn.getScanNumFromUID(assocScanUID,planC)
     num_rows,num_cols,num_slcs = planC.scan[scan_num].scanArray.shape
     mask3M = np.zeros((num_rows,num_cols,num_slcs),dtype = bool)

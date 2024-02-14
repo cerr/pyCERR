@@ -245,6 +245,50 @@ def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
 def load_nii_dose(nii_file_name, planC):
     pass
 
+def load_nii_vf(dvf_file, baseScanNum, planC):
+
+    # Get image direction of the baseScanNum
+    scanOrientV = planC.scan[baseScanNum].scanInfo[0].imageOrientationPatient
+    slice_normal = scanOrientV[[1,2,0]] * scanOrientV[[5,3,4]] \
+           - scanOrientV[[2,0,1]] * scanOrientV[[4,5,3]]
+    scanOrientV = np.hstack((scanOrientV, slice_normal))
+    scanOrientMat = np.asarray(scanOrientV)
+    scanOrientMat.reshape(3, 3,order="F")
+    dcmDirection = scanOrientMat.reshape(9,order='C')
+
+    #origin = list(image.GetOrigin())
+    #orient_nii = np.asarray(image.GetDirection())
+    #orient_nii.reshape(3, 3,order="C")
+    #orient_nii = np.reshape(orient_nii, (3,3), order = "C")
+    #dcmImgOrient = orient_nii.reshape(9,order='F')[:6]
+    #if np.max((dcmImgOrient - scanOrientV)**2) > 1e-5:
+    #    #scanOrientV
+    #    #scanDirection = []
+    #    #image.SetDirection(scanDirection)
+    #    raise Exception("nii file orientation does not match the associated scan")
+
+
+    # Read 4d dvf from nii file, re-orienting to baseScanNum
+    reader = sitk.ImageFileReader()
+    reader.SetFileName(dvf_file)
+    reader.LoadPrivateTagsOn()
+    reader.ReadImageInformation()
+    image = reader.Execute()
+    img_ori = image.GetDirection()
+    image.SetDirection(dcmDirection)
+    #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+    #image = sitk.DICOMOrient(image,"LPS") # temp
+    dvf_matrix = sitk.GetArrayFromImage(image)
+    origin = list(image.GetOrigin())
+    orient = list(image.GetDirection())[:6]
+    dim = list(image.GetSize())
+    res = list(image.GetSpacing())
+
+    # Convert DVF to CERR virtual coordinates
+
+    return dvf_matrix, origin, orient, dim, res
+
+
 def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     org_root = '1.3.6.1.4.1.9590.100.1.2.' # to create seriesInstanceUID
     seriesInstanceUID = generate_uid(prefix=org_root)
