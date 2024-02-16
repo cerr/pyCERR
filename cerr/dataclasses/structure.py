@@ -550,3 +550,15 @@ def calcIsocenter(strNum, planC):
     isocenter = [xV[midColInd], yV[midRowInd], zV[midSliceInd]]
     return isocenter
 
+def getMatchingIndex(structName, strList, matchCriteria='exact'):
+    if matchCriteria.upper() == 'EXACT':
+        indMatchV = [i for i, s in enumerate(strList) if s.lower() == structName.lower()]
+    elif matchCriteria.upper() == 'FIRSTCHARS':
+        indMatchV = [i for i, s in enumerate(strList) if s.lower().startswith(structName.lower())]
+    else:
+        # implementation for 'contains' match criteria
+        indMatchV = []
+        for i, s in enumerate(strList):
+            if structName.lower() in s.lower():
+                indMatchV.append(i)
+    return indMatchV
