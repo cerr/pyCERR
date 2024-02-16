@@ -3,18 +3,7 @@ from scipy.stats import skew, kurtosis, entropy
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.plan_container as pc
-
-
-def quantile(x,q):
-    n = len(x)
-    y = np.sort(x)
-    return(np.interp(q, np.linspace(1/(2*n), (2*n-1)/(2*n), n), y))
-
-def prctile(x,p):
-    """Equivalent to Matlab's prctile"""
-    y = x[~np.isnan(x)]
-    return(quantile(y,np.array(p)/100))
-
+from cerr.utils.statistics_utils import quantile, prctile
 
 def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     if isinstance(planC, pc.PlanC):
