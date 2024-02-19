@@ -212,7 +212,7 @@ def mtoaapm(Row, Col, Dims, gridUnits=[1, 1], offset=[0, 0]):
 
 
 def getStrMask(str_num,planC):
-    if isinstance(str_num, (int, float)):
+    if isinstance(str_num, (int, float, np.integer)):
         rasterSegments = planC.structure[str_num].rasterSegments
         assocScanUID = planC.structure[str_num].assocScanUID
     else:
