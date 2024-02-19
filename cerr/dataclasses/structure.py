@@ -13,7 +13,7 @@ from datetime import datetime
 from pydicom.uid import generate_uid
 import json
 from cerr.radiomics.preprocess import imgResample3D
-import cerr.plan_container as pc
+
 
 def get_empty_list():
     return []
@@ -473,6 +473,72 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
             numAdded += 1
 
     return struct_list
+
+
+def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
+
+    # Pad mask to account for boundary edges
+    paddedMask3M = mask3M.astype(int)
+    paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
+    dt = datetime.now()
+    if isinstance(structNum,int):
+        struct_meta = planC.structure[structNum]
+    else:
+        struct_meta = Structure()
+        structNum = len(planC.structure)
+        struct_meta.structureColor = getColorForStructNum(structNum)
+        struct_meta.strUID = uid.createUID("structure")
+        struct_meta.structSetSopInstanceUID = generate_uid()
+        struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
+    struct_meta.structureFileFormat = "NPARRAY"
+    struct_meta.structureName = structName
+    struct_meta.dateWritten = dt.strftime("%Y%m%d")
+    struct_meta.roiNumber = ""
+    contour_list = np.empty((0),Contour)
+    numSlcs = len(planC.scan[assocScanNum].scanInfo)
+    dim = paddedMask3M.shape
+    for slc in range(dim[2]):
+        if not np.any(paddedMask3M[:,:,slc]):
+            continue
+        contours = measure.find_contours(paddedMask3M[:,:,slc] == 1, 0.5)
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+            slcNum = numSlcs - slc - 1
+        else:
+            slcNum = slc
+        # _,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
+        # ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
+        # if len(ind[0]) == 1:
+        #     ind = ind[0][0]
+        # else:
+        #     raise Exception('No matching slices found.')
+        sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
+        sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
+
+        num_contours = len(contours)
+        for iContour, contour in enumerate(contours):
+            contObj = Contour()
+            segment = np.empty((contour.shape[0],3))
+            colV = contour[:, 1] - 1 # - 1 to account for padding
+            rowV = contour[:, 0] - 1 # - 1 to account for padding
+            slcV = np.ones_like(rowV) * slcNum
+            ptsM = np.asarray((colV,rowV,slcV))
+            ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
+            ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
+            contObj.segments = ptsM
+            contObj.referencedSopInstanceUID = sopInstanceUID
+            contObj.referencedSopClassUID = sopClassUID
+            #contour_list.append(contObj)
+            contour_list = np.append(contour_list,contObj)
+        struct_meta.contour = contour_list
+#     struct_meta = structr.load_nii_structure(nii_file_name,assocScanNum,planC,labels_dict)
+    numOrigStructs = len(planC.structure)
+    if structNum == numOrigStructs:
+        planC.structure.append(struct_meta)
+    #str_num = len(planC.structure) - 1
+    planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
+    planC.structure[structNum].rasterSegments = rs.generate_rastersegs(planC.structure[structNum],planC)
+    return planC
+
 
 def getColorForStructNum(structNum):
     colorMat = np.array([[ 230,   161,     0],
