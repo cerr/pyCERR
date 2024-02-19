@@ -586,7 +586,7 @@ def copyToScan(structNum, scanNum, planC):
     newMask3M = imgResample3D(mask3M.astype(float), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear') >= 0.5
     structName = planC.structure[structNum].structureName
     structNum = None
-    planC = pc.import_structure_mask(newMask3M, scanNum, structName, structNum, planC)
+    planC = import_structure_mask(newMask3M, scanNum, structName, structNum, planC)
     return planC
 
 
