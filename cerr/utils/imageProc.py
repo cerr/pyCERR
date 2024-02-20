@@ -127,12 +127,11 @@ def getLargestConnComps(mask3M, numConnComponents):
         else:
             selV = rankV[:]
 
-        idxV = np.array([], dtype=int)
-        for n in selV:
-            idxV = np.concatenate((idxV, np.where(labeledArray == n + 1)[0]))
-
         maskOut3M = np.zeros_like(mask3M, dtype=bool)
-        maskOut3M[idxV] = True
+        for n in selV:
+            idxV = labeledArray == n + 1
+            maskOut3M[idxV] = True
+
     else:
         maskOut3M = mask3M
 
