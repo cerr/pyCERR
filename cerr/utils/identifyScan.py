@@ -1,9 +1,13 @@
+"""
+ Get scan no. with associated metadata matching supplied list of identifiers.
+"""
 import numpy as np
+import datetime
+from cerr.dataclasses.structure import getStructureAssociatedScan
+
 
 def getScanNumForIdentifier(idS,planC,origFlag):
-    """
-    Get scan no. with associated metadata matching supplied list of identifiers.
-    """
+
     # Get no. scans
     numScan = len(planC.scan)
 
@@ -72,7 +76,7 @@ def getScanNumForIdentifier(idS,planC,origFlag):
                 for matchVal in matchValC:
                     strListC = [str(struc.structureName) for struc in planC.structures]
                     strNum = strListC.index(matchVal)
-                    matchScan = getStructureAssociatedScanNum(strNum, planC)
+                    matchScan = getStructureAssociatedScan(planC.structures[strNum], planC)
                     idV &= np.isin(scanNumV, matchScan)
 
         else:
@@ -93,3 +97,21 @@ def getScanNumForIdentifier(idS,planC,origFlag):
 
     return scanNumV
 
+
+def getAssocFilteredScanNum(scanNumV,planC):
+    """
+    Return filtered scan created from input scanNum
+    """
+    pass
+
+def getAssocWarpedScanNum(scanNumV,planC):
+    """
+    Return warped scan created from input scanNum
+    """
+    pass
+
+def getAssocResampledScanNum(scanNumV,planC):
+    """
+    Return resampled scan created from input scanNum
+    """
+    pass
