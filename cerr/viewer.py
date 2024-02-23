@@ -540,8 +540,10 @@ def windowImage(image, windowCenter, windowWidth):
 def rotateImage(img):
     return(list(zip(*img)))
 
-def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300, \
-              extentTrans=None, extentSag=None, extentCor=None):
+def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
+    """
+    Interactive plot using matplotlib for jupyter notebooks
+    """
 
     # Extract scan and mask
     scan3M = planC.scan[scanNum].getScanArray()
