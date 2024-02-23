@@ -529,3 +529,139 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     plt.show(block=True)
     return h_scan, h_dose
 
+def windowImage(image, windowCenter, windowWidth):
+    imgMin = windowCenter - windowWidth // 2
+    imgMax = windowCenter + windowWidth // 2
+    windowedImage = image.copy()
+    windowedImage[windowedImage < imgMin] = imgMin
+    windowedImage[windowedImage > imgMax] = imgMax
+    return windowedImage
+
+def rotateImage(img):
+    return(list(zip(*img)))
+
+def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300, \
+              extentTrans=None, extentSag=None, extentCor=None):
+
+    # Extract scan and mask
+    scan3M = planC.scan[scanNum].getScanArray()
+    xVals, yVals, zVals = planC.scan[scanNum].getScanXYZVals()
+    extentTrans = np.min(xVals), np.max(xVals), np.min(yVals), np.max(yVals)
+    extentSag = np.min(yVals), np.max(yVals), np.min(zVals), np.max(zVals)
+    extentCor = np.min(xVals), np.max(xVals), np.min(zVals), np.max(zVals)
+    imgSiz = np.shape(scan3M)
+
+    masks = list()
+    for nStr in range (len(structNumV)):
+        mask3M = rs.getStrMask(structNumV[nStr],planC)
+        masks.append(mask3M)
+
+    # Create slider widgets
+    clear_output(wait=True)
+    imgSize = np.shape(scan3M)
+    sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
+
+    def showSlice(slcNum, view):
+
+        clear_output(wait=True)
+        print(view + ' view slice ' + str(slcNum))
+
+        if 'fig' in locals():
+            fig.remove()
+        fig, (ax,ax_legend) = plt.subplots(1,2)
+        ax_legend.set_visible(False)
+
+        cmaps = [plt.colormaps["Oranges"].copy(),plt.colormaps["Oranges"].copy(), \
+        plt.colormaps["Blues"].copy(),plt.colormaps["Blues"].copy(), \
+        plt.colormaps["Purples"].copy(),plt.colormaps["Greens"].copy()]
+
+        if view.lower() == 'axial':
+            windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
+            extent = extentTrans
+        elif view.lower() == 'sagittal':
+            windowedImage = rotateImage(windowImage(scan3M[:, slcNum - 1, :], windowCenter, windowWidth))
+            extent = extentSag
+        elif view.lower() == 'coronal':
+            windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
+            extent = extentCor
+        else:
+            raise Exeception('Invalid view type: ' + view)
+
+        # Display scan
+        im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
+                    interpolation='nearest', extent=extent)
+
+        #Display mask
+        numLabel = len(masks)
+        if view.lower() == 'axial':
+            for maskNum in range(0,numLabel,1):
+                maskCmap = cmaps[maskNum]
+                maskCmap.set_under('k', alpha=0)
+                mask3M = masks[maskNum]
+                im2 = ax.imshow(mask3M[:,:,slcNum-1],
+                            cmap=maskCmap, alpha=1, extent=extent,
+                            interpolation='none', clim=[0.5, 1])
+
+        elif view.lower() == 'sagittal':
+            for maskNum in range(0,numLabel,1):
+                maskCmap = cmaps[maskNum]
+                maskCmap.set_under('k', alpha=0)
+                mask3M = masks[maskNum]
+                im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
+                            cmap=maskCmap, alpha=.8, extent=extent,
+                            interpolation='none', clim=[0.5, 1])
+
+        elif view.lower() == 'coronal':
+            for maskNum in range(0,numLabel,1):
+                maskCmap = cmaps[maskNum]
+                maskCmap.set_under('k', alpha=0)
+                mask3M = masks[maskNum]
+                im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
+                            cmap=maskCmap, alpha=.8, extent=extent,
+                            interpolation='none', clim=[0.5, 1])
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        plt.rcParams["figure.figsize"] = (10, 10)
+        plt.show()
+
+    sliceSliderAxial.value = round(imgSiz[2]/2)
+    sliceSliderSagittal.value = round(imgSiz[1]/2)
+    sliceSliderCoronal.value = round(imgSiz[0]/2)
+
+    interact(showSlice, slcNum=sliceSliderAxial.value, view='axial')
+    interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
+    interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
+
+def updateSliceAxial(change):
+    outputSlcAxial = widgets.Output()
+    with outputSlcAxial:
+        showSlice(change['new'], 'axial')
+
+def updateSliceSagittal(change):
+    outputSlcSagittal = widgets.Output()
+    with outputSlcSagittal:
+        showSlice(change['new'], 'sagittal')
+
+def updateSliceCoronal(change):
+    outputSlcCoronal = widgets.Output()
+    with outputSlcCoronal:
+        showSlice(change['new'], 'coronal')
+
+def createWidgets(imgSize):
+
+    sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
+    outputSlcAxial = widgets.Output()
+
+    sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
+    outputSlcSagittal = widgets.Output()
+
+    sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
+    outputSlcCoronal = widgets.Output()
+
+    sliceSliderAxial.observe(updateSliceAxial, names='value')
+    sliceSliderSagittal.observe(updateSliceSagittal, names='value')
+    sliceSliderCoronal.observe(updateSliceCoronal, names='value')
+
+    return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
