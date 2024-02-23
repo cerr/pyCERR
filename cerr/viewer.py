@@ -1,26 +1,29 @@
-import matplotlib.pyplot as plt
 import cerr.contour.rasterseg as rs
+import warnings
+
+import matplotlib as mpl
 import napari
 import numpy as np
-from skimage import measure
 import vispy.color
+from magicgui import magicgui
+from magicgui.widgets import FunctionGui
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.colors import ListedColormap
+from matplotlib.figure import Figure
+from napari.layers import Labels, Image
+from napari.types import LayerDataTuple
+from qtpy.QtWidgets import QTabBar
+from skimage import measure
+
+import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
-from napari.types import LabelsData, ImageData, LayerDataTuple
-from napari.layers import Labels, Image
-from magicgui import magicgui
 import cerr.plan_container as pc
-from magicgui.widgets import FunctionGui, Select
-from qtpy.QtWidgets import QTabBar
-from enum import Enum
-from magicgui import magic_factory
-import warnings
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap
 
-
+import matplotlib.pyplot as plt
+from IPython.display import clear_output
+import ipywidgets as widgets
+from ipywidgets import interact
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -172,7 +175,7 @@ def getContourPolygons(strNum, assocScanNum, planC):
     return polygons
 
 
-def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
+def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
 
     if not isinstance(scan_nums, list):
         scan_nums = [scan_nums]
@@ -525,3 +528,4 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     #ax[1].colorbar(c1)
     plt.show(block=True)
     return h_scan, h_dose
+
