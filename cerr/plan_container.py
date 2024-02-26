@@ -280,13 +280,39 @@ def load_nii_vf(dvf_file, baseScanNum, planC):
     #image = sitk.DICOMOrient(image,"LPS") # temp
     dvf_matrix = sitk.GetArrayFromImage(image)
     origin = list(image.GetOrigin())
-    orient = list(image.GetDirection())[:6]
+    orient = np.array(image.GetDirection()[:6])
     dim = list(image.GetSize())
     res = list(image.GetSpacing())
 
-    # Convert DVF to CERR virtual coordinates
+    deform = dfrm.Deform()
 
-    return dvf_matrix, origin, orient, dim, res
+    dvf_matrix = np.moveaxis(dvf_matrix,[0,1,2,3],[2,0,1,3])
+    siz = dvf_matrix.shape
+    numSlcs = siz[2]
+    imagePositionPatientV = np.zeros((numSlcs,3))
+    zValuesV = np.zeros(numSlcs)
+    for slc in range(numSlcs):
+        imagePositionPatientV[slc,:] = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
+        zValuesV[slc] = - np.sum(slice_normal * imagePositionPatientV[slc,:]) / 10
+    sort_index = np.argsort(zValuesV)
+    print('======= sorted index =======')
+    print(sort_index)
+    zValuesV = zValuesV[sort_index]
+    imagePositionPatientV = imagePositionPatientV[sort_index,:]
+    dvf_matrix = dvf_matrix[:,:,sort_index,:]
+
+    deform.dvfMatrix = dvf_matrix
+    deform.imagePositionPatientV = imagePositionPatientV
+    deform.zValuesV = zValuesV
+    deform.imageOrientationPatient = orient
+    deform.dx = res[0] / 10
+    deform.dy = res[1] / 10
+
+    # Convert DVF to CERR virtual
+    deform.convertDcmToCerrVirtualCoords()
+    planC.deform.append(deform)
+
+    return planC
 
 
 def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):

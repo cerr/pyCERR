@@ -89,12 +89,38 @@ def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
 def warp_dose():
     pass
 
-def warp_structures():
+def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
     # dirpath = tempfile.mkdtemp()
     # rtst_warped_path = os.path.join(dirpath, 'struct.nii.gz')
-    pass
+    dirpath = tempfile.mkdtemp()
+    fixed_img_nii = os.path.join(dirpath, 'ref.nii.gz')
+    moving_str_nii = os.path.join(dirpath, 'structure.nii.gz')
+    warped_str_nii = os.path.join(dirpath, 'warped.nii.gz')
+    bsplines_coeff_file = deformS.deformOutFilePath
+    basePlanC.scan[baseScanIndex].save_nii(fixed_img_nii)
+    currDir = os.getcwd()
+    os.chdir(dirpath)
+    for strNum in movStrNumV:
+        #movScanNum = scn.getScanNumFromUID(movPlanC.structure[strNum].assocScanUID, movPlanC)
+        structName = movPlanC.structure[strNum].structureName
+        movPlanC.structure[strNum].save_nii(moving_str_nii, movPlanC)
+        plm_warp_str_cmd = "plastimatch warp --input " + moving_str_nii + \
+                      " --output-img " + warped_str_nii + \
+                      " --xf " + bsplines_coeff_file + \
+                      " --fixed " + fixed_img_nii + \
+                      " --interpolation nn"
+        os.system(plm_warp_str_cmd)
+        basePlanC = pc.load_nii_structure(warped_str_nii, baseScanIndex, basePlanC, {1: structName})
 
-def get_vector_field(deformS, planC, baseScanNum, transformSaveDir):
+    os.chdir(currDir)
+
+    # Remove temporary directory
+    print(dirpath)
+    #shutil.rmtree(dirpath)
+
+    return basePlanC
+
+def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -105,7 +131,7 @@ def get_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     # Get x,y,z coordinate of the 1st voxel
     xV, yV, zV = planC.scan[baseScanNum].getScanXYZVals()
-    spacing = [xV[1]-xV[0], yV[0]-yV[1], zV[1]-zV[0]]
+    spacing = [10*(xV[1]-xV[0]), 10*(yV[0]-yV[1]), 10*(zV[1]-zV[0])]
     if scn.flipSliceOrderFlag(planC.scan[baseScanNum]):
         cerrImgPatPos = [xV[0], yV[0], zV[-1], 1]
     else:
@@ -117,8 +143,11 @@ def get_vector_field(deformS, planC, baseScanNum, transformSaveDir):
     plm_warp_str_cmd = "plastimatch xf-convert --input " + bsplines_coeff_file + \
                   " --output " + vf_nii_src + \
                   " --output-type vf" + \
-                  " --spacing " + str(spacing[0]) + ' ' + str(spacing[1]) + ' ' + str(spacing[2]) + \
-                  " -- origin " + str(dcmImgPos[0]) + ' ' + str(dcmImgPos[1]) + ' ' + str(dcmImgPos[2])
+                  " --spacing \"" + str(spacing[0]) + ' ' + str(spacing[1]) + ' ' + str(spacing[2]) + "\""\
+                  " -- origin \"" + str(dcmImgPos[0]) + ' ' + str(dcmImgPos[1]) + ' ' + str(dcmImgPos[2]) + "\""
+
+    print("======== plm command =======")
+    print(plm_warp_str_cmd)
 
     currDir = os.getcwd()
     os.chdir(dirpath)
