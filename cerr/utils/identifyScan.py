@@ -3,7 +3,7 @@
 """
 import numpy as np
 import datetime
-#from cerr.dataclasses.structure import getStructureAssociatedScan
+from cerr.dataclasses.scan import cerrScn
 
 
 def getScanNumForIdentifier(idS,planC,origFlag):
@@ -76,7 +76,7 @@ def getScanNumForIdentifier(idS,planC,origFlag):
                 for matchVal in matchValC:
                     strListC = [str(struc.structureName) for struc in planC.structures]
                     strNum = strListC.index(matchVal)
-                    matchScan = getStructureAssociatedScan(planC.structures[strNum], planC)
+                    matchScan = cerrScn.getScanNumFromUID(planC.structures[strNum].assocScanUID, planC)
                     idV &= np.isin(scanNumV, matchScan)
 
         else:
