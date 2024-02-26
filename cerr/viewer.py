@@ -19,6 +19,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib as mpl
 from matplotlib.colors import ListedColormap
+from cerr.utils.mask import getSurfacePoints
 
 
 
@@ -336,6 +337,7 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     dose_select_widget = initialize_dose_select_widget()
     dose_colorbar_widget = initialize_dose_colorbar_widget()
 
+
     def set_center_slice(label):
         # update viewer to display the central slice and capture screenshot
         strNum = label.metadata['structNum']
@@ -351,6 +353,8 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
         if image is None:
             return
         if 'structNum' in image.metadata:
+            return
+        if 'window' not in image.metadata:
             return
 
         #image = widgt[0].value
@@ -512,6 +516,41 @@ def show_scan_struct_dose(scan_nums, str_nums, dose_nums, planC, displayMode = '
     # h_struct = ax[0].imshow(mask3M[:,:,scan_slc_num],alpha=alpha)
     # plt.show(block=True)
     # return h_scan,h_struct
+
+
+def show_dvf(baseScanNum, structNum, planC, viewer):
+    xValsV, yValsV, zValsV = planC.scan[baseScanNum].getScanXYZVals()
+    mask3M = rs.getStrMask(structNum, planC)
+    # Get the surface points for the structure mask
+    surf_points = getSurfacePoints(mask3M)
+    sample_rate = 1
+    dx = abs(np.median(np.diff(xValsV)))
+    dz = abs(np.median(np.diff(zValsV)))
+    while surf_points.shape[0] > 20000:
+        sample_rate += 1
+        if dz / dx < 2:
+            surf_points = getSurfacePoints(mask3M, sample_rate, sample_rate)
+        else:
+            surf_points = getSurfacePoints(mask3M, sample_rate, 1)
+    xSurfV = xValsV[surf_points[:, 1]]
+    ySurfV = yValsV[surf_points[:, 0]]
+    zSurfV = zValsV[surf_points[:, 2]]
+
+    # Get x,y,z deformations at surface points
+    xDeformV = []
+    yDeformV = []
+    zDeformV = []
+    numPts = len(xSurfV)
+    vectors = np.zeros((numPts, 2, 3), dtype=np.float32)
+    vectors[:,1,0] = -yDeformV
+    vectors[:,1,1] = xDeformV
+    vectors[:,1,2] = zDeformV
+    vectors[:,0] = [-ySurfV, xSurfV, zSurfV]
+    vect_layr = viewer.add_vectors(vectors, edge_width=0.5, opacity=0.3,
+                                   length=1, name="DVF",
+                                   ndim=3)
+
+
 
 def show_scan_dose(scan_num,dose_num,slc_num,planC):
     sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
