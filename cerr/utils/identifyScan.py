@@ -3,7 +3,7 @@
 """
 import numpy as np
 import datetime
-from cerr.dataclasses.scan import cerrScn
+import cerr.dataclasses.scan as cerrScn
 
 
 def getScanNumForIdentifier(idS,planC,origFlag):
