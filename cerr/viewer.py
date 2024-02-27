@@ -673,34 +673,34 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
     interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
 
-def updateSliceAxial(change):
-    outputSlcAxial = widgets.Output()
-    with outputSlcAxial:
-        showSlice(change['new'], 'axial')
+    def updateSliceAxial(change):
+        outputSlcAxial = widgets.Output()
+        with outputSlcAxial:
+            showSlice(change['new'], 'axial')
 
-def updateSliceSagittal(change):
-    outputSlcSagittal = widgets.Output()
-    with outputSlcSagittal:
-        showSlice(change['new'], 'sagittal')
+    def updateSliceSagittal(change):
+        outputSlcSagittal = widgets.Output()
+        with outputSlcSagittal:
+            showSlice(change['new'], 'sagittal')
 
-def updateSliceCoronal(change):
-    outputSlcCoronal = widgets.Output()
-    with outputSlcCoronal:
-        showSlice(change['new'], 'coronal')
+    def updateSliceCoronal(change):
+        outputSlcCoronal = widgets.Output()
+        with outputSlcCoronal:
+            showSlice(change['new'], 'coronal')
 
-def createWidgets(imgSize):
+    def createWidgets(imgSize):
 
-    sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
-    outputSlcAxial = widgets.Output()
+        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
+        outputSlcAxial = widgets.Output()
 
-    sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
-    outputSlcSagittal = widgets.Output()
+        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
+        outputSlcSagittal = widgets.Output()
 
-    sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
-    outputSlcCoronal = widgets.Output()
+        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
+        outputSlcCoronal = widgets.Output()
 
-    sliceSliderAxial.observe(updateSliceAxial, names='value')
-    sliceSliderSagittal.observe(updateSliceSagittal, names='value')
-    sliceSliderCoronal.observe(updateSliceCoronal, names='value')
+        sliceSliderAxial.observe(updateSliceAxial, names='value')
+        sliceSliderSagittal.observe(updateSliceSagittal, names='value')
+        sliceSliderCoronal.observe(updateSliceCoronal, names='value')
 
-    return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
+        return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
