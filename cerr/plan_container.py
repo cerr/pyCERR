@@ -62,6 +62,8 @@ def load_dcm_dir(dcm_dir, initplanC = ''):
         initplanC - An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
     OUTPUT - An instance of PlanC
     """
+    if not os.path.isdir(dcm_dir):
+        raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
     df_img = parse_dcm_dir(dcm_dir)
