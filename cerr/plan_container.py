@@ -2,7 +2,6 @@
 This module defines the container class PlanC and methods to import metadata from DICOM and NifTI formats.
 """
 
-import os
 import json
 import pickle
 from dataclasses import dataclass, field
