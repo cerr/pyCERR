@@ -2,6 +2,7 @@
 This module defines the container class PlanC and methods to import metadata from DICOM and NifTI formats.
 """
 
+import os
 import json
 import pickle
 from dataclasses import dataclass, field
@@ -62,6 +63,7 @@ def load_dcm_dir(dcm_dir, initplanC = ''):
         initplanC - An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
     OUTPUT - An instance of PlanC
     """
+    import os
     if not os.path.isdir(dcm_dir):
         raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
     # pc.PlanC is the container to hold various dicom objects
