@@ -4,7 +4,11 @@ import shutil
 from cerr.utils import uid
 from cerr.dataclasses import deform as cerrDeform
 from cerr.dataclasses import scan as scn
+from cerr.dataclasses import structure as cerrStr
 import cerr.plan_container as pc
+from cerr.contour import rasterseg as rs
+from cerr.utils.mask import getSurfacePoints
+from cerr.utils.interp import finterp3
 import numpy as np
 
 def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir):
@@ -174,3 +178,45 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
     shutil.rmtree(dirpath)
 
     return planC
+
+def get_dvf_vectors(deformS, structNum, planC, sampleRate=1):
+
+    # Get surface points
+    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+    mask3M = rs.getStrMask(structNum, planC)
+    xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
+    #surfPoints = getSurfacePoints(mask3M, sampleRate, 1)
+    #xSurfV = xValsV[surfPoints[:, 1]]
+    #ySurfV = yValsV[surfPoints[:, 0]]
+    #zSurfV = zValsV[surfPoints[:, 2]]
+    surfPolygons =  cerrStr.getContourPolygons(structNum, planC, rcsFlag=False)
+    surfPoints = np.array(surfPolygons[0])
+    for poly in surfPolygons[1:]:
+        surfPoints = np.append(surfPoints, poly, axis=0)
+    xSurfV = surfPoints[:, 0]
+    ySurfV = surfPoints[:, 1]
+    zSurfV = surfPoints[:, 2]
+
+    # Get x,y,z deformations at the surface points
+    xV, yV, zV = deformS.getDVFXYZVals()
+    delta = 1e-8
+    zV[0] = zV[0] - 1e-3
+    zV[-1] = zV[-1] + 1e-3
+    xFieldV = np.asarray([xV[0] - delta, xV[1] - xV[0], xV[-1] + delta])
+    yFieldV = np.asarray([yV[0] + delta, yV[1] - yV[0], yV[-1] - delta])
+    zFieldV = np.asarray(zV)
+    xDeformM = deformS.dvfMatrix[:,:,:,0]
+    yDeformM = deformS.dvfMatrix[:,:,:,1]
+    zDeformM = deformS.dvfMatrix[:,:,:,2]
+    xDeformV = finterp3(xSurfV,ySurfV,zSurfV,xDeformM,xFieldV,yFieldV,zFieldV)
+    yDeformV = finterp3(xSurfV,ySurfV,zSurfV,yDeformM,xFieldV,yFieldV,zFieldV)
+    zDeformV = finterp3(xSurfV,ySurfV,zSurfV,zDeformM,xFieldV,yFieldV,zFieldV)
+
+    numPts = len(yDeformV)
+    vectors = np.empty((numPts,2,3), dtype=np.float32)
+    if cerrDeform.flipSliceOrderFlag(deformS):
+        zDeformV = - zDeformV
+    for i in range(numPts):
+        vectors[i,0,:] = [-ySurfV[i], xSurfV[i], zSurfV[i]]
+        vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
+    return vectors

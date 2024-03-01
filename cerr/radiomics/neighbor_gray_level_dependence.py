@@ -158,10 +158,10 @@ def ngldmToScalarFeatures(s, numVoxels):
 
     # Dependence count entropy
     p = s / np.sum(s)
-    featuresS['Entropy'] = -np.sum(p * np.log2(p + np.finfo(float).eps))
+    featuresS['DependenceCountEntropy'] = -np.sum(p * np.log2(p + np.finfo(float).eps))
 
     # Dependence count energy
-    featuresS['Energy'] = np.sum(p**2)
+    featuresS['DependenceCountEnergy'] = np.sum(p**2)
 
     return featuresS
 

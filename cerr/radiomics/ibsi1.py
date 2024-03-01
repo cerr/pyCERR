@@ -200,23 +200,181 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
 
         # Aggregate features
         #imgType = imgType + equivalent of createFieldNameFromParameters
-        featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgType)}
+        avgType = ''
+        directionality = ''
+        if 'texture' in radiomicsSettingS['settings']:
+            avgType = radiomicsSettingS['settings']['texture']['avgType']
+            directionality = radiomicsSettingS['settings']['texture']['directionality']
+
+        mapToIBSI = False
+        if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
+                radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
+            mapToIBSI = True
+        featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgType, avgType, directionality, mapToIBSI)}
 
     return featDictAllTypes, diagS
 
-def createFlatFeatureDict(featDict, imageType):
+def getIBSINameMap():
+    classDict = {'shape': 'morph',
+                 'firstOrder': 'stat',
+                 'glcm': 'cm',
+                 'glrlm': 'rlm',
+                 'glszm': 'szm',
+                 'gldm': 'ngl',
+                 'gtdm': 'ngt'}
+    featDict = {'majorAxis': 'pca_maj_axis',
+                'minorAxis':'pca_min_axis',
+                'leastAxis': 'pca_least_axis',
+                'flatness': 'pca_flatness',
+                'elongation': 'pca_elongation',
+                'max3dDiameter': 'diam',
+                'max2dDiameterAxialPlane': 'max2dDiameterAxialPlane',
+                'max2dDiameterSagittalPlane': 'max2dDiameterSagittalPlane',
+                'max2dDiameterCoronalPlane': 'max2dDiameterCoronalPlane',
+                'surfArea': 'area_mesh',
+                'volume': 'vol_approx',
+                'filledVolume': 'filled_vol_approx',
+                'Compactness1': 'comp_1',
+                'Compactness2': 'comp_2',
+                'spherDisprop': 'sph_dispr',
+                'sphericity': 'sphericity',
+                'surfToVolRatio': 'av',
+                'min': 'min',
+                'max': 'max',
+                'mean': 'mean',
+                'range': 'range',
+                'std': 'std',
+                'var': 'var',
+                'median': 'median',
+                'skewness': 'skew',
+                'kurtosis': 'kurt',
+                'entropy': 'entropy',
+                'rms': 'rms',
+                'energy': 'energy',
+                'totalEnergy': 'total_energy',
+                'meanAbsDev': 'mad',
+                'medianAbsDev': 'medad',
+                'P10': 'p10',
+                'P90': 'p90',
+                'robustMeanAbsDev': 'maad',
+                'robustMedianAbsDev': 'medaad',
+                'interQuartileRange': 'iqr',
+                'coeffDispersion': 'qcod',
+                'coeffVariation': 'cov',
+                'energy': 'energy',
+                'jointEntropy': 'joint_entr',
+                'jointMax': 'joint_max',
+                'jointAvg': 'joint_avg',
+                'jointVar': 'joint_var',
+                'sumAvg': 'sum_avg',
+                'sumVar': 'sum_var',
+                'sumEntropy': 'sum_entr',
+                'contrast': 'contrast',
+                'invDiffMom': 'inv_diff_mom',
+                'invDiffMomNorm': 'inv_diff_mom_norm',
+                'invDiff': 'inv_diff',
+                'invDiffNorm': 'inv_diff_norm',
+                'invVar': 'inv_var',
+                'dissimilarity': 'dissimilarity',
+                'diffEntropy': 'diff_entr',
+                'diffVar': 'diff_var',
+                'diffAvg': 'diff_avg',
+                'sumAvg': 'sum_avg',
+                'sumVar': 'sum_var',
+                'sumEntropy': 'sum_entr',
+                'corr': 'corr',
+                'clustTendency': 'clust_tend',
+                'clustShade': 'clust_shade',
+                'clustPromin': 'clust_prom',
+                'haralickCorr': 'haral_corr',
+                'autoCorr': 'auto_corr',
+                'firstInfCorr': 'info_corr1',
+                'secondInfCorr': 'info_corr2',
+                'shortRunEmphasis': 'sre',
+                'longRunEmphasis': 'lre',
+                'grayLevelNonUniformity': 'glnu',
+                'grayLevelNonUniformityNorm': 'glnu_norm',
+                'runLengthNonUniformity': 'rlnu',
+                'runLengthNonUniformityNorm': 'rlnu_norm',
+                'runPercentage': 'r_perc',
+                'lowGrayLevelRunEmphasis': 'lgre',
+                'highGrayLevelRunEmphasis': 'hgre',
+                'shortRunLowGrayLevelEmphasis': 'srlge',
+                'shortRunHighGrayLevelEmphasis': 'srhge',
+                'longRunLowGrayLevelEmphasis': 'lrlge',
+                'longRunHighGrayLevelEmphasis': 'lrhge',
+                'grayLevelVariance': 'gl_var',
+                'runLengthVariance': 'rl_var',
+                'runEntropy': 'rl_entr',
+                'smallAreaEmphasis': 'sze',
+                'largeAreaEmphasis': 'lze',
+                'sizeZoneNonUniformity': 'sznu',
+                'sizeZoneNonUniformityNorm': 'sznu_norm',
+                'zonePercentage': 'z_perc',
+                'lowGrayLevelZoneEmphasis': 'lgze',
+                'highGrayLevelZoneEmphasis': 'hzge',
+                'smallAreaLowGrayLevelEmphasis': 'szlge',
+                'largeAreaHighGrayLevelEmphasis': 'lzhge',
+                'smallAreaHighGrayLevelEmphasis': 'szhge',
+                'largeAreaLowGrayLevelEmphasis': 'lzlge',
+                'sizeZoneVariance': 'zs_var',
+                'zoneEntropy': 'zs_entr',
+                'LowDependenceEmphasis': 'lde',
+                'HighDependenceEmphasis': 'hde',
+                'LowGrayLevelCountEmphasis': 'lgce',
+                'HighGrayLevelCountEmphasis': 'hgce',
+                'LowDependenceLowGrayLevelEmphasis': 'ldlge',
+                'LowDependenceHighGrayLevelEmphasis': 'ldhge',
+                'HighDependenceLowGrayLevelEmphasis': 'hdlge',
+                'HighDependenceHighGrayLevelEmphasis': 'hdhge',
+                'DependenceCountNonuniformity': 'dcnu',
+                'DependenceCountNonuniformityNorm': 'dcnu_norm',
+                'DependenceCountPercentage': 'dc_perc',
+                'DependenceCountVariance': 'dc_var',
+                'DependenceCountEntropy': 'dc_entr',
+                'DependenceCountEnergy': 'dc_energy',
+                'coarseness': 'coarseness',
+                'busyness': 'busyness',
+                'complexity': 'complexity',
+                'strength': 'strength',
+                }
+
+    return classDict, featDict
+
+
+def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBSI = False):
     featClasses = featDict.keys()
     flatFeatDict = {}
+    if avgType == 'feature':
+        avgString = 'avg'
+    else:
+        avgString = 'comb'
+    if directionality.lower() == '2d':
+        dirString = '2_5D'
+    else:
+        dirString = '3D'
+    if mapToIBSI:
+        classDict, featDict = getIBSINameMap()
     for featClass in featClasses:
+        if mapToIBSI:
+            featClass = classDict[featClass]
         for item in featDict[featClass].items():
+            itemName = item[0]
+            if mapToIBSI:
+                itemName = featDict[itemName]
             if featClass in ["glcm", "glrlm"]:
-                flatFeatDict[imageType + '_' + featClass + '_Mean_' + item[0]] = np.mean(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_Median_' + item[0]] = np.median(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_StdDev_' + item[0]] = np.std(item[1], ddof=1)
-                flatFeatDict[imageType + '_' + featClass + '_Min_' + item[0]] = np.min(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_Max_' + item[0]] = np.max(item[1])
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                             '_' + dirString + '_' + avgString] = np.mean(item[1])
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                             '_' + dirString + '_Median'] = np.median(item[1])
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                             '_' + dirString + '_StdDev'] = np.std(item[1], ddof=1)
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                             '_' + dirString + '_Min'] = np.min(item[1])
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                              '_' + dirString + '_Max'] = np.max(item[1])
             else:
-                flatFeatDict[imageType + '_' + featClass + '_' + item[0]] = item[1]
+                flatFeatDict[imageType + '_' + featClass + '_' + itemName + '_' + dirString] = item[1]
     return flatFeatDict
 
 def writeFeaturesToFile(featList, csvFileName, writeHeader = True):

@@ -295,8 +295,6 @@ def load_nii_vf(dvf_file, baseScanNum, planC):
         imagePositionPatientV[slc,:] = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
         zValuesV[slc] = - np.sum(slice_normal * imagePositionPatientV[slc,:]) / 10
     sort_index = np.argsort(zValuesV)
-    print('======= sorted index =======')
-    print(sort_index)
     zValuesV = zValuesV[sort_index]
     imagePositionPatientV = imagePositionPatientV[sort_index,:]
     dvf_matrix = dvf_matrix[:,:,sort_index,:]

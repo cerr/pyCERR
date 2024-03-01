@@ -628,3 +628,18 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
             if structName.lower() in s.lower():
                 indMatchV.append(i)
     return indMatchV
+
+def getContourPolygons(strNum, planC, rcsFlag=False):
+    assocScanNum = scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC)
+    numSlcs = len(planC.structure[strNum].contour)
+    polygons = []
+    for slc in range(numSlcs):
+        if planC.structure[strNum].contour[slc]:
+            for seg in planC.structure[strNum].contour[slc].segments:
+                if rcsFlag:
+                    rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
+                    pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
+                else:
+                    pts = seg.points
+                polygons.append(pts)
+    return polygons
