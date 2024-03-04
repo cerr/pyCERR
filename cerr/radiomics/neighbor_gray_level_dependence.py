@@ -99,69 +99,69 @@ def ngldmToScalarFeatures(s, numVoxels):
 
     # Low dependence emphasis
     sLdeM = s / lenV**2
-    featuresS['LowDependenceEmphasis'] = sLdeM.sum() / Ns
+    featuresS['lowDependenceEmphasis'] = sLdeM.sum() / Ns
 
     # High dependence emphasis
     sHdeM = s * lenV**2
-    featuresS['HighDependenceEmphasis'] = sHdeM.sum() / Ns
+    featuresS['highDependenceEmphasis'] = sHdeM.sum() / Ns
 
     # Low gray level count emphasis
     sLgceM = s.T / levV**2
-    featuresS['LowGrayLevelCountEmphasis'] = sLgceM.sum() / Ns
+    featuresS['lowGrayLevelCountEmphasis'] = sLgceM.sum() / Ns
 
     # High gray level count emphasis
     sHgceM = s.T * levV**2
-    featuresS['HighGrayLevelCountEmphasis'] = sHgceM.sum() / Ns
+    featuresS['highGrayLevelCountEmphasis'] = sHgceM.sum() / Ns
 
     # Low dependence low gray level emphasis
     sLdlgeM = sLdeM.T / levV**2
-    featuresS['LowDependenceLowGrayLevelEmphasis'] = sLdlgeM.sum() / Ns
+    featuresS['lowDependenceLowGrayLevelEmphasis'] = sLdlgeM.sum() / Ns
 
     # Low dependence high gray level emphasis
     sLdhgeM = sLdeM.T * levV**2
-    featuresS['LowDependenceHighGrayLevelEmphasis'] = sLdhgeM.sum() / Ns
+    featuresS['lowDependenceHighGrayLevelEmphasis'] = sLdhgeM.sum() / Ns
 
     # High dependence low gray level emphasis
     sHdlgeM = sHdeM.T / levV**2
-    featuresS['HighDependenceLowGrayLevelEmphasis'] = sHdlgeM.sum() / Ns
+    featuresS['highDependenceLowGrayLevelEmphasis'] = sHdlgeM.sum() / Ns
 
     # High dependence high gray level emphasis
     sHdhgeM =  sHdeM.T * levV**2
-    featuresS['HighDependenceHighGrayLevelEmphasis'] = sHdhgeM.sum() / Ns
+    featuresS['highDependenceHighGrayLevelEmphasis'] = sHdhgeM.sum() / Ns
 
     # Gray level non-uniformity
-    featuresS['GrayLevelNonuniformity'] = np.sum(np.sum(s, axis=1)**2) / Ns
+    featuresS['grayLevelNonUniformity'] = np.sum(np.sum(s, axis=1)**2) / Ns
 
     # Gray level non-uniformity normalized
-    featuresS['GrayLevelNonuniformityNorm'] = np.sum(np.sum(s, axis=1)**2) / (Ns**2)
+    featuresS['grayLevelNonUniformityNorm'] = np.sum(np.sum(s, axis=1)**2) / (Ns**2)
 
     # Dependence count non-uniformity
-    featuresS['DependenceCountNonuniformity'] = np.sum(np.sum(s, axis=0)**2) / Ns
+    featuresS['dependenceCountNonuniformity'] = np.sum(np.sum(s, axis=0)**2) / Ns
 
     # Dependence count non-uniformity normalized
-    featuresS['DependenceCountNonuniformityNorm'] = np.sum(np.sum(s, axis=0)**2) / (Ns**2)
+    featuresS['dependenceCountNonuniformityNorm'] = np.sum(np.sum(s, axis=0)**2) / (Ns**2)
 
     # Dependence count percentage
-    featuresS['DependenceCountPercentage'] = Ns / numVoxels
+    featuresS['dependenceCountPercentage'] = Ns / numVoxels
 
     # Gray level variance
     iPij = s.T / np.sum(s) * levV
     mu = np.sum(iPij)
     iMinusMuPij = s.T / np.sum(s) * (levV - mu)**2
-    featuresS['GrayLevelVariance'] = np.sum(iMinusMuPij)
+    featuresS['grayLevelVariance'] = np.sum(iMinusMuPij)
 
     # Dependence count variance
     jPij = s / np.sum(s) * lenV
     mu = np.sum(jPij)
     jMinusMuPij = s / np.sum(s) * (lenV - mu)**2
-    featuresS['DependenceCountVariance'] = np.sum(jMinusMuPij)
+    featuresS['dependenceCountVariance'] = np.sum(jMinusMuPij)
 
     # Dependence count entropy
     p = s / np.sum(s)
-    featuresS['DependenceCountEntropy'] = -np.sum(p * np.log2(p + np.finfo(float).eps))
+    featuresS['dependenceCountEntropy'] = -np.sum(p * np.log2(p + np.finfo(float).eps))
 
     # Dependence count energy
-    featuresS['DependenceCountEnergy'] = np.sum(p**2)
+    featuresS['dependenceCountEnergy'] = np.sum(p**2)
 
     return featuresS
 

@@ -21,8 +21,9 @@ def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "
                 C = seg.points
                 z_coord = C[0][2]
                 X, tr = smooth_2D_contour(C, tol, taubin_mu, taubin_factor,catmull_alpha)
-                Z = z_coord * np.ones((X.shape[0],1))
-                seg.points = np.hstack((X,Z))
+                if X.shape[1] == 2:
+                    Z = z_coord * np.ones((X.shape[0],1))
+                    seg.points = np.hstack((X,Z))
     struct_obj.strUID = uid.createUID("structure")
     struct_obj.rasterSegments = rs.generate_rastersegs(struct_obj,planC)
     struct_obj.structureName = struct_obj.structureName + name_suffix
@@ -58,7 +59,7 @@ def smooth_2D_contour(C, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_
     range_lists = []
     if C_jagg == []:
         print('No jagged segments')
-        return C, []
+        return Cxy, []
 
     idx0 = C_jagg[0]
     idxf = 0

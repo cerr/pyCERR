@@ -111,6 +111,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
             offsetsM = offsetsM * glcmVoxelOffset
     else:
         quantized3M = volToEval
+        quantized3M = quantized3M.astype('float')
+        quantized3M[~maskBoundingBox3M] = np.nan
 
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
@@ -319,20 +321,20 @@ def getIBSINameMap():
                 'largeAreaLowGrayLevelEmphasis': 'lzlge',
                 'sizeZoneVariance': 'zs_var',
                 'zoneEntropy': 'zs_entr',
-                'LowDependenceEmphasis': 'lde',
-                'HighDependenceEmphasis': 'hde',
-                'LowGrayLevelCountEmphasis': 'lgce',
-                'HighGrayLevelCountEmphasis': 'hgce',
-                'LowDependenceLowGrayLevelEmphasis': 'ldlge',
-                'LowDependenceHighGrayLevelEmphasis': 'ldhge',
-                'HighDependenceLowGrayLevelEmphasis': 'hdlge',
-                'HighDependenceHighGrayLevelEmphasis': 'hdhge',
-                'DependenceCountNonuniformity': 'dcnu',
-                'DependenceCountNonuniformityNorm': 'dcnu_norm',
-                'DependenceCountPercentage': 'dc_perc',
-                'DependenceCountVariance': 'dc_var',
-                'DependenceCountEntropy': 'dc_entr',
-                'DependenceCountEnergy': 'dc_energy',
+                'lowDependenceEmphasis': 'lde',
+                'highDependenceEmphasis': 'hde',
+                'lowGrayLevelCountEmphasis': 'lgce',
+                'highGrayLevelCountEmphasis': 'hgce',
+                'lowDependenceLowGrayLevelEmphasis': 'ldlge',
+                'lowDependenceHighGrayLevelEmphasis': 'ldhge',
+                'highDependenceLowGrayLevelEmphasis': 'hdlge',
+                'highDependenceHighGrayLevelEmphasis': 'hdhge',
+                'dependenceCountNonuniformity': 'dcnu',
+                'dependenceCountNonuniformityNorm': 'dcnu_norm',
+                'dependenceCountPercentage': 'dc_perc',
+                'dependenceCountVariance': 'dc_var',
+                'dependenceCountEntropy': 'dc_entr',
+                'dependenceCountEnergy': 'dc_energy',
                 'coarseness': 'coarseness',
                 'busyness': 'busyness',
                 'complexity': 'complexity',
@@ -343,6 +345,7 @@ def getIBSINameMap():
 
 
 def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBSI = False):
+
     featClasses = featDict.keys()
     flatFeatDict = {}
     if avgType == 'feature':
@@ -353,28 +356,32 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
         dirString = '2_5D'
     else:
         dirString = '3D'
+
     if mapToIBSI:
-        classDict, featDict = getIBSINameMap()
+        mapClassDict, mapFeatDict = getIBSINameMap()
+
     for featClass in featClasses:
         if mapToIBSI:
-            featClass = classDict[featClass]
+            mapFeatClass = mapClassDict[featClass]
+        else:
+            mapFeatClass = featClass
         for item in featDict[featClass].items():
             itemName = item[0]
             if mapToIBSI:
-                itemName = featDict[itemName]
-            if featClass in ["glcm", "glrlm"]:
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                itemName = mapFeatDict[itemName]
+            if mapFeatClass in ["glcm", "glrlm"]:
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                              '_' + dirString + '_' + avgString] = np.mean(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                              '_' + dirString + '_Median'] = np.median(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                              '_' + dirString + '_StdDev'] = np.std(item[1], ddof=1)
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                              '_' + dirString + '_Min'] = np.min(item[1])
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + \
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                               '_' + dirString + '_Max'] = np.max(item[1])
             else:
-                flatFeatDict[imageType + '_' + featClass + '_' + itemName + '_' + dirString] = item[1]
+                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString] = item[1]
     return flatFeatDict
 
 def writeFeaturesToFile(featList, csvFileName, writeHeader = True):

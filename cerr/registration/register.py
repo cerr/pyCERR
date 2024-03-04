@@ -179,23 +179,43 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     return planC
 
-def get_dvf_vectors(deformS, structNum, planC, sampleRate=1):
+def get_dvf_vectors(deformS, structNum, planC, sampleRate=1, rcsFlag=True):
 
-    # Get surface points
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
-    mask3M = rs.getStrMask(structNum, planC)
     xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
-    #surfPoints = getSurfacePoints(mask3M, sampleRate, 1)
-    #xSurfV = xValsV[surfPoints[:, 1]]
-    #ySurfV = yValsV[surfPoints[:, 0]]
-    #zSurfV = zValsV[surfPoints[:, 2]]
-    surfPolygons =  cerrStr.getContourPolygons(structNum, planC, rcsFlag=False)
-    surfPoints = np.array(surfPolygons[0])
-    for poly in surfPolygons[1:]:
-        surfPoints = np.append(surfPoints, poly, axis=0)
-    xSurfV = surfPoints[:, 0]
-    ySurfV = surfPoints[:, 1]
-    zSurfV = surfPoints[:, 2]
+
+    # # Get surface points
+    # mask3M = rs.getStrMask(structNum, planC)
+    # xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
+    # surfPoints = getSurfacePoints(mask3M, sampleRate, 1)
+    # rSurfV = surfPoints[:, 0]
+    # cSurfV = surfPoints[:, 1]
+    # sSurfV = surfPoints[:, 2]
+    # xSurfV = xValsV[cSurfV]
+    # ySurfV = yValsV[rSurfV]
+    # zSurfV = zValsV[sSurfV]
+
+    # Get (x,y,z) and (r,c,s) points from polygons
+    # surfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
+    # surfPoints = np.array(surfPolygons[0])
+    # for poly in surfPolygons[1:]:
+    #     surfPoints = np.append(surfPoints, poly, axis=0)
+    # xSurfV = surfPoints[:, 0]
+    # ySurfV = surfPoints[:, 1]
+    # zSurfV = surfPoints[:, 2]
+
+    rcsSurfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
+    rcsSurfPoints = np.array(rcsSurfPolygons[0])
+    for poly in rcsSurfPolygons[1:]:
+        rcsSurfPoints = np.append(rcsSurfPoints, poly, axis=0)
+    rSurfV = rcsSurfPoints[:, 0]
+    cSurfV = rcsSurfPoints[:, 1]
+    sSurfV = rcsSurfPoints[:, 2]
+
+    xSurfV = xValsV[cSurfV.astype(int)]
+    ySurfV = yValsV[rSurfV.astype(int)]
+    zSurfV = zValsV[sSurfV.astype(int)]
+
 
     # Get x,y,z deformations at the surface points
     xV, yV, zV = deformS.getDVFXYZVals()
@@ -211,12 +231,31 @@ def get_dvf_vectors(deformS, structNum, planC, sampleRate=1):
     xDeformV = finterp3(xSurfV,ySurfV,zSurfV,xDeformM,xFieldV,yFieldV,zFieldV)
     yDeformV = finterp3(xSurfV,ySurfV,zSurfV,yDeformM,xFieldV,yFieldV,zFieldV)
     zDeformV = finterp3(xSurfV,ySurfV,zSurfV,zDeformM,xFieldV,yFieldV,zFieldV)
-
+    # Convert x,y,zDeformV to CERR virtual coordinates
+    onesV = np.ones_like(xDeformV)
+    zeroV = np.zeros_like(xDeformV)
+    dcmXyzM = np.vstack((xDeformV,yDeformV,zDeformV, onesV))
+    dcmZeroM = np.vstack((zeroV,zeroV,zeroV, onesV))
+    deformPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmXyzM)[:3]
+    zeroPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmZeroM)[:3]
+    cerrXYZM = deformPos - zeroPos
+    xDeformV = cerrXYZM[0,:]
+    yDeformV = cerrXYZM[1,:]
+    zDeformV = cerrXYZM[2,:]
     numPts = len(yDeformV)
     vectors = np.empty((numPts,2,3), dtype=np.float32)
-    if cerrDeform.flipSliceOrderFlag(deformS):
-        zDeformV = - zDeformV
-    for i in range(numPts):
-        vectors[i,0,:] = [-ySurfV[i], xSurfV[i], zSurfV[i]]
-        vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
+    if rcsFlag: # (r,c,s) image coordinates
+        dx = np.abs(np.median(np.diff(xValsV)))
+        dy = np.abs(np.median(np.diff(yValsV)))
+        dz = np.abs(np.median(np.diff(zValsV)))
+        # Convert CERR virtual coords to DICOM Image coords
+        for i in range(numPts):
+            vectors[i,0,:] = [rSurfV[i], cSurfV[i], sSurfV[i]]
+            vectors[i,1,:] = [yDeformV[i]/dy, xDeformV[i]/dx, zDeformV[i]/dz]
+    else: # (x,y,z) physical coordinates
+        if cerrDeform.flipSliceOrderFlag(deformS):
+            zDeformV = - zDeformV
+        for i in range(numPts):
+            vectors[i,0,:] = [-ySurfV[i], xSurfV[i], zSurfV[i]]
+            vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
     return vectors
