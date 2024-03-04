@@ -673,22 +673,22 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
     interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
 
-    def updateSliceAxial(change):
+def updateSliceAxial(change):
         outputSlcAxial = widgets.Output()
         with outputSlcAxial:
             showSlice(change['new'], 'axial')
 
-    def updateSliceSagittal(change):
+def updateSliceSagittal(change):
         outputSlcSagittal = widgets.Output()
         with outputSlcSagittal:
             showSlice(change['new'], 'sagittal')
 
-    def updateSliceCoronal(change):
+def updateSliceCoronal(change):
         outputSlcCoronal = widgets.Output()
         with outputSlcCoronal:
             showSlice(change['new'], 'coronal')
 
-    def createWidgets(imgSize):
+def createWidgets(imgSize):
 
         sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
         outputSlcAxial = widgets.Output()
