@@ -18,6 +18,7 @@ from skimage import measure
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
+from cerr.registration import register
 import cerr.plan_container as pc
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
@@ -67,10 +68,14 @@ def initialize_image_window_widget() -> FunctionGui:
         else:
             return
 
+        # scanDict = {'name': image.name,
+        #              'contrast_limits_range': contrast_limits_range,
+        #              'contrast_limits': contrast_limits,
+        #               'metadata': metaDict }
         scanDict = {'name': image.name,
-                     'contrast_limits_range': contrast_limits_range,
-                     'contrast_limits': contrast_limits,
-                      'metadata': metaDict }
+                    'metadata': metaDict }
+        image.contrast_limits_range = contrast_limits_range
+        image.contrast_limits = contrast_limits
         return (image.data, scanDict, "image")
     return image_window
 
@@ -152,7 +157,10 @@ def initialize_dose_select_widget() -> FunctionGui:
         # note: it *may* be None! so your function should handle the null case
         if image is None:
             return
-        doseDict = {'name': image.name}
+        doseDict = {'name': image.name,
+                    'contrast_limits_range': [],
+                    'contrast_limits': [],
+                    'metadata': {}}
         return (image.data, doseDict, "image")
     return dose_select
 
@@ -161,20 +169,13 @@ def initialize_dose_colorbar_widget() -> FunctionGui:
         mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 10)))
     return mz_canvas
 
-
-def getContourPolygons(strNum, assocScanNum, planC):
-    numSlcs = len(planC.structure[strNum].contour)
-    polygons = []
-    for slc in range(numSlcs):
-        if planC.structure[strNum].contour[slc]:
-            for seg in planC.structure[strNum].contour[slc].segments:
-                rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
-                pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
-                polygons.append(pts)
-    return polygons
+def initialize_dvf_colorbar_widget() -> FunctionGui:
+    with plt.style.context('dark_background'):
+        mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 10)))
+    return mz_canvas
 
 
-def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
+def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, planC, displayMode = '2d'):
 
     if not isinstance(scan_nums, list):
         scan_nums = [scan_nums]
@@ -289,6 +290,7 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
             struct_layer.append(labl)
         elif displayMode.lower() == '2d':
             # polygons = getContourPolygons(str_num, scan_num, planC)
+            # polygons =cerrStr.getContourPolygons(str_num, planC, rcsFlag=True)
             #
             # shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
             #                   edge_color=colr, face_color=[0]*4,
@@ -310,6 +312,42 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
             # shp.colormap = cmap
             shp.contour = 2
             struct_layer.append(shp)
+
+    dvf_layer = []
+    if isinstance(deform_num, (int, float)):
+        deformS = planC.deform[deform_num]
+        scan_num = scn.getScanNumFromUID(planC.structure[str_nums_deform].assocScanUID, planC)
+        scan_affine = scanAffineDict[scan_num]
+        xValsV,yValsV,zValsV = planC.scan[scan_num].getScanXYZVals()
+        dx = np.abs(np.median(np.diff(xValsV)))
+        dy = np.abs(np.median(np.diff(yValsV)))
+        dz = np.abs(np.median(np.diff(zValsV)))
+        resV = np.array([dy,dx,dz])
+        deformStructNum = 0
+        sampleRate = 2
+        rcsFlag = True
+        vectors = register.get_dvf_vectors(deformS, str_nums_deform, planC, sampleRate, rcsFlag)
+        rcsMean = np.median(vectors, axis = 0)[1,:]
+        vectors[:,1,:] -= rcsMean
+        vectors[:,1,:] *= resV
+        lengthV = np.sum(vectors **2, axis = 2)[:,1] ** 0.5
+        maxLength = np.max(lengthV)
+        #vectors[:,1,:] = vectors[:,1,:] / lengthV[:,None]
+        feats = {'length': lengthV} #  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]
+        vect_layr = viewer.add_vectors(vectors, edge_width=0.5, opacity=0.8,
+                                       length=1, name="DVF",
+                                       vector_style="arrow",
+                                       ndim=3, features=feats,
+                                       edge_color='length',
+                                       edge_colormap='husl',
+                                       affine = scan_affine,
+                                       metadata = {'dataclass': 'dvf',
+                                               'planC': planC,
+                                               'deformNum': deform_num
+                                               }
+                                       )
+        dvf_layer.append(vect_layr)
+
 
     viewer.dims.ndisplay = 2
     if displayMode == '3d':
@@ -337,6 +375,7 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
     struct_save_widget = initialize_struct_save_widget()
     dose_select_widget = initialize_dose_select_widget()
     dose_colorbar_widget = initialize_dose_colorbar_widget()
+    dvf_colorbar_widget = initialize_dvf_colorbar_widget()
 
 
     def set_center_slice(label):
@@ -376,7 +415,7 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
         image_window_widget.CT_Window.value = windows_name
         image.contrast_limits_range = rangeVal
         image.contrast_limits = rangeVal
-        uptate_colorbar(image)
+        update_colorbar(image)
         return
 
     def window_changed(CT_Window):
@@ -411,12 +450,13 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
         layer = event.value
         if not hasattr(layer, 'metadata'):
             return
+        imgType = layer.metadata['dataclass'] if 'dataclass' in layer.metadata else ''
         if 'structNum' in layer.metadata and viewer.dims.ndisplay == 2:
             struct_save_widget[0].value = layer
             if isinstance(layer.metadata['isocenter'][0], (int, float)):
                 set_center_slice(layer)
-        else:
-            #uptate_colorbar(layer)
+        elif imgType in ['scan', 'dose']:
+            #update_colorbar(layer)
             image_changed(layer)
 
 
@@ -425,28 +465,47 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
             return
         #mz_canvas = dose_colorbar_widget
         dose = widgt[0].value
-        uptate_colorbar(dose)
+        update_colorbar(dose)
 
     def cmap_changed(event):
         #print(event.value())
-        uptate_colorbar(viewer.layers.selection.active)
+        update_colorbar(viewer.layers.selection.active)
         return
 
-    def uptate_colorbar(image):
+    def update_colorbar(image):
+
+        if image is None:
+            return
         # get Image units
-        imgType = image.metadata['dataclass']
-        planC = image.metadata['planC']
+        imgType = image.metadata['dataclass'] if 'dataclass' in image.metadata else ''
         units = ''
         if imgType == 'scan':
+            planC = image.metadata['planC']
             scanNum = image.metadata['scanNum']
             units = planC.scan[scanNum].scanInfo[0].imageUnits
         elif imgType == 'dose':
+            planC = image.metadata['planC']
             doseNum = image.metadata['doseNum']
             units = planC.dose[doseNum].doseUnits
+        elif imgType == 'dvf':
+            planC = image.metadata['planC']
+            deformNum = image.metadata['deformNum']
+            units = 'cm'
+        else:
+            return
 
         with plt.style.context('dark_background'):
             #mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 0.1)))
-            mz_canvas = dose_colorbar_widget
+            if imgType in  ['scan', 'dose']:
+                minVal = image.contrast_limits_range[0]
+                maxVal = image.contrast_limits_range[1]
+                mz_canvas = dose_colorbar_widget
+            else:
+                minVal = image.edge_contrast_limits[0]
+                maxVal = image.edge_contrast_limits[1]
+                mz_canvas = dvf_colorbar_widget
+
+            norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
             mz_axes = mz_canvas.figure.axes
             if len(mz_axes) == 0:
                 mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4]) #mz_canvas.figure.subplots()
@@ -455,12 +514,16 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
                 colorbar_plt = ax.get_children()
                 for chld in colorbar_plt:
                     del chld
-            minVal = image.contrast_limits_range[0]
-            maxVal = image.contrast_limits_range[1]
-            norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
-            cb1 = mpl.colorbar.ColorbarBase(mz_axes[0], cmap=ListedColormap(image.colormap.colors),
-                                norm=norm,
-                                orientation='vertical')
+
+            if imgType in  ['scan', 'dose']:
+                colors = ListedColormap(image.colormap.colors)
+            else:
+                colors = ListedColormap(image.edge_colormap.colors)
+
+            cb1 = mpl.colorbar.ColorbarBase(mz_axes[0], cmap=colors,
+                            norm=norm,
+                            orientation='vertical')
+
             cb1.set_label(units)
             mz_canvas.draw()
             mz_canvas.flush_events()
@@ -470,7 +533,7 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
         return
 
 
-        # Change slice to center of that structure
+    # Change slice to center of that structure
     struct_save_widget.changed.connect(label_changed)
     image_window_widget.image.changed.connect(image_changed)
     image_window_widget.CT_Window.changed.connect(window_changed)
@@ -478,12 +541,12 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
     image_window_widget.Width.changed.connect(center_width_changed)
     scanWidget = viewer.window.add_dock_widget([image_window_widget], area='left', name="Window", tabify=True)
     structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Segmentation", tabify=True)
-    colorbars_dock = viewer.window.add_dock_widget([dose_colorbar_widget], area='right', name="Colorbar", tabify=False)
+    colorbars_dock = viewer.window.add_dock_widget([dose_colorbar_widget], area='right', name="Image Colorbar", tabify=True)
+    dvf_dock = viewer.window.add_dock_widget([dvf_colorbar_widget], area='right', name="DVF Colorbar", tabify=True)
     #colorbars_dock.resize(5, 20)
 
     # This line sets the index of the active DockWidget
-    structWidget.parent().findChildren(QTabBar)[0].setCurrentIndex(0)
-
+    scanWidget.parent().findChildren(QTabBar)[0].setCurrentIndex(0)
 
     viewer.layers.events.inserted.connect(struct_add_widget.reset_choices)
     viewer.layers.events.inserted.connect(struct_save_widget.reset_choices)
@@ -505,52 +568,68 @@ def showNapari(scan_nums, str_nums, dose_nums, planC, displayMode = '2d'):
     #dose_select_widget.changed.connect(dose_changed)
 
     viewer.layers.selection.active = scan_layers[0]
+    update_colorbar(scan_layers[0])
+    if len(dvf_layer) > 0:
+        update_colorbar(dvf_layer[0])
 
     napari.run()
 
-    return viewer, scan_layers, dose_layers, struct_layer
+    # Set Image colorbar active
+    dvf_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
 
-    # mask3M = rs.getStrMask(struct_num,planC)
-    # sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
-    # fig,ax = plt.subplots(1,2)
-    # h_scan = ax[0].imshow(sa[:,:,scan_slc_num])
-    # h_struct = ax[0].imshow(mask3M[:,:,scan_slc_num],alpha=alpha)
-    # plt.show(block=True)
-    # return h_scan,h_struct
+    return viewer, scan_layers, dose_layers, struct_layer, dvf_layer
 
 
-def show_dvf(baseScanNum, structNum, planC, viewer):
-    xValsV, yValsV, zValsV = planC.scan[baseScanNum].getScanXYZVals()
-    mask3M = rs.getStrMask(structNum, planC)
-    # Get the surface points for the structure mask
-    surf_points = getSurfacePoints(mask3M)
-    sample_rate = 1
-    dx = abs(np.median(np.diff(xValsV)))
-    dz = abs(np.median(np.diff(zValsV)))
-    while surf_points.shape[0] > 20000:
-        sample_rate += 1
-        if dz / dx < 2:
-            surf_points = getSurfacePoints(mask3M, sample_rate, sample_rate)
-        else:
-            surf_points = getSurfacePoints(mask3M, sample_rate, 1)
-    xSurfV = xValsV[surf_points[:, 1]]
-    ySurfV = yValsV[surf_points[:, 0]]
-    zSurfV = zValsV[surf_points[:, 2]]
-
-    # Get x,y,z deformations at surface points
-    xDeformV = []
-    yDeformV = []
-    zDeformV = []
-    numPts = len(xSurfV)
-    vectors = np.zeros((numPts, 2, 3), dtype=np.float32)
-    vectors[:,1,0] = -yDeformV
-    vectors[:,1,1] = xDeformV
-    vectors[:,1,2] = zDeformV
-    vectors[:,0] = [-ySurfV, xSurfV, zSurfV]
-    vect_layr = viewer.add_vectors(vectors, edge_width=0.5, opacity=0.3,
-                                   length=1, name="DVF",
-                                   ndim=3)
-
+#
+# def showDVF(deform_num, str_nums_deform, planC, viewer):
+#     if not isinstance(deform_num, (int, float)):
+#         return
+#
+#     deformS = planC.deform[deform_num]
+#     scan_num = scn.getScanNumFromUID(planC.structure[str_nums_deform].assocScanUID, planC)
+#     x,y,z = planC.scan[scan_num].getScanXYZVals()
+#     y = -y # negative since napari viewer y increases from top to bottom
+#     dx = x[1] - x[0]
+#     dy = y[1] - y[0]
+#     dz = z[1] - z[0]
+#     scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
+#     #scan_affine = scanAffineDict[scan_num]
+#     xValsV,yValsV,zValsV = planC.scan[scan_num].getScanXYZVals()
+#     dx = np.abs(np.median(np.diff(xValsV)))
+#     dy = np.abs(np.median(np.diff(yValsV)))
+#     dz = np.abs(np.median(np.diff(zValsV)))
+#     resV = np.array([dy,dx,dz])
+#     deformStructNum = 0
+#     sampleRate = 2
+#     rcsFlag = True
+#     vectors = register.get_dvf_vectors(deformS, str_nums_deform, planC, sampleRate, rcsFlag)
+#     rcsMean = np.median(vectors, axis = 0)[1,:]
+#     vectors[:,1,:] -= rcsMean
+#     vectors[:,1,:] *= resV
+#     lengthV = np.sum(vectors **2, axis = 2)[:,1] ** 0.5
+#     maxLength = np.max(lengthV)
+#     #vectors[:,1,:] = vectors[:,1,:] / lengthV[:,None]
+#     feats = {'length': lengthV} #  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]
+#     vect_layr = viewer.add_vectors(vectors, edge_width=0.5, opacity=0.8,
+#                                    length=1, name="DVF",
+#                                    vector_style="arrow",
+#                                    ndim=3, features=feats,
+#                                    edge_color='length',
+#                                    edge_colormap='husl',
+#                                    affine = scan_affine,
+#                                    metadata = {'dataclass': 'dvf',
+#                                            'planC': planC,
+#                                            'deformNum': deform_num
+#                                            }
+#                                        )
+#     update_colorbar(dvf_layer[0])
+#
+#     napari.run()
+#
+#     # Set Image colorbar active
+#     dvf_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
+#
+#     return vect_layr
 
 
 def show_scan_dose(scan_num,dose_num,slc_num,planC):
@@ -566,21 +645,55 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     plt.show(block=True)
     return h_scan, h_dose
 
-def windowImage(image, windowCenter, windowWidth):
-    imgMin = windowCenter - windowWidth // 2
-    imgMax = windowCenter + windowWidth // 2
-    windowedImage = image.copy()
-    windowedImage[windowedImage < imgMin] = imgMin
-    windowedImage[windowedImage > imgMax] = imgMax
-    return windowedImage
-
-def rotateImage(img):
-    return(list(zip(*img)))
 
 def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     """
     Interactive plot using matplotlib for jupyter notebooks
     """
+
+    def windowImage(image, windowCenter, windowWidth):
+        imgMin = windowCenter - windowWidth // 2
+        imgMax = windowCenter + windowWidth // 2
+        windowedImage = image.copy()
+        windowedImage[windowedImage < imgMin] = imgMin
+        windowedImage[windowedImage > imgMax] = imgMax
+        return windowedImage
+
+    def rotateImage(img):
+        return(list(zip(*img)))
+
+    def updateSliceAxial(change):
+        outputSlcAxial = widgets.Output()
+        with outputSlcAxial:
+            showSlice(change['new'], 'axial')
+
+    def updateSliceSagittal(change):
+        outputSlcSagittal = widgets.Output()
+        with outputSlcSagittal:
+            showSlice(change['new'], 'sagittal')
+
+    def updateSliceCoronal(change):
+        outputSlcCoronal = widgets.Output()
+        with outputSlcCoronal:
+            showSlice(change['new'], 'coronal')
+
+    def createWidgets(imgSize):
+
+        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
+        outputSlcAxial = widgets.Output()
+
+        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
+        outputSlcSagittal = widgets.Output()
+
+        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
+        outputSlcCoronal = widgets.Output()
+
+        sliceSliderAxial.observe(updateSliceAxial, names='value')
+        sliceSliderSagittal.observe(updateSliceSagittal, names='value')
+        sliceSliderCoronal.observe(updateSliceCoronal, names='value')
+
+        return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
+
 
     # Extract scan and mask
     scan3M = planC.scan[scanNum].getScanArray()
@@ -605,7 +718,8 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         clear_output(wait=True)
         print(view + ' view slice ' + str(slcNum))
 
-        if 'fig' in locals():
+        fig = None
+        if fig is not None: #'fig' in locals():
             fig.remove()
         fig, (ax,ax_legend) = plt.subplots(1,2)
         ax_legend.set_visible(False)
@@ -624,7 +738,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
             windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
             extent = extentCor
         else:
-            raise Exeception('Invalid view type: ' + view)
+            raise ValueError('Invalid view type: ' + view)
 
         # Display scan
         im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
@@ -672,35 +786,3 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     interact(showSlice, slcNum=sliceSliderAxial.value, view='axial')
     interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
     interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
-
-def updateSliceAxial(change):
-    outputSlcAxial = widgets.Output()
-    with outputSlcAxial:
-        showSlice(change['new'], 'axial')
-
-def updateSliceSagittal(change):
-    outputSlcSagittal = widgets.Output()
-    with outputSlcSagittal:
-        showSlice(change['new'], 'sagittal')
-
-def updateSliceCoronal(change):
-    outputSlcCoronal = widgets.Output()
-    with outputSlcCoronal:
-        showSlice(change['new'], 'coronal')
-
-def createWidgets(imgSize):
-
-    sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
-    outputSlcAxial = widgets.Output()
-
-    sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
-    outputSlcSagittal = widgets.Output()
-
-    sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
-    outputSlcCoronal = widgets.Output()
-
-    sliceSliderAxial.observe(updateSliceAxial, names='value')
-    sliceSliderSagittal.observe(updateSliceSagittal, names='value')
-    sliceSliderCoronal.observe(updateSliceCoronal, names='value')
-
-    return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
