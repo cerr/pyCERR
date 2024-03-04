@@ -31,7 +31,7 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
         dxV = np.append(dxV, 1)  # DUMMY 1
         slopeV = 1.0 / dxV
         #slopeV[binIndex == len(zFieldV)-1] = 0
-        slcs = yV[binIndex] + slopeV[binIndex] * (zInterpV - zFieldV[binIndex - 1])
+        slcs = yV[binIndex-1] + slopeV[binIndex-1] * (zInterpV - zFieldV[binIndex - 2])
         slcs[np.isnan(slcs)] = np.nan
     else:
         slcs = np.ones_like(cols)  # This effectively negates Z.  All values are in plane.  Bad idea?

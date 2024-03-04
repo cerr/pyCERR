@@ -303,6 +303,12 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             paramS["settings"]['resample']['resolutionXCm'], \
             paramS["settings"]['resample']['resolutionYCm'], \
             paramS["settings"]['resample']['resolutionZCm']
+        if pixelSpacingX == 0:
+            pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
+        if pixelSpacingY == 0:
+            pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
+        if pixelSpacingZ == 0:
+            pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
         scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod
         if scanInterpMethod == "linear":

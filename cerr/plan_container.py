@@ -62,6 +62,9 @@ def load_dcm_dir(dcm_dir, initplanC = ''):
         initplanC - An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
     OUTPUT - An instance of PlanC
     """
+    import os
+    if not os.path.isdir(dcm_dir):
+        raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
     df_img = parse_dcm_dir(dcm_dir)
@@ -295,8 +298,6 @@ def load_nii_vf(dvf_file, baseScanNum, planC):
         imagePositionPatientV[slc,:] = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
         zValuesV[slc] = - np.sum(slice_normal * imagePositionPatientV[slc,:]) / 10
     sort_index = np.argsort(zValuesV)
-    print('======= sorted index =======')
-    print(sort_index)
     zValuesV = zValuesV[sort_index]
     imagePositionPatientV = imagePositionPatientV[sort_index,:]
     dvf_matrix = dvf_matrix[:,:,sort_index,:]
