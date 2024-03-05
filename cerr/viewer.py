@@ -331,9 +331,9 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
         lengthV = np.sum(vectors **2, axis = 2)[:,1] ** 0.5
         maxLength = np.max(lengthV)
         #vectors[:,1,:] = vectors[:,1,:] / lengthV[:,None]
-        feats = {'length': lengthV} #  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]
-        vect_layr = viewer.add_vectors(vectors, edge_width=0.5, opacity=0.8,
-                                       length=1, name="DVF",
+        feats = {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
+        vect_layr = viewer.add_vectors(vectors, edge_width=0.3, opacity=0.8,
+                                       length=1, name="Deformation Vector Field",
                                        vector_style="arrow",
                                        ndim=3, features=feats,
                                        edge_color='length',
@@ -488,7 +488,8 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
         elif imgType == 'dvf':
             planC = image.metadata['planC']
             deformNum = image.metadata['deformNum']
-            units = 'mm'
+            featureName = image._edge.color_properties.name
+            units = featureName + ' (mm)'
         else:
             return
 
@@ -562,6 +563,8 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
         #scan_lyr.events.contrast_limits_range.connect(layer_active)
         scan_lyr.events.colormap.connect(cmap_changed)
         scan_lyr.events.contrast_limits_range.connect(cmap_changed)
+    for vect_layr in dvf_layer:
+        vect_layr.events.edge_color.connect(cmap_changed)
 
     #dose_select_widget.changed.connect(dose_changed)
 
