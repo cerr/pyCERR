@@ -31,26 +31,26 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
         dxV = np.append(dxV, 1)  # DUMMY 1
         slopeV = 1.0 / dxV
         #slopeV[binIndex == len(zFieldV)-1] = 0
-        slcs = yV[binIndex-1] + slopeV[binIndex-1] * (zInterpV - zFieldV[binIndex - 2])
+        slcs = yV[binIndex-1] + slopeV[binIndex-1] * (zInterpV - zFieldV[binIndex - 1])
         slcs[np.isnan(slcs)] = np.nan
     else:
         slcs = np.ones_like(cols)  # This effectively negates Z.  All values are in plane.  Bad idea?
 
-    slcs = slcs - 1
+    #slcs = slcs - 1
 
     # Find indices out of bounds.
-    colNaN = np.logical_or(cols >= siz[1], cols < 1)
-    colLast = (cols - siz[1]) ** 2 < 1e-3
+    colNaN = (cols > siz[1]-1) | (cols < 0)
+    colLast = (cols - siz[1]-1) ** 2 < 1e-3
     yInterpColLastV = yInterpV[colLast]
     zInterpColLastV = zInterpV[colLast]
 
-    rowNaN = np.logical_or(rows >= siz[0], rows < 1)
-    rowLast = (rows - siz[0]) ** 2 < 1e-3
+    rowNaN = (rows > siz[0]-1) | (rows < 0)
+    rowLast = (rows - siz[0]-1) ** 2 < 1e-3
     xInterpRowLastV = xInterpV[rowLast]
     zInterpRowLastV = zInterpV[rowLast]
 
-    slcNaN = np.logical_or(np.isnan(slcs), np.logical_or(slcs < 1, slcs >= siz[2]))
-    slcLast = (slcs - siz[2]) ** 2 < 1e-3
+    slcNaN = np.isnan(slcs) | (slcs < 0) | (slcs > siz[2]-1)
+    slcLast = (slcs - siz[2]-1) ** 2 < 1e-3
     xInterpLastV = xInterpV[slcLast]
     yInterpLastV = yInterpV[slcLast]
 

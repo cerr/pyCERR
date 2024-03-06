@@ -9,6 +9,8 @@ import cerr.plan_container as pc
 from cerr.contour import rasterseg as rs
 from cerr.utils.mask import getSurfacePoints
 from cerr.utils.interp import finterp3
+from cerr.utils.bbox import compute_boundingbox
+from cerr.radiomics import preprocess
 import numpy as np
 
 def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir):
@@ -179,45 +181,67 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     return planC
 
-def get_dvf_vectors(deformS, structNum, planC, sampleRate=1, rcsFlag=True):
+def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0]):
 
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
+    zStart = zValsV[0]
 
-    # # Get surface points
-    # mask3M = rs.getStrMask(structNum, planC)
-    # xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
-    # surfPoints = getSurfacePoints(mask3M, sampleRate, 1)
-    # rSurfV = surfPoints[:, 0]
-    # cSurfV = surfPoints[:, 1]
-    # sSurfV = surfPoints[:, 2]
-    # xSurfV = xValsV[cSurfV]
-    # ySurfV = yValsV[rSurfV]
-    # zSurfV = zValsV[sSurfV]
+    if structNum is not None and surfFlag:
+        # Get surface points from structure contours
+        rcsSurfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
+        rcsSurfPoints = np.array(rcsSurfPolygons[0])
+        for poly in rcsSurfPolygons[1:]:
+            rcsSurfPoints = np.append(rcsSurfPoints, poly, axis=0)
+        rSurfV = rcsSurfPoints[:, 0]
+        cSurfV = rcsSurfPoints[:, 1]
+        sSurfV = rcsSurfPoints[:, 2]
 
-    # Get (x,y,z) and (r,c,s) points from polygons
-    # surfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
-    # surfPoints = np.array(surfPolygons[0])
-    # for poly in surfPolygons[1:]:
-    #     surfPoints = np.append(surfPoints, poly, axis=0)
-    # xSurfV = surfPoints[:, 0]
-    # ySurfV = surfPoints[:, 1]
-    # zSurfV = surfPoints[:, 2]
+        xSurfV = xValsV[cSurfV.astype(int)]
+        ySurfV = yValsV[rSurfV.astype(int)]
+        zSurfV = zValsV[sSurfV.astype(int)]
 
-    rcsSurfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
-    rcsSurfPoints = np.array(rcsSurfPolygons[0])
-    for poly in rcsSurfPolygons[1:]:
-        rcsSurfPoints = np.append(rcsSurfPoints, poly, axis=0)
-    rSurfV = rcsSurfPoints[:, 0]
-    cSurfV = rcsSurfPoints[:, 1]
-    sSurfV = rcsSurfPoints[:, 2]
+    elif not surfFlag:
+        if structNum is not None:
+            mask3M = rs.getStrMask(structNum, planC)
+            rmin,rmax,cmin,cmax,smin,smax,_ = compute_boundingbox(mask3M)
+            xValsV = xValsV[cmin:cmax+1]
+            yValsV = yValsV[rmin:rmax+1]
+            zValsV = zValsV[smin:smax+1]
 
-    xSurfV = xValsV[cSurfV.astype(int)]
-    ySurfV = yValsV[rSurfV.astype(int)]
-    zSurfV = zValsV[sSurfV.astype(int)]
+        pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
+        pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
+        pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
+        origRes = [pixelSpacingX, pixelSpacingY, pixelSpacingZ]
+
+        outputResV = [outputResV[i] if outputResV[i] > 0 else origRes[i] for i,_ in enumerate(outputResV)]
+
+        grid_resample_method = 'center'
+        [xResampleV,yResampleV,zResampleV] = preprocess.getResampledGrid(outputResV,\
+                                                xValsV, yValsV, zValsV, grid_resample_method)
+        xM, yM, zM = np.meshgrid(xResampleV,yResampleV,zResampleV)
+        xSurfV = xM.flatten()
+        ySurfV = yM.flatten()
+        zSurfV = zM.flatten()
+
+        scaleX = planC.scan[assocScanNum].scanInfo[0].grid2Units
+        scaleY = planC.scan[assocScanNum].scanInfo[0].grid1Units
+        imageSizeV = [planC.scan[assocScanNum].scanInfo[0].sizeOfDimension1,
+                      planC.scan[assocScanNum].scanInfo[0].sizeOfDimension2]
+
+        # Get any offset of CT scans to apply (neg) to structures
+        xCTOffset = planC.scan[assocScanNum].scanInfo[0].xOffset \
+            if planC.scan[assocScanNum].scanInfo[0].xOffset else 0
+        yCTOffset = planC.scan[assocScanNum].scanInfo[0].yOffset \
+            if planC.scan[assocScanNum].scanInfo[0].yOffset else 0
+
+        rSurfV, cSurfV = rs.aapmtom(xSurfV/scaleX, ySurfV/scaleY, xCTOffset / scaleX,
+                             yCTOffset / scaleY, imageSizeV)
+
+        sSurfV = (zSurfV - zStart) / pixelSpacingZ
 
 
-    # Get x,y,z deformations at the surface points
+    # Get x,y,z deformations at selected points
     xV, yV, zV = deformS.getDVFXYZVals()
     delta = 1e-8
     zV[0] = zV[0] - 1e-3
@@ -239,11 +263,13 @@ def get_dvf_vectors(deformS, structNum, planC, sampleRate=1, rcsFlag=True):
     deformPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmXyzM)[:3]
     zeroPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmZeroM)[:3]
     cerrXYZM = deformPos - zeroPos
-    xDeformV = cerrXYZM[0,:]
-    yDeformV = cerrXYZM[1,:]
-    zDeformV = cerrXYZM[2,:]
+    # DVF in mm (Note that CERR coordinate system is in cm.)
+    xDeformV = cerrXYZM[0,:] * 10
+    yDeformV = cerrXYZM[1,:] * 10
+    zDeformV = cerrXYZM[2,:] * 10
     numPts = len(yDeformV)
     vectors = np.empty((numPts,2,3), dtype=np.float32)
+    rcsFlag = True # an input argument?
     if rcsFlag: # (r,c,s) image coordinates
         dx = np.abs(np.median(np.diff(xValsV)))
         dy = np.abs(np.median(np.diff(yValsV)))
@@ -251,7 +277,10 @@ def get_dvf_vectors(deformS, structNum, planC, sampleRate=1, rcsFlag=True):
         # Convert CERR virtual coords to DICOM Image coords
         for i in range(numPts):
             vectors[i,0,:] = [rSurfV[i], cSurfV[i], sSurfV[i]]
-            vectors[i,1,:] = [yDeformV[i]/dy, xDeformV[i]/dx, zDeformV[i]/dz]
+            #vectors[i,1,:] = [yDeformV[i]/dy, xDeformV[i]/dx, zDeformV[i]/dz]
+            vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
+        deformMedian = np.median(vectors, axis = 0)[1,:]
+        vectors[:,1,:] -= deformMedian
     else: # (x,y,z) physical coordinates
         if cerrDeform.flipSliceOrderFlag(deformS):
             zDeformV = - zDeformV

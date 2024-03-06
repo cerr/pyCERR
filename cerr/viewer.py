@@ -174,7 +174,7 @@ def initialize_dvf_colorbar_widget() -> FunctionGui:
     return mz_canvas
 
 
-def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, planC, displayMode = '2d'):
+def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode = '2d'):
 
     if not isinstance(scan_nums, list):
         scan_nums = [scan_nums]
@@ -313,35 +313,18 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
             struct_layer.append(shp)
 
     dvf_layer = []
-    if isinstance(deform_num, (int, float)):
-        deformS = planC.deform[deform_num]
-        scan_num = scn.getScanNumFromUID(planC.structure[str_nums_deform].assocScanUID, planC)
-        scan_affine = scanAffineDict[scan_num]
-        xValsV,yValsV,zValsV = planC.scan[scan_num].getScanXYZVals()
-        dx = np.abs(np.median(np.diff(xValsV)))
-        dy = np.abs(np.median(np.diff(yValsV)))
-        dz = np.abs(np.median(np.diff(zValsV)))
-        resV = np.array([dy,dx,dz]) * 10
-        sampleRate = 2
-        rcsFlag = True
-        vectors = register.get_dvf_vectors(deformS, str_nums_deform, planC, sampleRate, rcsFlag)
-        rcsMedian = np.median(vectors, axis = 0)[1,:]
-        vectors[:,1,:] -= rcsMedian
-        vectors[:,1,:] *= resV
-        lengthV = np.sum(vectors **2, axis = 2)[:,1] ** 0.5
-        maxLength = np.max(lengthV)
-        #vectors[:,1,:] = vectors[:,1,:] / lengthV[:,None]
-        feats = {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
+    if vectors_dict and 'vectors' in vectors_dict:
+        vectors = vectors_dict['vectors']
+        feats = vectors_dict['features']
+        scan_affine = scanAffineDict[0]# {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
         vect_layr = viewer.add_vectors(vectors, edge_width=0.3, opacity=0.8,
                                        length=1, name="Deformation Vector Field",
                                        vector_style="arrow",
                                        ndim=3, features=feats,
-                                       edge_color='length',
                                        edge_colormap='husl',
                                        affine = scan_affine,
                                        metadata = {'dataclass': 'dvf',
-                                               'planC': planC,
-                                               'deformNum': deform_num
+                                               'planC': planC
                                                }
                                        )
         dvf_layer.append(vect_layr)
@@ -390,8 +373,11 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
     def image_changed(image):
         if image is None:
             return
-        if 'structNum' in image.metadata:
+        imgType = image.metadata['dataclass'] if 'dataclass' in image.metadata else ''
+        if not imgType in ['scan', 'dose']:
             return
+        #if 'structNum' in image.metadata:
+        #    return
         if 'window' not in image.metadata:
             return
 
@@ -486,10 +472,9 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
             doseNum = image.metadata['doseNum']
             units = planC.dose[doseNum].doseUnits
         elif imgType == 'dvf':
-            planC = image.metadata['planC']
-            deformNum = image.metadata['deformNum']
+            #planC = image.metadata['planC']
             featureName = image._edge.color_properties.name
-            units = featureName + ' (mm)'
+            units = featureName
         else:
             return
 
@@ -500,8 +485,8 @@ def showNapari(scan_nums, str_nums, dose_nums, deform_num, str_nums_deform, plan
                 maxVal = image.contrast_limits_range[1]
                 mz_canvas = dose_colorbar_widget
             else:
-                minVal = image.edge_contrast_limits[0]
-                maxVal = image.edge_contrast_limits[1]
+                minVal = image.properties[featureName].min() #image.edge_contrast_limits[0]
+                maxVal = image.properties[featureName].max() #image.edge_contrast_limits[1]
                 mz_canvas = dvf_colorbar_widget
 
             norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
