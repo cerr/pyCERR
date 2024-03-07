@@ -111,8 +111,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
             offsetsM = offsetsM * glcmVoxelOffset
     else:
         quantized3M = volToEval
-        quantized3M = quantized3M.astype('float')
-        quantized3M[~maskBoundingBox3M] = np.nan
+    quantized3M = quantized3M.astype('float')
+    quantized3M[~maskBoundingBox3M] = np.nan
 
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
