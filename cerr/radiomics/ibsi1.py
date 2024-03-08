@@ -111,8 +111,6 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
             offsetsM = offsetsM * glcmVoxelOffset
     else:
         quantized3M = volToEval
-    quantized3M = quantized3M.astype('float')
-    quantized3M[~maskBoundingBox3M] = np.nan
 
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
@@ -369,7 +367,7 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
             itemName = item[0]
             if mapToIBSI:
                 itemName = mapFeatDict[itemName]
-            if mapFeatClass in ["glcm", "glrlm"]:
+            if mapFeatClass in ["cm", "rlm"]:
                 flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                              '_' + dirString + '_' + avgString] = np.mean(item[1])
                 flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
@@ -381,7 +379,10 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
                 flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
                               '_' + dirString + '_Max'] = np.max(item[1])
             else:
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString] = item[1]
+                if mapFeatClass in ["morph", "stat"]:
+                    flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName] = item[1]
+                else:
+                    flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString] = item[1]
     return flatFeatDict
 
 def writeFeaturesToFile(featList, csvFileName, writeHeader = True):

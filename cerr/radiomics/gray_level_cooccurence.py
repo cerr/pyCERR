@@ -40,7 +40,7 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
     # else:
     #     cooccurM = lil_matrix((numCoOcs, numOffsets), dtype=np.float32)
     if cooccurType == 1:
-        cooccurM = np.empty((numCoOcs, 1), dtype=np.float32)
+        cooccurM = np.empty((numCoOcs,1), dtype=np.float32)
     else:
         cooccurM = np.empty((numCoOcs, numOffsets), dtype=np.float32)
 
@@ -51,12 +51,14 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
         slc2M = slc2M[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)] + (slc1M - 1) * lq
         coccurForOffV = np.histogram(slc2M.flatten(), bins=numCoOcs-1)[1:]
         if cooccurType == 1:
-            cooccurM += coccurForOffV
+            cooccurM += np.array(np.reshape(coccurForOffV,(numCoOcs,1)))
+            cooccurM += cooccurM[indRowV.astype(int)-1]
         else:
             cooccurM[:,off] = np.array(coccurForOffV)
+            cooccurM += cooccurM[np.ix_(indRowV.astype(int)-1, range(numOffsets))]
 
     # Ensure symmetry
-    cooccurM += cooccurM[np.ix_(indRowV.astype(int)-1, range(numOffsets))]
+
 
     # Remove rows and columns with NaN
     #cooccurM = cooccurM.tocsr()

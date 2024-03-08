@@ -1,16 +1,18 @@
 import numpy as np
 from scipy.ndimage.measurements import label
 
-def calcSZM(quantizedM, nL, szmType):
+def calcSZM(quantized3M, nL, szmType):
     if szmType == 1:
         s = np.ones((3,3,3))
     else:
-        s = np.ones((3,3))
+        s = np.ones((3,3,0))
 
-    szmM = np.zeros((nL, quantizedM.size), dtype=int)
+    szmM = np.zeros((nL, quantized3M.size), dtype=int)
     maxSiz = 0
-    for level in range(1, nL + 1):
-        connM, num_features = label(quantizedM == level, structure=s)
+    for level in range(1, nL+1):
+
+        if szmType == 1:
+            connM, num_features = label(quantized3M == level, structure=s)
         regiosSizV = np.bincount(connM[connM > 0])
         if len(regiosSizV) > 0:
             maxSiz = max(maxSiz, max(regiosSizV))
