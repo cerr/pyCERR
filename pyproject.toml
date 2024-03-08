@@ -33,6 +33,7 @@ dependencies = [
     'PyWavelets',
     'pandas',
     'shapelysmooth',
+    'ipywidgets',
     'napari[all]'
 ]
 

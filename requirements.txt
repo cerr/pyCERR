@@ -10,4 +10,5 @@ scikit-image
 PyWavelets
 pandas
 shapelysmooth
+ipywidgets
 napari[all]
