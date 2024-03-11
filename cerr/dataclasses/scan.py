@@ -334,7 +334,10 @@ class Scan:
             elif imgUnits in ['KBQCC', 'KBQML']:
                 imgMUnits = imgMUnits * 1e6  # Bq/L
             else:
-                raise ValueError('SUV calculation is supported only for imageUnits BQML and CNTS')
+                #raise ValueError('SUV calculation is supported only for imageUnits BQML and CNTS')
+                import warnings
+                warnings.warn("'SUV calculation is supported only for imageUnits BQML and CNTS'")
+                return
 
             decayCorrection = headerSlcS.decayCorrection
             if decayCorrection == 'START':
@@ -465,43 +468,8 @@ def dcm_hhmmss(time_str):
 def get_slice_position(scan_info_item):
     return scan_info_item[1].zValue
 
-def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
-    s_info = scn_info.ScanInfo()
+def populate_scan_info_fields(s_info, ds):
     s_info.frameOfReferenceUID = ds.FrameOfReferenceUID
-    #s_info.seriesDescription = ds.seriesDescription
-    if hasattr(ds,'RescaleSlope'): s_info.rescaleSlope = ds.RescaleSlope
-    if hasattr(ds,'RescaleIntercept'): s_info.rescaleIntercept = ds.RescaleIntercept
-    if ("2005","100E") in ds: s_info.scaleSlope = ds["2005","100E"].value
-    if ("2005","100D") in ds: s_info.scaleIntercept = ds["2005","100D"].value
-    if hasattr(ds,'RealWorldValueSlope'): s_info.realWorldValueSlope = ds.RealWorldValueSlope
-    if ("0040","9096") in ds:
-        s_info.realWorldValueIntercept = ds["0040","9096"][0]["0040","9224"].value
-        s_info.realWorldValueSlope = ds["0040","9096"][0]["0040","9225"].value
-        if ("0040","08EA") in ds["0040","9096"][0]:
-            if ("0008","0100") in ds["0040","9096"][0]["0040","08EA"][0]:
-                s_info.realWorldMeasurCodeMeaning = ds["0040","9096"][0]["0040","08EA"][0]["0008","0100"].value
-            elif ("0008","0119") in ds["0040","9096"][0]["0040","08EA"][0]:
-                s_info.realWorldMeasurCodeMeaning = ds["0040","9096"][0]["0040","08EA"][0]["0008","0119"].value
-
-    if ("2005","140B") in ds: s_info.philipsImageUnits = ds["2005","140B"].value
-    if ("2005","140A") in ds: s_info.philipsRescaleSlope = ds["2005","140A"].value
-    if ("2005","1409") in ds: s_info.philipsRescaleIntercept = ds["2005","1409"].value
-    s_info.grid1Units = ds.PixelSpacing[1] / 10
-    s_info.grid2Units = ds.PixelSpacing[0] / 10
-    s_info.sizeOfDimension1 = ds.Rows
-    s_info.sizeOfDimension2 = ds.Columns
-    s_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
-    s_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
-    slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
-                   - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
-    s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-    #s_info.xOffset
-    #s_info.yOffset
-    #s_info.CTAir
-    #s_info.CTWater
-    s_info.sliceThickness = ds.SliceThickness / 10
-    #s_info.siteOfInterest
-    #s_info.unitNumber = ds.ManufacturerModelName
     s_info.imageType = ds.Modality
     if not "SCAN" in s_info.imageType.upper():
         s_info.imageType = s_info.imageType + " SCAN"
@@ -514,7 +482,9 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
     s_info.seriesInstanceUID = ds.SeriesInstanceUID
     s_info.studyInstanceUID = ds.StudyInstanceUID
 
-    #bValue
+    s_info.sizeOfDimension1 = ds.Rows
+    s_info.sizeOfDimension2 = ds.Columns
+
     if hasattr(ds,"PatientName"): s_info.patientName = ds.PatientName
     if hasattr(ds,"PatientID"): s_info.patientID = ds.PatientID
     if hasattr(ds,"AcquisitionDate"): s_info.acquisitionDate = ds.AcquisitionDate
@@ -540,9 +510,32 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
     if hasattr(ds,"WindowCenter"): s_info.windowCenter = ds.WindowCenter
     if hasattr(ds,"WindowWidth"): s_info.windowWidth = ds.WindowWidth
 
+    if ("2005","140B") in ds: s_info.philipsImageUnits = ds["2005","140B"].value
+    if ("2005","140A") in ds: s_info.philipsRescaleSlope = ds["2005","140A"].value
+    if ("2005","1409") in ds: s_info.philipsRescaleIntercept = ds["2005","1409"].value
+
+    return s_info
+
+def populate_real_world_fields(s_info, perFrameSeq):
+    if 'RealWorldValueMappingSequence' in perFrameSeq:
+        RealWorldValueMappingSeq = perFrameSeq.RealWorldValueMappingSequence[0]
+        if hasattr(RealWorldValueMappingSeq,'RealWorldValueSlope'):
+            s_info.realWorldValueSlope = RealWorldValueMappingSeq.RealWorldValueSlope
+        if hasattr(RealWorldValueMappingSeq,'RealWorldValueIntercept'):
+            s_info.realWorldValueIntercept = RealWorldValueMappingSeq.RealWorldValueIntercept
+        if ("0040","08EA") in RealWorldValueMappingSeq:
+            if ("0008","0100") in RealWorldValueMappingSeq["0040","08EA"][0]:
+                s_info.realWorldMeasurCodeMeaning = RealWorldValueMappingSeq["0040","08EA"][0]["0008","0100"].value
+            elif ("0008","0119") in RealWorldValueMappingSeq["0040","08EA"][0]:
+                s_info.realWorldMeasurCodeMeaning = RealWorldValueMappingSeq["0040","08EA"][0]["0008","0119"].value
+            if ("0008","0104") in RealWorldValueMappingSeq["0040","08EA"][0]:
+                s_info.realWorldMeasurCodeMeaning = RealWorldValueMappingSeq["0040","08EA"][0]["0008","0104"].value
+    return s_info
+
+def populate_radiopharma_fields(s_info, seq):
     # populate radiopharma info
-    if ("0054","0016") in ds:
-        radiopharmaInfoSeq = ds["0054","0016"].value[0]
+    if ("0054","0016") in seq:
+        radiopharmaInfoSeq = seq["0054","0016"].value[0]
         if hasattr(radiopharmaInfoSeq,"RadiopharmaceuticalStartDateTime"):
             s_info.injectionDate = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime[:8]
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime[8:]
@@ -550,9 +543,70 @@ def parse_scan_info_fields(ds) -> (scn_info.ScanInfo,Dataset.pixel_array):
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartTime
         s_info.injectedDose = radiopharmaInfoSeq.RadionuclideTotalDose
         s_info.halfLife = radiopharmaInfoSeq.RadionuclideHalfLife
-        if ("7053","1009") in ds: s_info.petActivityConctrScaleFactor = ds["7053","1009"].value
+        if ("7053","1009") in seq: s_info.petActivityConctrScaleFactor = seq["7053","1009"].value
+    return s_info
 
-    return (s_info,ds.pixel_array,ds.SeriesInstanceUID)
+def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
+    #numberOfFrames = ds.NumberOfFrames.real
+    # s_info.frameOfReferenceUID = ds.FrameOfReferenceUID
+    #s_info.seriesDescription = ds.SeriesDescription
+    if not multiFrameFlg: #numberOfFrames == 1:
+        scan_info = scn_info.ScanInfo()
+        scan_info = populate_scan_info_fields(scan_info, ds)
+        if hasattr(ds,'RescaleSlope'): scan_info.rescaleSlope = ds.RescaleSlope
+        if hasattr(ds,'RescaleIntercept'): scan_info.rescaleIntercept = ds.RescaleIntercept
+        if ("2005","100E") in ds: scan_info.scaleSlope = ds["2005","100E"].value
+        if ("2005","100D") in ds: scan_info.scaleIntercept = ds["2005","100D"].value
+
+        s_info = populate_real_world_fields(scan_info, ds)
+
+        s_info.grid1Units = ds.PixelSpacing[1] / 10
+        s_info.grid2Units = ds.PixelSpacing[0] / 10
+        s_info.sliceThickness = ds.SliceThickness / 10
+        s_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
+        s_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
+        slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
+                       - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
+        s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+
+        s_info = populate_radiopharma_fields(s_info, ds)
+
+    else:
+        numberOfFrames = ds.NumberOfFrames.real
+        scan_info = np.empty(numberOfFrames, dtype=scn_info.ScanInfo)
+        for iFrame in range(numberOfFrames):
+            s_info = scn_info.ScanInfo()
+            s_info = populate_scan_info_fields(s_info, ds)
+            perFrameSeq = ds.PerFrameFunctionalGroupsSequence[iFrame]
+            s_info = populate_real_world_fields(s_info, perFrameSeq)
+
+            PixelSpacing = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
+            s_info.grid1Units = PixelSpacing[1] / 10
+            s_info.grid2Units = PixelSpacing[0] / 10
+            s_info.sliceThickness = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness / 10
+
+            if 'PixelValueTransformationSequence' in perFrameSeq:
+                PixelValueTransformSeq = perFrameSeq.PixelValueTransformationSequence[0]
+                if hasattr(PixelValueTransformSeq,'RescaleSlope'): s_info.rescaleSlope = PixelValueTransformSeq.RescaleSlope
+                if hasattr(PixelValueTransformSeq,'RescaleIntercept'): s_info.rescaleIntercept = PixelValueTransformSeq.RescaleIntercept
+                if ("2005","100E") in PixelValueTransformSeq: s_info.scaleSlope = PixelValueTransformSeq["2005","100E"].value
+                if ("2005","100D") in PixelValueTransformSeq: s_info.scaleIntercept = PixelValueTransformSeq["2005","100D"].value
+
+            s_info.imagePositionPatient = np.array(perFrameSeq.PlanePositionSequence[0].ImagePositionPatient)
+            s_info.imageOrientationPatient = np.array(perFrameSeq.PlaneOrientationSequence[0].ImageOrientationPatient)
+            slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
+                           - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
+            s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+
+            if 'FrameVOILUTSequence' in perFrameSeq:
+                s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
+                s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
+
+            s_info = populate_radiopharma_fields(s_info, ds)
+
+            scan_info[iFrame] = s_info
+
+    return (scan_info, ds.pixel_array, ds.SeriesInstanceUID)
 
 def load_sorted_scan_info(file_list):
     scan = Scan()
@@ -561,29 +615,39 @@ def load_sorted_scan_info(file_list):
     scan_array = [] #np.empty(len(file_list))
     scan_info = np.empty(len(file_list),dtype=scn_info.ScanInfo)
     count = 0
+    multiFrameFlag = False
     for file in file_list:
         ds = dcmread(file)
         if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
-            si_pixel_data = parse_scan_info_fields(ds)
-            #scan_info.append(si_pixel_data[0])
-            #scan_array.append(si_pixel_data[1])
-            scan_info[count] = si_pixel_data[0]
-            if not isinstance(scan_array, np.ndarray) and not scan_array:
-                imgSiz = list(si_pixel_data[1].shape)
-                imgSiz.append(len(file_list))
-                scan_array = np.empty(imgSiz)
-            scan_array[:,:,count] = si_pixel_data[1]
-            count += 1
+            if len(file_list) == 1 and 'NumberOfFrames' in ds:
+                multiFrameFlag = True
+                si_pixel_data = parse_scan_info_fields(ds, multiFrameFlag)
+                scan_array = np.transpose(si_pixel_data[1], (1,2,0))
+                scan_info = si_pixel_data[0]
+                count = len(scan_info)
+            else:
+                si_pixel_data = parse_scan_info_fields(ds)
+                #scan_info.append(si_pixel_data[0])
+                #scan_array.append(si_pixel_data[1])
+                scan_info[count] = si_pixel_data[0]
+                if not isinstance(scan_array, np.ndarray) and not scan_array:
+                    imgSiz = list(si_pixel_data[1].shape)
+                    imgSiz.append(len(file_list))
+                    scan_array = np.empty(imgSiz)
+                scan_array[:,:,count] = si_pixel_data[1]
+                count += 1
+
     if count < scan_array.shape[2]:
         scan_array = np.delete(scan_array,np.arange(count,scan_array.shape[2]),axis=2)
         scan_info = np.delete(scan_info,np.arange(count,scan_array.shape[2]),axis=0)
 
     # Filter out duplicate SOP Instances
-    allSOPs = [s.sopInstanceUID for s in scan_info]
-    uniqSOPs, uniqInds = np.unique(allSOPs, return_index=True)
-    duplicateIDs = list(set(range(len(scan_info))) - set(uniqInds))
-    scan_array = np.delete(scan_array,duplicateIDs,axis=2)
-    scan_info = np.delete(scan_info,duplicateIDs,axis=0)
+    if np.any(ds.Modality == np.array(["CT","PT", "MR"])) and not multiFrameFlag:
+        allSOPs = [s.sopInstanceUID for s in scan_info]
+        uniqSOPs, uniqInds = np.unique(allSOPs, return_index=True)
+        duplicateIDs = list(set(range(len(scan_info))) - set(uniqInds))
+        scan_array = np.delete(scan_array,duplicateIDs,axis=2)
+        scan_info = np.delete(scan_info,duplicateIDs,axis=0)
 
     #sorted_indices = scan_info.sort(key=get_slice_position, reverse=False)
     sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
