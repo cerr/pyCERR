@@ -400,6 +400,8 @@ def parse_dcm_dir(dcm_dir):
                         val = ds[t].value
                     if isinstance(val, dataelem.MultiValue):
                         val = tuple(val)
+                    else: #isinstance(val, pydicom.valuerep.PersonName):
+                        val = str(val)
                     tag_vals.append(val)
                 tag_vals.append(ds.filename)
                 img_meta.append(tag_vals)
