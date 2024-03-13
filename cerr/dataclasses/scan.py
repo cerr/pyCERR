@@ -311,10 +311,10 @@ class Scan:
         seriesTime = dcm_hhmmss(headerSlcS.seriesTime)[0]
         seriesDate = np.nan
         if headerSlcS.seriesDate:
-            seriesDate = np.datetime64(headerSlcS.seriesDate, 'D')
+            seriesDate = dcm_to_np_date(headerSlcS.seriesDate)
         injectionDate = np.nan
         if headerSlcS.injectionDate:
-            injectionDate = np.datetime64(headerSlcS.injectionDate, 'D')
+            injectionDate = dcm_to_np_date(headerSlcS.injectionDate)
         acqStartTime = np.nan
         if not np.any(np.isnan(acqTimeV)):
             acqStartTime = np.min(acqTimeV)
@@ -348,15 +348,18 @@ class Scan:
                 scantime = dcm_hhmmss(headerSlcS.injectionTime)
             elif decayCorrection == 'NONE':
                 scantime = np.nan
+            elif len(headerSlcS.petDecayCorrectionDateTime) > 8:
+                scantime = dcm_hhmmss(headerSlcS.petDecayCorrectionDateTime[8:])[0]
             else:
-                scantime = dcm_hhmmss(headerSlcS.petDecayCorrectionDateTime[8:])
+                scantime = np.nan
 
             # Start Time for Radiopharmaceutical Injection
             injection_time = dcm_hhmmss(headerSlcS.injectionTime)[0]
 
             if not np.isnan(seriesDate) and not np.isnan(injectionDate):
                 date_diff = seriesDate - injectionDate
-                injection_time = injection_time - date_diff.item().total_seconds()
+                if date_diff < 5: # check whether it is a reasonable value
+                    injection_time = injection_time - date_diff.item().total_seconds()
 
             # Half Life for Radionuclide
             half_life = headerSlcS.halfLife
@@ -465,6 +468,12 @@ def dcm_hhmmss(time_str):
     totSec = hh * 3600 + mm * 60 + ss
     return totSec, hh, mm, ss, fract
 
+def dcm_to_np_date(dateStr):
+    dateObj = None
+    if len(dateStr) == 8:
+        dateObj = np.datetime64(dateStr[:4] + "-" + dateStr[4:6] + "-" + dateStr[6:], 'D')
+    return dateObj
+
 def get_slice_position(scan_info_item):
     return scan_info_item[1].zValue
 
@@ -541,9 +550,10 @@ def populate_radiopharma_fields(s_info, seq):
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime[8:]
         elif hasattr(radiopharmaInfoSeq,"RadiopharmaceuticalStartTime"):
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartTime
-        s_info.injectedDose = radiopharmaInfoSeq.RadionuclideTotalDose
-        s_info.halfLife = radiopharmaInfoSeq.RadionuclideHalfLife
+        s_info.injectedDose = float(radiopharmaInfoSeq.RadionuclideTotalDose)
+        s_info.halfLife = float(radiopharmaInfoSeq.RadionuclideHalfLife)
         if ("7053","1009") in seq: s_info.petActivityConctrScaleFactor = seq["7053","1009"].value
+    if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
     return s_info
 
 def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
@@ -558,18 +568,18 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
         if ("2005","100E") in ds: scan_info.scaleSlope = ds["2005","100E"].value
         if ("2005","100D") in ds: scan_info.scaleIntercept = ds["2005","100D"].value
 
-        s_info = populate_real_world_fields(scan_info, ds)
+        scan_info = populate_real_world_fields(scan_info, ds)
 
-        s_info.grid1Units = ds.PixelSpacing[1] / 10
-        s_info.grid2Units = ds.PixelSpacing[0] / 10
-        s_info.sliceThickness = ds.SliceThickness / 10
-        s_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
-        s_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
-        slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
-                       - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
-        s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+        scan_info.grid1Units = ds.PixelSpacing[1] / 10
+        scan_info.grid2Units = ds.PixelSpacing[0] / 10
+        scan_info.sliceThickness = ds.SliceThickness / 10
+        scan_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
+        scan_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
+        slice_normal = scan_info.imageOrientationPatient[[1,2,0]] * scan_info.imageOrientationPatient[[5,3,4]] \
+                       - scan_info.imageOrientationPatient[[2,0,1]] * scan_info.imageOrientationPatient[[4,5,3]]
+        scan_info.zValue = - np.sum(slice_normal * scan_info.imagePositionPatient) / 10
 
-        s_info = populate_radiopharma_fields(s_info, ds)
+        scan_info = populate_radiopharma_fields(scan_info, ds)
 
     else:
         numberOfFrames = ds.NumberOfFrames.real
