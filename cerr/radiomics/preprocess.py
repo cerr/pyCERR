@@ -447,6 +447,8 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         volToEval = resampScanBounds3M
         maskBoundingBox3M = resampMaskBounds3M
 
+    # mask to compute shape features without resegmentation
+    morphmask3M = maskBoundingBox3M.copy()
 
     # Ignore voxels below and above cutoffs, if defined ----
     minSegThreshold = []
@@ -475,4 +477,4 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
              'zValsV': zResampleV,
              'PixelSpacingV': outputResV}
 
-    return volToEval, maskBoundingBox3M, gridS, paramS, diagS
+    return volToEval, maskBoundingBox3M, morphmask3M, gridS, paramS, diagS

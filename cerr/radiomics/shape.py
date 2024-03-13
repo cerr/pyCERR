@@ -38,8 +38,9 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     # Fill holes
     rmin,rmax,cmin,cmax,smin,smax,_ = bbox.compute_boundingbox(maskForShape3M,1)
-    _ = ndimage.binary_fill_holes(maskForShape3M[rmin:rmax,cmin:cmax,smin:smax],
-                                  output=maskForShape3M[rmin:rmax,cmin:cmax,smin:smax])
+    #struct3D = np.ones((3,3,3))
+    #maskForShape3M = ndimage.binary_fill_holes(maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1])
+    maskForShape3M = maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1]
 
     filled_volume = voxel_volume * np.sum(maskForShape3M)
 
@@ -123,15 +124,8 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     xValsPadV = np.pad(xValsV,(1,1),mode='constant',constant_values=(xPre, xPost))
     yValsPadV = np.pad(yValsV,(1,1),mode='constant',constant_values=(yPre, yPost))
     zValsPadV = np.pad(zValsV,(1,1),mode='constant',constant_values=(zPre, zPost))
-    verts, faces, normals, values = measure.marching_cubes(maskForShape3M, level=0.5)
-    # scale vcertices to physical cooordinates
-    xRange = xValsPadV[-1] - xValsPadV[0]
-    yRange = yValsPadV[-1] - yValsPadV[0]
-    zRange = zValsPadV[-1] - zValsPadV[0]
-    ranges = [yRange, xRange, zRange]
-    mins = [yValsPadV[0], xValsPadV[0], zValsPadV[0]]
-    verts_phys = verts * ranges / np.array(maskForShape3M.shape) + mins
-    shapeS['surfArea'] = trimeshSurfaceArea(verts_phys,faces)
+    verts, faces, normals, values = measure.marching_cubes(maskForShape3M, level=0.5, spacing=voxel_siz)
+    shapeS['surfArea'] = trimeshSurfaceArea(verts,faces)
 
     shapeS['volume'] = volume
     shapeS['filledVolume'] = filled_volume
@@ -141,8 +135,6 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     # Compactness 2 (36*pi*V^2/A^3)
     shapeS['Compactness2'] = 36 * np.pi * shapeS['volume']**2 / shapeS['surfArea']**3
-
-    # max3dDiameter , eq. (17) Aerts Nature suppl.
 
     # Spherical disproportion (A/(4*pi*R^2)
     R = (shapeS['volume']*3/4/np.pi)**(1/3)

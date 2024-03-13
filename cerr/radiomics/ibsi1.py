@@ -34,7 +34,7 @@ def getDirectionOffsets(direction):
     return offsetsM
 
 
-def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
+def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS):
 
     featDict = {}
 
@@ -94,7 +94,7 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, gridS, paramS):
     # Shape  features
     if 'shape' in paramS['featureClass'] and paramS['featureClass']['shape']["featureList"] != {}:
         from cerr.radiomics.shape import compute_shape_features
-        featDict['shape'] = compute_shape_features(maskBoundingBox3M,gridS['xValsV'],gridS['yValsV'],gridS['zValsV'])
+        featDict['shape'] = compute_shape_features(morphMask3M,gridS['xValsV'],gridS['yValsV'],gridS['zValsV'])
 
     # Assign nan values outside the mask, so that min/max within the mask are used for quantization
     volToEval[~maskBoundingBox3M] = np.nan
@@ -156,7 +156,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
         radiomicsSettingS = json.load(settingsFid)
 
     # Pre-process Image
-    (processedScan3M, processedMask3M, gridS, radiomicsSettingS, diagS) = \
+    (processedScan3M, processedMask3M, morphMask3M, gridS, radiomicsSettingS, diagS) = \
        preprocess.preProcessForRadiomics(scanNum, structNum, radiomicsSettingS, planC)
     minr,maxr,minc,maxc,mins,maxs,__ = compute_boundingbox(processedMask3M)
     voxSizeV = gridS["PixelSpacingV"]
@@ -174,7 +174,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             # Calc. radiomic features
             maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             croppedScan3M = processedScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
-            featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, gridS, radiomicsSettingS)
+            featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
         else:
             # Extract filter & padding parameters
             filterParamS = radiomicsSettingS['imageType'][imgType]
@@ -196,7 +196,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             filteredScan3M = filteredPadScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             filteredScan3M[~maskBoundingBox3M] = np.nan
             # Calc. radiomic features
-            featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, gridS, radiomicsSettingS)
+            featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
 
         # Aggregate features
         #imgType = imgType + equivalent of createFieldNameFromParameters
