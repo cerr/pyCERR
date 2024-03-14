@@ -38,20 +38,19 @@ def loadData(datasetDir):
 
 def dispDiff(diffValsV,tolFeatV,featList):
     """ Report on differences in feature values """
-    tol = 1e-4
-    if np.max(np.abs(diffValsV-tolFeatV)) < tol:
+    violationV = diffValsV > tolFeatV
+    if not any(violationV):
             print('Success! Results match reference std.')
             print('-------------')
     else:
-        checkV = diffValsV > tolFeatV
-        idxV = np.where(checkV)[0]
+        idxV = np.where(violationV)[0]
         print('First-order features differ:')
         diffS = dict(zip([featList[idx] for idx in idxV], [diffValsV[idx] for idx in idxV]))
         print(diffS)
         print('-------------')
 
 
-def compareVals(cerrFeatS, refFeatNames, refValsV):
+def compareVals(cerrFeatS, refFeatNames):
     """ Indicate if features match reference, otherwise display differences."""
     cerrFeatList = list(cerrFeatS.keys())
     numFeat = len(cerrFeatList)
@@ -59,7 +58,7 @@ def compareVals(cerrFeatS, refFeatNames, refValsV):
     # Loop over radiomic features computed with pyCERR
     diffFeatV = np.zeros((numFeat,1))
     ibsiFeatList = [None]*numFeat
-    tolFeatV = [None]*numFeat
+    tolFeatV = np.zeros((numFeat,1))
     for featIdx in range(numFeat):
 
         featName = cerrFeatList[featIdx]
@@ -76,8 +75,8 @@ def compareVals(cerrFeatS, refFeatNames, refValsV):
             diffFeatV[featIdx] = float("nan")
         else:
             refVal = refValsV[matchIdx]
+            tolFeatV[featIdx] = tolV[matchIdx]
             diffFeatV[featIdx] = cerrFeatS[featName].astype(float) - refVal
-            tolFeatV = tolV[featIdx]
 
     dispDiff(diffFeatV,tolFeatV,ibsiFeatList)
 
@@ -104,7 +103,7 @@ def run_tests():
         #imgType = list(calcFeatS.keys())[0].split('_')[0]
 
         # Compare to reference std
-        compareVals(calcFeatS, refFeatNames, refValsV)
+        compareVals(calcFeatS, refFeatNames)
 
 
 if __name__ == "__main__":
