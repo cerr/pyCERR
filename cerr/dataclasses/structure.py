@@ -241,16 +241,6 @@ def parse_contours(contour_seq):
         contour_list[ctr_num] = contour
     return contour_list
 
-def parse_structure_fields(roi_contour,str_roi) -> Structure:
-    struct = Structure()
-    struct.roiNumber = str_roi.ROINumber #getattr(ds,'ROINumber',"")
-    struct.structureName = str_roi.ROIName
-    struct.numberOfScans = len(len(roi_contour.ContourSequence)) # number of scan slices
-    struct.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
-    if ("3006","0038") in str_roi:
-        struct.roiGenerationDescription  = str_roi["3006","0038"].value
-    struct.contour = parse_contours(roi_contour.ContourSequence)
-    return struct
 
 def load_structure(file_list):
     struct_list = []
@@ -259,32 +249,49 @@ def load_structure(file_list):
         if ds.Modality == "RTSTRUCT":
             roi_contour_seq = ds.ROIContourSequence
             str_roi_seq = ds.StructureSetROISequence
+            roi_obs_seq = ds.RTROIObservationsSequence
+            ctrSeqRefRoiNums = np.array([roiCtr.ReferencedROINumber for roiCtr in roi_contour_seq])
+            obsSeqRefRoiNums = np.array([roiObs.ReferencedROINumber for roiObs in roi_obs_seq])
             num_structs = len(roi_contour_seq)
-            for str_num, (roi_contour,str_roi) in enumerate(zip(roi_contour_seq,str_roi_seq)):
+            #for str_num, (roi_contour,str_roi) in enumerate(zip(roi_contour_seq,str_roi_seq)):
+            for str_num, str_roi in enumerate(str_roi_seq):
                 struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
                 struct_meta.patientName = ds.PatientName
                 struct_meta.writer = ds.Manufacturer
                 struct_meta.dateWritten = ds.StructureSetDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
-                struct_meta.roiNumber = str_roi.ROINumber #getattr(ds,'ROINumber',"")
+                struct_meta.roiNumber = str_roi.ROINumber
                 struct_meta.structureName = str_roi.ROIName
+                struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
+                if ("3006","0038") in str_roi:
+                    struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
+                ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
+
+                # Find the matching ROIContourSequence element
+                indCtrSeq = ctrSeqRefRoiNums == struct_meta.roiNumber
+                indObsSeq = obsSeqRefRoiNums == struct_meta.roiNumber
+                roi_contour = roi_contour_seq[np.where(indCtrSeq)[0][0]]
+                roi_obs = roi_obs_seq[np.where(indObsSeq)[0][0]]
+
                 if not hasattr(roi_contour,"ContourSequence"):
                     continue
+                struct_meta.contour = parse_contours(roi_contour.ContourSequence)
                 struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
                 if hasattr(roi_contour, "ROIDisplayColor"):
                     colorTriplet = roi_contour.ROIDisplayColor
                     struct_meta.structureColor  = [int(val) for val in colorTriplet]
                 else:
                     struct_meta.structureColor = getColorForStructNum(str_num)
+                struct_meta.ROIInterpretedType = roi_obs.RTROIInterpretedType
                 struct_meta.strUID = uid.createUID("structure")
                 struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID
                 struct_meta.structureFileFormat = "RTSTRUCT"
                 #structureColor
-                struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
-                if ("3006","0038") in str_roi:
-                    struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
-                struct_meta.contour = parse_contours(roi_contour.ContourSequence)
-                ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
+                # struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
+                # if ("3006","0038") in str_roi:
+                #     struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
+                # struct_meta.contour = parse_contours(roi_contour.ContourSequence)
+                # ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
                 ref_FOR_seq = ds.ReferencedFrameOfReferenceSequence
                 for ref_FOR in ref_FOR_seq:
                     if ref_FOR.FrameOfReferenceUID == ref_FOR_uid:
