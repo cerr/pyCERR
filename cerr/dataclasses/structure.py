@@ -448,7 +448,7 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                 #ipp = image.TransformIndexToPhysicalPoint((0,0,slc))
                 #niiZ = - np.sum(slice_normal * ipp) / 10
                 #ind = np.where((zV - niiZ)**2 < slcMatchTol)
-                if len(ind[0]) == 1:
+                if len(ind) > 0 and len(ind[0]) == 1:
                     ind = ind[0][0]
                 else:
                     raise Exception('No matching slices found.')
