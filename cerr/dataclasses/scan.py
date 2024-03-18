@@ -499,7 +499,7 @@ def populate_scan_info_fields(s_info, ds):
     s_info.sizeOfDimension1 = ds.Rows
     s_info.sizeOfDimension2 = ds.Columns
 
-    if hasattr(ds,"PatientName"): s_info.patientName = ds.PatientName
+    if hasattr(ds,"PatientName"): s_info.patientName = str(ds.PatientName)
     if hasattr(ds,"PatientID"): s_info.patientID = ds.PatientID
     if hasattr(ds,"AcquisitionDate"): s_info.acquisitionDate = ds.AcquisitionDate
     if hasattr(ds,"AcquisitionTime"): s_info.acquisitionTime = ds.AcquisitionTime

@@ -13,6 +13,7 @@ from datetime import datetime
 from pydicom.uid import generate_uid
 import json
 from cerr.radiomics.preprocess import imgResample3D
+import warnings
 
 
 def get_empty_list():
@@ -59,13 +60,6 @@ class Structure:
 
     def __setitem__(self, key, value):
         return setattr(self, key, value)
-
-    class json_serialize(json.JSONEncoder):
-        def default(self, obj):
-            if isinstance(obj, Structure):
-                return {'structure':obj.strUID}
-            return "" #json.JSONEncoder.default(self, obj)
-
 
     def save_nii(self,niiFileName,planC):
         str_num = getStructNumFromUID(self.strUID, planC)
@@ -217,6 +211,107 @@ class Contour:
 class Segment:
     points: np.ndarray = field(default_factory=get_empty_np_array)
 
+
+class jsonSerializeSegment(json.JSONEncoder):
+    def default(self, segObj):
+        segDict = {}
+        if not segObj:
+            segDict['points'] = ''
+        if isinstance(segObj, Segment):
+            segDict['points'] = segObj.points.tolist()
+            return segDict
+        else:
+            type_name = segObj.__class__.__name__
+            raise TypeError("Unexpected type {0}".format(type_name))
+
+class jsonSerializeContour(json.JSONEncoder):
+    def default(self, ctrObj):
+        ctrDict = {}
+        if isinstance(ctrObj, Contour):
+            ctrDict['referencedSopClassUID'] = ctrObj.referencedSopClassUID
+            ctrDict['referencedSopInstanceUID'] = ctrObj.referencedSopInstanceUID
+            segList = []
+            for seg in ctrObj.segments:
+                segList.append(json.dumps(seg, cls=jsonSerializeSegment))
+            ctrDict['segments'] = segList
+            return ctrDict
+        else:
+            type_name = ctrObj.__class__.__name__
+            raise TypeError("Unexpected type {0}".format(type_name))
+
+fieldsList = ['structureName', 'patientName', 'assocScanUID', 'strUID',
+              'ROIInterpretedType', 'structureColor',
+              'roiGenerationDescription', 'roiGenerationAlgorithm',
+              'structSetSopInstanceUID', 'referencedFrameOfReferenceUID',
+              'structureFileFormat']
+
+class jsonSerializeStruct(json.JSONEncoder):
+    def default(self, strObj):
+        strDict = {}
+        if isinstance(strObj, Structure):
+            for fld in fieldsList:
+                strDict[fld] = getattr(strObj, fld)
+            ctrList = []
+            for ctr in strObj.contour:
+                ctrList.append(json.dumps(ctr, cls=jsonSerializeContour))
+            strDict['contour'] = ctrList
+            return strDict
+        else:
+            type_name = strObj.__class__.__name__
+            raise TypeError("Unexpected type {0}".format(type_name))
+
+def getJsonList(structNumV, planC):
+    if isinstance(structNumV, (int, float)):
+        structNumV = [structNumV]
+    strList = []
+    for strNum in structNumV:
+        strObj = planC.structure[strNum]
+        strList.append(json.dumps(strObj, ensure_ascii=False, indent=4, cls=jsonSerializeStruct))
+    return strList
+
+def saveJson(structNumV, jsonFileName, planC):
+    strList = getJsonList(structNumV, planC)
+    with open(jsonFileName, 'w', encoding='utf-8') as f:
+        json.dump(strList, f, ensure_ascii=False, indent=4)
+
+def importJson(jsonFileName, planC):
+    with open(jsonFileName, 'r', encoding='utf-8') as f:
+        strList = json.load(f)
+    strUIDs = [s.strUID for s in planC.structure]
+    for strJsonObj in strList:
+        strJsonObj = json.loads(strJsonObj)
+        if strJsonObj['strUID'] in strUIDs:
+            warnings.warn("Structure " + strUIDs + " not imported from JSON as it already exists in planC")
+            continue
+        strObj = Structure()
+        for fld in fieldsList:
+            setattr(strObj, fld, strJsonObj[fld])
+        ctrList = strJsonObj['contour']
+        num_contours = len(ctrList)
+        contour_list = np.empty(num_contours,Contour)
+        for ctr_num, ctr in enumerate(ctrList):
+            ctr = json.loads(ctr)
+            if not ctr:
+                contour_list[ctr_num] = []
+                continue
+            ctrObj = Contour()
+            segList = ctr['segments']
+            segments = []
+            for seg in segList:
+                seg = json.loads(seg)
+                segment = Segment()
+                segment.points = np.asarray(seg['points'])
+                segments.append(segment)
+            ctrObj.segments = segments
+            ctrObj.referencedSopClassUID = ctr['referencedSopClassUID']
+            ctrObj.referencedSopInstanceUID = ctr['referencedSopInstanceUID']
+            contour_list[ctr_num] = ctrObj
+        strObj.contour = contour_list
+        planC.structure.append(strObj)
+        planC.structure[-1].rasterSegments = rs.generate_rastersegs(planC.structure[-1],planC)
+
+    return planC
+
 def parse_contours(contour_seq):
     num_contours = len(contour_seq)
     contour_list = np.empty(num_contours,Contour)
@@ -256,7 +351,7 @@ def load_structure(file_list):
             #for str_num, (roi_contour,str_roi) in enumerate(zip(roi_contour_seq,str_roi_seq)):
             for str_num, str_roi in enumerate(str_roi_seq):
                 struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
-                struct_meta.patientName = ds.PatientName
+                struct_meta.patientName = str(ds.PatientName)
                 struct_meta.writer = ds.Manufacturer
                 struct_meta.dateWritten = ds.StructureSetDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
@@ -266,6 +361,7 @@ def load_structure(file_list):
                 if ("3006","0038") in str_roi:
                     struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
                 ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
+                struct_meta.referencedFrameOfReferenceUID = ref_FOR_uid
 
                 # Find the matching ROIContourSequence element
                 indCtrSeq = ctrSeqRefRoiNums == struct_meta.roiNumber
@@ -313,7 +409,7 @@ def load_structure(file_list):
             for strNum in range(numStructs):
                 struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
                 struct_meta.structureFileFormat = "SEG"
-                struct_meta.patientName = ds.PatientName
+                struct_meta.patientName = str(ds.PatientName)
                 struct_meta.writer = ds.Manufacturer
                 struct_meta.dateWritten = ds.SeriesDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
