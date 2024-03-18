@@ -122,6 +122,11 @@ class Scan:
 
         return (xvals,yvals,zvals)
 
+    def getScanSize(self):
+        numRows, numCols, numSlcs = self.scanInfo[0].sizeOfDimension2, self.scanInfo[0].sizeOfDimension1, \
+                                    len(self.scanInfo)
+        return np.asarray([numRows, numCols, numSlcs])
+
     def getScanOrientation(self):
         orientPos = ['L', 'P', 'S']
         orientNeg = ['R', 'A', 'I']

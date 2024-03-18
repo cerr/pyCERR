@@ -219,7 +219,7 @@ def getStrMask(str_num,planC):
         rasterSegments = str_num.rasterSegments
         assocScanUID = str_num.assocScanUID
     scan_num = scn.getScanNumFromUID(assocScanUID,planC)
-    num_rows,num_cols,num_slcs = planC.scan[scan_num].scanArray.shape
+    num_rows, num_cols, num_slcs = planC.scan[scan_num].getScanSize()
     mask3M = np.zeros((num_rows,num_cols,num_slcs),dtype = bool)
     slcMask3M,slicesV = raster_to_mask(rasterSegments, scan_num, planC)
     slicesV = np.asarray(slicesV,int)
@@ -229,7 +229,7 @@ def getStrMask(str_num,planC):
 
 def raster_to_mask(rasterSegments, scanNum, planC):
     # Get x, y size of each slice in this scanset
-    siz = np.array(planC.scan[scanNum].scanArray.shape)
+    siz = planC.scan[scanNum].getScanSize()
     x, y = siz[1], siz[0]
 
     # If no raster segments, return an empty mask
@@ -256,7 +256,7 @@ def raster_to_mask(rasterSegments, scanNum, planC):
 
 def generate_rastersegs(strObj, planC):
     scan_num = scn.getScanNumFromUID(strObj.assocScanUID,planC)
-    num_rows,num_cols,num_slcs = planC.scan[scan_num].scanArray.shape
+    num_rows, num_cols, num_slcs = planC.scan[scan_num].getScanSize()
     seg_opts = {"ROIxVoxelWidth": planC.scan[scan_num].scanInfo[0].grid2Units,
                    "ROIyVoxelWidth": planC.scan[scan_num].scanInfo[0].grid1Units,
                    "ROIImageSize": [num_rows,num_cols],
