@@ -281,7 +281,7 @@ def importJson(jsonFileName, planC):
     for strJsonObj in strList:
         strJsonObj = json.loads(strJsonObj)
         if strJsonObj['strUID'] in strUIDs:
-            warnings.warn("Structure " + strUIDs + " not imported from JSON as it already exists in planC")
+            warnings.warn("Structure " + strJsonObj['strUID'] + " not imported from JSON as it already exists in planC")
             continue
         strObj = Structure()
         for fld in fieldsList:
