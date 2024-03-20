@@ -7,8 +7,8 @@ from cerr.utils import bbox
 
 def trimeshSurfaceArea(v,f):
 
-    v1 = v[f[:, 1], :] - v[f[:, 0], :]
-    v2 = v[f[:, 2], :] - v[f[:, 0], :]
+    v1 = (v[f[:, 1], :] - v[f[:, 0], :]) * 10 #Convert to mm
+    v2 = (v[f[:, 2], :] - v[f[:, 0], :]) * 10
 
     # Calculate the cross product and its norm
     cross_product = np.cross(v1, v2)
@@ -32,7 +32,7 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     maskForShape3M = mask3M.copy()
     voxel_siz = [abs(yValsV[1] - yValsV[0]), abs(xValsV[1] - xValsV[0]), abs(zValsV[1] - zValsV[0])]
-    voxel_volume = np.prod(voxel_siz)
+    voxel_volume = np.prod(voxel_siz) * 1000 #Convert to mm
 
     volume = voxel_volume * np.sum(maskForShape3M)
 
@@ -46,6 +46,10 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     # Get x/y/z coordinates of all the voxels
     indM = np.argwhere(maskForShape3M)
+    xValsV = xValsV * 10 #Convert to mm
+    yValsV = yValsV * 10 #Convert to mm
+    zValsV = zValsV * 10 #Convert to mm
+
     xV = xValsV[indM[:, 1]]
     yV = yValsV[indM[:, 0]]
     zV = zValsV[indM[:, 2]]
