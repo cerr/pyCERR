@@ -168,49 +168,59 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
     imgTypes = imgTypeDict.keys()
     featDictAllTypes = {}
 
+    avgType = ''
+    directionality = ''
+    if 'texture' in radiomicsSettingS['settings']:
+        avgType = radiomicsSettingS['settings']['texture']['avgType']
+        directionality = radiomicsSettingS['settings']['texture']['directionality']
+
+    mapToIBSI = False
+
+    if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
+        radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
+        mapToIBSI = True
+
     # Loop over image filters
     for imgType in imgTypes:
         if imgType.lower() == "original":
+            imgFeatName = 'original'
             # Calc. radiomic features
             maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             croppedScan3M = processedScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+            featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
         else:
             # Extract filter & padding parameters
-            filterParamS = radiomicsSettingS['imageType'][imgType]
+            filterTypeParamS = radiomicsSettingS['imageType'][imgType]
             padSizeV = [0,0,0]
             padMethod = "none"
             if 'padding' in radiomicsSettingS["settings"] and radiomicsSettingS["settings"]["padding"]["method"].lower()!='none':
                 padSizeV = radiomicsSettingS["settings"]["padding"]["size"]
                 padMethod = radiomicsSettingS["settings"]["padding"]["method"]
-            filterParamS["VoxelSize_mm"]  = voxSizeV * 10
-            filterParamS["Padding"] = {"Size":padSizeV,"Method": padMethod,"Flag":False}
 
-            # Apply image filter
-            paddedResponseS = textureUtils.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
-            filterName = list(paddedResponseS.keys())[0] # must be single output
-            filteredPadScan3M = paddedResponseS[filterName]
+            # Apply image filters
+            if not isinstance(filterTypeParamS,list):
+                filterTypeParamS = [filterTypeParamS]
 
-            # Remove padding
-            maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
-            filteredScan3M = filteredPadScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
-            filteredScan3M[~maskBoundingBox3M] = np.nan
-            # Calc. radiomic features
-            featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+            for nFilt in range(len(filterTypeParamS)):
+                filterParamS = filterTypeParamS[nFilt]
+                filterParamS["VoxelSize_mm"]  = voxSizeV * 10
+                filterParamS["Padding"] = {"Size":padSizeV,"Method": padMethod,"Flag":False}
 
-        # Aggregate features
-        #imgType = imgType + equivalent of createFieldNameFromParameters
-        avgType = ''
-        directionality = ''
-        if 'texture' in radiomicsSettingS['settings']:
-            avgType = radiomicsSettingS['settings']['texture']['avgType']
-            directionality = radiomicsSettingS['settings']['texture']['directionality']
+                paddedResponseS = textureUtils.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
+                filterName = list(paddedResponseS.keys())[0] # must be single output
+                filteredPadScan3M = paddedResponseS[filterName]
 
-        mapToIBSI = False
-        if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
-                radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
-            mapToIBSI = True
-        featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgType, avgType, directionality, mapToIBSI)}
+                # Remove padding
+                maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+                filteredScan3M = filteredPadScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
+                filteredScan3M[~maskBoundingBox3M] = np.nan
+                # Calc. radiomic features
+                featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+
+                # Aggregate features
+                imgFeatName = createFieldNameFromParameters(imgType, filterParamS)
+                featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
 
     return featDictAllTypes, diagS
 
@@ -341,6 +351,65 @@ def getIBSINameMap():
 
     return classDict, featDict
 
+def createFieldNameFromParameters(imageType, settingS):
+    """
+    Create unique fieldname for radiomics features returned by calcRadiomicsForImgType
+    :param imageType: 'Original' or filtered image type (see processImage.m for valid options)
+    :param settingS: Parameter dictionary for radiomics feature extraction
+    :return: fieldName
+    """
+    imageType = imageType.lower()
+    if imageType == 'original':
+        fieldName = imageType
+    elif imageType == 'sobel':
+        fieldName = imageType
+    elif imageType == 'haralickcooccurance':
+        dirC = ['3d', '2d']
+        dirType = dirC[settingS['Directionality']]
+        settingsStr = f"{settingS['Type']}_{dirType}_{settingS['NumLevels']}levels_patchsize" \
+                   f"{settingS['PatchSize'][0]}{settingS['PatchSize'][1]}" \
+                   f"{settingS['PatchSize'][2]}"
+        fieldName = f"{imageType}_{settingsStr}"
+    elif imageType == 'wavelets':
+        settingsStr = f"{settingS['Wavelets']}_{settingS['Index']}_{settingS['Direction']}"
+        if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
+            settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
+        fieldName = f"{imageType}_{settingsStr}"
+    elif imageType == 'log':
+        sigmaV = ' '.join(map(str, settingS['Sigma_mm']))
+        cutoffV = ' '.join(map(str, settingS['CutOff_mm']))
+        settingsStr = f"sigma_{sigmaV}mm_cutoff_{cutoffV}mm"
+        fieldName = f"{imageType}_{settingsStr}"
+    elif imageType == 'gabor':
+        voxelSize_mm = ' '.join(map(str, settingS['VoxelSize_mm']))
+        settingsStr = f"voxSz{voxelSize_mm}mm_Sigma{settingS['Sigma_mm']}mm_AR" \
+                  f"{settingS['SpatialAspectRatio']}_wavLen{settingS['Wavlength_mm']}mm"
+        thetaV = ' '.join(map(str, settingS['Orientation']))
+        if len(settingS['Orientation']) == 1:
+            settingsStr += f"_Orient{thetaV}"
+        else:
+            settingsStr += f"_OrientAvg_{thetaV}"
+        fieldName = f"{imageType}_{settingsStr}"
+    elif imageType == 'lawsconvolution':
+        settingsStr = f"{settingS['Direction']}_type{settingS['Type']}_norm{settingS['Normalize']}"
+        if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
+                settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
+        fieldName = f"{imageType}_{settingsStr}"
+    elif imageType == 'lawsenergy':
+        energyKernelSize = '_'.join(map(str, settingS['EnergyKernelSize']))
+        energyKernelSize = energyKernelSize.replace(' ', 'x')
+        settingsStr = f"{settingS['Direction']}_type{settingS['Type']}_norm{settingS['Normalize']}" \
+                   f"_energyKernelSize{energyKernelSize}"
+        if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
+            settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
+        fieldName = f"{imageType}_{settingsStr}"
+    else:
+        raise ValueError('Invalid image type')
+
+    # Ensure valid fieldname
+    fieldName = fieldName.replace(' ', '').replace('.', '_').replace('-', '_')
+
+    return fieldName
 
 def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBSI = False):
 
