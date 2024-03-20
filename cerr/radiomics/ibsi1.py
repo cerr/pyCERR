@@ -168,13 +168,27 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
     imgTypes = imgTypeDict.keys()
     featDictAllTypes = {}
 
+    avgType = ''
+    directionality = ''
+    if 'texture' in radiomicsSettingS['settings']:
+        avgType = radiomicsSettingS['settings']['texture']['avgType']
+        directionality = radiomicsSettingS['settings']['texture']['directionality']
+
+    mapToIBSI = False
+
+    if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
+        radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
+        mapToIBSI = True
+
     # Loop over image filters
     for imgType in imgTypes:
         if imgType.lower() == "original":
+            imgFeatName = 'original'
             # Calc. radiomic features
             maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             croppedScan3M = processedScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+            featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
         else:
             # Extract filter & padding parameters
             filterTypeParamS = radiomicsSettingS['imageType'][imgType]
@@ -206,19 +220,6 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
 
                 # Aggregate features
                 imgFeatName = createFieldNameFromParameters(imgType, filterParamS)
-
-                avgType = ''
-                directionality = ''
-                if 'texture' in radiomicsSettingS['settings']:
-                    avgType = radiomicsSettingS['settings']['texture']['avgType']
-                    directionality = radiomicsSettingS['settings']['texture']['directionality']
-
-                mapToIBSI = False
-
-                if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
-                    radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
-                    mapToIBSI = True
-
                 featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
 
     return featDictAllTypes, diagS

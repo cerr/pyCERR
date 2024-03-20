@@ -23,8 +23,8 @@ refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI1',
                        'IBSI1_CERR_features.csv')
 refData = pd.read_csv(refFile)
 refFeatNames = list(refData['tag'][6:])
-tolV = np.array(refData['tolerance_compare'][6:])
-refValsV = np.array(refData['benchmark_value_compare'][6:])
+tolV = np.array(refData['tolerance'][6:])
+refValsV = np.array(refData['benchmark_value'][6:])
 # Note: The columns "benchmark_value_compare" and "tolerance_comapre" contain results in
 # units of cm (rather than mm) where applicable, to simplify comparison with pyCERR.
 
@@ -54,6 +54,9 @@ def compareVals(cerrFeatS, refFeatNames):
     """ Indicate if features match reference, otherwise display differences."""
     cerrFeatList = list(cerrFeatS.keys())
     numFeat = len(cerrFeatList)
+
+    if numFeat == 0:
+        raise Exception('Feature calculation failed.')
 
     # Loop over radiomic features computed with pyCERR
     diffFeatV = np.zeros((numFeat,1))
