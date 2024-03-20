@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64", "setuptools_scm>=8]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pycerr"
-version = "0.0.1a1"
+dynamic = ["version"]
+#version = "0.0.1"
 authors = [
   { name="Aditya P. Apte", email="aptea@mskcc.org" },
   { name="Aditi Iyer", email="iyera@mskcc.org" },
@@ -40,3 +41,6 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/cerr/pyCERR"
 "Bug Tracker" = "https://github.com/cerr/pyCERR/issues"
+
+[tool.setuptools_scm]
+version_file = "cerr/_version.py"

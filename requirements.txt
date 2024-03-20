@@ -2,6 +2,7 @@ numpy
 pydicom
 python-dateutil
 scipy
+h5py
 SimpleITK
 matplotlib
 nibabel
