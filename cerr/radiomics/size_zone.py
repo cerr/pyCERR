@@ -5,14 +5,19 @@ def calcSZM(quantized3M, nL, szmType):
     if szmType == 1:
         s = np.ones((3,3,3))
     else:
-        s = np.ones((3,3,0))
+        s = np.ones((3,3))
 
+    sizeV = quantized3M.shape
     szmM = np.zeros((nL, quantized3M.size), dtype=int)
     maxSiz = 0
     for level in range(1, nL+1):
-
         if szmType == 1:
             connM, num_features = label(quantized3M == level, structure=s)
+        else:
+            connM = np.zeros(sizeV, dtype=int)
+            for slc in range(sizeV[2]):
+                connSlcM, num_features = label(quantized3M[:,:,slc] == level, structure=s)
+                connM[:,:,slc] = connSlcM
         regiosSizV = np.bincount(connM[connM > 0])
         if len(regiosSizV) > 0:
             maxSiz = max(maxSiz, max(regiosSizV))

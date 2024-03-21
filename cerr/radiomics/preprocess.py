@@ -35,7 +35,7 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
         intercept = 1 - (slope * xmin)
         q = np.round(slope * x + intercept)
         q[np.isnan(q)] = 0
-        q = q.astype(np.int)
+        q = q.astype(int)
     elif binwidth is not None:
         q = (x - xmin) / binwidth
         q[np.isnan(q)] = -1
@@ -364,7 +364,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
                                 xResampleV, yResampleV, zResampleV, scanInterpMethod)
         # Round image intensities
         if 'intensityRounding' in paramS["settings"]['resample'] and \
-                paramS["settings"]['resample']['intensityRounding'].lower =='on':
+                paramS["settings"]['resample']['intensityRounding'].lower() =='on':
             resampScanBounds3M = np.round(resampScanBounds3M)
 
         #Resample mask
