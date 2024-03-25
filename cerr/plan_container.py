@@ -7,13 +7,12 @@ import pickle
 from dataclasses import dataclass, field
 from datetime import datetime, date
 from typing import List
-
+import warnings
 import SimpleITK as sitk
 import numpy as np
 import pandas as pd
 from pydicom.uid import generate_uid
-from skimage import measure
-
+import h5py
 import cerr.dataclasses.scan_info as scn_info
 import cerr.plan_container as pc
 from cerr.contour import rasterseg as rs
@@ -23,11 +22,7 @@ from cerr.dataclasses import scan as scn
 from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
 from cerr.dataclasses.structure import Contour
-from cerr.utils import uid
 
-#import sys
-#import scipy.io as sio
-#import SimplaITK as sitk
 
 def get_empty_list():
     return []
@@ -52,6 +47,191 @@ class PlanC:
             elif isinstance(obj, structr.Structure):
                 return {'structure':obj.strUID}
             return "" #json.JSONEncoder.default(self, obj)
+
+
+def addToH5Grp(h5Grp,structDict,key):
+    if isinstance(structDict[key], (str)):
+        h5Grp.attrs[key] = np.string_(structDict[key])
+    elif isinstance(structDict[key], (int, float, np.number)):
+        h5Grp.attrs[key] = structDict[key]
+    elif isinstance(structDict[key], (list, np.ndarray)):
+        dt = np.array(structDict[key]).dtype
+        shp = np.array(structDict[key]).shape
+        h5Grp.create_dataset(key, shp, dtype=dt, data=structDict[key],
+                             compression="gzip", compression_opts=4)
+    return h5Grp
+
+
+def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
+    #f = h5py.File(h5File, "w") or f = io.BytesIO()
+    with h5py.File(h5File, 'w') as f:
+        planCGrp = f.create_group('planC')
+        scanGrp = planCGrp.create_group('scan')
+        structGrp = planCGrp.create_group('structure')
+        doseGrp = planCGrp.create_group('dose')
+        scanGrp = saveH5Scan(scanGrp, scanNumV, planC)
+        structGrp = saveH5Structure(structGrp, structNumV, planC)
+        doseGrp = saveH5Dose(doseGrp, doseNumV, planC)
+    return 0
+
+def loadFromH5(h5File, planC = PlanC()):
+    with h5py.File(h5File, 'r') as f:
+        if 'scan' in f['planC']:
+            structGrp = f['planC']['scan']
+            loadH5Scan(structGrp, planC)
+        if 'structure' in f['planC']:
+            structGrp = f['planC']['structure']
+            loadH5Strucutre(structGrp, planC)
+        if 'dose' in f['planC']:
+            structGrp = f['planC']['dose']
+            #loadH5Dose(structGrp, planC)
+    return planC
+
+def saveH5Scan(scanGrp, scanNumV, planC):
+    scnCount = 0
+    for scanNum in scanNumV:
+        scnDict = planC.scan[scanNum].getScanDict()
+        itemGrpName = 'Item_' + str(scnCount)
+        scnCount += 1
+        scnItem = scanGrp.create_group(itemGrpName)
+        keys = list(scnDict.keys())
+        keys.remove('scanInfo')
+        for key in keys:
+            scnItem = addToH5Grp(scnItem,scnDict,key)
+        # populate contour group
+        scnInfoGrp = scnItem.create_group('scanInfo')
+        sInfoCount = 0
+        for sInfo in scnDict['scanInfo']:
+            sInfoItemName = 'Item_' + str(sInfoCount)
+            sInfoCount += 1
+            sInfoItem = scnInfoGrp.create_group(sInfoItemName)
+            keys = list(sInfo.keys())
+            for key in keys:
+                sInfoItem = addToH5Grp(sInfoItem,sInfo,key)
+    return scanGrp
+
+
+def saveH5Dose(structGrp, structNumV, planC):
+    pass
+
+def saveH5Structure(structGrp, structNumV, planC):
+    strCount = 0
+    for structNum in structNumV:
+        structDict = planC.structure[structNum].getStructDict()
+        itemGrpName = 'Item_' + str(strCount)
+        strCount += 1
+        structItem = structGrp.create_group(itemGrpName)
+        keys = list(structDict.keys())
+        keys.remove('contour')
+        for key in keys:
+            structItem = addToH5Grp(structItem,structDict,key)
+        # populate contour group
+        ctrGrp = structItem.create_group('contour')
+        ctrCount = 0
+        for ctr in structDict['contour']:
+            ctrItemName = 'Item_' + str(ctrCount)
+            ctrItem = ctrGrp.create_group(ctrItemName)
+            if ctr:
+                keys = list(ctr.keys())
+                keys.remove('segments')
+                for key in keys:
+                    ctrItem = addToH5Grp(ctrItem,ctr,key)
+                # Add segments
+                segCount = 0
+                for seg in ctr['segments']:
+                    segGrp = ctrItem.create_group('segments')
+                    segItemName = 'Item_' + str(segCount)
+                    segItem = segGrp.create_group(segItemName)
+                    segCount += 1
+                    keys = list(seg.keys())
+                    for key in keys:
+                        segItem = addToH5Grp(segItem, seg, key)
+            ctrCount += 1
+
+    return structGrp
+
+def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
+    structFields = list(obj.__dict__.keys())
+    for key in excludeKeys:
+        structFields.remove(key)
+    # Attributes
+    h5StructAttribs = list(h5Grp.attrs.keys())
+    for structAttrib in structFields:
+        if structAttrib in h5StructAttribs:
+            attribVal = h5Grp.attrs[structAttrib]
+            if isinstance(attribVal, np.bytes_):
+                attribVal = attribVal.decode('UTF-8')
+            setattr(obj, structAttrib, attribVal)
+    # Datasets
+    h5StructDsets = list(h5Grp.keys())
+    for structAttrib in structFields:
+        if structAttrib in h5StructDsets:
+            setattr(obj, structAttrib, h5Grp[structAttrib][:])
+
+    return obj
+
+def loadH5Scan(scanGrp, planC):
+    scanUIDs = [s.scanUID for s in planC.scan]
+    scanFieldToExclude = ['scanInfo']
+    scanItems = scanGrp.keys()
+    for scanItem in scanItems:
+        scanObj = scn.Scan()
+        if scanGrp[scanItem].attrs['scanUID'] in scanUIDs:
+            warnings.warn("Scan " + scanGrp[scanItem].attribs['scanUID'] + " not imported from H5 as it already exists in planC")
+            continue
+        # populate structure field
+        scanObj = readAttribsAndDsets(scanObj, scanGrp[scanItem], scanFieldToExclude)
+        # populate contour field
+        h5sInfoList = scanGrp[scanItem]['scanInfo'].keys()
+        sInfoList = []
+        for siItem in h5sInfoList:
+            siH5 = scanGrp[scanItem]['scanInfo'][siItem]
+            siObj = scn_info.ScanInfo()
+            siObj = readAttribsAndDsets(siObj, siH5)
+            sInfoList.append(siObj)
+        scanObj.scanInfo = sInfoList
+        planC.scan.append(scanObj)
+
+    return planC
+
+
+def loadH5Strucutre(structGrp, planC):
+    strUIDs = [s.strUID for s in planC.structure]
+    strFieldToExclude = ['contour']
+    ctrFieldToExclude = ['segments']
+    structItems = structGrp.keys()
+    for strItem in structItems:
+        structObj = structr.Structure()
+        if structGrp[strItem].attrs['strUID'] in strUIDs:
+            warnings.warn("Structure " + structGrp[strItem].attrs['strUID'] + " not imported from H5 as it already exists in planC")
+            continue
+        # populate structure field
+        structObj = readAttribsAndDsets(structObj, structGrp[strItem], strFieldToExclude)
+        # populate contour field
+        h5CtrList = structGrp[strItem]['contour'].keys()
+        planCtrList = []
+        for ctrItem in h5CtrList:
+            ctr = structGrp[strItem]['contour'][ctrItem]
+            if ctr.keys():
+                ctrObj = Contour()
+                ctrObj = readAttribsAndDsets(ctrObj, ctr, ctrFieldToExclude)
+                segList = ctr['segments'].keys()
+                planSegList = []
+                for segItem in segList:
+                    seg = ctr['segments'][segItem]
+                    segObj = structr.Segment()
+                    segObj = readAttribsAndDsets(segObj, seg)
+                    planSegList.append(segObj)
+                ctrObj.segments = planSegList
+                planCtrList.append(ctrObj)
+            else:
+                planCtrList.append([])
+        structObj.contour = planCtrList
+
+        # Append to existing structure list in planc
+        planC.structure.append(structObj)
+
+    return planC
 
 
 def load_dcm_dir(dcm_dir, initplanC = ''):

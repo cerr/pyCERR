@@ -199,6 +199,22 @@ class Structure:
         img.SetDirection(direction)
         return img
 
+    def getStructDict(self):
+        structDict = self.__dict__
+        contourList = []
+        for ctr in structDict['contour']:
+            if ctr:
+                ctrDict = ctr.__dict__
+                segList = []
+                for seg in ctrDict['segments']:
+                    segList.append(seg.__dict__)
+                ctrDict['segments'] = segList
+                contourList.append(ctrDict)
+            else:
+                contourList.append([])
+        structDict['contour'] = contourList
+        return structDict
+
 @dataclass
 class Contour:
     #sopInstanceUID: str = ""
@@ -210,7 +226,6 @@ class Contour:
 @dataclass
 class Segment:
     points: np.ndarray = field(default_factory=get_empty_np_array)
-
 
 class jsonSerializeSegment(json.JSONEncoder):
     def default(self, segObj):
@@ -312,6 +327,7 @@ def importJson(jsonFileName, planC):
 
     return planC
 
+
 def parse_contours(contour_seq):
     num_contours = len(contour_seq)
     contour_list = np.empty(num_contours,Contour)
@@ -345,8 +361,8 @@ def load_structure(file_list):
             roi_contour_seq = ds.ROIContourSequence
             str_roi_seq = ds.StructureSetROISequence
             roi_obs_seq = ds.RTROIObservationsSequence
-            ctrSeqRefRoiNums = np.array([roiCtr.ReferencedROINumber for roiCtr in roi_contour_seq])
-            obsSeqRefRoiNums = np.array([roiObs.ReferencedROINumber for roiObs in roi_obs_seq])
+            ctrSeqRefRoiNums = np.array([roiCtr.ReferencedROINumber.real for roiCtr in roi_contour_seq])
+            obsSeqRefRoiNums = np.array([roiObs.ReferencedROINumber.real for roiObs in roi_obs_seq])
             num_structs = len(roi_contour_seq)
             #for str_num, (roi_contour,str_roi) in enumerate(zip(roi_contour_seq,str_roi_seq)):
             for str_num, str_roi in enumerate(str_roi_seq):
@@ -355,12 +371,12 @@ def load_structure(file_list):
                 struct_meta.writer = ds.Manufacturer
                 struct_meta.dateWritten = ds.StructureSetDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
-                struct_meta.roiNumber = str_roi.ROINumber
+                struct_meta.roiNumber = str_roi.ROINumber.real
                 struct_meta.structureName = str_roi.ROIName
                 struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
                 if ("3006","0038") in str_roi:
                     struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
-                ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
+                ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID.name
                 struct_meta.referencedFrameOfReferenceUID = ref_FOR_uid
 
                 # Find the matching ROIContourSequence element
@@ -380,7 +396,7 @@ def load_structure(file_list):
                     struct_meta.structureColor = getColorForStructNum(str_num)
                 struct_meta.ROIInterpretedType = roi_obs.RTROIInterpretedType
                 struct_meta.strUID = uid.createUID("structure")
-                struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID
+                struct_meta.structSetSopInstanceUID =  ds.SOPInstanceUID.name
                 struct_meta.structureFileFormat = "RTSTRUCT"
                 #structureColor
                 # struct_meta.roiGenerationAlgorithm = str_roi.ROIGenerationAlgorithm
@@ -390,7 +406,7 @@ def load_structure(file_list):
                 # ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID
                 ref_FOR_seq = ds.ReferencedFrameOfReferenceSequence
                 for ref_FOR in ref_FOR_seq:
-                    if ref_FOR.FrameOfReferenceUID == ref_FOR_uid:
+                    if ref_FOR.FrameOfReferenceUID.name == ref_FOR_uid:
                         struct_meta.assocScanUID = "CT." + ref_FOR.RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].SeriesInstanceUID
                         # Associated scan found. Break out of for loop
                         break
