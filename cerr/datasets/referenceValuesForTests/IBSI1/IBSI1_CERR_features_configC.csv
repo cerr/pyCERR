@@ -1,0 +1,276 @@
+data_set,family,image_biomarker,benchmark_value,tolerance,tag
+configuration C,Diagnostics-initial image,Image dimension x,204,0,img_dim_x_init_img
+configuration C,Diagnostics-initial image,Image dimension y,201,0,img_dim_y_init_img
+configuration C,Diagnostics-initial image,Image dimension z,60,0,img_dim_z_init_img
+configuration C,Diagnostics-initial image,Voxel dimension x,0.977,0,vox_dim_x_init_img
+configuration C,Diagnostics-initial image,Voxel dimension y,0.977,0,vox_dim_y_init_img
+configuration C,Diagnostics-initial image,Voxel dimension z,3,0,vox_dim_z_init_img
+configuration C,Diagnostics-initial image,Mean intensity,-266,0,mean_int_init_img
+configuration C,Diagnostics-initial image,Minimum intensity,-1000,0,min_int_init_img
+configuration C,Diagnostics-initial image,Maximum intensity,3065,0,max_int_init_img
+configuration C,Diagnostics-interpolated image,Image dimension x,100,1,img_dim_x_interp_img
+configuration C,Diagnostics-interpolated image,Image dimension y,99,0.8,img_dim_y_interp_img
+configuration C,Diagnostics-interpolated image,Image dimension z,90,0,img_dim_z_interp_img
+configuration C,Diagnostics-interpolated image,Voxel dimension x,2,0,vox_dim_x_interp_img
+configuration C,Diagnostics-interpolated image,Voxel dimension y,2,0,vox_dim_y_interp_img
+configuration C,Diagnostics-interpolated image,Voxel dimension z,2,0,vox_dim_z_interp_img
+configuration C,Diagnostics-interpolated image,Mean intensity,-270,3,mean_int_interp_img
+configuration C,Diagnostics-interpolated image,Minimum intensity,-1000,0,min_int_interp_img
+configuration C,Diagnostics-interpolated image,Maximum intensity,1854,30,max_int_interp_img
+configuration C,Diagnostics-initial ROI,Int. mask dimension x,204,0,int_mask_dim_x_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask dimension y,201,0,int_mask_dim_y_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask dimension z,60,0,int_mask_dim_z_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask bounding box dimension x,100,0,int_mask_bb_dim_x_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask bounding box dimension y,99,0,int_mask_bb_dim_y_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask bounding box dimension z,26,0,int_mask_bb_dim_z_init_roi
+configuration C,Diagnostics-initial ROI,Morph. mask bounding box dimension x,100,0,morph_mask_bb_dim_x_init_roi
+configuration C,Diagnostics-initial ROI,Morph. mask bounding box dimension y,99,0,morph_mask_bb_dim_y_init_roi
+configuration C,Diagnostics-initial ROI,Morph. mask bounding box dimension z,26,0,morph_mask_bb_dim_z_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask voxel count,125256,0,int_mask_vox_count_init_roi
+configuration C,Diagnostics-initial ROI,Morph. mask voxel count,125256,0,morph_mask_vox_count_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask mean intensity,-46.9,0,int_mask_mean_int_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask minimum intensity,-1000,0,int_mask_min_int_init_roi
+configuration C,Diagnostics-initial ROI,Int. mask maximum intensity,723,0,int_mask_max_int_init_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask dimension x,100,1,int_mask_dim_x_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask dimension y,99,0.8,int_mask_dim_y_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask dimension z,90,0,int_mask_dim_z_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask bounding box dimension x,49,0.2,int_mask_bb_dim_x_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask bounding box dimension y,49,0.3,int_mask_bb_dim_y_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask bounding box dimension z,40,0.1,int_mask_bb_dim_z_interp_roi
+configuration C,Diagnostics-interpolated ROI,Morph. mask bounding box dimension x,49,0.2,morph_mask_bb_dim_x_interp_roi
+configuration C,Diagnostics-interpolated ROI,Morph. mask bounding box dimension y,49,0.3,morph_mask_bb_dim_y_interp_roi
+configuration C,Diagnostics-interpolated ROI,Morph. mask bounding box dimension z,40,0.1,morph_mask_bb_dim_z_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask voxel count,45985,100,int_mask_vox_count_interp_roi
+configuration C,Diagnostics-interpolated ROI,Morph. mask voxel count,45985,100,morph_mask_vox_count_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask mean intensity,-48.9,0.1,int_mask_mean_int_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask minimum intensity,-939,1,int_mask_min_int_interp_roi
+configuration C,Diagnostics-interpolated ROI,Int. mask maximum intensity,521,5,int_mask_max_int_interp_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask dimension x,100,1,int_mask_dim_x_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask dimension y,99,0.8,int_mask_dim_y_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask dimension z,90,0,int_mask_dim_z_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask bounding box dimension x,49,0.3,int_mask_bb_dim_x_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask bounding box dimension y,49,0.3,int_mask_bb_dim_y_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask bounding box dimension z,40,0.3,int_mask_bb_dim_z_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Morph. mask bounding box dimension x,49,0.3,morph_mask_bb_dim_x_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Morph. mask bounding box dimension y,49,0.3,morph_mask_bb_dim_y_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Morph. mask bounding box dimension z,40,0.3,morph_mask_bb_dim_z_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask voxel count,45981,700,int_mask_vox_count_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Morph. mask voxel count,45985,700,morph_mask_vox_count_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask mean intensity,-49,2.9,int_mask_mean_int_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask minimum intensity,-939,4,int_mask_min_int_reseg_roi
+configuration C,Diagnostics-resegmented ROI,Int. mask maximum intensity,393,10,int_mask_max_int_reseg_roi
+configuration C,Morphology,Volume (mesh),367000,6000,morph_volume
+configuration C,Morphology,Volume (voxel counting),368000,6000,morph_vol_approx
+configuration C,Morphology,Surface area (mesh),34300,400,morph_area_mesh
+configuration C,Morphology,Surface to volume ratio,0.0934,0.0007,morph_av
+configuration C,Morphology,Compactness 1,0.0326,0.0002,morph_comp_1
+configuration C,Morphology,Compactness 2,0.378,0.004,morph_comp_2
+configuration C,Morphology,Spherical disproportion,1.38,0.01,morph_sph_dispr
+configuration C,Morphology,Sphericity,0.723,0.003,morph_sphericity
+configuration C,Morphology,Asphericity,0.383,0.004,morph_asphericity
+configuration C,Morphology,Centre of mass shift,45.6,2.8,morph_com
+configuration C,Morphology,Maximum 3D diameter,125,1,morph_diam
+configuration C,Morphology,Major axis length,93.3,0.5,morph_pca_maj_axis
+configuration C,Morphology,Minor axis length,82,0.5,morph_pca_min_axis
+configuration C,Morphology,Least axis length,70.9,0.4,morph_pca_least_axis
+configuration C,Morphology,Elongation,0.879,0.001,morph_pca_elongation
+configuration C,Morphology,Flatness,0.76,0.001,morph_pca_flatness
+configuration C,Morphology,Volume density (AABB),0.478,0.003,morph_vol_dens_aabb
+configuration C,Morphology,Area density (AABB),0.678,0.003,morph_area_dens_aabb
+configuration C,Morphology,Volume density (OMBB),,,morph_vol_dens_ombb
+configuration C,Morphology,Area density (OMBB),,,morph_area_dens_ombb
+configuration C,Morphology,Volume density (AEE),1.29,0.01,morph_vol_dens_aee
+configuration C,Morphology,Area density (AEE),1.62,0.01,morph_area_dens_aee
+configuration C,Morphology,Volume density (MVEE),,,morph_vol_dens_mvee
+configuration C,Morphology,Area density (MVEE),,,morph_area_dens_mvee
+configuration C,Morphology,Volume density (convex hull),0.834,0.002,morph_vol_dens_conv_hull
+configuration C,Morphology,Area density (convex hull),1.13,0.01,morph_area_dens_conv_hull
+configuration C,Morphology,Integrated intensity,-18000000,1400000,morph_integ_int
+configuration C,Morphology,Moran's I index,0.0824,0.0003,morph_moran_i
+configuration C,Morphology,Geary's C measure,0.846,0.001,morph_geary_c
+configuration C,Local intensity,Local intensity peak,169,10,loc_peak_loc
+configuration C,Local intensity,Global intensity peak,180,5,loc_peak_glob
+configuration C,Statistics,Mean,-49,2.9,stat_mean
+configuration C,Statistics,Variance,50600,1400,stat_var
+configuration C,Statistics,Skewness,-2.14,0.05,stat_skew
+configuration C,Statistics,(Excess) kurtosis,3.53,0.23,stat_kurt
+configuration C,Statistics,Median,40,0.4,stat_median
+configuration C,Statistics,Minimum,-939,4,stat_min
+configuration C,Statistics,10th percentile,-424,14,stat_p10
+configuration C,Statistics,90th percentile,86,0.1,stat_p90
+configuration C,Statistics,Maximum,393,10,stat_max
+configuration C,Statistics,Interquartile range,67,4.9,stat_iqr
+configuration C,Statistics,Range,1330,20,stat_range
+configuration C,Statistics,Mean absolute deviation,158,4,stat_mad
+configuration C,Statistics,Robust mean absolute deviation,66.8,3.5,stat_rmad
+configuration C,Statistics,Median absolute deviation,119,4,stat_medad
+configuration C,Statistics,Coefficient of variation,-4.59,0.29,stat_cov
+configuration C,Statistics,Quartile coefficient of dispersion,1.03,0.4,stat_qcod
+configuration C,Statistics,Energy,2440000000,120000000,stat_energy
+configuration C,Statistics,Root mean square,230,4,stat_rms
+configuration C,Intensity histogram,Mean,38.6,0.2,ih_mean
+configuration C,Intensity histogram,Variance,81.1,2.1,ih_var
+configuration C,Intensity histogram,Skewness,-2.14,0.05,ih_skew
+configuration C,Intensity histogram,(Excess) kurtosis,3.52,0.23,ih_kurt
+configuration C,Intensity histogram,Median,42,0,ih_median
+configuration C,Intensity histogram,Minimum,3,0.16,ih_min
+configuration C,Intensity histogram,10th percentile,24,0.7,ih_p10
+configuration C,Intensity histogram,90th percentile,44,0,ih_p90
+configuration C,Intensity histogram,Maximum,56,0.5,ih_max
+configuration C,Intensity histogram,Mode,43,0.1,ih_mode
+configuration C,Intensity histogram,Interquartile range,3,0.21,ih_iqr
+configuration C,Intensity histogram,Range,53,0.6,ih_range
+configuration C,Intensity histogram,Mean absolute deviation,6.32,0.15,ih_mad
+configuration C,Intensity histogram,Robust mean absolute deviation,2.59,0.14,ih_rmad
+configuration C,Intensity histogram,Median absolute deviation,4.75,0.12,ih_medad
+configuration C,Intensity histogram,Coefficient of variation,0.234,0.005,ih_cov
+configuration C,Intensity histogram,Quartile coefficient of dispersion,0.0361,0.0027,ih_qcod
+configuration C,Intensity histogram,Entropy,3.73,0.04,ih_entropy
+configuration C,Intensity histogram,Uniformity,0.14,0.003,ih_uniformity
+configuration C,Intensity histogram,Maximum histogram gradient,4750,30,ih_max_grad
+configuration C,Intensity histogram,Maximum histogram gradient intensity,41,0,ih_max_grad_g
+configuration C,Intensity histogram,Minimum histogram gradient,-4680,50,ih_min_grad
+configuration C,Intensity histogram,Minimum histogram gradient intensity,44,0,ih_min_grad_g
+configuration C,Intensity volume histogram,Volume fraction at 10% intensity,0.998,0.001,ivh_v10
+configuration C,Intensity volume histogram,Volume fraction at 90% intensity,0.000152,0.00002,ivh_v90
+configuration C,Intensity volume histogram,Intensity at 10% volume,88.8,0.2,ivh_i10
+configuration C,Intensity volume histogram,Intensity at 90% volume,-421,14,ivh_i90
+configuration C,Intensity volume histogram,Volume fraction difference between 10% and 90% intensity,0.997,0.001,ivh_diff_v10_v90
+configuration C,Intensity volume histogram,Intensity difference between 10% and 90% volume,510,14,ivh_diff_i10_i90
+configuration C,Intensity volume histogram,Area under the IVH curve,0.681,0.003,ivh_auc
+configuration C,"Co-occurrence matrix (3D, averaged)",Joint maximum,0.111,0.002,cm_joint_max_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Joint average,39,0.2,cm_joint_avg_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Joint variance,73.7,2,cm_joint_var_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Joint entropy,6.39,0.06,cm_joint_entr_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Difference average,2.17,0.05,cm_diff_avg_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Difference variance,14.4,0.5,cm_diff_var_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Difference entropy,2.64,0.03,cm_diff_entr_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Sum average,78,0.3,cm_sum_avg_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Sum variance,276,8,cm_sum_var_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Sum entropy,4.56,0.04,cm_sum_entr_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Angular second moment,0.045,0.001,cm_energy_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Contrast,19.2,0.7,cm_contrast_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Dissimilarity,2.17,0.05,cm_dissimilarity_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Inverse difference,0.582,0.004,cm_inv_diff_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Normalised inverse difference,0.966,0.001,cm_inv_diff_norm_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Inverse difference moment,0.547,0.004,cm_inv_diff_mom_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Normalised inverse difference moment,0.994,0.001,cm_inv_diff_mom_norm_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Inverse variance,0.39,0.003,cm_inv_var_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Correlation,0.869,0.001,cm_corr_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Autocorrelation,1580,10,cm_auto_corr_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Cluster tendency,276,8,cm_clust_tend_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Cluster shade,-10600,300,cm_clust_shade_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Cluster prominence,569000,11000,cm_clust_prom_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Information correlation 1,-0.236,0.001,cm_info_corr1_3D_avg
+configuration C,"Co-occurrence matrix (3D, averaged)",Information correlation 2,0.9,0.001,cm_info_corr2_3D_avg
+configuration C,"Co-occurrence matrix (3D, merged)",Joint maximum,0.111,0.002,cm_joint_max_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Joint average,39,0.2,cm_joint_avg_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Joint variance,73.8,2,cm_joint_var_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Joint entropy,6.42,0.06,cm_joint_entr_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Difference average,2.16,0.05,cm_diff_avg_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Difference variance,14.4,0.5,cm_diff_var_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Difference entropy,2.64,0.03,cm_diff_entr_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Sum average,78,0.3,cm_sum_avg_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Sum variance,276,8,cm_sum_var_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Sum entropy,4.56,0.04,cm_sum_entr_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Angular second moment,0.0447,0.001,cm_energy_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Contrast,19.1,0.7,cm_contrast_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Dissimilarity,2.16,0.05,cm_dissimilarity_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Inverse difference,0.583,0.004,cm_inv_diff_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Normalised inverse difference,0.966,0.001,cm_inv_diff_norm_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Inverse difference moment,0.548,0.004,cm_inv_diff_mom_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Normalised inverse difference moment,0.994,0.001,cm_inv_diff_mom_norm_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Inverse variance,0.39,0.003,cm_inv_var_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Correlation,0.871,0.001,cm_corr_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Autocorrelation,1580,10,cm_auto_corr_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Cluster tendency,276,8,cm_clust_tend_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Cluster shade,-10600,300,cm_clust_shade_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Cluster prominence,570000,11000,cm_clust_prom_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Information correlation 1,-0.228,0.001,cm_info_corr1_3D_comb
+configuration C,"Co-occurrence matrix (3D, merged)",Information correlation 2,0.899,0.001,cm_info_corr2_3D_comb
+configuration C,"Run length matrix (3D, averaged)",Short runs emphasis,0.786,0.003,rlm_sre_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Long runs emphasis,3.31,0.04,rlm_lre_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Low grey level run emphasis,0.00155,0.00005,rlm_lgre_3D_avg
+configuration C,"Run length matrix (3D, averaged)",High grey level run emphasis,1470,10,rlm_hgre_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Short run low grey level emphasis,0.00136,0.00005,rlm_srlge_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Short run high grey level emphasis,1100,10,rlm_srhge_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Long run low grey level emphasis,0.00317,0.00004,rlm_lrlge_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Long run high grey level emphasis,5590,80,rlm_lrhge_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Grey level non-uniformity,3180,10,rlm_glnu_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Normalised grey level non-uniformity,0.102,0.003,rlm_glnu_norm_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Run length non-uniformity,18000,500,rlm_rlnu_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Normalised run length non-uniformity,0.574,0.004,rlm_rlnu_norm_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Run percentage,0.679,0.003,rlm_r_perc_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Grey level variance,101,3,rlm_gl_var_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Run length variance,1.12,0.02,rlm_rl_var_3D_avg
+configuration C,"Run length matrix (3D, averaged)",Run entropy,5.35,0.03,rlm_rl_entr_3D_avg
+configuration C,"Run length matrix (3D, merged)",Short runs emphasis,0.787,0.003,rlm_sre_3D_comb
+configuration C,"Run length matrix (3D, merged)",Long runs emphasis,3.28,0.04,rlm_lre_3D_comb
+configuration C,"Run length matrix (3D, merged)",Low grey level run emphasis,0.00155,0.00005,rlm_lgre_3D_comb
+configuration C,"Run length matrix (3D, merged)",High grey level run emphasis,1470,10,rlm_hgre_3D_comb
+configuration C,"Run length matrix (3D, merged)",Short run low grey level emphasis,0.00136,0.00005,rlm_srlge_3D_comb
+configuration C,"Run length matrix (3D, merged)",Short run high grey level emphasis,1100,10,rlm_srhge_3D_comb
+configuration C,"Run length matrix (3D, merged)",Long run low grey level emphasis,0.00314,0.00004,rlm_lrlge_3D_comb
+configuration C,"Run length matrix (3D, merged)",Long run high grey level emphasis,5530,80,rlm_lrhge_3D_comb
+configuration C,"Run length matrix (3D, merged)",Grey level non-uniformity,41300,100,rlm_glnu_3D_comb
+configuration C,"Run length matrix (3D, merged)",Normalised grey level non-uniformity,0.102,0.003,rlm_glnu_norm_3D_comb
+configuration C,"Run length matrix (3D, merged)",Run length non-uniformity,234000,6000,rlm_rlnu_3D_comb
+configuration C,"Run length matrix (3D, merged)",Normalised run length non-uniformity,0.575,0.004,rlm_rlnu_norm_3D_comb
+configuration C,"Run length matrix (3D, merged)",Run percentage,0.679,0.003,rlm_r_perc_3D_comb
+configuration C,"Run length matrix (3D, merged)",Grey level variance,101,3,rlm_gl_var_3D_comb
+configuration C,"Run length matrix (3D, merged)",Run length variance,1.11,0.02,rlm_rl_var_3D_comb
+configuration C,"Run length matrix (3D, merged)",Run entropy,5.35,0.03,rlm_rl_entr_3D_comb
+configuration C,Size zone matrix (3D),Small zone emphasis,0.695,0.001,szm_sze_3D
+configuration C,Size zone matrix (3D),Large zone emphasis,38900,900,szm_lze_3D
+configuration C,Size zone matrix (3D),Low grey level emphasis,0.00235,0.00006,szm_lgze_3D
+configuration C,Size zone matrix (3D),High grey level emphasis,971,7,szm_hgze_3D
+configuration C,Size zone matrix (3D),Small zone low grey level emphasis,0.0016,0.00004,szm_szlge_3D
+configuration C,Size zone matrix (3D),Small zone high grey level emphasis,657,4,szm_szhge_3D
+configuration C,Size zone matrix (3D),Large zone low grey level emphasis,21.6,0.5,szm_lzlge_3D
+configuration C,Size zone matrix (3D),Large zone high grey level emphasis,70700000,1500000,szm_lzhge_3D
+configuration C,Size zone matrix (3D),Grey level non-uniformity,195,6,szm_glnu_3D
+configuration C,Size zone matrix (3D),Normalised grey level non-uniformity,0.0286,0.0003,szm_glnu_norm_3D
+configuration C,Size zone matrix (3D),Zone size non-uniformity,3040,100,szm_zsnu_3D
+configuration C,Size zone matrix (3D),Normalised zone size non-uniformity,0.447,0.001,szm_zsnu_norm_3D
+configuration C,Size zone matrix (3D),Zone percentage,0.148,0.003,szm_z_perc_3D
+configuration C,Size zone matrix (3D),Grey level variance,106,1,szm_gl_var_3D
+configuration C,Size zone matrix (3D),Zone size variance,38900,900,szm_zs_var_3D
+configuration C,Size zone matrix (3D),Zone size entropy,7,0.01,szm_zs_entr_3D
+configuration C,Distance zone matrix (3D),Small distance emphasis,0.531,0.006,dzm_sde_3D
+configuration C,Distance zone matrix (3D),Large distance emphasis,11,0.3,dzm_lde_3D
+configuration C,Distance zone matrix (3D),Low grey level emphasis,0.00235,0.00006,dzm_lgze_3D
+configuration C,Distance zone matrix (3D),High grey level emphasis,971,7,dzm_hgze_3D
+configuration C,Distance zone matrix (3D),Small distance low grey level emphasis,0.00149,0.00004,dzm_sdlge_3D
+configuration C,Distance zone matrix (3D),Small distance high grey level emphasis,476,11,dzm_sdhge_3D
+configuration C,Distance zone matrix (3D),Large distance low grey level emphasis,0.0154,0.0005,dzm_ldlge_3D
+configuration C,Distance zone matrix (3D),Large distance high grey level emphasis,13400,200,dzm_ldhge_3D
+configuration C,Distance zone matrix (3D),Grey level non-uniformity,195,6,dzm_glnu_3D
+configuration C,Distance zone matrix (3D),Normalised grey level non-uniformity,0.0286,0.0003,dzm_glnu_norm_3D
+configuration C,Distance zone matrix (3D),Zone distance non-uniformity,1870,40,dzm_zdnu_3D
+configuration C,Distance zone matrix (3D),Normalised zone distance non-uniformity,0.274,0.005,dzm_zdnu_norm_3D
+configuration C,Distance zone matrix (3D),Zone percentage,0.148,0.003,dzm_z_perc_3D
+configuration C,Distance zone matrix (3D),Grey level variance,106,1,dzm_gl_var_3D
+configuration C,Distance zone matrix (3D),Zone distance variance,4.6,0.06,dzm_zd_var_3D
+configuration C,Distance zone matrix (3D),Zone distance entropy,7.56,0.03,dzm_zd_entr_3D
+configuration C,Neighbourhood grey tone difference matrix (3D),Coarseness,0.000216,0.000004,ngt_coarseness_3D
+configuration C,Neighbourhood grey tone difference matrix (3D),Contrast,0.0873,0.0019,ngt_contrast_3D
+configuration C,Neighbourhood grey tone difference matrix (3D),Busyness,1.39,0.01,ngt_busyness_3D
+configuration C,Neighbourhood grey tone difference matrix (3D),Complexity,1810,60,ngt_complexity_3D
+configuration C,Neighbourhood grey tone difference matrix (3D),Strength,0.651,0.015,ngt_strength_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Low dependence emphasis,0.137,0.003,ngl_lde_3D
+configuration C,Neighbouring grey level dependence matrix (3D),High dependence emphasis,126,2,ngl_hde_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Low grey level count emphasis,0.0013,0.00004,ngl_lgce_3D
+configuration C,Neighbouring grey level dependence matrix (3D),High grey level count emphasis,1570,10,ngl_hgce_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Low dependence low grey level emphasis,0.000306,0.000012,ngl_ldlge_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Low dependence high grey level emphasis,141,2,ngl_ldhge_3D
+configuration C,Neighbouring grey level dependence matrix (3D),High dependence low grey level emphasis,0.0828,0.0003,ngl_hdlge_3D
+configuration C,Neighbouring grey level dependence matrix (3D),High dependence high grey level emphasis,227000,3000,ngl_hdhge_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Grey level non-uniformity,6420,10,ngl_glnu_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Normalised grey level non-uniformity,0.14,0.003,ngl_glnu_norm_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Dependence count non-uniformity,2450,60,ngl_dcnu_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Normalised dependence count non-uniformity,0.0532,0.0005,ngl_dcnu_norm_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Dependence count percentage,1,0,ngl_dc_perc_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Grey level variance,81.1,2.1,ngl_gl_var_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Dependence count variance,39.2,0.1,ngl_dc_var_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Dependence count entropy,7.54,0.03,ngl_dc_entr_3D
+configuration C,Neighbouring grey level dependence matrix (3D),Dependence count energy,0.00789,0.00011,ngl_dc_energy_3D

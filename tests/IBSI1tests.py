@@ -18,16 +18,6 @@ cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)),'cerr')
 dataPath = os.path.join(cerrPath, 'datasets', 'radiomics_phantom_dicom', 'PAT1')
 settingsPath = os.path.join(cerrPath, 'datasets','radiomics_settings', 'IBSIsettings','IBSI1')
 
-# Read reference feature values
-refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI1',
-                       'IBSI1_CERR_features.csv')
-refData = pd.read_csv(refFile)
-refFeatNames = list(refData['tag'][6:])
-tolV = np.array(refData['tolerance'][6:])
-refValsV = np.array(refData['benchmark_value'][6:])
-# Note: The columns "benchmark_value_compare" and "tolerance_comapre" contain results in
-# units of cm (rather than mm) where applicable, to simplify comparison with pyCERR.
-
 def loadData(datasetDir):
     """ Load DICOM data to CERR archive"""
 
@@ -50,7 +40,7 @@ def dispDiff(diffValsV,tolFeatV,featList):
         print('-------------')
 
 
-def compareVals(cerrFeatS, refFeatNames):
+def compareVals(cerrFeatS, refFeatNames, refValsV, tolV):
     """ Indicate if features match reference, otherwise display differences."""
     cerrFeatList = list(cerrFeatS.keys())
     numFeat = len(cerrFeatList)
@@ -92,7 +82,7 @@ def run_tests():
     structNum = 0
 
     # Feature extraction settings
-    configList = ['A1','A2','C1','C2']
+    configList = ['A1','A3','B1','B3','C1','C3']
 
     # Loop over settings
     for idx in range(len(configList)):
@@ -105,8 +95,17 @@ def run_tests():
         calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
         #imgType = list(calcFeatS.keys())[0].split('_')[0]
 
-        # Compare to reference std
-        compareVals(calcFeatS, refFeatNames)
+        # Read reference feature values
+        fileName = 'IBSI1_CERR_features_config'+ str(config[:-1]) +'.csv'
+        refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests',\
+                               'IBSI1',fileName)
+        refData = pd.read_csv(refFile)
+        refFeatNames = list(refData['tag'][6:])
+        tolV = np.array(refData['tolerance'][6:])
+        refValsV = np.array(refData['benchmark_value'][6:])
+
+        # Compare to reference values
+        compareVals(calcFeatS, refFeatNames, refValsV, tolV)
 
 
 if __name__ == "__main__":
