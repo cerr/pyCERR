@@ -52,13 +52,11 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
         coccurForOffV = np.histogram(slc2M.flatten(), bins=numCoOcs-1)[1:]
         if cooccurType == 1:
             cooccurM += np.array(np.reshape(coccurForOffV,(numCoOcs,1)))
-            cooccurM += cooccurM[indRowV.astype(int)-1]
         else:
             cooccurM[:,off] = np.array(coccurForOffV)
-            cooccurM += cooccurM[np.ix_(indRowV.astype(int)-1, range(numOffsets))]
 
     # Ensure symmetry
-
+    cooccurM += cooccurM[indRowV.astype(int)-1, :]
 
     # Remove rows and columns with NaN
     #cooccurM = cooccurM.tocsr()
