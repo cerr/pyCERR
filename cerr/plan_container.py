@@ -14,7 +14,7 @@ import pandas as pd
 from pydicom.uid import generate_uid
 import h5py
 import cerr.dataclasses.scan_info as scn_info
-import cerr.plan_container as pc
+# import cerr.plan_container as pc
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import beams as bms
 from cerr.dataclasses import dose as rtds
@@ -22,13 +22,14 @@ from cerr.dataclasses import scan as scn
 from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
 from cerr.dataclasses.structure import Contour
-
+from cerr.dataclasses import header as headr
 
 def get_empty_list():
     return []
 
 @dataclass
 class PlanC:
+    header: headr.Header = headr.Header()
     scan: List[scn.Scan] = field(default_factory=get_empty_list) #scan.Scan()
     structure: List[structr.Structure] = field(default_factory=get_empty_list) #structure.Structure()
     dose: List[rtds.Dose] = field(default_factory=get_empty_list) #dose.Dose()
@@ -74,7 +75,11 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
         doseGrp = saveH5Dose(doseGrp, doseNumV, planC)
     return 0
 
-def loadFromH5(h5File, planC = PlanC()):
+def loadFromH5(h5File, initplanC=''):
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC() #pc.PlanC()
+    else:
+        planC = initplanC
     with h5py.File(h5File, 'r') as f:
         if 'scan' in f['planC']:
             structGrp = f['planC']['scan']
@@ -234,7 +239,7 @@ def loadH5Strucutre(structGrp, planC):
     return planC
 
 
-def load_dcm_dir(dcm_dir, initplanC = ''):
+def load_dcm_dir(dcm_dir, initplanC=''):
     """
     This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
     INPUTS -
@@ -250,8 +255,8 @@ def load_dcm_dir(dcm_dir, initplanC = ''):
     df_img = parse_dcm_dir(dcm_dir)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
-    if not isinstance(initplanC, pc.PlanC):
-        planC = pc.PlanC()
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC() #pc.PlanC()
     else:
         planC = initplanC
     pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
@@ -330,9 +335,9 @@ def load_planC_from_pkl(file_name=""):
 def save_scan_to_nii(scan_num, nii_file_name, planC):
     pass
 
-def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC = ''):
-    if not isinstance(initplanC, pc.PlanC):
-        planC = pc.PlanC()
+def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC()
     else:
         planC = initplanC
     reader = sitk.ImageFileReader()
