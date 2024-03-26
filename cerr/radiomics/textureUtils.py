@@ -183,7 +183,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
     paramS, __ = loadSettingsFromFile(configFilePath)
 
     # Apply preprocessing
-    procScan3M, procMask3M, gridS, __, __ = preProcessForRadiomics(scanNum, strNum, paramS, planC)
+    procScan3M, procMask3M, morphmask3M, gridS, __, __ = preProcessForRadiomics(scanNum, strNum, paramS, planC)
     minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(procMask3M)
 
     # Extract settings to reverse preprocessing transformations

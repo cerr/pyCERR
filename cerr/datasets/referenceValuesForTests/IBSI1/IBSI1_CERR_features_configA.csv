@@ -1,0 +1,412 @@
+﻿data_set,family,image_biomarker,benchmark_value,tolerance,tag
+configuration A,Diagnostics-initial image,Image dimension x,204,0,img_dim_x_init_img
+configuration A,Diagnostics-initial image,Image dimension y,201,0,img_dim_y_init_img
+configuration A,Diagnostics-initial image,Image dimension z,60,0,img_dim_z_init_img
+configuration A,Diagnostics-initial image,Voxel dimension x,0.977,0,vox_dim_x_init_img
+configuration A,Diagnostics-initial image,Voxel dimension y,0.977,0,vox_dim_y_init_img
+configuration A,Diagnostics-initial image,Voxel dimension z,3,0,vox_dim_z_init_img
+configuration A,Diagnostics-initial image,Mean intensity,-266,0,mean_int_init_img
+configuration A,Diagnostics-initial image,Minimum intensity,-1000,0,min_int_init_img
+configuration A,Diagnostics-initial image,Maximum intensity,3065,0,max_int_init_img
+configuration A,Diagnostics-interpolated image,Image dimension x,204,1,img_dim_x_interp_img
+configuration A,Diagnostics-interpolated image,Image dimension y,201,1,img_dim_y_interp_img
+configuration A,Diagnostics-interpolated image,Image dimension z,60,0,img_dim_z_interp_img
+configuration A,Diagnostics-interpolated image,Voxel dimension x,0.977,0,vox_dim_x_interp_img
+configuration A,Diagnostics-interpolated image,Voxel dimension y,0.977,0,vox_dim_y_interp_img
+configuration A,Diagnostics-interpolated image,Voxel dimension z,3,0,vox_dim_z_interp_img
+configuration A,Diagnostics-interpolated image,Mean intensity,-266,3,mean_int_interp_img
+configuration A,Diagnostics-interpolated image,Minimum intensity,-1000,0,min_int_interp_img
+configuration A,Diagnostics-interpolated image,Maximum intensity,3065,40,max_int_interp_img
+configuration A,Diagnostics-initial ROI,Int. mask dimension x,204,0,int_mask_dim_x_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask dimension y,201,0,int_mask_dim_y_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask dimension z,60,0,int_mask_dim_z_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask bounding box dimension x,100,0,int_mask_bb_dim_x_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask bounding box dimension y,99,0,int_mask_bb_dim_y_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask bounding box dimension z,26,0,int_mask_bb_dim_z_init_roi
+configuration A,Diagnostics-initial ROI,Morph. mask bounding box dimension x,100,0,morph_mask_bb_dim_x_init_roi
+configuration A,Diagnostics-initial ROI,Morph. mask bounding box dimension y,99,0,morph_mask_bb_dim_y_init_roi
+configuration A,Diagnostics-initial ROI,Morph. mask bounding box dimension z,26,0,morph_mask_bb_dim_z_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask voxel count,125256,0,int_mask_vox_count_init_roi
+configuration A,Diagnostics-initial ROI,Morph. mask voxel count,125256,0,morph_mask_vox_count_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask mean intensity,-46.9,0,int_mask_mean_int_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask minimum intensity,-1000,0,int_mask_min_int_init_roi
+configuration A,Diagnostics-initial ROI,Int. mask maximum intensity,723,0,int_mask_max_int_init_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask dimension x,204,1,int_mask_dim_x_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask dimension y,201,1,int_mask_dim_y_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask dimension z,60,0,int_mask_dim_z_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask bounding box dimension x,100,1,int_mask_bb_dim_x_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask bounding box dimension y,99,0.3,int_mask_bb_dim_y_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask bounding box dimension z,26,0,int_mask_bb_dim_z_interp_roi
+configuration A,Diagnostics-interpolated ROI,Morph. mask bounding box dimension x,100,1,morph_mask_bb_dim_x_interp_roi
+configuration A,Diagnostics-interpolated ROI,Morph. mask bounding box dimension y,99,0.3,morph_mask_bb_dim_y_interp_roi
+configuration A,Diagnostics-interpolated ROI,Morph. mask bounding box dimension z,26,0,morph_mask_bb_dim_z_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask voxel count,125256,1000,int_mask_vox_count_interp_roi
+configuration A,Diagnostics-interpolated ROI,Morph. mask voxel count,125256,1000,morph_mask_vox_count_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask mean intensity,-46.9,0.1,int_mask_mean_int_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask minimum intensity,-1000,10,int_mask_min_int_interp_roi
+configuration A,Diagnostics-interpolated ROI,Int. mask maximum intensity,723,7,int_mask_max_int_interp_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask dimension x,204,1,int_mask_dim_x_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask dimension y,201,1,int_mask_dim_y_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask dimension z,60,0,int_mask_dim_z_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask bounding box dimension x,100,1,int_mask_bb_dim_x_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask bounding box dimension y,99,0.3,int_mask_bb_dim_y_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask bounding box dimension z,26,0,int_mask_bb_dim_z_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Morph. mask bounding box dimension x,100,1,morph_mask_bb_dim_x_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Morph. mask bounding box dimension y,99,0.3,morph_mask_bb_dim_y_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Morph. mask bounding box dimension z,26,0,morph_mask_bb_dim_z_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask voxel count,114596,1000,int_mask_vox_count_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Morph. mask voxel count,125256,1000,morph_mask_vox_count_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask mean intensity,13.4,1.1,int_mask_mean_int_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask minimum intensity,-500,0,int_mask_min_int_reseg_roi
+configuration A,Diagnostics-resegmented ROI,Int. mask maximum intensity,377,9,int_mask_max_int_reseg_roi
+configuration A,Morphology,Volume (mesh),358000,5000,morph_volume
+configuration A,Morphology,Volume (voxel counting),359000,5000,morph_vol_approx
+configuration A,Morphology,Surface area (mesh),35700,300,morph_area_mesh
+configuration A,Morphology,Surface to volume ratio,0.0996,0.0005,morph_av
+configuration A,Morphology,Compactness 1,0.03,0.0001,morph_comp_1
+configuration A,Morphology,Compactness 2,0.319,0.001,morph_comp_2
+configuration A,Morphology,Spherical disproportion,1.46,0.01,morph_sph_dispr
+configuration A,Morphology,Sphericity,0.683,0.001,morph_sphericity
+configuration A,Morphology,Asphericity,0.463,0.002,morph_asphericity
+configuration A,Morphology,Centre of mass shift,52.9,28.7,morph_com
+configuration A,Morphology,Maximum 3D diameter,125,1,morph_diam
+configuration A,Morphology,Major axis length,92.7,0.4,morph_pca_maj_axis
+configuration A,Morphology,Minor axis length,81.5,0.4,morph_pca_min_axis
+configuration A,Morphology,Least axis length,70.1,0.3,morph_pca_least_axis
+configuration A,Morphology,Elongation,0.879,0.001,morph_pca_elongation
+configuration A,Morphology,Flatness,0.756,0.001,morph_pca_flatness
+configuration A,Morphology,Volume density (AABB),0.486,0.003,morph_vol_dens_aabb
+configuration A,Morphology,Area density (AABB),0.725,0.003,morph_area_dens_aabb
+configuration A,Morphology,Volume density (OMBB),,,morph_vol_dens_ombb
+configuration A,Morphology,Area density (OMBB),,,morph_area_dens_ombb
+configuration A,Morphology,Volume density (AEE),1.29,0.01,morph_vol_dens_aee
+configuration A,Morphology,Area density (AEE),1.71,0.01,morph_area_dens_aee
+configuration A,Morphology,Volume density (MVEE),,,morph_vol_dens_mvee
+configuration A,Morphology,Area density (MVEE),,,morph_area_dens_mvee
+configuration A,Morphology,Volume density (convex hull),0.827,0.001,morph_vol_dens_conv_hull
+configuration A,Morphology,Area density (convex hull),1.18,0.01,morph_area_dens_conv_hull
+configuration A,Morphology,Integrated intensity,4810000,320000,morph_integ_int
+configuration A,Morphology,Moran's I index,0.0322,0.0002,morph_moran_i
+configuration A,Morphology,Geary's C measure,0.863,0.001,morph_geary_c
+configuration A,Local intensity,Local intensity peak,-277,10,loc_peak_loc
+configuration A,Local intensity,Global intensity peak,189,5,loc_peak_glob
+configuration A,Statistics,Mean,13.4,1.1,stat_mean
+configuration A,Statistics,Variance,14200,400,stat_var
+configuration A,Statistics,Skewness,-2.47,0.05,stat_skew
+configuration A,Statistics,(Excess) kurtosis,5.96,0.24,stat_kurt
+configuration A,Statistics,Median,46,0.3,stat_median
+configuration A,Statistics,Minimum,-500,0,stat_min
+configuration A,Statistics,10th percentile,-129,8,stat_p10
+configuration A,Statistics,90th percentile,95,0,stat_p90
+configuration A,Statistics,Maximum,377,9,stat_max
+configuration A,Statistics,Interquartile range,56,0.5,stat_iqr
+configuration A,Statistics,Range,877,9,stat_range
+configuration A,Statistics,Mean absolute deviation,73.6,1.4,stat_mad
+configuration A,Statistics,Robust mean absolute deviation,27.7,0.8,stat_rmad
+configuration A,Statistics,Median absolute deviation,64.3,1,stat_medad
+configuration A,Statistics,Coefficient of variation,8.9,4.98,stat_cov
+configuration A,Statistics,Quartile coefficient of dispersion,0.636,0.008,stat_qcod
+configuration A,Statistics,Energy,1650000000,20000000,stat_energy
+configuration A,Statistics,Root mean square,120,2,stat_rms
+configuration A,Intensity histogram,Mean,21.1,0.1,ih_mean
+configuration A,Intensity histogram,Variance,22.8,0.6,ih_var
+configuration A,Intensity histogram,Skewness,-2.46,0.05,ih_skew
+configuration A,Intensity histogram,(Excess) kurtosis,5.9,0.24,ih_kurt
+configuration A,Intensity histogram,Median,22,0,ih_median
+configuration A,Intensity histogram,Minimum,1,0,ih_min
+configuration A,Intensity histogram,10th percentile,15,0.4,ih_p10
+configuration A,Intensity histogram,90th percentile,24,0,ih_p90
+configuration A,Intensity histogram,Maximum,36,0.4,ih_max
+configuration A,Intensity histogram,Mode,23,0,ih_mode
+configuration A,Intensity histogram,Interquartile range,2,0,ih_iqr
+configuration A,Intensity histogram,Range,35,0.4,ih_range
+configuration A,Intensity histogram,Mean absolute deviation,2.94,0.06,ih_mad
+configuration A,Intensity histogram,Robust mean absolute deviation,1.18,0.04,ih_rmad
+configuration A,Intensity histogram,Median absolute deviation,2.58,0.05,ih_medad
+configuration A,Intensity histogram,Coefficient of variation,0.227,0.004,ih_cov
+configuration A,Intensity histogram,Quartile coefficient of dispersion,0.0455,0,ih_qcod
+configuration A,Intensity histogram,Entropy,3.36,0.03,ih_entropy
+configuration A,Intensity histogram,Uniformity,0.15,0.002,ih_uniformity
+configuration A,Intensity histogram,Maximum histogram gradient,11000,100,ih_max_grad
+configuration A,Intensity histogram,Maximum histogram gradient intensity,21,0,ih_max_grad_g
+configuration A,Intensity histogram,Minimum histogram gradient,-10100,100,ih_min_grad
+configuration A,Intensity histogram,Minimum histogram gradient intensity,24,0,ih_min_grad_g
+configuration A,Intensity volume histogram,Volume fraction at 10% intensity,0.978,0.001,ivh_v10
+configuration A,Intensity volume histogram,Volume fraction at 90% intensity,0.0000698,0.0000103,ivh_v90
+configuration A,Intensity volume histogram,Intensity at 10% volume,96,0,ivh_i10
+configuration A,Intensity volume histogram,Intensity at 90% volume,-128,8,ivh_i90
+configuration A,Intensity volume histogram,Volume fraction difference between 10% and 90% intensity,0.978,0.001,ivh_diff_v10_v90
+configuration A,Intensity volume histogram,Intensity difference between 10% and 90% volume,224,8,ivh_diff_i10_i90
+configuration A,Intensity volume histogram,Area under the IVH curve,0.571,0.002,ivh_auc
+configuration A,"Co-occurrence matrix (2D, averaged)",Joint maximum,0.109,0.001,cm_joint_max_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Joint average,20.6,0.1,cm_joint_avg_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Joint variance,27,0.4,cm_joint_var_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Joint entropy,5.82,0.04,cm_joint_entr_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Difference average,1.58,0.03,cm_diff_avg_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Difference variance,4.94,0.19,cm_diff_var_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Difference entropy,2.27,0.03,cm_diff_entr_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Sum average,41.3,0.1,cm_sum_avg_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Sum variance,100,1,cm_sum_var_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Sum entropy,4.19,0.03,cm_sum_entr_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Angular second moment,0.045,0.0008,cm_energy_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Contrast,7.85,0.26,cm_contrast_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Dissimilarity,1.58,0.03,cm_dissimilarity_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Inverse difference,0.581,0.003,cm_inv_diff_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Normalised inverse difference,0.961,0.001,cm_inv_diff_norm_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Inverse difference moment,0.544,0.003,cm_inv_diff_mom_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Normalised inverse difference moment,0.994,0.001,cm_inv_diff_mom_norm_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Inverse variance,0.441,0.001,cm_inv_var_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Correlation,0.778,0.002,cm_corr_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Autocorrelation,455,2,cm_auto_corr_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Cluster tendency,100,1,cm_clust_tend_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Cluster shade,-1040,20,cm_clust_shade_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Cluster prominence,52700,500,cm_clust_prom_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Information correlation 1,-0.236,0.001,cm_info_corr1_2D_avg
+configuration A,"Co-occurrence matrix (2D, averaged)",Information correlation 2,0.863,0.003,cm_info_corr2_2D_avg
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Joint maximum,0.109,0.001,cm_joint_max_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Joint average,20.6,0.1,cm_joint_avg_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Joint variance,27,0.4,cm_joint_var_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Joint entropy,5.9,0.04,cm_joint_entr_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Difference average,1.57,0.03,cm_diff_avg_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Difference variance,4.96,0.19,cm_diff_var_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Difference entropy,2.28,0.03,cm_diff_entr_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Sum average,41.3,0.1,cm_sum_avg_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Sum variance,100,1,cm_sum_var_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Sum entropy,4.21,0.03,cm_sum_entr_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Angular second moment,0.0446,0.0008,cm_energy_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Contrast,7.82,0.26,cm_contrast_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Dissimilarity,1.57,0.03,cm_dissimilarity_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Inverse difference,0.581,0.003,cm_inv_diff_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Normalised inverse difference,0.961,0.001,cm_inv_diff_norm_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Inverse difference moment,0.544,0.003,cm_inv_diff_mom_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Normalised inverse difference moment,0.994,0.001,cm_inv_diff_mom_norm_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Inverse variance,0.441,0.001,cm_inv_var_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Correlation,0.78,0.002,cm_corr_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Autocorrelation,455,2,cm_auto_corr_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Cluster tendency,100,1,cm_clust_tend_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Cluster shade,-1050,20,cm_clust_shade_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Cluster prominence,52800,500,cm_clust_prom_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Information correlation 1,-0.214,0.001,cm_info_corr1_2D_comb
+configuration A,"Co-occurrence matrix (2D, slice-merged)",Information correlation 2,0.851,0.002,cm_info_corr2_2D_comb
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Joint maximum,0.0943,0.0008,cm_joint_max_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Joint average,21.3,0.1,cm_joint_avg_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Joint variance,18.6,0.5,cm_joint_var_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Joint entropy,5.78,0.04,cm_joint_entr_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Difference average,1.35,0.03,cm_diff_avg_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Difference variance,4.12,0.2,cm_diff_var_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Difference entropy,2.16,0.03,cm_diff_entr_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Sum average,42.7,0.1,cm_sum_avg_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Sum variance,68.5,1.3,cm_sum_var_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Sum entropy,4.17,0.03,cm_sum_entr_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Angular second moment,0.0429,0.0007,cm_energy_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Contrast,5.96,0.27,cm_contrast_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Dissimilarity,1.35,0.03,cm_dissimilarity_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Inverse difference,0.605,0.003,cm_inv_diff_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Normalised inverse difference,0.966,0.001,cm_inv_diff_norm_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Inverse difference moment,0.573,0.003,cm_inv_diff_mom_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Normalised inverse difference moment,0.996,0.001,cm_inv_diff_mom_norm_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Inverse variance,0.461,0.002,cm_inv_var_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Correlation,0.839,0.003,cm_corr_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Autocorrelation,471,2,cm_auto_corr_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Cluster tendency,68.5,1.3,cm_clust_tend_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Cluster shade,-1490,30,cm_clust_shade_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Cluster prominence,47600,700,cm_clust_prom_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Information correlation 1,-0.231,0.001,cm_info_corr1_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, direction-merged)",Information correlation 2,0.879,0.001,cm_info_corr2_2_5D_avg
+configuration A,"Co-occurrence matrix (2.5D, merged)",Joint maximum,0.0943,0.0008,cm_joint_max_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Joint average,21.3,0.1,cm_joint_avg_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Joint variance,18.6,0.5,cm_joint_var_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Joint entropy,5.79,0.04,cm_joint_entr_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Difference average,1.35,0.03,cm_diff_avg_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Difference variance,4.14,0.2,cm_diff_var_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Difference entropy,2.16,0.03,cm_diff_entr_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Sum average,42.7,0.1,cm_sum_avg_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Sum variance,68.5,1.3,cm_sum_var_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Sum entropy,4.18,0.03,cm_sum_entr_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Angular second moment,0.0427,0.0007,cm_energy_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Contrast,5.95,0.27,cm_contrast_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Dissimilarity,1.35,0.03,cm_dissimilarity_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Inverse difference,0.605,0.003,cm_inv_diff_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Normalised inverse difference,0.966,0.001,cm_inv_diff_norm_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Inverse difference moment,0.573,0.003,cm_inv_diff_mom_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Normalised inverse difference moment,0.996,0.001,cm_inv_diff_mom_norm_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Inverse variance,0.461,0.002,cm_inv_var_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Correlation,0.84,0.003,cm_corr_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Autocorrelation,471,2,cm_auto_corr_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Cluster tendency,68.5,1.3,cm_clust_tend_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Cluster shade,-1490,30,cm_clust_shade_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Cluster prominence,47700,700,cm_clust_prom_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Information correlation 1,-0.228,0.001,cm_info_corr1_2_5D_comb
+configuration A,"Co-occurrence matrix (2.5D, merged)",Information correlation 2,0.88,0.001,cm_info_corr2_2_5D_comb
+configuration A,"Run length matrix (2D, averaged)",Short runs emphasis,0.785,0.003,rlm_sre_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Long runs emphasis,2.91,0.03,rlm_lre_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Low grey level run emphasis,0.0264,0.0003,rlm_lgre_2D_avg
+configuration A,"Run length matrix (2D, averaged)",High grey level run emphasis,428,3,rlm_hgre_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Short run low grey level emphasis,0.0243,0.0003,rlm_srlge_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Short run high grey level emphasis,320,1,rlm_srhge_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Long run low grey level emphasis,0.0386,0.0003,rlm_lrlge_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Long run high grey level emphasis,1410,20,rlm_lrhge_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Grey level non-uniformity,432,1,rlm_glnu_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Normalised grey level non-uniformity,0.128,0.003,rlm_glnu_norm_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Run length non-uniformity,1650,10,rlm_rlnu_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Normalised run length non-uniformity,0.579,0.003,rlm_rlnu_norm_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Run percentage,0.704,0.003,rlm_r_perc_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Grey level variance,33.7,0.6,rlm_gl_var_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Run length variance,0.828,0.008,rlm_rl_var_2D_avg
+configuration A,"Run length matrix (2D, averaged)",Run entropy,4.73,0.02,rlm_rl_entr_2D_avg
+configuration A,"Run length matrix (2D, slice-merged)",Short runs emphasis,0.786,0.003,rlm_sre_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Long runs emphasis,2.89,0.03,rlm_lre_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Low grey level run emphasis,0.0264,0.0003,rlm_lgre_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",High grey level run emphasis,428,3,rlm_hgre_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Short run low grey level emphasis,0.0243,0.0003,rlm_srlge_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Short run high grey level emphasis,320,1,rlm_srhge_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Long run low grey level emphasis,0.0385,0.0003,rlm_lrlge_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Long run high grey level emphasis,1400,20,rlm_lrhge_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Grey level non-uniformity,1730,10,rlm_glnu_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Normalised grey level non-uniformity,0.128,0.003,rlm_glnu_norm_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Run length non-uniformity,6600,30,rlm_rlnu_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Normalised run length non-uniformity,0.579,0.003,rlm_rlnu_norm_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Run percentage,0.704,0.003,rlm_r_perc_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Grey level variance,33.7,0.6,rlm_gl_var_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Run length variance,0.826,0.008,rlm_rl_var_2D_comb
+configuration A,"Run length matrix (2D, slice-merged)",Run entropy,4.76,0.02,rlm_rl_entr_2D_comb
+configuration A,"Run length matrix (2.5D, direction-merged)",Short runs emphasis,0.768,0.003,rlm_sre_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Long runs emphasis,3.09,0.03,rlm_lre_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Low grey level run emphasis,0.0148,0.0004,rlm_lgre_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",High grey level run emphasis,449,3,rlm_hgre_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Short run low grey level emphasis,0.0135,0.0004,rlm_srlge_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Short run high grey level emphasis,332,1,rlm_srhge_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Long run low grey level emphasis,0.0229,0.0004,rlm_lrlge_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Long run high grey level emphasis,1500,20,rlm_lrhge_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Grey level non-uniformity,9850,10,rlm_glnu_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Normalised grey level non-uniformity,0.126,0.003,rlm_glnu_norm_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Run length non-uniformity,42700,200,rlm_rlnu_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Normalised run length non-uniformity,0.548,0.003,rlm_rlnu_norm_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Run percentage,0.68,0.003,rlm_r_perc_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Grey level variance,29.1,0.6,rlm_gl_var_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Run length variance,0.916,0.011,rlm_rl_var_2_5D_avg
+configuration A,"Run length matrix (2.5D, direction-merged)",Run entropy,4.87,0.01,rlm_rl_entr_2_5D_avg
+configuration A,"Run length matrix (2.5D, merged)",Short runs emphasis,0.769,0.003,rlm_sre_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Long runs emphasis,3.08,0.03,rlm_lre_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Low grey level run emphasis,0.0147,0.0004,rlm_lgre_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",High grey level run emphasis,449,3,rlm_hgre_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Short run low grey level emphasis,0.0135,0.0004,rlm_srlge_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Short run high grey level emphasis,333,1,rlm_srhge_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Long run low grey level emphasis,0.0228,0.0004,rlm_lrlge_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Long run high grey level emphasis,1500,20,rlm_lrhge_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Grey level non-uniformity,39400,100,rlm_glnu_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Normalised grey level non-uniformity,0.126,0.003,rlm_glnu_norm_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Run length non-uniformity,171000,1000,rlm_rlnu_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Normalised run length non-uniformity,0.548,0.003,rlm_rlnu_norm_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Run percentage,0.68,0.003,rlm_r_perc_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Grey level variance,29.1,0.6,rlm_gl_var_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Run length variance,0.914,0.011,rlm_rl_var_2_5D_comb
+configuration A,"Run length matrix (2.5D, merged)",Run entropy,4.87,0.01,rlm_rl_entr_2_5D_comb
+configuration A,Size zone matrix (2D),Small zone emphasis,0.688,0.003,szm_sze_2D
+configuration A,Size zone matrix (2D),Large zone emphasis,625,9,szm_lze_2D
+configuration A,Size zone matrix (2D),Low grey level emphasis,0.0368,0.0005,szm_lgze_2D
+configuration A,Size zone matrix (2D),High grey level emphasis,363,3,szm_hgze_2D
+configuration A,Size zone matrix (2D),Small zone low grey level emphasis,0.0298,0.0005,szm_szlge_2D
+configuration A,Size zone matrix (2D),Small zone high grey level emphasis,226,1,szm_szhge_2D
+configuration A,Size zone matrix (2D),Large zone low grey level emphasis,1.35,0.03,szm_lzlge_2D
+configuration A,Size zone matrix (2D),Large zone high grey level emphasis,316000,5000,szm_lzhge_2D
+configuration A,Size zone matrix (2D),Grey level non-uniformity,82.2,0.1,szm_glnu_2D
+configuration A,Size zone matrix (2D),Normalised grey level non-uniformity,0.0728,0.0014,szm_glnu_norm_2D
+configuration A,Size zone matrix (2D),Zone size non-uniformity,479,4,szm_zsnu_2D
+configuration A,Size zone matrix (2D),Normalised zone size non-uniformity,0.44,0.004,szm_zsnu_norm_2D
+configuration A,Size zone matrix (2D),Zone percentage,0.3,0.003,szm_z_perc_2D
+configuration A,Size zone matrix (2D),Grey level variance,42.7,0.7,szm_gl_var_2D
+configuration A,Size zone matrix (2D),Zone size variance,609,9,szm_zs_var_2D
+configuration A,Size zone matrix (2D),Zone size entropy,5.92,0.02,szm_zs_entr_2D
+configuration A,Size zone matrix (2.5D),Small zone emphasis,0.68,0.003,szm_sze_2_5D
+configuration A,Size zone matrix (2.5D),Large zone emphasis,675,8,szm_lze_2_5D
+configuration A,Size zone matrix (2.5D),Low grey level emphasis,0.0291,0.0005,szm_lgze_2_5D
+configuration A,Size zone matrix (2.5D),High grey level emphasis,370,3,szm_hgze_2_5D
+configuration A,Size zone matrix (2.5D),Small zone low grey level emphasis,0.0237,0.0005,szm_szlge_2_5D
+configuration A,Size zone matrix (2.5D),Small zone high grey level emphasis,229,1,szm_szhge_2_5D
+configuration A,Size zone matrix (2.5D),Large zone low grey level emphasis,1.44,0.02,szm_lzlge_2_5D
+configuration A,Size zone matrix (2.5D),Large zone high grey level emphasis,338000,5000,szm_lzhge_2_5D
+configuration A,Size zone matrix (2.5D),Grey level non-uniformity,1800,10,szm_glnu_2_5D
+configuration A,Size zone matrix (2.5D),Normalised grey level non-uniformity,0.0622,0.0007,szm_glnu_norm_2_5D
+configuration A,Size zone matrix (2.5D),Zone size non-uniformity,12400,100,szm_zsnu_2_5D
+configuration A,Size zone matrix (2.5D),Normalised zone size non-uniformity,0.427,0.004,szm_zsnu_norm_2_5D
+configuration A,Size zone matrix (2.5D),Zone percentage,0.253,0.004,szm_z_perc_2_5D
+configuration A,Size zone matrix (2.5D),Grey level variance,47.9,0.4,szm_gl_var_2_5D
+configuration A,Size zone matrix (2.5D),Zone size variance,660,8,szm_zs_var_2_5D
+configuration A,Size zone matrix (2.5D),Zone size entropy,6.39,0.01,szm_zs_entr_2_5D
+configuration A,Distance zone matrix (2D),Small distance emphasis,0.192,0.006,dzm_sde_2D
+configuration A,Distance zone matrix (2D),Large distance emphasis,161,1,dzm_lde_2D
+configuration A,Distance zone matrix (2D),Low grey level emphasis,0.0368,0.0005,dzm_lgze_2D
+configuration A,Distance zone matrix (2D),High grey level emphasis,363,3,dzm_hgze_2D
+configuration A,Distance zone matrix (2D),Small distance low grey level emphasis,0.00913,0.00023,dzm_sdlge_2D
+configuration A,Distance zone matrix (2D),Small distance high grey level emphasis,60.1,3.3,dzm_sdhge_2D
+configuration A,Distance zone matrix (2D),Large distance low grey level emphasis,2.96,0.02,dzm_ldlge_2D
+configuration A,Distance zone matrix (2D),Large distance high grey level emphasis,70100,100,dzm_ldhge_2D
+configuration A,Distance zone matrix (2D),Grey level non-uniformity,82.2,0.1,dzm_glnu_2D
+configuration A,Distance zone matrix (2D),Normalised grey level non-uniformity,0.0728,0.0014,dzm_glnu_norm_2D
+configuration A,Distance zone matrix (2D),Zone distance non-uniformity,64,0.4,dzm_zdnu_2D
+configuration A,Distance zone matrix (2D),Normalised zone distance non-uniformity,0.0716,0.0022,dzm_zdnu_norm_2D
+configuration A,Distance zone matrix (2D),Zone percentage,0.3,0.003,dzm_z_perc_2D
+configuration A,Distance zone matrix (2D),Grey level variance,42.7,0.7,dzm_gl_var_2D
+configuration A,Distance zone matrix (2D),Zone distance variance,69.4,0.1,dzm_zd_var_2D
+configuration A,Distance zone matrix (2D),Zone distance entropy,8,0.04,dzm_zd_entr_2D
+configuration A,Distance zone matrix (2.5D),Small distance emphasis,0.168,0.005,dzm_sde_2_5D
+configuration A,Distance zone matrix (2.5D),Large distance emphasis,178,1,dzm_lde_2_5D
+configuration A,Distance zone matrix (2.5D),Low grey level emphasis,0.0291,0.0005,dzm_lgze_2_5D
+configuration A,Distance zone matrix (2.5D),High grey level emphasis,370,3,dzm_hgze_2_5D
+configuration A,Distance zone matrix (2.5D),Small distance low grey level emphasis,0.00788,0.00022,dzm_sdlge_2_5D
+configuration A,Distance zone matrix (2.5D),Small distance high grey level emphasis,49.5,2.8,dzm_sdhge_2_5D
+configuration A,Distance zone matrix (2.5D),Large distance low grey level emphasis,2.31,0.01,dzm_ldlge_2_5D
+configuration A,Distance zone matrix (2.5D),Large distance high grey level emphasis,79500,100,dzm_ldhge_2_5D
+configuration A,Distance zone matrix (2.5D),Grey level non-uniformity,1800,10,dzm_glnu_2_5D
+configuration A,Distance zone matrix (2.5D),Normalised grey level non-uniformity,0.0622,0.0007,dzm_glnu_norm_2_5D
+configuration A,Distance zone matrix (2.5D),Zone distance non-uniformity,1570,10,dzm_zdnu_2_5D
+configuration A,Distance zone matrix (2.5D),Normalised zone distance non-uniformity,0.0543,0.0014,dzm_zdnu_norm_2_5D
+configuration A,Distance zone matrix (2.5D),Zone percentage,0.253,0.004,dzm_z_perc_2_5D
+configuration A,Distance zone matrix (2.5D),Grey level variance,47.9,0.4,dzm_gl_var_2_5D
+configuration A,Distance zone matrix (2.5D),Zone distance variance,78.9,0.1,dzm_zd_var_2_5D
+configuration A,Distance zone matrix (2.5D),Zone distance entropy,8.87,0.03,dzm_zd_entr_2_5D
+configuration A,Neighbourhood grey tone difference matrix (2D),Coarseness,0.00629,0.00046,ngt_coarseness_2D
+configuration A,Neighbourhood grey tone difference matrix (2D),Contrast,0.107,0.002,ngt_contrast_2D
+configuration A,Neighbourhood grey tone difference matrix (2D),Busyness,0.489,0.001,ngt_busyness_2D
+configuration A,Neighbourhood grey tone difference matrix (2D),Complexity,438,9,ngt_complexity_2D
+configuration A,Neighbourhood grey tone difference matrix (2D),Strength,3.33,0.08,ngt_strength_2D
+configuration A,Neighbourhood grey tone difference matrix (2.5D),Coarseness,0.0000906,0.0000033,ngt_coarseness_2_5D
+configuration A,Neighbourhood grey tone difference matrix (2.5D),Contrast,0.0345,0.0009,ngt_contrast_2_5D
+configuration A,Neighbourhood grey tone difference matrix (2.5D),Busyness,8.84,0.01,ngt_busyness_2_5D
+configuration A,Neighbourhood grey tone difference matrix (2.5D),Complexity,580,19,ngt_complexity_2_5D
+configuration A,Neighbourhood grey tone difference matrix (2.5D),Strength,0.0904,0.0027,ngt_strength_2_5D
+configuration A,Neighbouring grey level dependence matrix (2D),Low dependence emphasis,0.281,0.003,ngl_lde_2D
+configuration A,Neighbouring grey level dependence matrix (2D),High dependence emphasis,14.8,0.1,ngl_hde_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Low grey level count emphasis,0.0233,0.0003,ngl_lgce_2D
+configuration A,Neighbouring grey level dependence matrix (2D),High grey level count emphasis,446,2,ngl_hgce_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Low dependence low grey level emphasis,0.0137,0.0002,ngl_ldlge_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Low dependence high grey level emphasis,94.2,0.4,ngl_ldhge_2D
+configuration A,Neighbouring grey level dependence matrix (2D),High dependence low grey level emphasis,0.116,0.001,ngl_hdlge_2D
+configuration A,Neighbouring grey level dependence matrix (2D),High dependence high grey level emphasis,7540,60,ngl_hdhge_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Grey level non-uniformity,757,1,ngl_glnu_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Normalised grey level non-uniformity,0.151,0.003,ngl_glnu_norm_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Dependence count non-uniformity,709,2,ngl_dcnu_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Normalised dependence count non-uniformity,0.175,0.001,ngl_dcnu_norm_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Dependence count percentage,1,0,ngl_dc_perc_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Grey level variance,31.1,0.5,ngl_gl_var_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Dependence count variance,3.12,0.02,ngl_dc_var_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Dependence count entropy,5.76,0.02,ngl_dc_entr_2D
+configuration A,Neighbouring grey level dependence matrix (2D),Dependence count energy,0.0268,0.0004,ngl_dc_energy_2D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Low dependence emphasis,0.243,0.004,ngl_lde_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),High dependence emphasis,16.1,0.2,ngl_hde_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Low grey level count emphasis,0.0115,0.0003,ngl_lgce_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),High grey level count emphasis,466,2,ngl_hgce_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Low dependence low grey level emphasis,0.00664,0.0002,ngl_ldlge_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Low dependence high grey level emphasis,91.9,0.5,ngl_ldhge_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),High dependence low grey level emphasis,0.0674,0.0004,ngl_hdlge_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),High dependence high grey level emphasis,8100,60,ngl_hdhge_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Grey level non-uniformity,17200,100,ngl_glnu_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Normalised grey level non-uniformity,0.15,0.002,ngl_glnu_norm_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Dependence count non-uniformity,17500,100,ngl_dcnu_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Normalised dependence count non-uniformity,0.153,0.001,ngl_dcnu_norm_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Dependence count percentage,1,0,ngl_dc_perc_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Grey level variance,22.8,0.6,ngl_gl_var_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Dependence count variance,3.37,0.01,ngl_dc_var_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Dependence count entropy,5.93,0.02,ngl_dc_entr_2_5D
+configuration A,Neighbouring grey level dependence matrix (2.5D),Dependence count energy,0.0245,0.0003,ngl_dc_energy_2_5D

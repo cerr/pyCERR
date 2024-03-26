@@ -36,7 +36,7 @@
 		                "maxSegThreshold": 400,
                 		"minClipIntensity": -1000,
                 		"maxClipIntensity": 400,
-		                "directionality": "3D",
+		                "directionality": "2D",
 				"avgType": "texture",
 				"voxelOffset": 1,
 				"patchRadiusVox": [1, 1, 1],
@@ -44,13 +44,13 @@
                               },
                               
             "ivh" :{ 
-	     	    			    "binwidth": 2.5,
-	     	    			    "xForIxPct": [10, 20, 30, 40, 50, 60, 70, 80, 90],
-	     	    			    "xForIxCc": [],
-	     	    			    "xForVxPct": [10, 20, 30, 40, 50, 60, 70, 80, 90],
-	     	    			    "xForVxAbs": []		
-	                              },
-	                                   
+	  	    			    "binwidth": 2.5,
+	  	    			    "xForIxPct": [10, 20, 30, 40, 50, 60, 70, 80, 90],
+	  	    			    "xForIxCc": [],
+	  	    			    "xForVxPct": [10, 20, 30, 40, 50, 60, 70, 80, 90],
+	  	    			    "xForVxAbs": []		
+	                           },
+	                                
             "mapFeaturenamesToIBSI": "yes"
 
 	    },
@@ -67,7 +67,7 @@
 			    	  "featureList": ["all"]
                                  
 		 },
-		 
+	
 		"glszm": {
 		 		 		        "featureList": ["all"]  
 		},

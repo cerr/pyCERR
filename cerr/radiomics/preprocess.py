@@ -318,7 +318,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         if scanInterpMethod == "sinc":
             scanInterpMethod = 'sitkLanczosWindowedSinc'
         grid_resample_method = 'center'
-        #maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
+        maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
         if 'cropForResampling' in paramS["settings"]['resample']:
            cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling'] == "yes"
     else:
@@ -369,7 +369,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
         #Resample mask
         resampMaskBounds3M = imgResample3D(padMaskBoundsForResamp3M.astype(float),xValsV,yValsV,zValsV,\
-            xResampleV,yResampleV,zResampleV,roiInterpMethod) >= (0.5) #- maskInterpTol)
+            xResampleV,yResampleV,zResampleV,roiInterpMethod) >= (0.5 - maskInterpTol)
         #maskBoundingBox3M = maskBoundingBox3M.astype(bool)
 
     else:
