@@ -1,11 +1,10 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm>=8]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pycerr"
 dynamic = ["version"]
-#version = "0.0.1"
 authors = [
   { name="Aditya P. Apte", email="aptea@mskcc.org" },
   { name="Aditi Iyer", email="iyera@mskcc.org" },

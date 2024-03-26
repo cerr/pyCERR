@@ -443,6 +443,14 @@ class Scan:
 
         self.scanArray = suv3M
 
+    def getScanDict(self):
+        scanDict = self.__dict__
+        sInfoList = []
+        for sInfo in scanDict['scanInfo']:
+            sInfoDict = sInfo.__dict__
+            sInfoList.append(sInfoDict)
+        scanDict['scanInfo'] = sInfoList
+        return scanDict
 
 def flipSliceOrderFlag(scan):
     dcmImgOri = scan.scanInfo[0].imageOrientationPatient
