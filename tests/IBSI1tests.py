@@ -34,7 +34,7 @@ def dispDiff(diffValsV,tolFeatV,featList):
             print('-------------')
     else:
         idxV = np.where(violationV)[0]
-        print('First-order features differ:')
+        print('The following features differ:')
         diffS = dict(zip([featList[idx] for idx in idxV], [diffValsV[idx] for idx in idxV]))
         print(diffS)
         print('-------------')
@@ -82,7 +82,7 @@ def run_tests():
     structNum = 0
 
     # Feature extraction settings
-    configList = ['A1','A3','B1','B3','C1','C3']
+    configList = ['A1','A3','B1','B3','C1','C2','C3','C4']
 
     # Loop over settings
     for idx in range(len(configList)):
