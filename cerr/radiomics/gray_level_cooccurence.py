@@ -44,13 +44,13 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
     else:
         cooccurM = np.zeros((numCoOcs, numOffsets), dtype=np.float32)
 
-    slc1M = q[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)]
+    slc1M = q[numRowsPad:(numRowsPad+numRows+1), numColsPad:(numColsPad+numCols+1), numSlcsPad:(numSlcsPad+numSlices+1)]
     for off in range(numOffsets):
         offset = offsetsM[off, :]
         slc2M = np.roll(q, offset, axis=(0, 1, 2))
-        slc2M = slc2M[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)] + \
+        slc2M = slc2M[numRowsPad:(numRowsPad+numRows+1), numColsPad:(numColsPad+numCols+1), numSlcsPad:(numSlcsPad+numSlices+1)] + \
                 (slc1M - 1) * lq
-        coccurForOffV = np.histogram(slc2M.flatten(), bins=numCoOcs)[0]
+        coccurForOffV = np.bincount(slc2M.flatten(), minlength=numCoOcs)[1:]
         if cooccurType == 1:
             cooccurM += np.array(np.reshape(coccurForOffV,(numCoOcs,1)))
         else:
