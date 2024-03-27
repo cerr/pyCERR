@@ -44,16 +44,17 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
     else:
         cooccurM = np.empty((numCoOcs, numOffsets), dtype=np.float32)
 
+    slc1M = q[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)]
     for off in range(numOffsets):
         offset = offsetsM[off, :]
-        slc1M = q[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)]
         slc2M = np.roll(q, offset, axis=(0, 1, 2))
-        slc2M = slc2M[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)] + (slc1M - 1) * lq
-        coccurForOffV = np.histogram(slc2M.flatten(), bins=numCoOcs-1)[1:]
+        slc2M = slc2M[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)] + \
+                (slc1M - 1) * lq
+        coccurForOffV = np.histogram(slc2M.flatten(), bins=numCoOcs)[0]
         if cooccurType == 1:
             cooccurM += np.array(np.reshape(coccurForOffV,(numCoOcs,1)))
         else:
-            cooccurM[:,off] = np.array(coccurForOffV)
+            cooccurM[:,off] = coccurForOffV
 
     # Ensure symmetry
     cooccurM += cooccurM[indRowV.astype(int)-1, :]

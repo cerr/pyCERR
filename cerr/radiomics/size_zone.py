@@ -15,13 +15,17 @@ def calcSZM(quantized3M, nL, szmType):
             connM, num_features = label(quantized3M == level, structure=s)
         else:
             connM = np.zeros(sizeV, dtype=int)
+            featOffset = 0
             for slc in range(sizeV[2]):
                 connSlcM, num_features = label(quantized3M[:,:,slc] == level, structure=s)
+                indNoZero = connSlcM > 0
+                connSlcM[indNoZero] += featOffset
                 connM[:,:,slc] = connSlcM
-        regiosSizV = np.bincount(connM[connM > 0])
-        if len(regiosSizV) > 0:
-            maxSiz = max(maxSiz, max(regiosSizV))
-        counts = np.bincount(regiosSizV)[1:]
+                featOffset += num_features
+        regionSizV = np.bincount(connM[connM > 0])
+        if len(regionSizV) > 0:
+            maxSiz = max(maxSiz, max(regionSizV))
+        counts = np.bincount(regionSizV)[1:]
         szmM[level - 1, :len(counts)] = counts
     szmM = szmM[:, :maxSiz]
     return szmM
