@@ -36,7 +36,7 @@
 		                "maxSegThreshold": 400,
                 		"minClipIntensity": -1000,
                 		"maxClipIntensity": 400,
-		                "directionality": "2D",
+		                "directionality": "3D",
 				"avgType": "texture",
 				"voxelOffset": 1,
 				"patchRadiusVox": [1, 1, 1],
