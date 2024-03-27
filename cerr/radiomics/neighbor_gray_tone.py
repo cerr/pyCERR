@@ -97,12 +97,12 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
     featuresS = {}
 
     # Coarseness
-    featuresS['coarseness'] = 1 / (np.sum(s * p) + 1e-6)
+    featuresS['coarseness'] = 1 / (np.sum(s * p) + np.finfo(float).eps)
 
     # Contrast
     Ng = np.sum(p > 0)
     numLevels = len(p)
-    indV = np.arange(1, numLevels + 1, dtype = np.uint64)
+    indV = np.arange(1, numLevels + 1, dtype = np.int64)
     indV = indV[:,None]
     term1 = 0
     term2 = 0
@@ -127,8 +127,8 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
         pShiftV = np.roll(p, lev)
         sShiftV = np.roll(s, lev)
         indShiftV = np.roll(indV, lev)
-        usePv = p > 0
-        usePshiftV = pShiftV > 0
+        usePv = (p > 0).astype(int)
+        usePshiftV = (pShiftV > 0).astype(int)
         term1 = np.abs(indV - indShiftV)
         term2 = usePv * usePshiftV * (p * s + pShiftV * sShiftV) / (p + pShiftV + np.finfo(float).eps)
         complxty += np.sum(term1 * term2)
