@@ -13,11 +13,11 @@
 
 	    "perturbation": {
 			           },
-
+			           
 	    "firstOrder": { 
-			      "binWidthEntropy": 25,
-			      "offsetForEnergy": 0
-                          },
+				   "binWidthEntropy": 25,
+				   "offsetForEnergy": 0
+                              },
 
 	    "texture": { 
 			  "binwidth": 25,
@@ -25,33 +25,32 @@
 		          "maxSegThreshold": 400,
                 	  "minClipIntensity": -500,
                 	  "maxClipIntensity": 400,
-		          "directionality": "3D",
+		          "directionality": "2D",
 			  "avgType": "feature",
 			  "voxelOffset": 1,
-			  "patchRadiusVox": [1, 1, 1],
+			  "patchRadiusVox": [1, 1, 0],
 			  "imgDiffThresh": 0
                         },
-
-            "shape": { 
-			 "rcs": []
-                     },
-                     
+                        
+          "shape": { 
+						 "rcs": []
+			 },
+			                     
             "mapFeaturenamesToIBSI": "yes"
 
 	    },
 
 
  "featureClass":{
-			
-
-        "shape": {
-			    "featureList": ["all"]
-                 },
-
-        "firstOrder": {
-			    "featureList": ["all"]
+ 
+  	"shape": {
+ 			    "featureList": ["all"]
+                  },
+ 
+         "firstOrder": {
+ 			    "featureList": ["all"]
 		},
-
+			
 	"glcm": {
 			    "featureList": ["all"]
                 },
@@ -60,19 +59,18 @@
 			    "featureList": ["all"]
                                  
 		 },
-
+		 
 	"glszm": {
-			    "featureList": ["all"]  
-                },
-
+		 		"featureList": ["all"]  
+		 },
+		 
 	"gldm": {
-			    "featureList": ["all"]
-                },
-
+		 	"featureList": ["all"]
+		  },
+		 
 	"gtdm": {			    	
-                            "featureList": ["all"]               
-		}
-
+		    	"featureList": ["all"]               
+		    }
 
             }
 

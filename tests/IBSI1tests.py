@@ -82,7 +82,11 @@ def run_tests():
     structNum = 0
 
     # Feature extraction settings
-    configList = ['A1','A3','B1','B3','C1','C2','C3','C4']
+    configList = ['A1','A2','B1','B2','C1','C2','C3','C4']
+
+    #A1: 2.5D, texture calc. combine across directions | A2: 2.5D, texture calc. per direction
+    #B1: 2.5D, texture calc. combine across directions | B2: 2.5D, texture calc. per direction
+    #C1: 2.5D, texture calc. combine across directions | C2: 2.5D, texture calc. per direction | C3: 3D, texture calc. combine across directions | C4: 3D, texture calc. per direction
 
     # Loop over settings
     for idx in range(len(configList)):
