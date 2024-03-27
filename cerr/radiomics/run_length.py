@@ -68,7 +68,7 @@ def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
                 newConvergedV = stopM[nextIndV[0,:],nextIndV[1,:],nextIndV[2,:]]
                 numConverged = (~convergedV[newConvergedV]).sum()
                 convergedV[newConvergedV] = True
-                rlmM[level - 1, count-1] = numConverged
+                rlmM[level - 1, count-1] += numConverged
 
         if rlmType == 2:
             #rlmOut.append(rlmM)
