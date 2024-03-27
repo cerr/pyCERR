@@ -40,9 +40,9 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
     # else:
     #     cooccurM = lil_matrix((numCoOcs, numOffsets), dtype=np.float32)
     if cooccurType == 1:
-        cooccurM = np.empty((numCoOcs,1), dtype=np.float32)
+        cooccurM = np.zeros((numCoOcs,1), dtype=np.float32)
     else:
-        cooccurM = np.empty((numCoOcs, numOffsets), dtype=np.float32)
+        cooccurM = np.zeros((numCoOcs, numOffsets), dtype=np.float32)
 
     slc1M = q[numRowsPad:(numRowsPad+numRows), numColsPad:(numColsPad+numCols), numSlcsPad:(numSlcsPad+numSlices)]
     for off in range(numOffsets):
