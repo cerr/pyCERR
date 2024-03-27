@@ -31,7 +31,7 @@
                 	  "minClipIntensity": -500,
                 	  "maxClipIntensity": 400,
 		           "directionality": "2D",
-			  "avgType": "feature",
+			  "avgType": "texture",
 			  "voxelOffset": 1,
 			  "patchRadiusVox": [1, 1, 0],
 			  "imgDiffThresh": 0
