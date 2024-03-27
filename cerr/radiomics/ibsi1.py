@@ -437,16 +437,18 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
             if mapToIBSI:
                 itemName = mapFeatDict[itemName]
             if mapFeatClass in ["cm", "rlm"]:
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
-                             '_' + dirString + '_' + avgString] = np.mean(item[1])
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
-                             '_' + dirString + '_Median'] = np.median(item[1])
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
-                             '_' + dirString + '_StdDev'] = np.std(item[1], ddof=1)
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
-                             '_' + dirString + '_Min'] = np.min(item[1])
-                flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + \
-                              '_' + dirString + '_Max'] = np.max(item[1])
+                featStr = imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString
+                flatFeatDict[featStr + '_' + avgString] = np.mean(item[1])
+                flatFeatDict[featStr + '_Median'] = np.median(item[1])
+                if avgString == 'avg':
+                    flatFeatDict[featStr + '_StdDev'] = np.std(item[1], ddof=1)
+                else:
+                    if isinstance(item[1], (int,float,np.number)):
+                        flatFeatDict[featStr + '_StdDev'] = item[1]
+                    else:
+                        flatFeatDict[featStr + '_StdDev'] = item[1][0]
+                flatFeatDict[featStr + '_Min'] = np.min(item[1])
+                flatFeatDict[featStr + '_Max'] = np.max(item[1])
             else:
                 if mapFeatClass in ["morph", "stat"]:
                     flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName] = item[1]
