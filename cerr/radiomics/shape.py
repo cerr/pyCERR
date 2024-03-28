@@ -1,5 +1,4 @@
 import numpy as np
-from scipy import ndimage
 from cerr.utils.mask import getSurfacePoints
 from scipy.spatial import distance
 from skimage import measure
@@ -7,8 +6,8 @@ from cerr.utils import bbox
 
 def trimeshSurfaceArea(v,f):
 
-    v1 = (v[f[:, 1], :] - v[f[:, 0], :]) * 10 #Convert to mm
-    v2 = (v[f[:, 2], :] - v[f[:, 0], :]) * 10
+    v1 = (v[f[:, 1], :] - v[f[:, 0], :])
+    v2 = (v[f[:, 2], :] - v[f[:, 0], :])
 
     # Calculate the cross product and its norm
     cross_product = np.cross(v1, v2)
@@ -30,9 +29,14 @@ def sepsq(a, b):
 
 def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
+    # Convert grid from cm to mm
+    xValsV = xValsV * 10
+    yValsV = yValsV * 10
+    zValsV = zValsV * 10
+
     maskForShape3M = mask3M.copy()
     voxel_siz = [abs(yValsV[1] - yValsV[0]), abs(xValsV[1] - xValsV[0]), abs(zValsV[1] - zValsV[0])]
-    voxel_volume = np.prod(voxel_siz) * 1000 #Convert to mm
+    voxel_volume = np.prod(voxel_siz)
 
     volume = voxel_volume * np.sum(maskForShape3M)
 
@@ -44,11 +48,11 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     filled_volume = voxel_volume * np.sum(maskForShape3M)
 
+    # Axis Aligned bounding Box (AABB) volume
+    volumeAABB = (rmax-rmin+1) * (cmax-cmin+1) * (smax-smin+1) * voxel_volume
+
     # Get x/y/z coordinates of all the voxels
     indM = np.argwhere(maskForShape3M)
-    xValsV = xValsV * 10 #Convert to mm
-    yValsV = yValsV * 10 #Convert to mm
-    zValsV = zValsV * 10 #Convert to mm
 
     xV = xValsV[indM[:, 1]]
     yV = yValsV[indM[:, 0]]
@@ -69,7 +73,7 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     sample_rate = 1
     dx = abs(np.median(np.diff(xValsV)))
     dz = abs(np.median(np.diff(zValsV)))
-    while surf_points.shape[0] > 20000:
+    while surf_points.shape[0] > 50000:
         sample_rate += 1
         if dz / dx < 2:
             surf_points = getSurfacePoints(maskForShape3M, sample_rate, sample_rate)
@@ -82,7 +86,7 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     #distM = sepsq(np.column_stack((xSurfV, ySurfV, zSurfV)), np.column_stack((xSurfV, ySurfV, zSurfV)))
     ptsM = np.column_stack((xSurfV, ySurfV, zSurfV))
     distM = distance.cdist(ptsM, ptsM, 'euclidean')
-    shapeS['max3dDiameter'] = np.max(distM)
+    #shapeS['max3dDiameter'] = np.max(distM)
 
     rowV = np.unique(surf_points[:, 0])
     colV = np.unique(surf_points[:, 1])
@@ -119,20 +123,16 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     # Pad mask to account for contribution from edge slices
     maskForShape3M = np.pad(maskForShape3M, ((1,1),(1,1),(1,1)),
                             mode='constant', constant_values=((0, 0),))
-    xPre = 2 * xValsV[0] - xValsV[1]
-    yPre = 2 * yValsV[0] - yValsV[1]
-    zPre = 2 * zValsV[0] - zValsV[1]
-    xPost = 2 * xValsV[-1] - xValsV[-2]
-    yPost = 2 * yValsV[-1] - yValsV[-2]
-    zPost = 2 * zValsV[-1] - zValsV[-2]
-    xValsPadV = np.pad(xValsV,(1,1),mode='constant',constant_values=(xPre, xPost))
-    yValsPadV = np.pad(yValsV,(1,1),mode='constant',constant_values=(yPre, yPost))
-    zValsPadV = np.pad(zValsV,(1,1),mode='constant',constant_values=(zPre, zPost))
     verts, faces, normals, values = measure.marching_cubes(maskForShape3M, level=0.5, spacing=voxel_siz)
     shapeS['surfArea'] = trimeshSurfaceArea(verts,faces)
 
+    distSurfM = distance.cdist(verts, verts, 'euclidean')
+    shapeS['max3dDiameter'] = np.max(distSurfM)
+
     shapeS['volume'] = volume
     shapeS['filledVolume'] = filled_volume
+
+    shapeS['volumeDensityAABB'] = volume / volumeAABB
 
     # Compactness 1 (V/(pi*A^(3/2))
     shapeS['Compactness1'] = shapeS['volume'] / (np.pi**0.5 * shapeS['surfArea']**1.5)

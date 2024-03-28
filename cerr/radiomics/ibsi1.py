@@ -245,6 +245,7 @@ def getIBSINameMap():
                 'max2dDiameterCoronalPlane': 'max2dDiameterCoronalPlane',
                 'surfArea': 'area_mesh',
                 'volume': 'vol_approx',
+                'volumeDensityAABB': 'morph_vol_dens_aabb',
                 'filledVolume': 'filled_vol_approx',
                 'Compactness1': 'comp_1',
                 'Compactness2': 'comp_2',

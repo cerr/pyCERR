@@ -28,8 +28,6 @@
 			  "binNum": 32,
 		          "minSegThreshold": -500,
 		          "maxSegThreshold": 400,
-                	  "minClipIntensity": -500,
-                	  "maxClipIntensity": 400,
 		           "directionality": "2D",
 			  "avgType": "texture",
 			  "voxelOffset": 1,
