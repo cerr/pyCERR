@@ -128,6 +128,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     if 'glrlm' in paramS['featureClass'] and paramS['featureClass']['glrlm']["featureList"] != {}:
         rlmM = run_length.calcRLM(quantized3M,offsetsM,nL,rlmType)
         numVoxels = np.sum(maskBoundingBox3M.astype(int))
+        if rlmType == 1: # merged RLMs for offsets
+            numVoxels *= offsetsM.shape[0]
         featDict['glrlm'] = run_length.rlmToScalarFeatures(rlmM, numVoxels)
 
     # SZM
