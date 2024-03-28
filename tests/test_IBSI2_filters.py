@@ -49,6 +49,8 @@ def compareMaps(calcMap3M, refMapName):
     # Compute difference between pyCERR calculations & reference values
     diffMap3M = (calcMap3M - refMap3M)
 
+    np.testing.assert_almost_equal(calcMap3M, refMap3M, decimal=4)
+
     # Report on differences
     __, __, nSlcs = np.shape(diffMap3M)
     if np.max(np.abs(diffMap3M)) < 1e-4:

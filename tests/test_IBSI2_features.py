@@ -99,6 +99,9 @@ def compareVals(imType, calcFeatS, diagS, refValsV):
     dispDiff(diffDiagV, 'diag')
     dispDiff(diffFeatV, 'feat')
 
+    np.testing.assert_almost_equal(calcDiagV, refDiagV, decimal=4)
+    np.testing.assert_almost_equal(calcFeatV, refFeatV, decimal=4)
+
 
 def test_phase2():
     """ Calc. radiomics features using IBSI-2 phase-2 configurations """
