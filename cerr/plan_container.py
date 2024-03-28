@@ -29,7 +29,7 @@ def get_empty_list():
 
 @dataclass
 class PlanC:
-    header: headr.Header = headr.Header()
+    header: headr.Header
     scan: List[scn.Scan] = field(default_factory=get_empty_list) #scan.Scan()
     structure: List[structr.Structure] = field(default_factory=get_empty_list) #structure.Structure()
     dose: List[rtds.Dose] = field(default_factory=get_empty_list) #dose.Dose()
@@ -77,7 +77,7 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
 
 def loadFromH5(h5File, initplanC=''):
     if not isinstance(initplanC, PlanC):
-        planC = PlanC() #pc.PlanC()
+        planC = PlanC(header=headr.Header()) #pc.PlanC()
     else:
         planC = initplanC
     with h5py.File(h5File, 'r') as f:
@@ -256,7 +256,7 @@ def load_dcm_dir(dcm_dir, initplanC=''):
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
     if not isinstance(initplanC, PlanC):
-        planC = PlanC() #pc.PlanC()
+        planC = PlanC(header=headr.Header()) #pc.PlanC()
     else:
         planC = initplanC
     pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
@@ -337,7 +337,7 @@ def save_scan_to_nii(scan_num, nii_file_name, planC):
 
 def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
     if not isinstance(initplanC, PlanC):
-        planC = PlanC()
+        planC = PlanC(header=headr.Header())
     else:
         planC = initplanC
     reader = sitk.ImageFileReader()
