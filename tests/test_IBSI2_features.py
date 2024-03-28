@@ -100,7 +100,7 @@ def compareVals(imType, calcFeatS, diagS, refValsV):
     dispDiff(diffFeatV, 'feat')
 
 
-def run_tests_phase2():
+def test_phase2():
     """ Calc. radiomics features using IBSI-2 phase-2 configurations """
 
     # Load data
@@ -131,4 +131,4 @@ def run_tests_phase2():
 
 
 if __name__ == "__main__":
-    run_tests_phase2()
+    test_phase2()

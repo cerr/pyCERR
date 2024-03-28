@@ -83,7 +83,7 @@ def getRefFeatureVals(cerrFeatS, refFeatNames, refValsV, tolV):
 
     return refV, cerrV, diffFeatV, tolFeatV, ibsiFeatList
 
-def run_tests():
+def test_configs():
     """ Compute radiomics features for IBSI-1 configurations """
 
     # Load data
@@ -128,4 +128,4 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    run_tests()
+    test_configs()

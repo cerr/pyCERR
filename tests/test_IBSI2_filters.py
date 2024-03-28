@@ -71,7 +71,7 @@ def compareMaps(calcMap3M, refMapName):
     print('-------------')
 
 
-def run_tests_phase1():
+def test_phase1():
     """ Generate maps using IBSI-2 phase-1 configurations """
 
     ###########################
@@ -396,4 +396,4 @@ def run_tests_phase1():
     compareMaps(responseMap3M, refMapName)
 
 if __name__ == "__main__":
-    run_tests_phase1()
+    test_phase1()

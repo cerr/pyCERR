@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage.measurements import label
+from scipy.ndimage import label
 
 def calcSZM(quantized3M, nL, szmType):
     if szmType == 1:
