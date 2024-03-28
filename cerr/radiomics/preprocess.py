@@ -335,8 +335,8 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         padMethod = 'expand'     #Default:Pad by 5 voxels (from original image) before resampling
         padSizeV = [5,5,5]
         if 'padding' in paramS["settings"] and len(paramS["settings"]['padding']) > 0:
-            padMethod = paramS["settings"]['padding'][0]['method']
-            padSizeV = paramS["settings"]['padding'][0]['size']
+            padMethod = paramS["settings"]['padding']['method']
+            padSizeV = paramS["settings"]['padding']['size']
 
             # inputResV = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
             # if inputResV[0] * padSizeV[1] < outputResV[0] * padSizeV[1]:

@@ -26,21 +26,26 @@ def loadData(datasetDir):
 
     return planC
 
-def dispDiff(diffValsV,tolFeatV,featList):
+def dispDiff(diffValsV,tolFeatV,refV,featList):
     """ Report on differences in feature values """
     violationV = diffValsV > tolFeatV
+    diffS = ''
+    pctDiffS = ''
     if not any(violationV):
-            print('Success! Results match reference std.')
-            print('-------------')
+        print('Success! Results match reference std.')
+        print('-------------')
     else:
         idxV = np.where(violationV)[0]
         print('The following features differ:')
         diffS = dict(zip([featList[idx] for idx in idxV], [diffValsV[idx] for idx in idxV]))
         print(diffS)
+        print('Percentage difference:')
+        pctDiffS = dict(zip([featList[idx] for idx in idxV], [diffValsV[idx]/refV[idx]*100 for idx in idxV]))
+        print(pctDiffS)
         print('-------------')
+    return diffS, pctDiffS
 
-
-def compareVals(cerrFeatS, refFeatNames, refValsV, tolV):
+def getRefFeatureVals(cerrFeatS, refFeatNames, refValsV, tolV):
     """ Indicate if features match reference, otherwise display differences."""
     cerrFeatList = list(cerrFeatS.keys())
     numFeat = len(cerrFeatList)
@@ -50,6 +55,8 @@ def compareVals(cerrFeatS, refFeatNames, refValsV, tolV):
 
     # Loop over radiomic features computed with pyCERR
     diffFeatV = np.zeros((numFeat,1))
+    refV = np.zeros((numFeat,1))
+    cerrV = np.zeros((numFeat,1))
     ibsiFeatList = [None]*numFeat
     tolFeatV = np.zeros((numFeat,1))
     for featIdx in range(numFeat):
@@ -67,11 +74,12 @@ def compareVals(cerrFeatS, refFeatNames, refValsV, tolV):
         if matchIdx is None:
             diffFeatV[featIdx] = float("nan")
         else:
-            refVal = refValsV[matchIdx]
+            refV[featIdx] = refValsV[matchIdx]
             tolFeatV[featIdx] = tolV[matchIdx]
-            diffFeatV[featIdx] = cerrFeatS[featName].astype(float) - refVal
+            cerrV[featIdx] = cerrFeatS[featName].astype(float)
+            diffFeatV[featIdx] = cerrV[featIdx] - refV[featIdx]
 
-    dispDiff(diffFeatV,tolFeatV,ibsiFeatList)
+    return refV, cerrV, tolFeatV, ibsiFeatList
 
 def run_tests():
     """ Compute radiomics features for IBSI-1 configurations """
@@ -108,8 +116,14 @@ def run_tests():
         tolV = np.array(refData['tolerance'][6:])
         refValsV = np.array(refData['benchmark_value'][6:])
 
-        # Compare to reference values
-        compareVals(calcFeatS, refFeatNames, refValsV, tolV)
+        # Get cerr and reference values
+        refV, cerrV, tolFeatV, ibsiFeatList = getRefFeatureVals(calcFeatS, refFeatNames, refValsV, tolV)
+
+        diffFeatV = np.abs(refV-cerrV)
+        dispDiff(diffFeatV,tolFeatV,refV,ibsiFeatList)
+
+        for i in range(len(refV)):
+            np.testing.assert_allclose(refV[i][0], cerrV[i][0], rtol=0, atol=tolFeatV[i][0])
 
 
 if __name__ == "__main__":
