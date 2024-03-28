@@ -200,14 +200,14 @@ class Structure:
         return img
 
     def getStructDict(self):
-        structDict = self.__dict__
+        structDict = self.__dict__.copy()
         contourList = []
         for ctr in structDict['contour']:
             if ctr:
-                ctrDict = ctr.__dict__
+                ctrDict = ctr.__dict__.copy()
                 segList = []
                 for seg in ctrDict['segments']:
-                    segList.append(seg.__dict__)
+                    segList.append(seg.__dict__.copy())
                 ctrDict['segments'] = segList
                 contourList.append(ctrDict)
             else:

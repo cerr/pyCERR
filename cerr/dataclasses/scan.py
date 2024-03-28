@@ -444,10 +444,10 @@ class Scan:
         self.scanArray = suv3M
 
     def getScanDict(self):
-        scanDict = self.__dict__
+        scanDict = self.__dict__.copy()
         sInfoList = []
         for sInfo in scanDict['scanInfo']:
-            sInfoDict = sInfo.__dict__
+            sInfoDict = sInfo.__dict__.copy()
             sInfoList.append(sInfoDict)
         scanDict['scanInfo'] = sInfoList
         return scanDict
