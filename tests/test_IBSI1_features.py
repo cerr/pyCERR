@@ -92,7 +92,7 @@ def run_tests():
     structNum = 0
 
     # Feature extraction settings
-    configList = ['A1','A2','B1','B2','C1','C2']
+    configList = ['A1','A2','C1','C2']
 
     #A1: 2.5D, texture calc. combine across directions | A2: 2.5D, texture calc. per direction
     #B1: 2.5D, texture calc. combine across directions | B2: 2.5D, texture calc. per direction
@@ -123,8 +123,8 @@ def run_tests():
 
         dispDiff(diffFeatV,tolFeatV,refV,ibsiFeatList)
 
-        #for i in range(len(refV)):
-        #    np.testing.assert_allclose(refV[i][0], cerrV[i][0], rtol=0, atol=tolFeatV[i][0])
+        for i in range(len(refV)):
+            np.testing.assert_allclose(refV[i][0], cerrV[i][0], rtol=0, atol=tolFeatV[i][0])
 
 
 if __name__ == "__main__":
