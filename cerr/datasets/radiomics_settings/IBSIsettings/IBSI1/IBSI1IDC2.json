@@ -59,6 +59,15 @@
 
 
  "featureClass":{
+ 
+ 	"shape": {
+  			    "featureList": ["all"]
+                   },
+  
+          "firstOrder": {
+  			    "featureList": ["all"]
+ 		},
+			
 			
 
 		"glcm": {
