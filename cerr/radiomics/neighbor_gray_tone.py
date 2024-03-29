@@ -12,9 +12,9 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
     col_window = 2 * patch_size[1] + 1
 
     # Build distance matrices
-    num_cols_pad = col_window // 2
-    num_rows_pad = row_window // 2
-    num_slcs_pad = slc_window // 2
+    num_cols_pad = patch_size[1]
+    num_rows_pad = patch_size[0]
+    num_slcs_pad = patch_size[2]
 
     # Get number of voxels per slice
     num_rows, num_cols, num_slices = scan_array.shape
@@ -70,13 +70,11 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
         vox_mask_v = m_m[current_voxel_index, :].copy()
         q_m = np.delete(q_m, current_voxel_index, axis=0)
         numNeighborsV = m_m.sum(axis=0) - 1
+        q_m[:,numNeighborsV==0] = 0
+        vox_val_v[numNeighborsV==0] = 0
         Nvc += (numNeighborsV>0).sum()
-        numNeighborsV[numNeighborsV == 0] = np.finfo(float).eps # avoid divide by 0 warning
-        q_m = q_m / numNeighborsV
-        q_m[np.isnan(q_m)] = 0
+        q_m[:,numNeighborsV>0] = q_m[:,numNeighborsV>0] / numNeighborsV[numNeighborsV>0]
         q_m = np.abs(vox_val_v - q_m.sum(axis=0))
-        #q_m[m_m==0] = 0
-        #q_m = np.sum(q_m, axis=0)
 
         for lev in range(1, numGrLevels + 1):
             ind_lev_v = (vox_val_v == lev) & vox_mask_v.astype(bool)
@@ -87,7 +85,7 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
     numVoxels = np.sum(scan_array > 0)
     for iLev in range(1, numGrLevels + 1):
         scanLev3M = scan_array == iLev
-        p[iLev - 1] = np.sum(scanLev3M) / numVoxels
+        p[iLev - 1] = np.sum(scanLev3M) / Nvc
 
     return s, p, Nvc
 
@@ -109,6 +107,8 @@ def ngtdmToScalarFeatures(s, p, Nvc):
     term1 = 0
     term2 = 0
     for lev in range(1, numLevels + 1):
+        if p[lev-1] == 0:
+            continue
         term1 += np.sum(p * np.roll(p, lev) * (indV - np.roll(indV, lev))**2)
         term2 += s[lev - 1, 0]
     featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / Nvc
