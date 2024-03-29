@@ -145,8 +145,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
 
     # NGTDM
     if 'gtdm' in paramS['featureClass'] and paramS['featureClass']['gtdm']["featureList"] != {}:
-        s,p = neighbor_gray_tone.calcNGTDM(quantized3M, patch_radius, nL)
-        featDict['gtdm'] = neighbor_gray_tone.ngtdmToScalarFeatures(s,p,numVoxels)
+        s,p,Nvc = neighbor_gray_tone.calcNGTDM(quantized3M, patch_radius, nL)
+        featDict['gtdm'] = neighbor_gray_tone.ngtdmToScalarFeatures(s,p,Nvc)
 
     return featDict
 
