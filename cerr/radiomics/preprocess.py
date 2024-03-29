@@ -32,10 +32,10 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
         xmax = np.nanmax(x)
 
     if num_level is not None:
-        slope = (num_level - 1) / (xmax - xmin)
-        intercept = 1 - (slope * xmin)
-        q = np.round(slope * x + intercept)
-
+        q = np.floor(num_level*(x-xmin)/(xmax-xmin)) + 1
+        q[x==xmax] = num_level
+        q[np.isnan(q)] = 0
+        q = q.astype(int)
     elif binwidth is not None:
         q = (x - xmin) / binwidth
         q[np.isnan(q)] = -1
