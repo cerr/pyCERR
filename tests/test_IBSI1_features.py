@@ -28,7 +28,7 @@ def loadData(datasetDir):
 
 def dispDiff(diffValsV,tolFeatV,refV,featList):
     """ Report on differences in feature values """
-    violationV = diffValsV > tolFeatV
+    violationV = np.abs(diffValsV) > tolFeatV
     diffS = ''
     pctDiffS = ''
     numFeats = len(diffValsV)
@@ -92,7 +92,7 @@ def test_configs():
     structNum = 0
 
     # Feature extraction settings
-    configList = ['A1','A2','C1','C2']
+    configList = ['A1','A2','B1','B2','C1','C2']
 
     #A1: 2.5D, texture calc. combine across directions | A2: 2.5D, texture calc. per direction
     #B1: 2.5D, texture calc. combine across directions | B2: 2.5D, texture calc. per direction
