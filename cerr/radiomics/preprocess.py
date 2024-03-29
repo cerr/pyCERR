@@ -6,6 +6,7 @@ import SimpleITK as sitk
 from scipy.ndimage import zoom
 from scipy.ndimage import label
 from scipy.ndimage import generate_binary_structure
+from scipy.interpolate import RegularGridInterpolator
 
 def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     """
@@ -34,8 +35,7 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
         slope = (num_level - 1) / (xmax - xmin)
         intercept = 1 - (slope * xmin)
         q = np.round(slope * x + intercept)
-        q[np.isnan(q)] = 0
-        q = q.astype(int)
+
     elif binwidth is not None:
         q = (x - xmin) / binwidth
         q[np.isnan(q)] = -1
@@ -117,50 +117,55 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         xResampleV: 1D array of new x-coordinates i.e. along columns of resampled image
         yResampleV: 1D array of new y-coordinates i.e. along rows of resampled image
         zResampleV: 1D array of new z-coordinates i.e. along slices of resampled image
-        method: string representing one of the supported methods from 'sitkNearestNeighbor', 'sitkLinear',
-                    'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
-                    'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
+        method: string representing one of the supported methods from SimpleITK for 3d resmpling viz.
+                'sitkNearestNeighbor', 'sitkLinear',
+                'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
+                'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
+                or from csipy for 2d resampling viz. 'bilinear','bicubic','spline2d'
 
     Returns:
         3D numpy Array reampled at xResampleV, yResampleV, zResampleV
     """
 
-    # Ensure yVals match CERR co-ordinate system (monotonically decreasing)
-    if yValsV[0] < yValsV[1]:
-        yValsV = np.flip(yValsV)
-    if yResampleV[0] < yResampleV[1]:
-        yResampleV = np.flip(yResampleV)
-
-
     sitkMethods = {'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
                     'sitkHammingWindowedSinc', 'sitkCosineWindowedSinc', 'sitkWelchWindowedSinc',
                     'sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'}
+    scipyMethods = {'linear','cubic','nearest','slinear'}
 
-    img_from_sitk_3m = None
+    inputImgSizeV = img3M.shape
+
+
     if method in sitkMethods:
         # SimpleITK based interpolation
 
+        # Ensure yVals match CERR co-ordinate system (monotonically decreasing)
+        if yValsV[0] < yValsV[1]:
+            yValsV = np.flip(yValsV)
+        if yResampleV[0] < yResampleV[1]:
+            yResampleV = np.flip(yResampleV)
+
         # Flip along slices as CERR z slices increase from head to toe (opposite to DICOM)
-        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 0, 1)), axis = 0)) # z,y,x order
+        sitk_img = sitk.GetImageFromArray(np.flip(np.transpose(img3M, (2, 0, 1)), axis=0))  # z,y,x order
 
         # Set origin, direction, and spacing
-        sitk_img.SetDirection((1,0,0,0,1,0,0,0,1))
+        sitk_img.SetDirection((1, 0, 0, 0, 1, 0, 0, 0, 1))
         originV = xValsV[0], -yValsV[0], -zValsV[-1]
         spacing_v = xValsV[1]-xValsV[0],  yValsV[0]-yValsV[1], zValsV[1]-zValsV[0]
         sitk_img.SetOrigin(originV)
         sitk_img.SetSpacing(spacing_v)
 
         # Resample image
+        resampledImgSizeV = len(xResampleV),len(yResampleV),len(zResampleV)
         resample_img_spacing_v = xResampleV[1]-xResampleV[0], \
                                  yResampleV[0]-yResampleV[1], \
                                  zResampleV[1]-zResampleV[0]
-        resample_img_size_v = len(xResampleV),len(yResampleV),len(zResampleV)
+        resampledImgSizeV = len(xResampleV),len(yResampleV),len(zResampleV)
         resample_orig_v = xResampleV[0], -yResampleV[0], -zResampleV[-1]
 
         resample = sitk.ResampleImageFilter()
         resample.SetOutputSpacing(resample_img_spacing_v)
         resample.SetOutputDirection((1,0,0,0,1,0,0,0,1))
-        resample.SetSize(resample_img_size_v)
+        resample.SetSize(resampledImgSizeV)
         resample.SetOutputDirection(sitk_img.GetDirection())
         resample.SetOutputOrigin(resample_orig_v)
         resample.SetTransform(sitk.Transform())
@@ -175,11 +180,20 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         img_from_sitk_3m = np.transpose(img_from_sitk_3m, (1, 2, 0))
 
         # flip slices in CERR z-slice order which increases from head to toe
-        img_from_sitk_3m = np.flip(img_from_sitk_3m, axis=2)
+        resampledImg3M = np.flip(img_from_sitk_3m, axis=2)
     else:
-        raise ValueError("imgResample3D: Invalid resampling method '" + method + "'." )
+        if method in scipyMethods:
+            resampledImgSizeV = len(yResampleV),len(xResampleV),len(zResampleV)
+            resampledImg3M = np.zeros(resampledImgSizeV)
+            for slc in range(inputImgSizeV[2]):
+                interpolator = RegularGridInterpolator((yValsV,xValsV),img3M[:,:,slc],method=method,\
+                                                          bounds_error=False, fill_value=None)
+                resamplingPtsM = np.meshgrid(yResampleV, xResampleV, indexing='ij')
+                resampledImg3M[:,:,slc] = interpolator((resamplingPtsM[0], resamplingPtsM[1]))
+        else:
+            raise ValueError("imgResample3D: Invalid resampling method '" + method + "'." )
 
-    return img_from_sitk_3m
+    return resampledImg3M
 
     # if method in {'linear', 'cubic', 'nearest', 'quintic', 'slinear', 'pchip'}:
     #     numRowsResamp = len(yResampleV)
@@ -192,7 +206,6 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
     #     bounds_error = False
     #     resampimg3M = interpn((yValsV, xValsV, zValsV), img3M, resamplingPtsM, method, bounds_error, extrapVal)
     #     resampimg3M = np.reshape(resampimg3M,[numRowsResamp,numColsResamp,numSlcsResamp])
-
 
 def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
     """Return padded array using specified methosd and dimensions"""
@@ -311,6 +324,10 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
         scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod
+        mapDict = {'linear':'sitkLinear', 'bspline':'sitkBSpline', 'sinc':'sitkLanczosWindowedSinc',\
+                   'bilinear':'linear', 'nearest2d':'nearest', 'spline2d':'slinear', 'bicubic':'cubic'}
+        mapScanInterpMethod = mapDict[scanInterpMethod]
+
         if scanInterpMethod == "linear":
             scanInterpMethod = 'sitkLinear'
         if scanInterpMethod == "bspline":
@@ -361,7 +378,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
                                                  xValsV, yValsV, zValsV, grid_resample_method)
         #Resample scan
         resampScanBounds3M = imgResample3D(padScanBoundsForResamp3M, xValsV, yValsV, zValsV,\
-                                xResampleV, yResampleV, zResampleV, scanInterpMethod)
+                                xResampleV, yResampleV, zResampleV, mapScanInterpMethod)
         # Round image intensities
         if 'intensityRounding' in paramS["settings"]['resample'] and \
                 paramS["settings"]['resample']['intensityRounding'].lower() =='on':
