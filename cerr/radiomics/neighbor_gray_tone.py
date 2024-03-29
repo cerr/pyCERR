@@ -44,6 +44,7 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
     s = np.zeros((numGrLevels, 1), dtype=float)
     p = np.zeros((numGrLevels, 1), dtype=float)
 
+    Nvc = 0
     for slc_num in range(num_slcs_pad, num_slices + num_slcs_pad):
         calc_slc_ind = calc_ind[:, :, slc_num].ravel(order="F")
         num_calc_voxels = np.sum(calc_slc_ind)
@@ -69,6 +70,7 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
         vox_mask_v = m_m[current_voxel_index, :].copy()
         q_m = np.delete(q_m, current_voxel_index, axis=0)
         numNeighborsV = m_m.sum(axis=0) - 1
+        Nvc += (numNeighborsV>0).sum()
         numNeighborsV[numNeighborsV == 0] = np.finfo(float).eps # avoid divide by 0 warning
         q_m = q_m / numNeighborsV
         q_m[np.isnan(q_m)] = 0
@@ -87,13 +89,13 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
         scanLev3M = scan_array == iLev
         p[iLev - 1] = np.sum(scanLev3M) / numVoxels
 
-    return s, p
+    return s, p, Nvc
 
 # Example usage:
 # s, p = calcNGTDM(scanArray3M, patchSizeV, numGrLevels, hWait)
 
 
-def ngtdmToScalarFeatures(s, p, numVoxels):
+def ngtdmToScalarFeatures(s, p, Nvc):
     featuresS = {}
 
     # Coarseness
@@ -102,14 +104,14 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
     # Contrast
     Ng = np.sum(p > 0)
     numLevels = len(p)
-    indV = np.arange(1, numLevels + 1, dtype = np.int64)
+    indV = np.arange(1, numLevels + 1, dtype = float)
     indV = indV[:,None]
     term1 = 0
     term2 = 0
     for lev in range(1, numLevels + 1):
         term1 += np.sum(p * np.roll(p, lev) * (indV - np.roll(indV, lev))**2)
         term2 += s[lev - 1, 0]
-    featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / numVoxels
+    featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / Nvc
 
     # Busyness
     denom = 0
@@ -132,7 +134,7 @@ def ngtdmToScalarFeatures(s, p, numVoxels):
         term1 = np.abs(indV - indShiftV)
         term2 = usePv * usePshiftV * (p * s + pShiftV * sShiftV) / (p + pShiftV + np.finfo(float).eps)
         complxty += np.sum(term1 * term2)
-    featuresS['complexity'] = complxty / numVoxels
+    featuresS['complexity'] = complxty / Nvc
 
     # Texture strength
     strength = 0
