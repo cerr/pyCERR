@@ -172,8 +172,11 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
 
     avgType = ''
     directionality = ''
-    if 'texture' in radiomicsSettingS['settings']:
+    if 'texture' in radiomicsSettingS['settings'] and \
+            'avgType' in radiomicsSettingS['settings']['texture']:
         avgType = radiomicsSettingS['settings']['texture']['avgType']
+    if 'texture' in radiomicsSettingS['settings'] and \
+            'directionality' in radiomicsSettingS['settings']['texture']:
         directionality = radiomicsSettingS['settings']['texture']['directionality']
 
     mapToIBSI = False
