@@ -124,7 +124,7 @@ def test_configs():
         dispDiff(diffFeatV,tolFeatV,refV,ibsiFeatList)
 
         for i in range(len(refV)):
-            np.testing.assert_allclose(refV[i][0], cerrV[i][0], rtol=0, atol=tolFeatV[i][0])
+            np.testing.assert_allclose(refV[i], cerrV[i], rtol=0, atol=tolFeatV[i])
 
 
 if __name__ == "__main__":
