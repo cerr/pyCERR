@@ -5,6 +5,10 @@ Pre- and post-processing transformations for AI models
 import numpy as np
 import math
 from scipy.ndimage import label
+from scipy import ndimage
+from cerr.contour import rasterseg as rs
+from cerr.dataclasses import scan as cerrScan
+import cerr.plan_container as pc
 
 
 def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
@@ -136,3 +140,71 @@ def getLargestConnComps(mask3M, numConnComponents):
         maskOut3M = mask3M
 
     return maskOut3M
+
+def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, procSructName=None):
+    """
+    Morphological closing and hole-filling for binary masks
+
+    :param structNum : Index of structure in planC
+    :param structuringElementSizeCm : Desired size of structuring element for closing in cm
+    :param planC
+    :param saveFlag : Set to true to save processed mask to planC (Default:False)
+    :returns filledMask3M, planC
+    """
+
+    # Get binary mask of structure
+    mask3M = rs.getStrMask(structNum,planC)
+
+    # Get mask resolution
+    assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+    sliceThicknessV = [planC.scan[assocScanNum].scanInfo[slc].sliceThickness for slc in range(mask3M.shape[2])]
+    dz = np.median(sliceThicknessV)
+    inputResV = np.array([planC.scan[assocScanNum].scanInfo[0].grid1Units,\
+                          planC.scan[assocScanNum].scanInfo[0].grid2Units, dz])
+
+    # Create structuring element
+    structuringElement = createStructuringElement(structuringElementSizeCm, inputResV, dimensions=3)
+
+    # Apply morphological closing
+    closedMask3M = morphologicalClosing(mask3M, structuringElement)
+
+    # Fill any remaining holes
+    filledMask3M = fillSmallHoles(closedMask3M)
+
+    # Save to planC
+    if saveFlag:
+        if procSructName is None:
+            structName = planC.structure[structNum].structureName
+            procSructName = structName + '_filled'
+        pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, None, planC)
+
+    return filledMask3M, planC
+
+
+def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
+    """
+    Create structuring element for morphological operations given desired dimensions in cm.
+    """
+    sizeCmV =  np.repeat(sizeCm, dimensions)
+    sizePixels = np.ceil(np.divide(sizeCmV, resolutionCmV))
+    evenIdxV = sizePixels % 2 == 0
+    if any(evenIdxV):
+        sizePixels[evenIdxV] += 1  # Ensure odd size for symmetric structuring element
+    structuringElement = np.ones(tuple(sizePixels.astype(int)), dtype=np.uint8)
+
+    return structuringElement
+
+def fillSmallHoles(binaryMask):
+    """
+    Fill small holes in input binary mask
+    """
+    filledMask = ndimage.binary_fill_holes(binaryMask)
+    return filledMask
+
+def morphologicalClosing(binaryMask, structuringElement):
+    """
+    Morphological closing of input binary mask
+    """
+    closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
+    return closedMask
+
