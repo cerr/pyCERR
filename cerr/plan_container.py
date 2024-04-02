@@ -49,6 +49,11 @@ class PlanC:
                 return {'structure':obj.strUID}
             return "" #json.JSONEncoder.default(self, obj)
 
+def getSortedItems(itemList):
+    if not itemList:
+        return itemList
+    itemList = np.array(itemList)
+    return itemList[np.argsort([int(item[5:]) for item in itemList])].tolist()
 
 def addToH5Grp(h5Grp,structDict,key):
     if isinstance(structDict[key], (str)):
@@ -64,12 +69,15 @@ def addToH5Grp(h5Grp,structDict,key):
 
 
 def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
-    #f = h5py.File(h5File, "w") or f = io.BytesIO()
+    dt = datetime.now()
+    planC.header.dateLastSaved = dt.strftime("%Y%m%d")
     with h5py.File(h5File, 'w') as f:
         planCGrp = f.create_group('planC')
+        headerGrp = planCGrp.create_group('header')
         scanGrp = planCGrp.create_group('scan')
         structGrp = planCGrp.create_group('structure')
         doseGrp = planCGrp.create_group('dose')
+        headerGrp = saveH5Header(headerGrp, planC)
         scanGrp = saveH5Scan(scanGrp, scanNumV, planC)
         structGrp = saveH5Structure(structGrp, structNumV, planC)
         doseGrp = saveH5Dose(doseGrp, doseNumV, planC)
@@ -81,16 +89,27 @@ def loadFromH5(h5File, initplanC=''):
     else:
         planC = initplanC
     with h5py.File(h5File, 'r') as f:
+        if 'header' in f['planC']:
+            headerGrp = f['planC']['header']
+            loadH5Header(headerGrp, planC)
         if 'scan' in f['planC']:
-            structGrp = f['planC']['scan']
-            loadH5Scan(structGrp, planC)
+            scanGrp = f['planC']['scan']
+            loadH5Scan(scanGrp, planC)
         if 'structure' in f['planC']:
             structGrp = f['planC']['structure']
             loadH5Strucutre(structGrp, planC)
         if 'dose' in f['planC']:
-            structGrp = f['planC']['dose']
-            #loadH5Dose(structGrp, planC)
+            doseGrp = f['planC']['dose']
+            #loadH5Dose(doseGrp, planC)
     return planC
+
+def saveH5Header(headerGrp, planC):
+    # Write header attributes
+    headerDict = planC.header.__dict__.copy()
+    keys = list(headerDict.keys())
+    for key in keys:
+        headerGrp = addToH5Grp(headerGrp,headerDict,key)
+    return headerGrp
 
 def saveH5Scan(scanGrp, scanNumV, planC):
     scnCount = 0
@@ -175,10 +194,21 @@ def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
 
     return obj
 
+
+def loadH5Header(headerGrp, planC):
+    headerObj = headr.Header()
+    planC.header = headr.Header()
+    headerObj = readAttribsAndDsets(headerObj, headerGrp)
+    planC.header.dateLastSaved = headerObj.dateLastSaved
+    planC.header.dateCreated = headerObj.dateCreated
+    return planC
+
 def loadH5Scan(scanGrp, planC):
     scanUIDs = [s.scanUID for s in planC.scan]
     scanFieldToExclude = ['scanInfo']
     scanItems = scanGrp.keys()
+    # Sort scanItems in order item_1, item_2,...
+    scanItems = getSortedItems(list(scanItems))
     for scanItem in scanItems:
         scanObj = scn.Scan()
         if scanGrp[scanItem].attrs['scanUID'] in scanUIDs:
@@ -189,6 +219,8 @@ def loadH5Scan(scanGrp, planC):
         # populate contour field
         h5sInfoList = scanGrp[scanItem]['scanInfo'].keys()
         sInfoList = []
+        # Sort h5sInfoList in order item_1, item_2,...
+        h5sInfoList = getSortedItems(list(h5sInfoList))
         for siItem in h5sInfoList:
             siH5 = scanGrp[scanItem]['scanInfo'][siItem]
             siObj = scn_info.ScanInfo()
@@ -205,6 +237,8 @@ def loadH5Strucutre(structGrp, planC):
     strFieldToExclude = ['contour']
     ctrFieldToExclude = ['segments']
     structItems = structGrp.keys()
+    # Sort structItems in order item_1, item_2,...
+    structItems = getSortedItems(list(structItems))
     for strItem in structItems:
         structObj = structr.Structure()
         if structGrp[strItem].attrs['strUID'] in strUIDs:
@@ -215,6 +249,8 @@ def loadH5Strucutre(structGrp, planC):
         # populate contour field
         h5CtrList = structGrp[strItem]['contour'].keys()
         planCtrList = []
+        # Sort h5CtrList in order item_1, item_2,...
+        h5CtrList = getSortedItems(list(h5CtrList))
         for ctrItem in h5CtrList:
             ctr = structGrp[strItem]['contour'][ctrItem]
             if ctr.keys():
@@ -222,6 +258,8 @@ def loadH5Strucutre(structGrp, planC):
                 ctrObj = readAttribsAndDsets(ctrObj, ctr, ctrFieldToExclude)
                 segList = ctr['segments'].keys()
                 planSegList = []
+                # Sort segList in order item_1, item_2,...
+                segList = getSortedItems(list(segList))
                 for segItem in segList:
                     seg = ctr['segments'][segItem]
                     segObj = structr.Segment()
