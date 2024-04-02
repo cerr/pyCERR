@@ -87,7 +87,7 @@ def compareVals(imType, calcFeatS, diagS, refValsV):
     # Extract diagnostic features computed with pyCERR
     calcDiagV = np.array(list(diagS.values()))
     # Extract radiomic features computed with pyCERR
-    calcFeatV = np.array([calcFeatS[imType + '_firstOrder_' + key] for key in featList])
+    calcFeatV = np.array([calcFeatS[imType + '_firstOrder_' + key +'_3D'] for key in featList])
     # Extract reference diagnositc & radiomic features
     refDiagV = refValsV[0:5]
     refFeatV = refValsV[5:]
