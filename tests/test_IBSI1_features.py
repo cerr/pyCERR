@@ -72,7 +72,7 @@ def getRefFeatureVals(cerrFeatS, refFeatNames, refValsV, tolV):
             matchIdx = refFeatNames.index(matchName)
             refV.append(refValsV[matchIdx])
             tolFeatV.append(tolV[matchIdx])
-            cerrV.append(cerrFeatS[featName].astype(float))
+            cerrV.append(float(cerrFeatS[featName]))
             diffFeatV.append(cerrV[-1] - refV[-1])
             ibsiFeatList.append(matchName)
 
