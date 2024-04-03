@@ -29,7 +29,7 @@ def get_empty_list():
 
 @dataclass
 class PlanC:
-    header: headr.Header
+    header: headr.Header = None
     scan: List[scn.Scan] = field(default_factory=get_empty_list) #scan.Scan()
     structure: List[structr.Structure] = field(default_factory=get_empty_list) #structure.Structure()
     dose: List[rtds.Dose] = field(default_factory=get_empty_list) #dose.Dose()
@@ -88,19 +88,22 @@ def loadFromH5(h5File, initplanC=''):
         planC = PlanC(header=headr.Header()) #pc.PlanC()
     else:
         planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
+
     with h5py.File(h5File, 'r') as f:
         if 'header' in f['planC']:
             headerGrp = f['planC']['header']
-            loadH5Header(headerGrp, planC)
+            planC = loadH5Header(headerGrp, planC)
         if 'scan' in f['planC']:
             scanGrp = f['planC']['scan']
-            loadH5Scan(scanGrp, planC)
+            planC = loadH5Scan(scanGrp, planC)
         if 'structure' in f['planC']:
             structGrp = f['planC']['structure']
-            loadH5Strucutre(structGrp, planC)
+            planC = loadH5Strucutre(structGrp, planC)
         if 'dose' in f['planC']:
             doseGrp = f['planC']['dose']
-            #loadH5Dose(doseGrp, planC)
+            #planC = loadH5Dose(doseGrp, planC)
     return planC
 
 def saveH5Header(headerGrp, planC):
@@ -277,13 +280,16 @@ def loadH5Strucutre(structGrp, planC):
     return planC
 
 
-def load_dcm_dir(dcm_dir, initplanC=''):
+def load_dcm_dir(dcm_dir, initplanC='', opts={}):
     """
     This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
     INPUTS -
         dcm_dir - absolute path to directory containing dicom files
         initplanC - An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
     OUTPUT - An instance of PlanC
+        opts - dictionary of import options. Currently supported options are:
+            'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
+            e.g.  opts = {'suvType': 'LBM'}
     """
     import os
     if not os.path.isdir(dcm_dir):
@@ -297,6 +303,11 @@ def load_dcm_dir(dcm_dir, initplanC=''):
         planC = PlanC(header=headr.Header()) #pc.PlanC()
     else:
         planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
+
+    numOrigStructs = len(planC.structure)
+    numOrigDoses = len(planC.dose)
     pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
     pt_groups.size()
     for group_name,group_content in pt_groups:
@@ -306,7 +317,7 @@ def load_dcm_dir(dcm_dir, initplanC=''):
         modality = group_content.iloc[0,4]
         if modality in ["CT","PT", "MR"]:
             # populate scan attributes
-            scan_meta = populate_planC_field('scan', files)
+            scan_meta = populate_planC_field('scan', files, opts)
             planC.scan.extend(scan_meta)
         elif modality in ["RTSTRUCT", "SEG"]:
             # populate structure attributes
@@ -323,14 +334,17 @@ def load_dcm_dir(dcm_dir, initplanC=''):
         else:
             print(d["Modality"][0]+ " not supported")
 
+    numStructs = len(planC.structure)
+    numDoses = len(planC.dose)
+
     # Convert structure coordinates to CERR's virtual coordinates
-    for str_num,struct in enumerate(planC.structure):
+    for str_num in range(numOrigStructs,numStructs):
         planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
         #planC.structure[str_num].generate_rastersegs(planC) # this calls polyFill
         planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
 
     # Convert dose coordinates to CERR's virtual coordinates
-    for dose_num,dose in enumerate(planC.dose):
+    for dose_num in range(numOrigDoses,numDoses):
         planC.dose[dose_num].convertDcmToCerrVirtualCoords(planC)
 
     return planC
@@ -340,14 +354,17 @@ def load_dcm_dir(dcm_dir, initplanC=''):
     #with open(save_file, 'wb') as pickle_file:
     #    pickle.dump(planC, pickle_file)
 
-def populate_planC_field(field_name, file_list):
+def populate_planC_field(field_name, file_list, opts={}):
     if field_name == "scan":
         scan_meta = []
         scan_meta.append(scn.load_sorted_scan_info(file_list))
         scan_meta[0].convertDcmToCerrVirtualCoords()
         scan_meta[0].convertDcmToRealWorldUnits()
         if scan_meta[0].scanInfo[0].imageType == "PT SCAN":
-            scan_meta[0].convert_to_suv("BW")
+            suvType = 'BW'
+            if 'suvType' in opts:
+                suvType = opts['suvType']
+            scan_meta[0].convert_to_suv(suvType)
         return scan_meta
 
     elif field_name == "structure":
@@ -378,6 +395,8 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
         planC = PlanC(header=headr.Header())
     else:
         planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
     reader = sitk.ImageFileReader()
     reader.SetFileName(nii_file_name)
     reader.LoadPrivateTagsOn()
