@@ -120,28 +120,50 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
 
     return scanOut3M, maskOut4M, gridOutS
 
-def getLargestConnComps(mask3M, numConnComponents):
-    if np.sum(mask3M) > 1:
-        labeledArray, numFeatures = label(mask3M, structure=np.ones((3, 3, 3)))
-        ccSiz = [len(labeledArray[labeledArray == i]) for i in range(1, numFeatures + 1)]
+def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None, replaceFlag=None, procSructName=None):
+    """
+    Returns 'N' largest connected components in input binary mask
 
+    :param structNum : Index of structure in planC
+    :param structuringElementSizeCm : Desired size of structuring element for closing in cm
+    :param planC
+    :param saveFlag : Import filtered mask to planC structure
+    :param replaceFlag : Set to true to replace input mask with processed mask to planC (Default:False)
+    :param procSructName : Output structure name. Original structure name is used if empty
+    :returns maskOut3M, planC
+    """
+
+    # Get binary mask of structure
+    mask3M = rs.getStrMask(structNum,planC)
+
+    if np.sum(mask3M) > 1:
+        #Extract connected components
+        labeledArray, numFeatures = label(mask3M, structure=np.ones((3, 3, 3)))
+
+        # Sort by size
+        ccSiz = [len(labeledArray[labeledArray == i]) for i in range(1, numFeatures + 1)]
         rankV = np.argsort(ccSiz)[::-1]
         if len(rankV) > numConnComponents:
             selV = rankV[:numConnComponents]
         else:
             selV = rankV[:]
 
+        # Return N largest
         maskOut3M = np.zeros_like(mask3M, dtype=bool)
         for n in selV:
             idxV = labeledArray == n + 1
             maskOut3M[idxV] = True
 
+    if planC is not None and saveFlag:
+        if procSructName is None:
+            procSructName = planC.structure[structNum].structureName
+        planC = updateStructure(structNum, maskOut3M, procSructName, replaceFlag, planC)
     else:
         maskOut3M = mask3M
 
-    return maskOut3M
+    return maskOut3M, planC
 
-def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, procSructName=None):
+def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, replaceFlag=None, procSructName=None):
     """
     Morphological closing and hole-filling for binary masks
 
@@ -149,6 +171,8 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, procSr
     :param structuringElementSizeCm : Desired size of structuring element for closing in cm
     :param planC
     :param saveFlag : Set to true to save processed mask to planC (Default:False)
+    :param replaceFlag: Set to true to replace input mask with processed mask to planC (Default:False)
+    :param procSructName : Output structure name. Original structure name is used if empty
     :returns filledMask3M, planC
     """
 
@@ -157,10 +181,7 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, procSr
 
     # Get mask resolution
     assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
-    sliceThicknessV = [planC.scan[assocScanNum].scanInfo[slc].sliceThickness for slc in range(mask3M.shape[2])]
-    dz = np.median(sliceThicknessV)
-    inputResV = np.array([planC.scan[assocScanNum].scanInfo[0].grid1Units,\
-                          planC.scan[assocScanNum].scanInfo[0].grid2Units, dz])
+    inputResV = planC.scan[assocScanNum].getScanSpacing()
 
     # Create structuring element
     structuringElement = createStructuringElement(structuringElementSizeCm, inputResV, dimensions=3)
@@ -169,17 +190,15 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, procSr
     closedMask3M = morphologicalClosing(mask3M, structuringElement)
 
     # Fill any remaining holes
-    filledMask3M = fillSmallHoles(closedMask3M)
+    filledMask3M = fillHoles(closedMask3M)
 
     # Save to planC
     if saveFlag:
         if procSructName is None:
-            structName = planC.structure[structNum].structureName
-            procSructName = structName + '_filled'
-        pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, None, planC)
+            procSructName = planC.structure[structNum].structureName
+        planC = updateStructure(structNum, filledMask3M, procSructName, replaceFlag, planC)
 
     return filledMask3M, planC
-
 
 def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
     """
@@ -194,7 +213,7 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
 
     return structuringElement
 
-def fillSmallHoles(binaryMask):
+def fillHoles(binaryMask):
     """
     Fill small holes in input binary mask
     """
@@ -207,4 +226,18 @@ def morphologicalClosing(binaryMask, structuringElement):
     """
     closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
     return closedMask
+
+def updateStructure(structNum, newMask3M, newStrName, replaceFlag, planC):
+    """
+    Save updated structure to planC
+    """
+    assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+
+    if replaceFlag:
+        # Delete structNum
+        del planC.structure[structNum]
+
+    pc.import_structure_mask(newMask3M, assocScanNum, newStrName, None, planC)
+
+    return planC
 
