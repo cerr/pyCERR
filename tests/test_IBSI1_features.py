@@ -83,21 +83,7 @@ def getRefFeatureVals(cerrFeatS, refFeatNames, refValsV, tolV):
 
     return refV, cerrV, diffFeatV, tolFeatV, ibsiFeatList
 
-def test_configs():
-    """ Compute radiomics features for IBSI-1 configurations """
-
-    # Load data
-    planC = loadData(dataPath)
-    scanNum = 0
-    structNum = 0
-
-    # Feature extraction settings
-    configList = ['A1','A2','B1','B2','C1','C2']
-
-    #A1: 2.5D, texture calc. combine across directions | A2: 2.5D, texture calc. per direction
-    #B1: 2.5D, texture calc. combine across directions | B2: 2.5D, texture calc. per direction
-    #C1: 3D, texture calc. combine across directions   | C2: 3D, texture calc. per direction
-
+def run_config(configList, scanNum, structNum, planC):
     # Loop over settings
     for idx in range(len(configList)):
         config = configList[idx]
@@ -127,5 +113,80 @@ def test_configs():
             np.testing.assert_allclose(refV[i], cerrV[i], rtol=0, atol=tolFeatV[i])
 
 
+def test_config_A_original_feats_merged_texture():
+    # Config A: 2.5D, texture calc. combine across directions
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['A1']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def test_config_A_original_feats_all_dirs():
+    # Config A: 2.5D, texture calc. per direction
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['A2']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def test_config_B_bilinear_interp_feats_merged_texture():
+    # Config B: 2.5D, texture calc. combine across directions
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['B1']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def test_config_B_bilinear_interp_feats_all_dirs():
+    # Config B: 2.5D, texture calc. per direction
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['B2']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def test_config_C_trilinear_interp_feats_merged_texture():
+    # Config C: 3D, texture calc. combine across directions
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['C1']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def test_config_C_trilinear_interp_feats_all_dirs():
+    # Config C: 3D, texture calc. per direction
+    planC = loadData(dataPath)
+    scanNum = 0
+    structNum = 0
+
+    # Feature extraction settings
+    configList = ['C2']
+
+    run_config(configList, scanNum, structNum, planC)
+
+def run_configs():
+    """ test radiomics features for IBSI-1 configurations """
+    test_config_A_original_feats_merged_texture()
+    test_config_A_original_feats_all_dirs()
+    test_config_B_bilinear_interp_feats_merged_texture()
+    test_config_B_bilinear_interp_feats_all_dirs()
+    test_config_C_trilinear_interp_feats_merged_texture()
+    test_config_C_trilinear_interp_feats_all_dirs()
+
 if __name__ == "__main__":
-    test_configs()
+    run_configs()
