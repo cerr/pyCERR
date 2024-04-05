@@ -217,6 +217,17 @@ def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode 
         scan_affine = scanAffineDict[scan_num]
         opacity = 0.5
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
+        if scan_name == 'CT SCAN':
+            center = 0
+            width = 300
+        else:
+            center = np.median(sa)
+            lowerVal = np.percentile(sa, 5)
+            upperVal = np.percentile(sa, 95)
+            width = 2 * np.max([center - lowerVal, upperVal - center])
+        scanWindow = {'name': "--- Select ---",
+                      'center': center,
+                      'width': width}
         scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
                                            opacity=opacity, colormap=scan_colormaps[i],
                                             blending="additive",interpolation2d="linear",
