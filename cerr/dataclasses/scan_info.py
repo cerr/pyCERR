@@ -31,7 +31,9 @@ class ScanInfo:
     grid1Units: float = 0.0
     grid2Units: float = 0.0
     numberRepresentation: int = 0
-    bytesPerPixel: int = 8
+    bitsAllocated: int = np.NAN
+    bitsStored: int = np.NAN
+    pixelRepresentation: int = np.NAN
     numberOfDimensions: int = 3
     sizeOfDimension1: int = 512
     sizeOfDimension2: int = 512

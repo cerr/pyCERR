@@ -274,15 +274,16 @@ class Scan:
         minScanVal = np.min(scanArray3M)
         ctOffset = max(0, -minScanVal)
         scanArray3M += ctOffset
-        minScanVal = np.min(scanArray3M)
-        maxScanVal = np.max(scanArray3M)
 
-        if not realWorldImageFlag and not np.any(np.abs(rescaleSlopeV - 1) > np.finfo(float).eps * 1e5):
-            # Convert to uint if rescale slope is not 1
-            if minScanVal >= -32768 and maxScanVal <= 32767:
-                scanArray3M = scanArray3M.astype(np.uint16)
-            else:
-                scanArray3M = scanArray3M.astype(np.uint32)
+        # Decommissioned conversion to unsigned int. Need to update logic to handle various data types - dicom, nii etc.
+        # minScanVal = np.min(scanArray3M)
+        # maxScanVal = np.max(scanArray3M)
+        # if not realWorldImageFlag and not np.any(np.abs(rescaleSlopeV - 1) > np.finfo(float).eps * 1e5):
+        #     # Convert to uint if rescale slope is not 1
+        #     if minScanVal >= -32768 and maxScanVal <= 32767:
+        #         scanArray3M = scanArray3M.astype(np.uint16)
+        #     else:
+        #         scanArray3M = scanArray3M.astype(np.uint32)
 
         for slcNum in range(numSlcs):
             self.scanInfo[slcNum].CTOffset = ctOffset
@@ -503,7 +504,9 @@ def populate_scan_info_fields(s_info, ds):
     s_info.sopClassUID = ds.SOPClassUID
     s_info.seriesInstanceUID = ds.SeriesInstanceUID
     s_info.studyInstanceUID = ds.StudyInstanceUID
-
+    s_info.bitsAllocated = ds.BitsAllocated
+    s_info.bitsStored = ds.BitsStored
+    s_info.pixelRepresentation = ds.PixelRepresentation
     s_info.sizeOfDimension1 = ds.Rows
     s_info.sizeOfDimension2 = ds.Columns
 
