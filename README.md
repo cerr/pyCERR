@@ -48,9 +48,10 @@ Run python from the above Anaconda environment and try out the following code sa
     numStructs = len(planC.structure)
     strNumList = np.arange(numStructs)
     displayMode = '2d' # '2d' or '3d'
-    viewer, scan_layer, dose_layer, struct_layer = \
-        vwr.show_scan_struct_dose(scanNumList, strNumList, doseNumList, planC, displayMode)
-
+    vectDict = {}
+    viewer, scan_layer, dose_layer, struct_layer, dvf_layer = \
+            vwr.showNapari(scanNumList, strNumList, doseNumList, vectDict, planC, displayMode)
+            
 
 ### Compute DVH-based metrics
     from cerr import dvh
