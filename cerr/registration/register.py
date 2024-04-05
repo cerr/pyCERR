@@ -181,6 +181,32 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     return planC
 
+def calc_jacobian(deformS, planC, tool='plastimatch'):
+
+    if deformS.deformOutFileType != 'vf':
+        return
+
+    if tool == 'plastimatch':
+
+        # create temporary directory to hold registration files
+        dirpath = tempfile.mkdtemp()
+
+        # Command for Jacobian calculation
+        jacobian_nii = os.path.join(dirpath, 'jacobian.nii.gz')
+        plm_jacobian_str_cmd = "plastimatch jacobian --input " + deformS.deformOutFilePath + \
+                      " --output-img " + jacobian_nii
+
+        os.system(plm_jacobian_str_cmd)
+
+        # Add Jacobian to planC scan
+        planC = pc.load_nii_scan(jacobian_nii, "Jacobian", planC)
+
+        # Remove temporary directory
+        shutil.rmtree(dirpath)
+
+    return planC
+
+
 def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0]):
 
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
