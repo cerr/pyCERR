@@ -73,329 +73,160 @@ def compareMaps(calcMap3M, refMapName):
     print('-------------')
 
 
-def test_phase1():
-    """ Generate maps using IBSI-2 phase-1 configurations """
+def run_test(planC, mask3M, config):
 
-    ###########################
-    # 1. Mean filter
-    ###########################
-    __, mask3M, planC = loadData('checkerboard')
     scanNum = 0
+    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
+    refMapName = config+'.mat'
 
-    # Config. a1
+    #Calc. filter response
+    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
+    filtIdx = len(planC.scan)-1
+    responseMap3M = planC.scan[filtIdx].getScanArray()
+
+    # Compare to reference std
+    compareMaps(responseMap3M, refMapName)
+
+def test_mean_filters_3d():
+    __, mask3M, planC = loadData('checkerboard')
+
     print('Testing setting 1.a.1')
     config = '1a1'
-    refMapName = '1a1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. a2
     print('Testing setting 1.a.2')
     config = '1a2'
-    refMapName = '1a2.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # a3
     print('Testing setting 1.a.3')
     config = '1a3'
-    refMapName = '1a3.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # a4
     print('Testing setting 1.a.4')
     config = '1a4'
-    refMapName = '1a4.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    #Config. b1
+def test_mean_filt_2d():
     print('Testing setting 1.b.1')
     __, mask3M, planC = loadData('impulse')
+
     config = '1b1'
-    refMapName = '1b1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    ########################
-    # 2. LoG filter
-    ########################
-    # a
+def test_LoG_filters_3d():
     print('Testing setting 2.a')
     __, mask3M, planC = loadData('impulse')
     config = '2a'
-    refMapName = '2a.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-
-    # Config. b
     print('Testing setting 2.b')
     __, mask3M, planC = loadData('checkerboard')
     config = '2b'
-    refMapName = '2b.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. c
-    print('Testing setting 2.c')
+def test_LoG_filter_2d():
+    __, mask3M, planC = loadData('checkerboard')
     config = '2c'
-    refMapName = '2c.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    ######################
-    # 3. Laws' filters
-    #####################
-
+def test_laws_filters_3d():
     # Config. a1
     print('Testing setting 3.a.1')
     __, mask3M, planC = loadData('impulse')
+
     config = '3a1'
-    refMapName = '3a1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. a2
-    print('Testing setting 3.a.2')
-    config = '3a2'
-    refMapName = '3a2.mat'
-
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. a3
-    print('Testing setting 3.a.3')
-    config = '3a3'
-    refMapName = '3a3.mat'
-
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. b1
     print('Testing setting 3.b.1')
     __, mask3M, planC = loadData('checkerboard')
     config = '3b1'
-    refMapName = '3b1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. b2
-    print('Testing setting 3.b.2')
-    config = '3b2'
-    refMapName = '3b2.mat'
-
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. b3
-    print('Testing setting 3.b.3')
-    config = '3b3'
-    refMapName = '3b3.mat'
-
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-
+def test_laws_filter_2d():
     # Config. c1
     print('Testing setting 3.c.1')
+    __, mask3M, planC = loadData('checkerboard')
     config = '3c1'
-    refMapName = '3c1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
+def test_rot_inv_laws_filters_3d():
 
-    # Config. c2
+    print('Testing setting 3.a.2')
+    __, mask3M, planC = loadData('impulse')
+    config = '3a2'
+    run_test(planC, mask3M, config)
+
+    print('Testing setting 3.b.2')
+    __, mask3M, planC = loadData('checkerboard')
+    config = '3b2'
+    run_test(planC, mask3M, config)
+
+def test_rot_inv_laws_filter_2d():
     print('Testing setting 3.c.2')
+    __, mask3M, planC = loadData('checkerboard')
     config = '3c2'
-    refMapName = '3c2.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
+def test_rot_inv_laws_energy_filters_3d():
+    print('Testing setting 3.a.3')
+    __, mask3M, planC = loadData('impulse')
+    config = '3a3'
+    run_test(planC, mask3M, config)
 
-    # Config. c3
+    print('Testing setting 3.b.3')
+    __, mask3M, planC = loadData('checkerboard')
+    config = '3b3'
+    run_test(planC, mask3M, config)
+
+def test_rot_inv_laws_energy_filter_2d():
     print('Testing setting 3.c.3')
+    __, mask3M, planC = loadData('checkerboard')
     config = '3c3'
-    refMapName = '3c3.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-
-    ######################
-    # 4. Gabor filter
-    #####################
-
-    # Config. a1
+def test_gabor_filters_2d():
     print('Testing setting 4.a.1')
     __, mask3M, planC = loadData('impulse')
     config = '4a1'
-    refMapName = '4a1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. a2
-    print('Testing setting 4.a.2')
-    config = '4a2'
-    refMapName = '4a2.mat'
-
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
-
-    # Config. b1
     print('Testing setting 4.b.1')
     __, mask3M, planC = loadData('sphere')
     config = '4b1'
-    refMapName = '4b1.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
+def test_gabor_filters_25d():
+    print('Testing setting 4.a.2')
+    __, mask3M, planC = loadData('impulse')
+    config = '4a2'
+    run_test(planC, mask3M, config)
 
-    # Config. b2
     print('Testing setting 4.b.2')
+    __, mask3M, planC = loadData('sphere')
     config = '4b2'
-    refMapName = '4b2.mat'
+    run_test(planC, mask3M, config)
 
-    # Read filter settings
-    settingsFile = os.path.join(settingsPath,'IBSIPhase2-1ID'+ config + '.json')
-    # Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
-    filtIdx = len(planC.scan)-1
-    responseMap3M = planC.scan[filtIdx].getScanArray()
-    # Compare to reference std
-    compareMaps(responseMap3M, refMapName)
+
+def test_IBSI_image_filters():
+    """ Generate maps using IBSI-2 phase-1 configurations """
+
+    test_mean_filters_3d()
+    test_mean_filt_2d()
+
+    test_LoG_filters_3d()
+    test_LoG_filter_2d()
+
+    test_laws_filters_3d()
+    test_laws_filter_2d()
+    test_rot_inv_laws_filters_3d()
+    test_rot_inv_laws_filter_2d()
+
+    test_rot_inv_laws_energy_filters_3d()
+    test_rot_inv_laws_energy_filter_2d()
+
+    test_gabor_filters_25d()
+    test_gabor_filters_2d()
+
 
 if __name__ == "__main__":
-    test_phase1()
+    test_IBSI_image_filters()
