@@ -273,6 +273,11 @@ def generate_rastersegs(strObj, planC):
             rowV,colV = xytom(ptsM[:, 0],
                               ptsM[:, 1],
                               slc_num, planC, scan_num)
+            # Shift row, col indices off the edge of the image mask to the edge.
+            rowV[rowV >= num_rows] = num_rows - 1
+            rowV[rowV < 0] = 0
+            colV[colV >= num_cols] = num_cols - 1
+            colV[colV < 0] = 0
             zValue = ptsM[0, 2]
             maskM = poly_fill(rowV,colV,num_rows,num_cols)
             if (ptsM.shape[0] == 1) or \
