@@ -220,6 +220,8 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
 
     marginV = np.asarray(marginV, dtype = int)
 
+    mask3M = mask3M.copy()
+
     if cropFlag:
         minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
         croppedScan3M = scan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
