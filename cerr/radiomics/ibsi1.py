@@ -369,6 +369,13 @@ def createFieldNameFromParameters(imageType, settingS):
         fieldName = imageType
     elif imageType == 'sobel':
         fieldName = imageType
+    elif imageType == 'mean':
+        kernelSize = settingS['KernelSize']
+        if len(kernelSize)==2 or kernelSize[2]==0:
+            fieldName = f"{imageType}_kernel_size{settingS['KernelSize'][0]}x{settingS['KernelSize'][1]}"
+        else:
+            fieldName = f"{imageType}_kernel_size{settingS['KernelSize'][0]}\
+                        x{settingS['KernelSize'][1]}x{settingS['KernelSize'][2]}"
     elif imageType == 'haralickcooccurance':
         dirC = ['3d', '2d']
         dirType = dirC[settingS['Directionality']]
