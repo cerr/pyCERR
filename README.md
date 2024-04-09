@@ -11,9 +11,9 @@ It is recommended to install CERR in an isolated environment such as Anaconda or
 
 Launch Miniconda terminal, create a Conda environment with Python 3.8 and install CERR. Note that CERR requires Python version >= 3.8 to use Napari Viewer.
 ````
-conda create -y --name testcerr python=3.11
-conda activate testcerr
-pip install git+https://github.com/cerr/pyCERR/
+conda create -y --name pycerr python=3.11
+conda activate pycerr
+pip install "pyCERR[napari] @ git+https://github.com/cerr/pyCERR"
 ````    
 The above steps will install CERR under testcerr/Lib/site-packages. 
 

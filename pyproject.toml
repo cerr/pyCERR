@@ -25,21 +25,25 @@ dependencies = [
     'pydicom',
     'python-dateutil',
     'scipy',
+    'pandas',
     'SimpleITK',
-    'matplotlib',
     'nibabel',
     'scikit-learn',
     'scikit-image',
     'PyWavelets',
-    'pandas',
     'shapelysmooth',
-    'ipywidgets',
-    'napari[all]'
+    'matplotlib',
+    'ipywidgets'
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/cerr/pyCERR"
 "Bug Tracker" = "https://github.com/cerr/pyCERR/issues"
+
+[project.optional-dependencies]
+napari = [
+    "napari[all]",
+]
 
 [tool.setuptools_scm]
 version_file = "cerr/_version.py"
