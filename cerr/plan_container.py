@@ -14,7 +14,7 @@ import pandas as pd
 from pydicom.uid import generate_uid
 import h5py
 import cerr.dataclasses.scan_info as scn_info
-# import cerr.plan_container as pc
+from cerr.utils import uid
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import beams as bms
 from cerr.dataclasses import dose as rtds
@@ -68,7 +68,7 @@ def addToH5Grp(h5Grp,structDict,key):
     return h5Grp
 
 
-def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
+def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=[]):
     dt = datetime.now()
     planC.header.dateLastSaved = dt.strftime("%Y%m%d")
     with h5py.File(h5File, 'w') as f:
@@ -77,10 +77,12 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[]):
         scanGrp = planCGrp.create_group('scan')
         structGrp = planCGrp.create_group('structure')
         doseGrp = planCGrp.create_group('dose')
+        deformGrp = planCGrp.create_group('deform')
         headerGrp = saveH5Header(headerGrp, planC)
         scanGrp = saveH5Scan(scanGrp, scanNumV, planC)
         structGrp = saveH5Structure(structGrp, structNumV, planC)
         doseGrp = saveH5Dose(doseGrp, doseNumV, planC)
+        deformGrp = saveH5Deform(deformGrp, deformNumV, planC)
     return 0
 
 def loadFromH5(h5File, initplanC=''):
@@ -140,6 +142,18 @@ def saveH5Scan(scanGrp, scanNumV, planC):
 
 def saveH5Dose(structGrp, structNumV, planC):
     pass
+
+def saveH5Deform(deformGrp, deformNumV, planC):
+    deformCount = 0
+    for deformNum in deformNumV:
+        deformDict = planC.deform[deformNum].getDeformDict()
+        itemGrpName = 'Item_' + str(deformCount)
+        deformCount += 1
+        deformItem = deformGrp.create_group(itemGrpName)
+        keys = list(deformDict.keys())
+        for key in keys:
+            deformItem = addToH5Grp(deformItem,deformDict,key)
+    return deformGrp
 
 def saveH5Structure(structGrp, structNumV, planC):
     strCount = 0
@@ -215,7 +229,7 @@ def loadH5Scan(scanGrp, planC):
     for scanItem in scanItems:
         scanObj = scn.Scan()
         if scanGrp[scanItem].attrs['scanUID'] in scanUIDs:
-            warnings.warn("Scan " + scanGrp[scanItem].attribs['scanUID'] + " not imported from H5 as it already exists in planC")
+            warnings.warn("Scan " + scanGrp[scanItem].attrs['scanUID'] + " not imported from H5 as it already exists in planC")
             continue
         # populate structure field
         scanObj = readAttribsAndDsets(scanObj, scanGrp[scanItem], scanFieldToExclude)
@@ -231,6 +245,22 @@ def loadH5Scan(scanGrp, planC):
             sInfoList.append(siObj)
         scanObj.scanInfo = sInfoList
         planC.scan.append(scanObj)
+
+    return planC
+
+def loadH5Deform(deformGrp, planC):
+    deformUIDs = [d.deformUID for d in planC.deform]
+    deformItems = deformGrp.keys()
+    # Sort deformItems in order item_1, item_2,...
+    scanItems = getSortedItems(list(deformItems))
+    for deformItem in deformItems:
+        deformObj = dfrm.Deform()
+        if deformGrp[deformItem].attrs['deformUID'] in deformUIDs:
+            warnings.warn("Deform " + deformGrp[deformItem].attrs['deformUID'] + " not imported from H5 as it already exists in planC")
+            continue
+        # populate deform fields
+        deformObj = readAttribsAndDsets(deformObj, deformGrp[deformItem])
+        planC.deform.append(deformObj)
 
     return planC
 
@@ -530,6 +560,7 @@ def load_nii_vf(dvf_file, baseScanNum, planC):
     res = list(image.GetSpacing())
 
     deform = dfrm.Deform()
+    deform.doseUID = uid.createUID("deform")
 
     dvf_matrix = np.moveaxis(dvf_matrix,[0,1,2,3],[2,0,1,3])
     siz = dvf_matrix.shape

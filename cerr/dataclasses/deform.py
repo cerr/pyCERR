@@ -123,6 +123,9 @@ class Deform:
 
         return (xvals,yvals,zvals)
 
+    def getDeformDict(self):
+        deformDict = self.__dict__.copy()
+        return deformDict
 
 def flipSliceOrderFlag(deform):
     dcmImgOri = deform.imageOrientationPatient
