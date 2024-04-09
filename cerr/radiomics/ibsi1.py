@@ -168,7 +168,18 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
     ############################################
     imgTypeDict = radiomicsSettingS['imageType']
     imgTypes = imgTypeDict.keys()
-    featDictAllTypes = {}
+
+    mapToIBSI = False
+    if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
+        radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
+        mapToIBSI = True
+
+    if mapToIBSI:
+        mapClassDict, mapFeatDict = getIBSINameMap()
+        origKeys = list(diagS.keys())
+        for feat in origKeys:
+            diagS[mapFeatDict[feat]] = diagS[feat]
+            del diagS[feat]
 
     avgType = ''
     directionality = ''
@@ -179,13 +190,8 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             'directionality' in radiomicsSettingS['settings']['texture']:
         directionality = radiomicsSettingS['settings']['texture']['directionality']
 
-    mapToIBSI = False
-
-    if 'mapFeaturenamesToIBSI' in radiomicsSettingS['settings'] and \
-        radiomicsSettingS['settings']['mapFeaturenamesToIBSI'] == "yes":
-        mapToIBSI = True
-
     # Loop over image filters
+    featDictAllTypes = diagS
     for imgType in imgTypes:
         if imgType.lower() == "original":
             imgFeatName = 'original'
@@ -237,7 +243,12 @@ def getIBSINameMap():
                  'glszm': 'szm',
                  'gldm': 'ngl',
                  'gtdm': 'ngt'}
-    featDict = {'majorAxis': 'pca_maj_axis',
+    featDict = {'numVoxelsOrig':'diag_n_voxel',
+                'numVoxelsInterpReseg':'diag_n_voxel_interp_reseg',
+                'meanIntensityInterpReseg':'diag_mean_int_interp_reseg',
+                'maxIntensityInterpReseg':'diag_max_int_interp_reseg',
+                'minIntensityInterpReseg':'diag_min_int_interp_reseg',
+                'majorAxis': 'pca_maj_axis',
                 'minorAxis':'pca_min_axis',
                 'leastAxis': 'pca_least_axis',
                 'flatness': 'pca_flatness',
