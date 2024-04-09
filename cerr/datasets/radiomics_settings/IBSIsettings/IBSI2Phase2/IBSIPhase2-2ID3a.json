@@ -24,8 +24,11 @@
     
                    "firstOrder" :{ 
 				            "offsetForEnergy": 0,
-                            "binWidthEntropy":0
-                   }
+                            		    "binWidthEntropy":0
+                   },
+                  
+                  "mapFeaturenamesToIBSI": "yes"
+
 
     },
     "featureClass": { 

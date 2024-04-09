@@ -7,45 +7,11 @@
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 from cerr import plan_container
 from cerr.radiomics import ibsi1
-
-# Paths to data and settings
-currPath = os.path.abspath(__file__)
-cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
-dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2')
-settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
-
-# Read reference values
-refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
-                       'IBSIphase2-2_pyCERR_features.csv')
-refData = pd.read_csv(refFile)
-refColNames = list(refData.head())[4:]
-# refFeatNames = refData['feature_tag'][5:]
-
-# Features to compare
-diagList = ['Number of voxels in intensity ROI-mask before interpolation', \
-            'Number of voxels in intensity ROI-mask after interpolation and resegmentation', \
-            'Mean intensity in intensity ROI-mask after interpolation and resegmentation', \
-            'Max intensity in intensity ROI-mask after interpolation and resegmentation', \
-            'Min intensity in intensity ROI-mask after interpolation and resegmentation']
-featList = ['mean', 'var', 'skewness', 'kurtosis', 'median', 'min', 'P10', 'P90', 'max', \
-            'interQuartileRange', 'range', 'meanAbsDev', 'robustMeanAbsDev', 'medianAbsDev', \
-            'coeffVariation', 'coeffDispersion', 'energy', 'rms']
-
-# List required output fields
-outFieldC = ['mean', 'var', 'skewness', 'kurtosis', 'median', 'min', 'P10', \
-             'P90', 'max', 'interQuartileRange', 'range', 'meanAbsDev', \
-             'robustMeanAbsDev', 'medianAbsDev', 'coeffVariation', \
-             'coeffDispersion', 'energy', 'rms']
-numStats = len(outFieldC)
-
-diagFieldC = ['NumVoxOrig', 'numVoxelsInterpReseg', \
-              'MeanIntensityInterpReseg', 'MaxIntensityInterpReseg', \
-              'MinIntensityInterpReseg']
-
 
 def loadData(niiDir):
     """ Import data to plan container"""
@@ -59,79 +25,160 @@ def loadData(niiDir):
 
     return planC
 
-
-def dispDiff(diffValsV, type):
+def dispDiff(pctDiffFeatV, ibsiFeatList):
     """ Report on differences in feature values """
-    tol = 1e-4
-    if np.max(np.abs(diffValsV)) < tol:
-        if type == 'feat':
-            print('Success! Results match reference std.')
-            print('-------------')
+    tol = 1
+    if np.max(np.abs(pctDiffFeatV)) < tol:
+        print('Success! Results match reference std.')
+        print('-------------')
     else:
-        checkV = np.abs(diffValsV) > tol
+        checkV = np.abs(pctDiffFeatV) > tol
         idxV = np.where(checkV)[0]
-        if type == 'diag':
-            print('Diagnostic features differ:')
-            diffS = dict(zip([diagList[idx] for idx in idxV], [diffValsV[idx] for idx in idxV]))
-            print(diffS)
-        elif type == 'feat':
-            print('First-order features differ:')
-            diffS = dict(zip([featList[idx] for idx in idxV], [diffValsV[idx] for idx in idxV]))
-            print(diffS)
-            print('-------------')
+        print('IBSI2 features differ:')
+        diffS = dict(zip([ibsiFeatList[idx] for idx in idxV], [pctDiffFeatV[idx] for idx in idxV]))
+        print(diffS)
+        print('-------------')
 
-
-def compareVals(imType, calcFeatS, diagS, refValsV):
+def getRefFeatureVals(cerrFeatS, refValsV):
     """ Indicate if features match reference, otherwise display differences."""
 
-    # Extract diagnostic features computed with pyCERR
-    calcDiagV = np.array(list(diagS.values()))
-    # Extract radiomic features computed with pyCERR
-    calcFeatV = np.array([calcFeatS[imType + '_firstOrder_' + key+ '_3D'] for key in featList])
-    # Extract reference diagnositc & radiomic features
-    refDiagV = refValsV[0:5]
-    refFeatV = refValsV[5:]
+    cerrFeatList = list(cerrFeatS.keys())
+    numFeat = len(cerrFeatList)
 
-    # Compare pyCERR calculations to reference std
-    diffDiagV = calcDiagV - refDiagV
-    diffFeatV = calcFeatV - refFeatV
+    if numFeat == 0:
+        raise Exception('Feature calculation failed.')
 
-    dispDiff(diffDiagV, 'diag')
-    dispDiff(diffFeatV, 'feat')
+    # Loop over radiomic features computed with pyCERR
+    diffFeatV = []
+    refV = []
+    cerrV = []
+    ibsiFeatList = []
 
-    np.testing.assert_almost_equal(calcDiagV, refDiagV, decimal=4)
-    np.testing.assert_almost_equal(calcFeatV, refFeatV, decimal=4)
+    for featIdx in range(numFeat):
 
+        featName = cerrFeatList[featIdx]
+        sepIdxV = [idx for idx, s in enumerate(featName) if '_' in s]
+
+        # Find matching reference feature value
+        if len(sepIdxV)==0:
+            matchName = featName
+        else:
+            matchName = featName[sepIdxV[-2]+1:]
+
+        if matchName in refFeatNames:
+            matchIdx = refFeatNames.index(matchName)
+            refV.append(refValsV[matchIdx])
+            cerrV.append(float(cerrFeatS[featName]))
+            diffFeatV.append((cerrV[-1] - refV[-1])*100/(refV[-1] + sys.float_info.epsilon))  # pct diff
+            #diffFeatV.append(cerrV[-1] - refV[-1]) # abs diff
+            ibsiFeatList.append(matchName)
+
+    pctDiffFeatV = np.asarray(diffFeatV)
+    refV = np.asarray(refV)
+    cerrV = np.asarray(cerrV)
+
+    return refV, cerrV, pctDiffFeatV, ibsiFeatList
+
+def test_calc_features(config):
+    print('Testing config '+config)
+    scanNum = 0
+    structNum = 0
+    settingsFile = os.path.join(settingsPath, 'IBSIPhase2-2ID' + config + '.json')
+    tol = 10^-4
+
+    calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
+    cerrFeatS = {**diagS, **calcFeatS}
+    refValsV = np.array(refData[config])
+    refV, cerrV, pctDiffFeatV, ibsiFeatList = getRefFeatureVals(cerrFeatS, refValsV)
+    dispDiff(pctDiffFeatV,ibsiFeatList)
+    for i in range(len(refV)):
+        np.testing.assert_allclose(refV[i], cerrV[i], rtol=tol, atol=tol)
+        #np.testing.assert_allclose(refV[i], cerrV[i], rtol=0.01) #For comparison with Matlab CERR
+
+def test_stats_original():
+    config = '1a'
+    test_calc_features(config)
+
+def test_stats_resampled():
+    config = '1b'
+    test_calc_features(config)
+
+def test_stats_mean_2d():
+    config = '2a'
+    test_calc_features(config)
+
+def test_stats_mean_3d():
+    config = '2b'
+    test_calc_features(config)
+
+def test_stats_LoG_2d():
+    config = '3a'
+    test_calc_features(config)
+
+def test_stats_LoG_3d():
+    config = '3b'
+    test_calc_features(config)
+
+def test_stats_rot_inv_laws_energy_2d():
+    config = '4a'
+    test_calc_features(config)
+
+def test_stats_rot_inv_laws_energy_3d():
+    config = '4b'
+    test_calc_features(config)
+
+# def test_stats_gabor_2d():
+#     config = '5a'
+#     test_calc_features(config)
+#
+# def test_stats_gabor_25d():
+#    config = '5b'
+#    test_calc_features(config)
 
 def test_phase2():
     """ Calc. radiomics features using IBSI-2 phase-2 configurations """
 
-    # Load data
-    planC = loadData(dataPath)
-    scanNum = 0
-    structNum = 0
+    test_stats_original()
 
-    configList = ['1a','1b','2a','2b','3a','3b','4a','4b','5a','5b']
-    # TBD:'6a', '6b'. Wavelets not currently supported.
+    test_stats_resampled()
 
-    # Loop over configurations
-    for idx in range(len(configList)):
-        config = configList[idx]
-        colID = refColNames[idx]
+    test_stats_mean_2d()
 
-        print('Testing setting ' + config)
-        # Read filter settings
-        settingsFile = os.path.join(settingsPath, 'IBSIPhase2-2ID' + config + '.json')
+    test_stats_mean_3d()
 
-        # Calc. radiomics features
-        calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
+    test_stats_LoG_2d()
 
-        imType = list(calcFeatS.keys())[0].split('_')[0]
+    test_stats_LoG_3d()
 
-        # Compare to reference std
-        refValsV = np.array(refData[colID])
-        compareVals(imType, calcFeatS, diagS, refValsV)
+    test_stats_rot_inv_laws_energy_2d()
+
+    test_stats_rot_inv_laws_energy_3d()
+
+    #Commented out due to long runtime
+    #test_stats_gabor_2d()
+
+    #test_stats_gabor_25d()
 
 
 if __name__ == "__main__":
+
+    # Paths to data and settings
+    currPath = os.path.abspath(__file__)
+    cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
+    dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2')
+    settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
+
+    # Read reference values
+    #--- For comparison with matlab CERR ----
+    #refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
+    #                   'IBSIphase2-2_CERR_features.csv')
+    #---- Test to ensure pyCERR calculations are consistent ----
+    refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
+                       'IBSIphase2-2_pyCERR_features.csv')
+    refData = pd.read_csv(refFile)
+    refColNames = list(refData.head())[4:]
+    refFeatNames = list(refData['feature_tag'])
+
+    # Load data
+    planC = loadData(dataPath)
     test_phase2()

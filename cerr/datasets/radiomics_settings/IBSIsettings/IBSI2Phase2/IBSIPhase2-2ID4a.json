@@ -3,18 +3,18 @@
 "structures": ["ROI"],
 
 "imageType": {
-  		  "rotationInvariantLawsEnergy": {
-                "Direction": "2d",
-                "Type": "L5E5",
-	        "Normalize": "yes",
-                "RotationInvariance": {
-				       			"Dim": "2D",
-				       			"AggregationMethod": "max"
+  		"RotationInvariantLawsEnergy": {
+                			"Direction": "2d",
+                			"Type": "L5E5",
+	        			"Normalize": "yes",
+                			"RotationInvariance": {
+				       						"Dim": "2D",
+				       						"AggregationMethod": "max"
                 				  },
-                "EnergyKernelSize": [15,15],
-                "EnergyPadMethod": "mirror",
-                "EnergyPadSize" : [7,7,0]
-			  }
+                			"EnergyKernelSize": [15,15],
+                			"EnergyPadMethod": "mirror",
+                			"EnergyPadSize" : [7,7,0]
+			 	}
 	    },
 
 "settings": {		   
@@ -31,7 +31,9 @@
                    "firstOrder" :{ 
 				            "offsetForEnergy": 0,
                             		   "binWidthEntropy":0
-                   }
+                   },
+                   
+                   "mapFeaturenamesToIBSI": "yes"
 
     },
     
