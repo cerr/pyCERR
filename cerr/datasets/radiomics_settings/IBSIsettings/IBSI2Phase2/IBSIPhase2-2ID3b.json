@@ -23,13 +23,14 @@
                                 "method": "mirror",  
                                 "size": [6,6,6]
 			       },
+			       
                    "texture" :{ 
 		                "minSegThreshold": -1000,
 		                "maxSegThreshold": 400
 	               },
+	               
                    "firstOrder" :{ 
-				            "offsetForEnergy": 0,
-                            "binWidthEntropy":0
+				            "offsetForEnergy": 0
                    },
                   
                   "mapFeaturenamesToIBSI": "yes"
