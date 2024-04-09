@@ -3,27 +3,27 @@
 "structures": ["ROI"],
 
 "imageType": {
-  		  "rotationInvariantLawsEnergy": {
-                "Direction": "3d",
-                "Type": "L5E5E5",
-				"Normalize": "yes",
-                "RotationInvariance": {
+  		  "RotationInvariantLawsEnergy": {
+                			"Direction": "3d",
+                			"Type": "L5E5E5",
+					"Normalize": "yes",
+                			"RotationInvariance": {
 				       						"Dim": "3D",
 				       						"AggregationMethod": "max"
-                },
-                "EnergyKernelSize": [15,15,15],
-                "EnergyPadMethod": "mirror",
-                "EnergyPadSize" : [7,7,7]
-			  }
+               								 },
+                			"EnergyKernelSize": [15,15,15],
+                			"EnergyPadMethod": "mirror",
+                			"EnergyPadSize" : [7,7,7]
+			 	 }
 	    },
 
 "settings": {		   
                    "resample": {
-                     "resolutionXCm": 0.1,
+                     		     "resolutionXCm": 0.1,
 				     "resolutionYCm": 0.1,
 				     "resolutionZCm": 0.1,
 				     "interpMethod": "bspline",
-                     "intensityRounding": "On"
+                     		     "intensityRounding": "On"
 			        },
                    "padding": {
                    		"cropToMaskBounds": "no",
@@ -37,7 +37,9 @@
                    "firstOrder" :{ 
 				            "offsetForEnergy": 0,
                             "binWidthEntropy":0
-                   }
+                   },
+                 
+                  "mapFeaturenamesToIBSI": "yes"
 
     },
     

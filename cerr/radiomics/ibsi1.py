@@ -403,12 +403,12 @@ def createFieldNameFromParameters(imageType, settingS):
         else:
             settingsStr += f"_OrientAvg_{thetaV}"
         fieldName = f"{imageType}_{settingsStr}"
-    elif imageType == 'lawsconvolution':
+    elif imageType in ['lawsconvolution','rotationinvariantlawsconvolution']:
         settingsStr = f"{settingS['Direction']}_type{settingS['Type']}_norm{settingS['Normalize']}"
         if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
                 settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
         fieldName = f"{imageType}_{settingsStr}"
-    elif imageType == 'lawsenergy':
+    elif imageType in['lawsenergy','rotationinvariantlawsenergy']:
         energyKernelSize = '_'.join(map(str, settingS['EnergyKernelSize']))
         energyKernelSize = energyKernelSize.replace(' ', 'x')
         settingsStr = f"{settingS['Direction']}_type{settingS['Type']}_norm{settingS['Normalize']}" \
