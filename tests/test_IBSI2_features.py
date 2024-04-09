@@ -13,6 +13,23 @@ import pandas as pd
 from cerr import plan_container
 from cerr.radiomics import ibsi1
 
+# Paths to data and settings
+currPath = os.path.abspath(__file__)
+cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
+dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2')
+settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
+
+# Read reference values
+#--- For comparison with matlab CERR ----
+#refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
+#                   'IBSIphase2-2_CERR_features.csv')
+#---- Test to ensure pyCERR calculations are consistent ----
+refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
+                       'IBSIphase2-2_pyCERR_features.csv')
+refData = pd.read_csv(refFile)
+refColNames = list(refData.head())[4:]
+refFeatNames = list(refData['feature_tag'])
+
 def loadData(niiDir):
     """ Import data to plan container"""
 
@@ -25,11 +42,15 @@ def loadData(niiDir):
 
     return planC
 
+# Load data
+planC = loadData(dataPath)
+
 def dispDiff(pctDiffFeatV, ibsiFeatList):
     """ Report on differences in feature values """
     tol = 1
+    numFeats = len(pctDiffFeatV)
     if np.max(np.abs(pctDiffFeatV)) < tol:
-        print('Success! Results match reference std.')
+        print('Success! ' + str(numFeats) + '/' + str(numFeats) + ' match IBSI reference std.')
         print('-------------')
     else:
         checkV = np.abs(pctDiffFeatV) > tol
@@ -57,7 +78,10 @@ def getRefFeatureVals(cerrFeatS, refValsV):
     for featIdx in range(numFeat):
 
         featName = cerrFeatList[featIdx]
-        sepIdxV = [idx for idx, s in enumerate(featName) if '_' in s]
+        if 'diag' in featName:
+            sepIdxV = []
+        else:
+            sepIdxV = [idx for idx, s in enumerate(featName) if '_' in s]
 
         # Find matching reference feature value
         if len(sepIdxV)==0:
@@ -84,7 +108,7 @@ def test_calc_features(config):
     scanNum = 0
     structNum = 0
     settingsFile = os.path.join(settingsPath, 'IBSIPhase2-2ID' + config + '.json')
-    tol = 10^-4
+    assertTol = 0.0001
 
     calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
     cerrFeatS = {**diagS, **calcFeatS}
@@ -92,7 +116,7 @@ def test_calc_features(config):
     refV, cerrV, pctDiffFeatV, ibsiFeatList = getRefFeatureVals(cerrFeatS, refValsV)
     dispDiff(pctDiffFeatV,ibsiFeatList)
     for i in range(len(refV)):
-        np.testing.assert_allclose(refV[i], cerrV[i], rtol=tol, atol=tol)
+        np.testing.assert_allclose(refV[i], cerrV[i], atol=assertTol)
         #np.testing.assert_allclose(refV[i], cerrV[i], rtol=0.01) #For comparison with Matlab CERR
 
 def test_stats_original():
@@ -161,24 +185,4 @@ def test_phase2():
 
 
 if __name__ == "__main__":
-
-    # Paths to data and settings
-    currPath = os.path.abspath(__file__)
-    cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
-    dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2')
-    settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
-
-    # Read reference values
-    #--- For comparison with matlab CERR ----
-    #refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
-    #                   'IBSIphase2-2_CERR_features.csv')
-    #---- Test to ensure pyCERR calculations are consistent ----
-    refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
-                       'IBSIphase2-2_pyCERR_features.csv')
-    refData = pd.read_csv(refFile)
-    refColNames = list(refData.head())[4:]
-    refFeatNames = list(refData['feature_tag'])
-
-    # Load data
-    planC = loadData(dataPath)
     test_phase2()

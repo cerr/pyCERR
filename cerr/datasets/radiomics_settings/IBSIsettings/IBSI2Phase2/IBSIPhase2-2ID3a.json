@@ -23,8 +23,7 @@
 	               },
     
                    "firstOrder" :{ 
-				            "offsetForEnergy": 0,
-                            		    "binWidthEntropy":0
+				            "offsetForEnergy": 0
                    },
                   
                   "mapFeaturenamesToIBSI": "yes"
