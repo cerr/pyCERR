@@ -103,7 +103,7 @@ def getRefFeatureVals(cerrFeatS, refValsV):
 
     return refV, cerrV, pctDiffFeatV, ibsiFeatList
 
-def test_calc_features(config):
+def run_config(config):
     print('Testing config '+config)
     scanNum = 0
     structNum = 0
@@ -121,45 +121,45 @@ def test_calc_features(config):
 
 def test_stats_original():
     config = '1a'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_resampled():
     config = '1b'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_mean_2d():
     config = '2a'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_mean_3d():
     config = '2b'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_LoG_2d():
     config = '3a'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_LoG_3d():
     config = '3b'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_rot_inv_laws_energy_2d():
     config = '4a'
-    test_calc_features(config)
+    run_config(config)
 
 def test_stats_rot_inv_laws_energy_3d():
     config = '4b'
-    test_calc_features(config)
+    run_config(config)
 
 # def test_stats_gabor_2d():
 #     config = '5a'
-#     test_calc_features(config)
+#     run_config(config)
 #
 # def test_stats_gabor_25d():
 #    config = '5b'
-#    test_calc_features(config)
+#    run_config(config)
 
-def test_phase2():
+def run_phase2():
     """ Calc. radiomics features using IBSI-2 phase-2 configurations """
 
     test_stats_original()
@@ -185,4 +185,4 @@ def test_phase2():
 
 
 if __name__ == "__main__":
-    test_phase2()
+    run_phase2()
