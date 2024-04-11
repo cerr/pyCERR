@@ -310,7 +310,7 @@ def loadH5Strucutre(structGrp, planC):
     return planC
 
 
-def load_dcm_dir(dcm_dir, initplanC='', opts={}):
+def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
     """
     This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
     INPUTS -
@@ -389,7 +389,7 @@ def populate_planC_field(field_name, file_list, opts={}):
         scan_meta = []
         scan_meta.append(scn.load_sorted_scan_info(file_list))
         scan_meta[0].convertDcmToCerrVirtualCoords()
-        scan_meta[0].convertDcmToRealWorldUnits()
+        scan_meta[0].convertDcmToRealWorldUnits(opts)
         if scan_meta[0].scanInfo[0].imageType == "PT SCAN":
             suvType = 'BW'
             if 'suvType' in opts:

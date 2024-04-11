@@ -1,3 +1,10 @@
+"""scan module.
+
+Ths scan module contains dataclass and routines for Scan datatype. It defines the Scan
+class and methods to convert images to real world units, CERR's virtual coordinates.
+
+"""
+
 from dataclasses import dataclass, field
 from typing import List
 import numpy as np
@@ -237,12 +244,14 @@ class Scan:
         self.cerrToDcmTransM[:,:3] = self.cerrToDcmTransM[:,:3] * 10 # cm to mm
 
 
-    def convertDcmToRealWorldUnits(self):
+    def convertDcmToRealWorldUnits(self, opts={}):
 
-        store_scan_as_mr_philips_precise_value = "yes"
+        importMRPreciseValueFlag = 'no'
+        if 'importMRPreciseValueFlag' in opts:
+            importMRPreciseValueFlag = opts['importMRPreciseValueFlag']
 
         # Apply ReScale Intercept and Slope
-        scanArray3M = np.zeros(self.scanArray.shape, dtype=np.float32)
+        scanArray3M = np.zeros(self.scanArray.shape, dtype=float)
         numSlcs = self.scanArray.shape[2]
         rescaleSlopeV = np.ones(numSlcs)
         realWorldImageFlag = False
@@ -260,8 +269,7 @@ class Scan:
                     realWorldValueSlope is not None and \
                     not np.isnan(realWorldValueSlope) and \
                     self.scanInfo[slcNum].imageType.lower() == 'mr scan' and \
-                    realWorldMeasurCodeMeaning is not None and \
-                    philipsImageUnits.lower() not in ['no units','normalized']:
+                    realWorldMeasurCodeMeaning is not None:
                 realWorldImageFlag = True
                 scanArray3M[:, :, slcNum] = \
                     self.scanArray[:, :, slcNum] * realWorldValueSlope + realWorldValueIntercept
@@ -290,16 +298,15 @@ class Scan:
 
         self.scanArray = scanArray3M
 
-        # Apply scale slope & intercept for Philips data if not realWorldValue
+        # Convert Philips MR to precise values
         if self.scanInfo[slcNum].imageType.lower() == 'mr scan' and \
-                store_scan_as_mr_philips_precise_value.lower() == 'yes':
+                importMRPreciseValueFlag.lower() == 'yes':
             # Ref: Chenevert, Thomas L., et al. "Errors in quantitative image analysis due to platform-dependent image scaling."
             manufacturer = self.scanInfo[0].manufacturer
             if 'philips' in manufacturer.lower() and \
-                    self.scanInfo[0].scaleSlope is not None and \
-                    not realWorldImageFlag:
+                    self.scanInfo[0].scaleSlope is not None:
                 scaleSlope = self.scanInfo[0].scaleSlope
-                self.scanArray = self.scanArray.astype(np.float32) / (rescaleSlope * scaleSlope)
+                self.scanArray = self.scanArray.astype(float) / (rescaleSlope * scaleSlope)
 
     def convert_to_suv(self,suvType="BW"):
 
