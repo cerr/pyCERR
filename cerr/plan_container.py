@@ -420,7 +420,7 @@ def load_planC_from_pkl(file_name=""):
 def save_scan_to_nii(scan_num, nii_file_name, planC):
     pass
 
-def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
+def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=''):
     if not isinstance(initplanC, PlanC):
         planC = PlanC(header=headr.Header())
     else:
@@ -432,6 +432,9 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
     reader.LoadPrivateTagsOn()
     reader.ReadImageInformation()
     image = reader.Execute()
+    # Assign direction
+    if direction:
+        image = sitk.DICOMOrient(image,direction)
     # Get numpy array for scan
     scanArray3M = sitk.GetArrayFromImage(image)
     scanArray3M = np.moveaxis(scanArray3M,[0,1,2],[2,0,1])
@@ -447,7 +450,6 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", initplanC=''):
     original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
     slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
                    - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-
 
 
     # # Transformation for DICOM Image to DICOM physical coordinates

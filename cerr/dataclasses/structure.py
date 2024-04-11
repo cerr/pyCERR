@@ -494,8 +494,18 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         reader.LoadPrivateTagsOn()
         reader.ReadImageInformation()
         image = reader.Execute()
-        img_ori = image.GetDirection()
-        original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+
+        # Set direction same as associated scan
+        scanOrientV = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+        oriStr = planC.scan[assocScanNum].getScanOrientation()
+        # slice_normal = scanOrientV[[1,2,0]] * scanOrientV[[5,3,4]] \
+        #                - scanOrientV[[2,0,1]] * scanOrientV[[4,5,3]]
+        # assocScanDir = np.vstack((scanOrientV[:3], scanOrientV[3:6], slice_normal))
+        # itkImgOrient = assocScanDir.reshape(9,order='C')
+        image = sitk.DICOMOrient(image, oriStr)
+
+        #img_ori = image.GetDirection()
+        #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
         #image = sitk.DICOMOrient(image,"LPS")
         niiSegArray3M = sitk.GetArrayFromImage(image)
         niiSegArray3M = np.moveaxis(niiSegArray3M,[0,1,2],[2,0,1])
@@ -506,7 +516,6 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         orient_nii.reshape(3, 3,order="C")
         orient_nii = np.reshape(orient_nii, (3,3), order = "C")
         dcmImgOrient = orient_nii.reshape(9,order='F')[:6]
-        scanOrientV = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
         if np.max((dcmImgOrient - scanOrientV)**2) > 1e-5:
             #scanOrientV
             #scanDirection = []
