@@ -207,7 +207,7 @@ def test_gabor_filters_25d():
     run_test(planC, mask3M, config)
 
 
-def test_IBSI_image_filters():
+def run_IBSI_image_filters():
     """ Generate maps using IBSI-2 phase-1 configurations """
 
     test_mean_filters_3d()
@@ -229,4 +229,4 @@ def test_IBSI_image_filters():
 
 
 if __name__ == "__main__":
-    test_IBSI_image_filters()
+    run_IBSI_image_filters()
