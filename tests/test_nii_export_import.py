@@ -14,7 +14,8 @@ def test_scan_export_import():
     scanNum = 0
     planC.scan[scanNum].save_nii(scanNiiFile)
     imageType = 'CT SCAN'
-    planC = pc.load_nii_scan(scanNiiFile, imageType, planC)
+    scanOrientation = ''
+    planC = pc.load_nii_scan(scanNiiFile, imageType, scanOrientation, planC)
     scanArrayDcm = planC.scan[scanNum].getScanArray()
     scanArrayNii = planC.scan[scanNum+1].getScanArray()
     np.testing.assert_almost_equal(scanArrayDcm, scanArrayNii)
