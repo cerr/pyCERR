@@ -25,6 +25,7 @@ dependencies = [
     'pydicom',
     'python-dateutil',
     'scipy',
+    'h5py',
     'pandas',
     'SimpleITK',
     'nibabel',
