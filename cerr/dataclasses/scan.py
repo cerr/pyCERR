@@ -576,7 +576,7 @@ def populate_radiopharma_fields(s_info, seq):
         s_info.injectedDose = float(radiopharmaInfoSeq.RadionuclideTotalDose)
         s_info.halfLife = float(radiopharmaInfoSeq.RadionuclideHalfLife)
         if ("7053","1009") in seq: s_info.petActivityConctrScaleFactor = seq["7053","1009"].value
-    if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
+        if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
     return s_info
 
 def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
@@ -651,6 +651,7 @@ def load_sorted_scan_info(file_list):
     multiFrameFlag = False
     for file in file_list:
         ds = dcmread(file)
+        print(file)
         if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
             if len(file_list) == 1 and 'NumberOfFrames' in ds:
                 multiFrameFlag = True
