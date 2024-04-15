@@ -2,13 +2,17 @@
 Pre- and post-processing transformations for AI models
 """
 
-import numpy as np
 import math
-from scipy.ndimage import label
+import numpy as np
 from scipy import ndimage
+from scipy.ndimage import label, binary_opening, binary_fill_holes, uniform_filter
+from skimage import exposure, filters, morphology, transform
+from skimage.morphology import square, octagon
+
+import cerr.plan_container as pc
+import cerr.utils.statistics_utils as stat
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import scan as cerrScan
-import cerr.plan_container as pc
 
 
 def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
@@ -120,11 +124,141 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
 
     return scanOut3M, maskOut4M, gridOutS
 
+
+def getPatientOutline(scan3M, outThreshold, slicesV=None,
+                      minMaskSize=None, normFlag=False):
+    """
+    Returns binary mask of patient outline on input scan
+    :param scan3M: 3D scan array
+    :param outThreshold: Intensity level representing air
+    ---Optional---
+    :param slicesV: Range of slices for outline extraction(default:all)
+    :param minMaskSize: Minimum size of mask on any slice in no. xoels (default: 1500)
+    :param normFlag: Set to True to normalize scan before thresholding (recommended for MR images)
+    """
+    # Define default values for optional inputs
+    if slicesV is None:
+        slicesV = np.arange(scan3M.shape[2])
+
+    if minMaskSize is None:
+        minMaskSize = 1500
+
+    # Mask out couch
+    couchStartIdx, __ = getCouchLocationHough(scan3M)
+    couchMaskM = np.zeros((scan3M.shape[0], scan3M.shape[1]), dtype=bool)
+    couchMaskM[couchStartIdx:, :] = True
+
+    # Intensity threshold for air
+    if normFlag:
+        scan3M = scan3M / (np.max(scan3M) + np.finfo(float).eps)
+
+    scanThreshV = scan3M[scan3M>outThreshold]
+    adjustedThreshold = stat.prctile(scanThreshV,5)
+    minInt = np.min(scan3M)
+
+    # Loop over slices
+    ptMask3M = np.zeros_like(scan3M, dtype=bool)
+    discardSize = 200
+    for slc in slicesV:
+
+        # Threshold image
+        sliceM = scan3M[:, :, slc]
+        threshM = sliceM > adjustedThreshold
+
+        # Mask out couch
+        binM = np.logical_and(threshM, np.logical_not(couchMaskM))
+
+        # Separate pt outline from table
+        binM = binary_opening(binM, octagon(5,2))
+
+        # Fill holes in pt outline
+        if np.any(binM):
+            # Retain largest connected component if size exceeds discard threshold
+            labeledArray, numFeatures = label(binM)
+            sizes = np.bincount(labeledArray.ravel())
+            maxLabel = np.argmax(sizes[1:]) + 1
+
+            if sizes[maxLabel] >= minMaskSize:
+                maskM = labeledArray == maxLabel
+
+                # Fill holes
+                rowMaxIdxV = np.argmax(np.flipud(maskM), axis=0)
+                rowMaxValV = np.max(np.flipud(maskM), axis=0)
+                rowMaxIdx = binM.shape[0] - np.min(rowMaxIdxV[rowMaxValV], axis=0)
+                sliceM[rowMaxIdx:, :] = minInt
+                thresh2M = sliceM > 1.5 * adjustedThreshold
+                thresh2M = binary_fill_holes(thresh2M)
+
+                # Remove small islands
+                labeled_array, num_features = ndimage.label(thresh2M)
+                component_sizes = np.bincount(labeled_array.ravel())
+                too_small = component_sizes < discardSize
+                too_small_mask = too_small[labeled_array]
+                thresh2M[too_small_mask] = 0
+
+                thresh2M = morphologicalClosing(thresh2M,square(5))
+                smoothedLabelM = uniform_filter(thresh2M.astype(float), size=5)
+                maskM = smoothedLabelM > 0.5
+
+                ptMask3M[:, :, slc] = maskM
+
+    # 3D connected component filter
+    conn3dPtMask3M, __ = getLargestConnComps(ptMask3M, 1)
+
+    return conn3dPtMask3M
+
+def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=0):
+    """
+    Return location (row no.) of couch in input scan
+    """
+    if minLengthOpt is None:
+        minLengthOpt = []
+
+    midptS = np.floor(scan3M.shape[0] / 2)
+
+    maxM = np.amax(scan3M, axis=2)
+    histeqM = exposure.equalize_hist(maxM)
+    edgeM1 = filters.sobel(histeqM)
+    edgeM2 = morphology.dilation(edgeM1)
+
+    if not minLengthOpt:
+        minLength = np.floor(edgeM2.shape[1] / 8).astype(int)  # couch covers 1/8th of image
+    else:
+        minLength = int(minLengthOpt)
+
+    lines = transform.probabilistic_hough_line(edgeM2, threshold=0, line_length=minLength, line_gap=5)
+    overlapFraction = np.zeros(len(lines))
+    midV = np.arange(int(0.5 * midptS), int(0.5 * midptS) + midptS)
+    yi = np.zeros(len(lines))
+
+    for i, (p0, p1) in enumerate(lines):
+        len_line = np.linalg.norm(np.array(p0) - np.array(p1))
+        if p0[1] == p1[1] and len_line > minLength:
+            if p0[0] < p1[0]:
+                lineV = np.arange(p0[0], p1[0])
+            else:
+                lineV = np.arange(p1[0], p0[0])
+            if p0[1] > midptS and np.intersect1d(lineV, midV).size != 0:
+                yi[i] = p1[1]
+                overlapFraction[i] = np.intersect1d(lineV, midV).size
+
+    if np.any(overlapFraction):
+        I = np.argmax(overlapFraction)
+        yCouch = yi[I].astype(int)
+    else:
+        yCouch = min(yi[np.where(yi > 0)]).astype(int)
+
+    if retryOpt and yCouch == 0:
+        yCouch, lines = getCouchLocationHough(scan3M, minLength / 2)
+
+    return yCouch, lines
+
+
 def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None, replaceFlag=None, procSructName=None):
     """
     Returns 'N' largest connected components in input binary mask
 
-    :param structNum : Index of structure in planC
+    :param structNum : Index of structure in planC (OR) 3D binary mask
     :param structuringElementSizeCm : Desired size of structuring element for closing in cm
     :param planC
     :param saveFlag : Import filtered mask to planC structure
@@ -133,8 +267,12 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     :returns maskOut3M, planC
     """
 
-    # Get binary mask of structure
-    mask3M = rs.getStrMask(structNum,planC)
+    if np.isscalar(structNum):
+        # Get binary mask of structure
+        mask3M = rs.getStrMask(structNum,planC)
+    else:
+        # Input is binary structure mask
+        mask3M = structNum
 
     if np.sum(mask3M) > 1:
         #Extract connected components
