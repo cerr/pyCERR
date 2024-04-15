@@ -651,7 +651,6 @@ def load_sorted_scan_info(file_list):
     multiFrameFlag = False
     for file in file_list:
         ds = dcmread(file)
-        print(file)
         if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
             if len(file_list) == 1 and 'NumberOfFrames' in ds:
                 multiFrameFlag = True
