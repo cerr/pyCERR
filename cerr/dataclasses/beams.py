@@ -1,9 +1,13 @@
+"""beams module.
+
+Ths beams module defines metadata for RT Plan (RTPLAN).
+The metadata are attributes of the Beams class.
+
+"""
+
 from dataclasses import dataclass, field
-from typing import List
 import numpy as np
-import os
 from pydicom import dcmread
-from cerr.dataclasses import scan as scn
 from cerr.utils import uid
 import json
 

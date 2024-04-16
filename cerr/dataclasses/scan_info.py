@@ -1,7 +1,14 @@
-from dataclasses import dataclass, field
-from typing import List
-import numpy as np
+"""scan_info module.
 
+The scan_info module defines metadata for images (CT, PT, MR, US).
+The metadata are attributes of the ScanInfo class.
+This module also defines routines for transforming and
+accessing the Scan metadata in CERR coordinate system.
+
+"""
+
+from dataclasses import dataclass, field
+import numpy as np
 
 def get_empty_list():
     return []

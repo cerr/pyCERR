@@ -1,5 +1,13 @@
+"""structure module.
+
+Ths deform module defines metadata for deformation (REG).
+The metadata are attributes of the Deform class.
+This module also defines routines for transforming and
+accessing the Deformation Vector Field metadata in CERR coordinate system.
+
+"""
+
 from dataclasses import dataclass, field
-from typing import List
 import numpy as np
 import os
 from pydicom import dcmread

@@ -1,3 +1,10 @@
+"""rasterseg module.
+
+Ths rasterseg module defines methods for creation of raster segments
+from polygonal coordinates and to assemble binary mask from rastersegments.
+
+"""
+
 import numpy as np
 from cerr.dataclasses import scan as scn
 

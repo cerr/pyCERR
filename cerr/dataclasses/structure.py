@@ -1,3 +1,13 @@
+"""structure module.
+
+Ths structure module defines metadata for segmentation (RTSTRUCT, SEG).
+The metadata are attributes of the Structre class.
+This module also defines routines for transforming and
+accessing the Structure metadata in CERR coordinate system and
+to convert images to real world units.
+
+"""
+
 from dataclasses import dataclass, field
 from typing import List
 import numpy as np

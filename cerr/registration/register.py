@@ -1,3 +1,9 @@
+"""register module.
+
+Ths register module defines modules for.
+
+"""
+
 import os
 import tempfile
 import shutil
@@ -84,7 +90,8 @@ def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     os.chdir(currDir)
 
     imageType = movPlanC.scan[movScanIndex].scanInfo[0].imageType
-    basePlanC = pc.load_nii_scan(warped_img_nii, imageType, basePlanC)
+    direction = ''
+    basePlanC = pc.load_nii_scan(warped_img_nii, imageType, direction, basePlanC)
 
     # Remove temporary directory
     shutil.rmtree(dirpath)
@@ -131,6 +138,11 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
 
+    # Get base scan index
+    #fixed_img_nii = os.path.join(dirpath, 'ref.nii.gz')
+    #planC.scan[baseScanNum].save_nii(fixed_img_nii)
+    numRows, numCols, numSlcs = planC.scan[baseScanNum].getScanSize()
+
     # Write nii files for base and moving scans in dirpath
     vf_nii_src = os.path.join(dirpath, 'vf.nii.gz')
     vf_nii_dest = os.path.join(transformSaveDir, 'vf.nii.gz')
@@ -149,10 +161,11 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
     plm_warp_str_cmd = "plastimatch xf-convert --input " + bsplines_coeff_file + \
                   " --output " + vf_nii_src + \
                   " --output-type vf" + \
+                  " --dim \"" + str(numCols) + " " + str(numRows) + " " + str(numSlcs) + "\""\
                   " --spacing \"" + str(spacing[0]) + ' ' + str(spacing[1]) + ' ' + str(spacing[2]) + "\""\
                   " -- origin \"" + str(dcmImgPos[0]) + ' ' + str(dcmImgPos[1]) + ' ' + str(dcmImgPos[2]) + "\""
 
-    print("======== plm command =======")
+    print("======== Plastimatch command =======")
     print(plm_warp_str_cmd)
 
     currDir = os.getcwd()
@@ -199,7 +212,8 @@ def calc_jacobian(deformS, planC, tool='plastimatch'):
         os.system(plm_jacobian_str_cmd)
 
         # Add Jacobian to planC scan
-        planC = pc.load_nii_scan(jacobian_nii, "Jacobian", planC)
+        direction = ''
+        planC = pc.load_nii_scan(jacobian_nii, "Jacobian", direction, planC)
 
         # Remove temporary directory
         shutil.rmtree(dirpath)

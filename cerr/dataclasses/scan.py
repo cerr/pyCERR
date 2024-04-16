@@ -1,17 +1,15 @@
 """scan module.
 
-Ths scan module contains dataclass and routines for Scan datatype. It defines the Scan
-class and methods to convert images to real world units, CERR's virtual coordinates.
+Ths scan module defines metadata for an image (CT, MR, PT, US).
+The metadata and pixel-array are attributes of the Scan class.
+This module also defines routines converting images to real world units.
 
 """
 
 from dataclasses import dataclass, field
-from typing import List
 import numpy as np
-import os
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
-from pydicom.uid import generate_uid
 import cerr.dataclasses.scan_info as scn_info
 import nibabel as nib
 import SimpleITK as sitk

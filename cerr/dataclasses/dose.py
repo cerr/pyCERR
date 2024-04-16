@@ -1,7 +1,14 @@
+"""dose module.
+
+Ths dose module defines metadata for an RTDOSE object.
+The metadata are attributes of the Dose class.
+This module also defines routines for transforming and
+accessig the Dose metadata in CERR coordinate system.
+
+"""
+
 from dataclasses import dataclass, field
-from typing import List
 import numpy as np
-import os
 from pydicom import dcmread
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure
