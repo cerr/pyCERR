@@ -435,22 +435,24 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=
     # Assign direction
     if direction:
         image = sitk.DICOMOrient(image,direction)
+    numAxes = len(image.GetSize())
     # Get numpy array for scan
+    axisOff = numAxes - 3
     scanArray3M = sitk.GetArrayFromImage(image)
-    scanArray3M = np.moveaxis(scanArray3M,[0,1,2],[2,0,1])
+    scanArray3M = np.moveaxis(scanArray3M,[axisOff+0,axisOff+1,axisOff+2],[axisOff+2,axisOff+0,axisOff+1])
     #Construct position matrix from ITK Image
-    pos1V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,0))) / 10
-    pos2V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,1))) / 10
-    deltaPosV = pos2V - pos1V
+    #pos1V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,0))) / 10
+    #pos2V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,1))) / 10
+    #deltaPosV = pos2V - pos1V
     pixelSpacing = np.asarray(image.GetSpacing()[:2]) / 10
     img_ori = np.array(image.GetDirection())
-    dir_cosine_mat = img_ori.reshape(3, 3,order="C")
-    pixelSiz = image.GetSpacing()
+    dir_cosine_mat = img_ori.reshape(numAxes, numAxes,order="C")
+    dir_cosine_mat = dir_cosine_mat[:3,:3]
+    #pixelSiz = image.GetSpacing()
     dcmImgOri = dir_cosine_mat.reshape(9,order='F')[:6]
-    original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+    #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
     slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
                    - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-
 
     # # Transformation for DICOM Image to DICOM physical coordinates
     # # Pt coordinate to DICOM image coordinate mapping
@@ -460,49 +462,60 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=
     #
     # position_matrix = np.vstack((position_matrix, np.array([0, 0, 0, 1])))
 
-    org_root = '1.3.6.1.4.1.9590.100.1.2.' # to assign
-    forUID = generate_uid(prefix=org_root)
-    studyInstanceUID = generate_uid(prefix=org_root)
-    seriesInstanceUID = generate_uid(prefix=org_root)
-    scan = scn.Scan()
+    if numAxes == 3:
+        numScans = 1
+    elif numAxes == 4:
+        numScans = scanArray3M.shape[0]
     siz = scanArray3M.shape
-    scan_info = np.empty(siz[2],dtype=scn_info.ScanInfo) #scn_info.ScanInfo()
-    #pixelSiz = image.GetSpacing()
-    currentDate = str(date.today())
-    now = datetime.now()
-    currentTime = now.strftime("%H:%M:%S")
-    count = 0
-    for slc in range(siz[2]):
-        s_info = scn_info.ScanInfo()
-        s_info.frameOfReferenceUID = forUID
-        s_info.imagePositionPatient = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
-        s_info.imageOrientationPatient = dcmImgOri
-        s_info.grid1Units = pixelSpacing[1]
-        s_info.grid2Units = pixelSpacing[0]
-        s_info.sizeOfDimension1 = siz[0]
-        s_info.sizeOfDimension2 = siz[1]
-        s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-        s_info.imageType = imageType
-        s_info.seriesInstanceUID = seriesInstanceUID
-        s_info.studyInstanceUID = studyInstanceUID
-        s_info.studyDescription = ''
-        s_info.seriesDate = currentDate
-        s_info.seriesTime = currentTime
-        s_info.studyNumberOfOrigin = ''
-        #scan_info.append(s_info)
-        scan_info[count] = s_info
-        count += 1
-    original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
-    sort_index = [i for i,x in sorted(enumerate(scan_info),key=scn.get_slice_position, reverse=False)]
-    scan_info = scan_info[sort_index]
-    scanArray3M = scanArray3M[:,:,sort_index]
-    scan_info = scn_info.deduce_voxel_thickness(scan_info)
-    scan.scanInfo = scan_info
-    scan.scanArray = scanArray3M
-    scan.scanUID = "CT." + seriesInstanceUID
-    scan.convertDcmToCerrVirtualCoords()
-    scan.convertDcmToRealWorldUnits()
-    planC.scan.append(scan)
+    org_root = '1.3.6.1.4.1.9590.100.1.2.'
+    for scanNum in range(numScans):
+        scan = scn.Scan()
+        forUID = generate_uid(prefix=org_root)
+        studyInstanceUID = generate_uid(prefix=org_root)
+        seriesInstanceUID = generate_uid(prefix=org_root)
+        scan_info = np.empty(siz[-1],dtype=scn_info.ScanInfo) #scn_info.ScanInfo()
+        #pixelSiz = image.GetSpacing()
+        currentDate = str(date.today())
+        now = datetime.now()
+        currentTime = now.strftime("%H:%M:%S")
+        count = 0
+        for slc in range(siz[axisOff+2]):
+            if numAxes == 3:
+                imgPatPos = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
+            elif numAxes == 4:
+                imgPatPos = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc,scanNum)))[:3]
+            s_info = scn_info.ScanInfo()
+            s_info.frameOfReferenceUID = forUID
+            s_info.imagePositionPatient = imgPatPos
+            s_info.imageOrientationPatient = dcmImgOri
+            s_info.grid1Units = pixelSpacing[1]
+            s_info.grid2Units = pixelSpacing[0]
+            s_info.sizeOfDimension1 = siz[0+axisOff]
+            s_info.sizeOfDimension2 = siz[1+axisOff]
+            s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+            s_info.imageType = imageType
+            s_info.seriesInstanceUID = seriesInstanceUID
+            s_info.studyInstanceUID = studyInstanceUID
+            s_info.studyDescription = ''
+            s_info.seriesDate = currentDate
+            s_info.seriesTime = currentTime
+            s_info.studyNumberOfOrigin = ''
+            #scan_info.append(s_info)
+            scan_info[count] = s_info
+            count += 1
+        #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+        sort_index = [i for i,x in sorted(enumerate(scan_info),key=scn.get_slice_position, reverse=False)]
+        scan_info = scan_info[sort_index]
+        scan_info = scn_info.deduce_voxel_thickness(scan_info)
+        scan.scanInfo = scan_info
+        if numAxes == 3:
+            scan.scanArray = scanArray3M[:,:,sort_index]
+        elif numAxes == 4:
+            scan.scanArray = scanArray3M[scanNum,:,:,:][:,:,sort_index]
+        scan.scanUID = "CT." + seriesInstanceUID
+        scan.convertDcmToCerrVirtualCoords()
+        scan.convertDcmToRealWorldUnits()
+        planC.scan.append(scan)
     return planC
 
 

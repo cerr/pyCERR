@@ -221,9 +221,11 @@ def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode 
             center = 0
             width = 300
         else:
-            center = np.median(sa)
-            lowerVal = np.percentile(sa, 5)
-            upperVal = np.percentile(sa, 95)
+            minScan = np.percentile(sa, 5)
+            scanNoBkgdV = sa[sa > minScan]
+            center = np.median(scanNoBkgdV)
+            lowerVal = np.percentile(scanNoBkgdV, 5)
+            upperVal = np.percentile(scanNoBkgdV, 95)
             width = 2 * np.max([center - lowerVal, upperVal - center])
         scanWindow = {'name': "--- Select ---",
                       'center': center,
