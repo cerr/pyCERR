@@ -214,44 +214,88 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=0):
     if minLengthOpt is None:
         minLengthOpt = []
 
-    midptS = np.floor(scan3M.shape[0] / 2)
+    scanSizeV = scan3M.shape
+    midptS = np.floor(scanSizeV[0] / 2)
+    numPeaks = 20
 
+    # 3D max projection
     maxM = np.amax(scan3M, axis=2)
-    histeqM = exposure.equalize_hist(maxM)
+    histeqM = exposure.equalize_hist(maxM, nbins=64)
+
+    # Detect edges
     edgeM1 = filters.sobel(histeqM)
-    edgeM2 = morphology.dilation(edgeM1)
+    edgeM2 = morphology.dilation(edgeM1, footprint=np.ones((3,3)))
+    bwThreshold = np.max(edgeM2)/4
+    edgeM3 = edgeM2>=bwThreshold
 
     if not minLengthOpt:
-        minLength = np.floor(edgeM2.shape[1] / 8).astype(int)  # couch covers 1/8th of image
+        minLength = np.floor(edgeM3.shape[1] / 8).astype(int)  # couch covers 1/8th of image
     else:
         minLength = int(minLengthOpt)
 
-    lines = transform.probabilistic_hough_line(edgeM2, threshold=0, line_length=minLength, line_gap=5)
-    overlapFraction = np.zeros(len(lines))
+    # Hough transform
+    hspace, theta, dist = transform.hough_line(edgeM3)
+    peakSpace, peakTheta, peakDist = transform.hough_line_peaks(hspace, theta, dist, num_peaks=numPeaks)
+    numDetectedPeaks = len(peakTheta)
+    #probLines = transform.probabilistic_hough_line(edgeM2, threshold=100, line_length=minLength, line_gap=5, theta=peakTheta)
+
+    ## Find line segments in edge image corresponding to peak lines
     midV = np.arange(int(0.5 * midptS), int(0.5 * midptS) + midptS)
-    yi = np.zeros(len(lines))
+    tolp = 5
 
-    for i, (p0, p1) in enumerate(lines):
-        len_line = np.linalg.norm(np.array(p0) - np.array(p1))
-        if p0[1] == p1[1] and len_line > minLength:
-            if p0[0] < p1[0]:
-                lineV = np.arange(p0[0], p1[0])
-            else:
-                lineV = np.arange(p1[0], p0[0])
-            if p0[1] > midptS and np.intersect1d(lineV, midV).size != 0:
-                yi[i] = p1[1]
-                overlapFraction[i] = np.intersect1d(lineV, midV).size
+    selectedLines = []
+    yi = []
+    overlapFraction = []
+    # Loop over peaks
+    for peakIdx in range(numDetectedPeaks):
 
+        # Convert normal form to slope-intercept form
+        angle = peakTheta[peakIdx]
+        distance = peakDist[peakIdx]
+        peakSlope = -np.cos(angle) / np.sin(angle)
+        peakIntercept = distance / np.sin(angle)
+
+        # Detect line segments at this angle
+        probLines = transform.probabilistic_hough_line(edgeM2, threshold=100, line_length=minLength,\
+                                                       line_gap=1, theta=np.array([angle]))
+        # Match intercepts
+        for lineSegment in probLines:
+            (x1, y1), (x2, y2) = lineSegment
+            x1, y1 = map(float, (x1, y1))
+            x2, y2 = map(float, (x2, y2))
+            intercept = y1 - peakSlope * x1
+            if np.abs(intercept - peakIntercept)< tolp:
+                lineLength = np.linalg.norm(np.array(lineSegment[1]) - np.array(lineSegment[0]))
+                p1 = lineSegment[0]
+                p2 = lineSegment[1]
+
+                # Require couch lines to have same starting & ending points
+                if lineLength > minLength and np.abs(p2[1] - p1[1])<tolp:
+                    if p1[0] < p2[0]:
+                            line = {'point1': p1, 'point2': p2}
+                            lineV = np.arange(p1[0], p2[0]+1)
+                    else:
+                            line = {'point1': p2, 'point2': p1}
+                            lineV = np.arange(p2[0], p1[0]+1)
+
+                    # Record location
+                    intx = np.intersect1d(lineV, midV).size
+                    if line['point1'][1] > midptS and intx > 0:
+                            yi.append(line['point2'][1])
+                            overlapFraction.append(intx)
+                            selectedLines.append(line)
+
+    # Return couch location
     if np.any(overlapFraction):
         I = np.argmax(overlapFraction)
-        yCouch = yi[I].astype(int)
+        yCouch = int(yi[I])
     else:
-        yCouch = min(yi[np.where(yi > 0)]).astype(int)
+        yCouch = int(np.min(yi[yi > 0]))
 
     if retryOpt and yCouch == 0:
-        yCouch, lines = getCouchLocationHough(scan3M, minLength / 2)
+        yCouch, selectedLines = getCouchLocationHough(scan3M, minLength / 2)
 
-    return yCouch, lines
+    return yCouch, selectedLines
 
 
 def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None, replaceFlag=None, procSructName=None):
