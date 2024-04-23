@@ -39,11 +39,11 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     # Filename to save bsplines coeffficients
     bspSourcePath = os.path.join(dirpath, 'bspline_coefficients.txt')
     bspDestPath = os.path.join(transformSaveDir, 'bspline_coefficients.txt')
-    
+
     if type_of_transform == 'deformable':
         algorithm = 'bsplines'
     elif type_of_transform == 'rigid':
-        algorithm = 'rigid'
+        algorithm = 'rigid' 
         
     plm_reg_cmd = "plastimatch register " + cmdFilePathSrc
 
