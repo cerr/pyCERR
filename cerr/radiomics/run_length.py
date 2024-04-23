@@ -1,9 +1,5 @@
 import numpy as np
 
-####### ========= New implementation
-import pydantic.schema
-
-
 def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
     if rlmType != 1:
         rlmOut = []
