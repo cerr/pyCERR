@@ -33,3 +33,11 @@ regularization_lambda=0.1
 grid_spac=50 50 50
 res=2 2 1
 metric=mse
+
+
+[STAGE]
+xform=rigid
+optim=versor
+max_its=30
+res=4 4 2
+metric = mse
