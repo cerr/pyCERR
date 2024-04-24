@@ -726,6 +726,21 @@ def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode 
         update_colorbar(viewer.layers.selection.active)
         return
 
+    def contrast_changed(event):
+        image = event.source
+        contrast_limits = image.contrast_limits
+        center = (contrast_limits[0] + contrast_limits[1]) / 2
+        width = contrast_limits[1] - contrast_limits[0]
+        scanWindow = {'name': "--- Select ---",
+                      'center': center,
+                      'width': width}
+        image.metadata['window'] = scanWindow
+        image_window_widget.Center.value = scanWindow['center']
+        image_window_widget.Width.value = scanWindow['width']
+        image_window_widget.CT_Window.value = scanWindow['name']
+
+        return
+
     def update_colorbar(image):
 
         if image is None:
@@ -841,10 +856,12 @@ def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode 
         #dose_lyr.events.contrast_limits_range.connect(layer_active)
         dose_lyr.events.colormap.connect(cmap_changed)
         dose_lyr.events.contrast_limits_range.connect(cmap_changed)
+        dose_lyr.events.contrast_limits.connect(contrast_changed)
     for scan_lyr in scan_layers:
         #scan_lyr.events.contrast_limits_range.connect(layer_active)
         scan_lyr.events.colormap.connect(cmap_changed)
         scan_lyr.events.contrast_limits_range.connect(cmap_changed)
+        scan_lyr.events.contrast_limits.connect(contrast_changed)
     for vect_layr in dvf_layer:
         vect_layr.events.edge_color.connect(cmap_changed)
 
