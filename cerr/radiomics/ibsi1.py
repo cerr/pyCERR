@@ -460,7 +460,7 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
             itemName = item[0]
             if mapToIBSI:
                 itemName = mapFeatDict[itemName]
-            if mapFeatClass in ["cm", "rlm"]:
+            if mapFeatClass in ["cm", "rlm", "glcm", "glrlm"]:
                 featStr = imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString
                 flatFeatDict[featStr + '_' + avgString] = np.mean(item[1])
                 flatFeatDict[featStr + '_Median'] = np.median(item[1])
@@ -474,7 +474,7 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
                 flatFeatDict[featStr + '_Min'] = np.min(item[1])
                 flatFeatDict[featStr + '_Max'] = np.max(item[1])
             else:
-                if mapFeatClass in ["morph", "stat"]:
+                if mapFeatClass in ["morph", "stat", "shape", "firstOrder"]:
                     flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName] = item[1]
                 else:
                     flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString] = item[1]
