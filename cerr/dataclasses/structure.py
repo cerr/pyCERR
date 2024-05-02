@@ -299,9 +299,14 @@ def saveJson(structNumV, jsonFileName, planC):
     with open(jsonFileName, 'w', encoding='utf-8') as f:
         json.dump(strList, f, ensure_ascii=False, indent=4)
 
-def importJson(jsonFileName, planC):
-    with open(jsonFileName, 'r', encoding='utf-8') as f:
-        strList = json.load(f)
+def importJson(planC, strList=None, jsonFileName=None):
+    if jsonFileName:
+        with open(jsonFileName, 'r', encoding='utf-8') as f:
+            strList = json.load(f)
+    elif strList:
+        pass
+    else:
+        return 'Provide filepath or strList'
     strUIDs = [s.strUID for s in planC.structure]
     for strJsonObj in strList:
         strJsonObj = json.loads(strJsonObj)

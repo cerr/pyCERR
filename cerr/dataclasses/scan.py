@@ -302,7 +302,8 @@ class Scan:
             # Ref: Chenevert, Thomas L., et al. "Errors in quantitative image analysis due to platform-dependent image scaling."
             manufacturer = self.scanInfo[0].manufacturer
             if 'philips' in manufacturer.lower() and \
-                    self.scanInfo[0].scaleSlope is not None:
+                    self.scanInfo[0].scaleSlope is not None and \
+                    not realWorldImageFlag:
                 scaleSlope = self.scanInfo[0].scaleSlope
                 self.scanArray = self.scanArray.astype(float) / (rescaleSlope * scaleSlope)
 
