@@ -27,6 +27,7 @@ class ScanInfo:
     CTOffset: float = 0.0
     rescaleSlope: float = 1.0
     rescaleIntercept: float = 0.0
+    rescaleType: str = ''
     scaleSlope: float = np.NAN
     scaleIntercept: float = np.NAN
     realWorldValueSlope: float = np.NAN

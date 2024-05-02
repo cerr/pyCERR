@@ -261,6 +261,7 @@ class Scan:
             realWorldValueIntercept = self.scanInfo[slcNum].realWorldValueIntercept
             realWorldMeasurCodeMeaning = self.scanInfo[slcNum].realWorldMeasurCodeMeaning
             philipsImageUnits = self.scanInfo[slcNum].philipsImageUnits
+            rescaleType = self.scanInfo[slcNum].rescaleType
             manufacturer = self.scanInfo[slcNum].manufacturer
 
             if 'philips' in manufacturer.lower() and \
@@ -271,9 +272,11 @@ class Scan:
                 realWorldImageFlag = True
                 scanArray3M[:, :, slcNum] = \
                     self.scanArray[:, :, slcNum] * realWorldValueSlope + realWorldValueIntercept
+                self.scanInfo[slcNum].imageUnits = realWorldMeasurCodeMeaning
             else:
                 scanArray3M[:, :, slcNum] = \
                     self.scanArray[:, :, slcNum] * rescaleSlope + rescaleIntrcpt
+                self.scanInfo[slcNum].imageUnits = rescaleType
 
             rescaleSlopeV[slcNum] = rescaleSlope
 
@@ -587,6 +590,7 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
         scan_info = populate_scan_info_fields(scan_info, ds)
         if hasattr(ds,'RescaleSlope'): scan_info.rescaleSlope = ds.RescaleSlope
         if hasattr(ds,'RescaleIntercept'): scan_info.rescaleIntercept = ds.RescaleIntercept
+        if hasattr(ds,'RescaleType'): scan_info.rescaleType = ds.RescaleType
         if ("2005","100E") in ds: scan_info.scaleSlope = ds["2005","100E"].value
         if ("2005","100D") in ds: scan_info.scaleIntercept = ds["2005","100D"].value
 
