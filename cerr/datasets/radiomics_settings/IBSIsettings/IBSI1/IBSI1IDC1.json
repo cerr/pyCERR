@@ -12,7 +12,7 @@
 				 "resolutionXCm": 0.2,
 				 "resolutionYCm": 0.2,
 				 "resolutionZCm": 0.2,
-				 "interpMethod": "linear",
+				 "interpMethod": "linear3d",
 				 "intensityRounding": "On"
 			},
 
