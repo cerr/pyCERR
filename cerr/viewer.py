@@ -1,29 +1,31 @@
 import typing
 import warnings
 import matplotlib as mpl
-import napari
 import numpy as np
-import vispy.color
-from magicgui import magicgui
-from magicgui.widgets import FunctionGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
-from napari.layers import Labels, Image
-from napari.types import LayerDataTuple
-from qtpy.QtWidgets import QTabBar
 from skimage import measure
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
-from cerr.registration import register
 import cerr.plan_container as pc
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
 import ipywidgets as widgets
 from ipywidgets import interact
-#import cerr.utils.mirrorScope as mirrScp
 from typing import Annotated, Literal
+try:
+    import napari
+    from napari.layers import Labels, Image
+    from napari.types import LayerDataTuple
+    from qtpy.QtWidgets import QTabBar
+    from magicgui import magicgui
+    from magicgui.widgets import FunctionGui
+    import vispy.color
+except ImportError:
+    print('Napari not available, Install using "pip install napati[all]"')
+
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
