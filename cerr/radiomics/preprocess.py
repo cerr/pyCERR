@@ -77,7 +77,7 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     resampResolutionV = resampResolutionV.copy()
     resampResolutionV[2] = -resampResolutionV[2]
 
-    if len(resampResolutionV) == 3 and not np.isnan(resampResolutionV[2]):
+    if len(resampResolutionV) == 3 and resampResolutionV[2]!=0 and not np.isnan(resampResolutionV[2]):
         resamp3dFlag = True
     else:
         resamp3dFlag = False
@@ -121,7 +121,7 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
                 'sitkNearestNeighbor', 'sitkLinear',
                 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
                 'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
-                or from csipy for 2d resampling viz. 'bilinear','bicubic','spline2d'
+                or from scipy for 2d resampling viz. 'linear','cubic','nearest','slinear'.
 
     Returns:
         3D numpy Array reampled at xResampleV, yResampleV, zResampleV
@@ -326,8 +326,11 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
         scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod
-        mapDict = {'linear':'sitkLinear', 'bspline':'sitkBSpline', 'sinc':'sitkLanczosWindowedSinc',\
-                   'bilinear':'linear', 'nearest2d':'nearest', 'spline2d':'slinear', 'bicubic':'cubic'}
+        mapDict = {'linear3d':'sitkLinear', 'bspline3d':'sitkBSpline', 'lanczoswindowsinc3d':'sitkLanczosWindowedSinc', \
+                   'hammingwindowsinc':'sitkHammingWindowedSinc','cosinewindowsinc': 'sitkCosineWindowedSinc', \
+                   'welchwindowsinc':'sitkWelchWindowedSinc','blackmanwindowsinc':'sitkBlackmanWindowedSinc', \
+                   'gaussian3d':'sitkGaussian', 'gaussianlabel3d':'sitkLabelGaussian', \
+                   'linear2d':'linear', 'nearest2d':'nearest', 'bspline2d':'slinear', 'cubic2d':'cubic'}
         mapScanInterpMethod = mapDict[scanInterpMethod]
 
         if scanInterpMethod == "linear":
