@@ -430,11 +430,11 @@ def initialize_dvf_colorbar_widget() -> FunctionGui:
 
 def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode = '2d'):
 
-    if not isinstance(scan_nums, list):
+    if isinstance(scan_nums, (int, float)):
         scan_nums = [scan_nums]
-    if not isinstance(str_nums, list):
+    if isinstance(str_nums, (int, float)):
         str_nums = [str_nums]
-    if not isinstance(dose_nums, list):
+    if isinstance(dose_nums, (int, float)):
         dose_nums = [dose_nums]
 
     # Default scan window
