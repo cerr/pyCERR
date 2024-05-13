@@ -15,16 +15,13 @@ from IPython.display import clear_output
 import ipywidgets as widgets
 from ipywidgets import interact
 from typing import Annotated, Literal
-try:
-    import napari
-    from napari.layers import Labels, Image
-    from napari.types import LayerDataTuple
-    from qtpy.QtWidgets import QTabBar
-    from magicgui import magicgui
-    from magicgui.widgets import FunctionGui
-    import vispy.color
-except ImportError:
-    print('Napari not available, Install using "pip install napati[all]"')
+import napari
+from napari.layers import Labels, Image
+from napari.types import LayerDataTuple
+from qtpy.QtWidgets import QTabBar
+from magicgui import magicgui
+from magicgui.widgets import FunctionGui
+import vispy.color
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
