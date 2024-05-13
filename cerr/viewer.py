@@ -971,9 +971,10 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         fig, (ax,ax_legend) = plt.subplots(1,2)
         ax_legend.set_visible(False)
 
-        cmaps = [plt.colormaps["Oranges"].copy(),plt.colormaps["Oranges"].copy(), \
-        plt.colormaps["Blues"].copy(),plt.colormaps["Blues"].copy(), \
-        plt.colormaps["Purples"].copy(),plt.colormaps["Greens"].copy()]
+        colors = ['Oranges', 'Blues', 'Greens','Purples',
+                  'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu', 'RdYlBu',
+                  'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']
+        cmaps = [plt.colormaps[color].copy() for color in colors] * 10
 
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
