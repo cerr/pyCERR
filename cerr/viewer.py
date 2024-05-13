@@ -996,12 +996,6 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         numLabel = len(masks)
         if view.lower() == 'axial':
             for maskNum in range(0,numLabel,1):
-                print('Length of cmaps')
-                print(len(cmaps))
-                print('Length of masks')
-                print(len(masks))
-                print('SliceNum')
-                print(slcNum)
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
@@ -1011,12 +1005,6 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
         elif view.lower() == 'sagittal':
             for maskNum in range(0,numLabel,1):
-                print('Length of cmaps')
-                print(len(cmaps))
-                print('Length of masks')
-                print(len(masks))
-                print('SliceNum')
-                print(slcNum)
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
@@ -1026,12 +1014,6 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
         elif view.lower() == 'coronal':
             for maskNum in range(0,numLabel,1):
-                print('Length of cmaps')
-                print(len(cmaps))
-                print('Length of masks')
-                print(len(masks))
-                print('SliceNum')
-                print(slcNum)
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
