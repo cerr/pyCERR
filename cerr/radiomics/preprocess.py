@@ -106,7 +106,7 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
 
     return xResampleV, yResampleV, zResampleV
 
-def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResampleV, method, extrapVal=0):
+def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResampleV, method, extrapVal=None):
     """
 
     Args:
@@ -122,6 +122,8 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
                 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
                 'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
                 or from scipy for 2d resampling viz. 'linear','cubic','nearest','slinear'.
+        extrapVal: value of extrapolated pixels. When not specified, the value of extrapolated pixel
+                   is assigned from the nearest neighbor.
 
     Returns:
         3D numpy Array reampled at xResampleV, yResampleV, zResampleV
@@ -169,10 +171,12 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         resample.SetOutputDirection(sitk_img.GetDirection())
         resample.SetOutputOrigin(resample_orig_v)
         resample.SetTransform(sitk.Transform())
-        resample.SetDefaultPixelValue(sitk_img.GetPixelIDValue())
-        resample.SetUseNearestNeighborExtrapolator(True)
         resample.SetInterpolator(getattr(sitk,method))
-        #resample.SetDefaultPixelValue(extrapVal)
+        if extrapVal is None:
+            resample.SetDefaultPixelValue(sitk_img.GetPixelIDValue())
+            resample.SetUseNearestNeighborExtrapolator(True)
+        elif isinstance(extrapVal,(int,float)):
+            resample.SetDefaultPixelValue(extrapVal)
 
         # Convert to array
         sitk_resamp_img = resample.Execute(sitk_img)
