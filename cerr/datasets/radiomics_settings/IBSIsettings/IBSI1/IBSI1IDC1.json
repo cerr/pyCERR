@@ -12,8 +12,9 @@
 				 "resolutionXCm": 0.2,
 				 "resolutionYCm": 0.2,
 				 "resolutionZCm": 0.2,
-				 "interpMethod": "linear3d",
-				 "intensityRounding": "On"
+				 "interpMethod": "sitkLinear",
+				 "intensityRounding": "On",
+				 "inPlane": "no"
 			},
 
            "padding": {

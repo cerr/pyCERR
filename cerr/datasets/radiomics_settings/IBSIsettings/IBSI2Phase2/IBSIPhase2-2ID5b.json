@@ -17,11 +17,11 @@
 "settings": {		   
 
                    "resample": {
-                         		"resolutionXCm": 0.1,
+                        "resolutionXCm": 0.1,
 				        "resolutionYCm": 0.1,
 				        "resolutionZCm": 0.1,
-				        "interpMethod": "bspline3d",
-                         		"intensityRounding": "On"
+				        "interpMethod": "sitkBSpline",
+					    "intensityRounding": "On"
 			        },
 			        
                    "padding": {
