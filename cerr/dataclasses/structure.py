@@ -624,7 +624,7 @@ def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
     paddedMask3M = mask3M.astype(int)
     paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
     dt = datetime.now()
-    if isinstance(structNum,int):
+    if isinstance(structNum,(int,float)):
         struct_meta = planC.structure[structNum]
     else:
         struct_meta = Structure()
