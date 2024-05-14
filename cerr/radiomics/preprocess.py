@@ -118,15 +118,14 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
         xResampleV: 1D array of new x-coordinates i.e. along columns of resampled image
         yResampleV: 1D array of new y-coordinates i.e. along rows of resampled image
         zResampleV: 1D array of new z-coordinates i.e. along slices of resampled image
-        method: string representing one of the supported methods from SimpleITK for 3d resmpling viz.
+        method: string representing one of the supported methods from SimpleITK, viz.
                 'sitkNearestNeighbor', 'sitkLinear',
                 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
                 'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
-                 or from scipy for 2d resampling viz. 'linear','cubic','nearest','slinear'.
-        extrapVal: value of extrapolated pixels. When not specified, the value of extrapolated pixel
+        extrapVal: value of extrapolated pixels. When not specified, the value of an extrapolated pixel
                    is assigned from the nearest neighbor.
-        inPlane: True or False, specify whether to restrict the interpolation to in-plane. (e.g.. bi-linear). Tge default is to
-                 allow for 3D interpolation.
+        inPlane: True or False, specify whether to restrict the interpolation to in-plane. (e.g. bi-linear).
+                  The default is 3D interpolation.
 
     Returns:
         3D numpy Array reampled at xResampleV, yResampleV, zResampleV
