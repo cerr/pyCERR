@@ -1049,9 +1049,9 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     # sliceSliderSagittal.value = round(imgSiz[1]/2)
     # sliceSliderCoronal.value = round(imgSiz[0]/2)
 
-    interact(showSlice, view='axial')
-    interact(showSlice, view='sagittal')
-    interact(showSlice, view='coronal')
+    interact(showSlice, slcNum=sliceSliderAxial.value, view='axial')
+    interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
+    interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
 
 
     def updateSliceAxial(change):
