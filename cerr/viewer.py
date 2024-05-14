@@ -1050,20 +1050,3 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
             outputSlcCoronal = widgets.Output()
             with outputSlcCoronal:
                 showSlice(change['new'], 'coronal')
-
-    def createWidgets(imgSize):
-
-            sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
-            outputSlcAxial = widgets.Output()
-
-            sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
-            outputSlcSagittal = widgets.Output()
-
-            sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
-            outputSlcCoronal = widgets.Output()
-
-            sliceSliderAxial.observe(updateSliceAxial, names='value')
-            sliceSliderSagittal.observe(updateSliceSagittal, names='value')
-            sliceSliderCoronal.observe(updateSliceCoronal, names='value')
-
-            return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
