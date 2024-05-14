@@ -1004,7 +1004,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = (0.5), colors = (col),
+                        levels = [0.5], colors = [col],
                         extent=extent, linewidths = 2)
                 # im2 = ax.imshow(mask3M[:,:,slcNum-1],
                 #             cmap=maskCmap, alpha=1, extent=extent,
@@ -1017,7 +1017,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = (0.5), colors = (col),
+                        levels = [0.5], colors = [col],
                         extent=extent, linewidths = 2)
                 # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
                 #             cmap=maskCmap, alpha=.8, extent=extent,
@@ -1030,7 +1030,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = (0.5), colors = (col),
+                        levels = [0.5], colors = [col],
                         extent=extent, linewidths = 2)
                 # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
                 #             cmap=maskCmap, alpha=.8, extent=extent,
