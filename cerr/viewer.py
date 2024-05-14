@@ -926,13 +926,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
     def createWidgets(imgSize):
 
-        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],step=1)
+        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],value=int(imgSize[2]/2), step=1, description="Axial")
         outputSlcAxial = widgets.Output()
 
-        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],step=1)
+        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),step=1, description="Sagittal")
         outputSlcSagittal = widgets.Output()
 
-        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],step=1)
+        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),step=1, description="Coronal")
         outputSlcCoronal = widgets.Output()
 
         sliceSliderAxial.observe(updateSliceAxial, names='value')
@@ -1003,12 +1003,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
-                im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = [0.5], colors = [col],
-                        extent=extent, linewidths = 2)
-                # im2 = ax.imshow(mask3M[:,:,slcNum-1],
-                #             cmap=maskCmap, alpha=1, extent=extent,
-                #             interpolation='none', clim=[0.5, 1])
+                if mask3M.any():
+                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1], axis=0),
+                            levels = [0.5], colors = [col],
+                            extent=extent, linewidths = 2)
+                    # im2 = ax.imshow(mask3M[:,:,slcNum-1],
+                    #             cmap=maskCmap, alpha=1, extent=extent,
+                    #             interpolation='none', clim=[0.5, 1])
 
         elif view.lower() == 'sagittal':
             for maskNum in range(0,numLabel,1):
@@ -1016,12 +1017,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
-                im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = [0.5], colors = [col],
-                        extent=extent, linewidths = 2)
-                # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
-                #             cmap=maskCmap, alpha=.8, extent=extent,
-                #             interpolation='none', clim=[0.5, 1])
+                if mask3M.any():
+                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1],axis=0),
+                            levels = [0.5], colors = [col],
+                            extent=extent, linewidths = 2)
+                    # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
+                    #             cmap=maskCmap, alpha=.8, extent=extent,
+                    #             interpolation='none', clim=[0.5, 1])
 
         elif view.lower() == 'coronal':
             for maskNum in range(0,numLabel,1):
@@ -1029,12 +1031,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
-                im2 = ax.contour(mask3M[:,:,slcNum-1],
-                        levels = [0.5], colors = [col],
-                        extent=extent, linewidths = 2)
-                # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
-                #             cmap=maskCmap, alpha=.8, extent=extent,
-                #             interpolation='none', clim=[0.5, 1])
+                if mask3M.any():
+                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1], axis=0),
+                            levels = [0.5], colors = [col],
+                            extent=extent, linewidths = 2)
+                    # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
+                    #             cmap=maskCmap, alpha=.8, extent=extent,
+                    #             interpolation='none', clim=[0.5, 1])
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xticklabels([])
@@ -1042,13 +1045,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         plt.rcParams["figure.figsize"] = (10, 10)
         plt.show()
 
-    sliceSliderAxial.value = round(imgSiz[2]/2)
-    sliceSliderSagittal.value = round(imgSiz[1]/2)
-    sliceSliderCoronal.value = round(imgSiz[0]/2)
+    # sliceSliderAxial.value = round(imgSiz[2]/2)
+    # sliceSliderSagittal.value = round(imgSiz[1]/2)
+    # sliceSliderCoronal.value = round(imgSiz[0]/2)
 
-    interact(showSlice, slcNum=sliceSliderAxial.value, view='axial')
-    interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
-    interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
+    interact(showSlice, view='axial')
+    interact(showSlice, view='sagittal')
+    interact(showSlice, view='coronal')
 
 
     def updateSliceAxial(change):
