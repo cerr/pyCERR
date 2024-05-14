@@ -926,13 +926,16 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
     def createWidgets(imgSize):
 
-        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],value=int(imgSize[2]/2), step=1, description="Axial")
+        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],value=int(imgSize[2]/2),
+                                             step=1, description="Axial")
         outputSlcAxial = widgets.Output()
 
-        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),step=1, description="Sagittal")
+        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),
+                                                step=1, description="Sagittal")
         outputSlcSagittal = widgets.Output()
 
-        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),step=1, description="Coronal")
+        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),
+                                               step=1, description="Coronal")
         outputSlcCoronal = widgets.Output()
 
         sliceSliderAxial.observe(updateSliceAxial, names='value')
@@ -1018,7 +1021,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 if mask3M.any():
-                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1],axis=0),
+                    im2 = ax.contour(np.flip(mask3M[:,slcNum-1,:],axis=0),
                             levels = [0.5], colors = [col],
                             extent=extent, linewidths = 2)
                     # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
@@ -1032,7 +1035,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 if mask3M.any():
-                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1], axis=0),
+                    im2 = ax.contour(np.flip(mask3M[slcNum-1,:,:], axis=0),
                             levels = [0.5], colors = [col],
                             extent=extent, linewidths = 2)
                     # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
