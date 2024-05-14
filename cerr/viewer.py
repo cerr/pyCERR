@@ -976,6 +976,9 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                   'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']
         cmaps = [plt.colormaps[color].copy() for color in colors] * 10
 
+        cm = plt.colormaps['tab20'].copy()
+        colors = cm.colors * 5
+
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
             extent = extentTrans
@@ -999,27 +1002,39 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                im2 = ax.imshow(mask3M[:,:,slcNum-1],
-                            cmap=maskCmap, alpha=1, extent=extent,
-                            interpolation='none', clim=[0.5, 1])
+                col = colors[maskNum]
+                im2 = ax.contour(mask3M[:,:,slcNum-1],
+                        levels = (0.5), colors = (col),
+                        extent=extent, linewidths = 2)
+                # im2 = ax.imshow(mask3M[:,:,slcNum-1],
+                #             cmap=maskCmap, alpha=1, extent=extent,
+                #             interpolation='none', clim=[0.5, 1])
 
         elif view.lower() == 'sagittal':
             for maskNum in range(0,numLabel,1):
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
-                            cmap=maskCmap, alpha=.8, extent=extent,
-                            interpolation='none', clim=[0.5, 1])
+                col = colors[maskNum]
+                im2 = ax.contour(mask3M[:,:,slcNum-1],
+                        levels = (0.5), colors = (col),
+                        extent=extent, linewidths = 2)
+                # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
+                #             cmap=maskCmap, alpha=.8, extent=extent,
+                #             interpolation='none', clim=[0.5, 1])
 
         elif view.lower() == 'coronal':
             for maskNum in range(0,numLabel,1):
                 maskCmap = cmaps[maskNum]
                 maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
-                            cmap=maskCmap, alpha=.8, extent=extent,
-                            interpolation='none', clim=[0.5, 1])
+                col = colors[maskNum]
+                im2 = ax.contour(mask3M[:,:,slcNum-1],
+                        levels = (0.5), colors = (col),
+                        extent=extent, linewidths = 2)
+                # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
+                #             cmap=maskCmap, alpha=.8, extent=extent,
+                #             interpolation='none', clim=[0.5, 1])
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xticklabels([])
