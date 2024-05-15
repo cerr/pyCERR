@@ -1007,7 +1007,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 if mask3M.any():
-                    im2 = ax.contour(np.flip(mask3M[:,:,slcNum-1], axis=0),
+                    im2 = ax.contour(np.flip(np.squeeze(mask3M[:,:,slcNum-1]), axis=0),
                             levels = [0.5], colors = [col],
                             extent=extent, linewidths = 2)
                     # im2 = ax.imshow(mask3M[:,:,slcNum-1],
@@ -1021,7 +1021,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 if mask3M.any():
-                    im2 = ax.contour(np.flip(mask3M[:,slcNum-1,:],axis=0),
+                    im2 = ax.contour(np.flip(np.squeeze(mask3M[:,slcNum-1,:]),axis=0),
                             levels = [0.5], colors = [col],
                             extent=extent, linewidths = 2)
                     # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
@@ -1035,7 +1035,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                 mask3M = masks[maskNum]
                 col = colors[maskNum]
                 if mask3M.any():
-                    im2 = ax.contour(np.flip(mask3M[slcNum-1,:,:], axis=0),
+                    im2 = ax.contour(np.flip(np.squeeze(mask3M[slcNum-1,:,:]), axis=0),
                             levels = [0.5], colors = [col],
                             extent=extent, linewidths = 2)
                     # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
