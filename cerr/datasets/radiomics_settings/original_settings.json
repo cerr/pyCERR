@@ -12,8 +12,8 @@
 				 	"resolutionXCm": 0.1,
 				 	"resolutionYCm": 0.1,
 				 	"resolutionZCm": 0.1,
-					"interpMethod": "linear3d"
-				  },
+					"interpMethod": "sitkLinear",
+					"inPlane": "yes"},
 				  
 		"padding": [{
 				     "cropToMaskBounds": "yes",
