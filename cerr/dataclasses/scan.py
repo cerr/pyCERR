@@ -276,7 +276,9 @@ class Scan:
             else:
                 scanArray3M[:, :, slcNum] = \
                     self.scanArray[:, :, slcNum] * rescaleSlope + rescaleIntrcpt
-                self.scanInfo[slcNum].imageUnits = rescaleType
+                if len(self.scanInfo[slcNum].imageUnits) == 0 and \
+                        self.scanInfo[slcNum].imageType.lower() not in ['pt scan', 'nm scan']:
+                    self.scanInfo[slcNum].imageUnits = rescaleType
 
             rescaleSlopeV[slcNum] = rescaleSlope
 
@@ -341,7 +343,7 @@ class Scan:
             imgUnits = headerSlcS.imageUnits
             imgMUnits = imgM.copy()
             if imgUnits == 'CNTS':
-                activityScaleFactor = headerSlcS.petActivityConcentrationScaleFactor
+                activityScaleFactor = headerSlcS.petActivityConctrScaleFactor
                 imgMUnits = imgMUnits * activityScaleFactor
                 imgMUnits = imgMUnits * 1000  # Bq/L
             elif imgUnits in ['BQML', 'BQCC']:
