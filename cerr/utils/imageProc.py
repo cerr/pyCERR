@@ -338,7 +338,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     else:
         maskOut3M = mask3M
 
-    if planC is not None and saveFlag:
+    if planC is not None and saveFlag and np.isscalar(structNum):
         if procSructName is None:
             procSructName = planC.structure[structNum].structureName
         planC = updateStructure(structNum, maskOut3M, procSructName, replaceFlag, planC)
