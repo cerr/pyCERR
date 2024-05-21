@@ -335,15 +335,16 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
         for n in selV:
             idxV = labeledArray == n + 1
             maskOut3M[idxV] = True
+    else:
+        maskOut3M = mask3M
 
     if planC is not None and saveFlag:
         if procSructName is None:
             procSructName = planC.structure[structNum].structureName
         planC = updateStructure(structNum, maskOut3M, procSructName, replaceFlag, planC)
-    else:
-        maskOut3M = mask3M
 
     return maskOut3M, planC
+
 
 def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False, replaceFlag=None, procSructName=None):
     """
