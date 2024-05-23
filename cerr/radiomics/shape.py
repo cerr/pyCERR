@@ -41,7 +41,7 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     volume = voxel_volume * np.sum(maskForShape3M)
 
     # Fill holes
-    rmin,rmax,cmin,cmax,smin,smax,_ = bbox.compute_boundingbox(maskForShape3M,1)
+    rmin,rmax,cmin,cmax,smin,smax,_ = bbox.compute_boundingbox(maskForShape3M, 0, 1)
     #struct3D = np.ones((3,3,3))
     #maskForShape3M = ndimage.binary_fill_holes(maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1])
     maskForShape3M = maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1]
