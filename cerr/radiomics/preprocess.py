@@ -1,12 +1,13 @@
 import numpy as np
 import cerr.contour.rasterseg as rs
 from cerr.utils.bbox import compute_boundingbox
-from scipy.interpolate import interpn
 import SimpleITK as sitk
-from scipy.ndimage import zoom
-from scipy.ndimage import label
-from scipy.ndimage import generate_binary_structure
-from scipy.interpolate import RegularGridInterpolator
+
+# from scipy.interpolate import interpn
+# from scipy.ndimage import zoom
+# from scipy.ndimage import label
+# from scipy.ndimage import generate_binary_structure
+# from scipy.interpolate import RegularGridInterpolator
 
 def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     """
@@ -352,11 +353,8 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         #Input is structure mask
         mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
-    #if yValsV[0] > yValsV[1]:
-    #    yValsV = np.flip(yValsV)
 
     # Get pixelSpacing of the new grid
-    cropForResamplingFlag = False
     if 'resample' in paramS["settings"] and len(paramS["settings"]['resample']) > 0:
         pixelSpacingX, pixelSpacingY, pixelSpacingZ = \
             paramS["settings"]['resample']['resolutionXCm'], \
@@ -378,8 +376,6 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             scanInterpMethod = 'sitkLanczosWindowedSinc'
         grid_resample_method = 'center'
         maskInterpTol = 1e-8 # err on the side of including a voxel within this value from 0.5.
-        if 'cropForResampling' in paramS["settings"]['resample']:
-           cropForResamplingFlag = paramS["settings"]['resample']['cropForResampling'] == "yes"
     else:
         pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
         pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
@@ -388,22 +384,13 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     outputResV = np.array([pixelSpacingX, pixelSpacingY, pixelSpacingZ])
 
     #Get padding settings
+    padMethod = 'none'     #Default:Pad by 5 voxels (from original image) before resampling
     padSizeV = []
-    padMethod = 'none'
-    if cropForResamplingFlag:
-        padMethod = 'expand'     #Default:Pad by 5 voxels (from original image) before resampling
-        padSizeV = [5,5,5]
-        if 'padding' in paramS["settings"] and len(paramS["settings"]['padding']) > 0:
-            padMethod = paramS["settings"]['padding']['method']
-            padSizeV = paramS["settings"]['padding']['size']
-
-            # inputResV = [np.median(xValsV),np.median(yValsV),np.median(zValsV)]
-            # if inputResV[0] * padSizeV[1] < outputResV[0] * padSizeV[1]:
-            #     padSizeV[1] = np.ceil(outputResV[0] * padSizeV[1] / inputResV[0])
-            # if inputResV[1] * padSizeV[0] < outputResV[1] * padSizeV[0]:
-            #     padSizeV[0] = np.ceil(outputResV[1] * padSizeV[0] / inputResV[1])
-            # if inputResV[2] * padSizeV[2] < outputResV[2] * padSizeV[2]:
-            #     padSizeV[1] = np.ceil(outputResV[2] * padSizeV[1] / inputResV[2])
+    cropForResamplingFlag = False
+    if 'cropToMask' in paramS["settings"]:
+        cropForResamplingFlag = True
+        padMethod = paramS["settings"]['cropToMask']['method']
+        padSizeV = paramS["settings"]['cropToMask']['size']
 
     #Crop to ROI and pad
     (padScanBoundsForResamp3M,padMaskBoundsForResamp3M,outLimitsV) = \
@@ -446,18 +433,16 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
 
 
     # Pad scan as required for convolutional filtering
-    filtPadMethod = 'none'
-    filtPadSizeV = [0,0,0]
-    cropFlag = True
-    if not cropForResamplingFlag:
-        if 'padding' in paramS['settings']:
-            if 'cropToMaskBounds' in  paramS['settings']['padding']:
-                cropFlag = paramS['settings']['padding']['cropToMaskBounds'].lower() == 'yes'
-            if 'method' in paramS['settings']['padding'] and paramS['settings']['padding']['method'].lower()!='none':
-                filtPadMethod = paramS['settings']['padding']['method']
-                filtPadSizeV = paramS['settings']['padding']['size']
-                if len(filtPadSizeV)==2:
-                    filtPadSizeV = [filtPadSizeV,0]
+    filtPadMethod = 'mirror'
+    filtPadSizeV = [3,3,3]
+    if 'padding' in paramS['settings']:
+        if 'method' in paramS['settings']['padding'] and paramS['settings']['padding']['method'].lower()!='none':
+            filtPadMethod = paramS['settings']['padding']['method']
+            filtPadSizeV = paramS['settings']['padding']['size']
+            if len(filtPadSizeV)==2:
+                filtPadSizeV = [filtPadSizeV,0]
+
+        cropFlag = False
         [volToEval,maskBoundingBox3M,outLimitsV] = padScan(resampScanBounds3M,\
         resampMaskBounds3M,filtPadMethod,filtPadSizeV,cropFlag)
 
@@ -465,7 +450,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         if outLimitsV[0]<0:
             numPad = -outLimitsV[0]
             padCountV = np.arange(numPad,0,-1)
-            yExtendV = yResampleV[0]-padCountV*outputResV[1]
+            yExtendV = yResampleV[0]+padCountV*outputResV[1]
             yResampleV = np.concatenate((yExtendV,yResampleV))
             outLimitsV[0] = outLimitsV[0] + numPad
             outLimitsV[1] = outLimitsV[1] + numPad
@@ -489,7 +474,7 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         if outLimitsV[1]>len(yResampleV)-1:
             numPad = outLimitsV[1] - len(yResampleV) + 1
             padCountV = np.arange(1,numPad+1,1)
-            yExtendV = yResampleV[-1] + padCountV*outputResV[1]
+            yExtendV = yResampleV[-1] - padCountV*outputResV[1]
             yResampleV = np.concatenate((yResampleV,yExtendV))
 
         if outLimitsV[3]>len(xResampleV)-1:

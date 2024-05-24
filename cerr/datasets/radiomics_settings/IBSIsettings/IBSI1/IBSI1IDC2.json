@@ -19,11 +19,7 @@
 
            "padding": {
                       },
-             
 
-            "perturbation": {
-			           },
-			           
 	    "firstOrder" :{ 
 				   "binWidthEntropy": 25,
 				   "offsetForEnergy": 0

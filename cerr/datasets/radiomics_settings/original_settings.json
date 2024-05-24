@@ -14,13 +14,13 @@
 				 	"resolutionZCm": 0.1,
 					"interpMethod": "sitkLinear",
 					"inPlane": "yes"},
-				  
-		"padding": [{
-				     "cropToMaskBounds": "yes",
-				     "method": "expand",  
-				     "size": [6,6,6]
-				}],
-				
+
+		"cropToMask": {
+					"method": "expand",
+                    "size": [6,6,6]
+		},
+
+
 		"shape": {
 				"rcs": []
 			      },

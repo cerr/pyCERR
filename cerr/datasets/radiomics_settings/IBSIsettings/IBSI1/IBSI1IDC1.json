@@ -17,14 +17,10 @@
 				 "inPlane": "no"
 			},
 
-           "padding": {
-                         "method": "expand",
-                         "size": [10,10,10]
-                      },
-             
-
-            "perturbation": {
-			           },
+			"cropToMask": {
+				 "method": "expand",
+                 "size": [10,10,10]
+			},
 			           
 	    "firstOrder" :{ 
 				   "binWidthEntropy": 25,

@@ -16,8 +16,7 @@
 "settings": {		   
 
                    "padding": {
-                                "cropToMaskBounds": "no",
-                                "method": "mirror",  
+                                "method": "mirror",
                                 "size": [50,50,0]
                               },
                               

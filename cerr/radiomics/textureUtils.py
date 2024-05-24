@@ -235,21 +235,21 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                     validPadSizeV = [padSizeV[0],padSizeV[0],padSizeV[1],padSizeV[1],\
                                     padSizeV[2],padSizeV[2]]
 
-                # filtScan3M = filtScan3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
-                #                         validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
-                #                         validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
-                #
-                # filtMask3M = procMask3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
-                #                         validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
-                #                         validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
+                filtScan3M = filtScan3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
+                                        validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
+                                        validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
+
+                filtMask3M = procMask3M[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1],
+                                        validPadSizeV[2]:texSizeV[1] - validPadSizeV[3],
+                                        validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
 
                 # Add filter response map to planC
                 xV = gridS['xValsV']
                 yV = gridS['yValsV']
                 zV = gridS['zValsV']
-                # xV = xV[np.arange(minc,maxc+1,1)]
-                # yV = yV[np.arange(minr,maxr+1,1)]
-                # zV = zV[np.arange(mins,maxs+1,1)]
+                yV = yV[validPadSizeV[0]:texSizeV[0] - validPadSizeV[1]]
+                xV = xV[validPadSizeV[2]:texSizeV[1] - validPadSizeV[3]]
+                zV = zV[validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
 
                 planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
                 #assocScanNum = len(planC.scan)-1

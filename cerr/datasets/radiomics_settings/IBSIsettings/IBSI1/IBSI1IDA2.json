@@ -11,10 +11,7 @@
             "resample": {
 			},
 
-	    "perturbation": {
-			           },
-			           
-	    "firstOrder": { 
+	    "firstOrder": {
 				   "binWidthEntropy": 25,
 				   "offsetForEnergy": 0
                               },

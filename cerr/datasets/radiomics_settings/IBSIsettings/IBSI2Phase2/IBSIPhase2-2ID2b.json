@@ -18,8 +18,7 @@
 			        },
 
                    "padding": {
-                   		"cropToMaskBounds": "no",
-                                "method": "mirror",  
+                                "method": "mirror",
                                 "size": [2,2,2]
                                 },
 
