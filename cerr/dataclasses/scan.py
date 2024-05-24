@@ -452,6 +452,7 @@ class Scan:
 
             suv3M[:, :, slcNum] = suvM
             self.scanInfo[slcNum].imageUnits = imageUnits
+            self.scanInfo[slcNum].suvType = suvType
 
         self.scanArray = suv3M
 
@@ -543,6 +544,7 @@ def populate_scan_info_fields(s_info, ds):
     if hasattr(ds,"NumberOfSlices"): s_info.petNumSlices = ds.NumberOfSlices
     if hasattr(ds,"DecayCorrection"): s_info.petDecayCorrection = ds.DecayCorrection
     if hasattr(ds,"CorrectedImage"): s_info.petCorrectedImage = ds.CorrectedImage
+    if ("0054","1006") in ds: s_info.suvType = ds["0054","1006"].value
     if hasattr(ds,"WindowCenter"): s_info.windowCenter = ds.WindowCenter
     if hasattr(ds,"WindowWidth"): s_info.windowWidth = ds.WindowWidth
 

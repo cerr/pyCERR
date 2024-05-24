@@ -394,6 +394,8 @@ def populate_planC_field(field_name, file_list, opts={}):
             suvType = 'BW'
             if 'suvType' in opts:
                 suvType = opts['suvType']
+            elif scan_meta[0].scanInfo[0].suvType:
+                suvType = scan_meta[0].scanInfo[0].suvType
             scan_meta[0].convert_to_suv(suvType)
         return scan_meta
 
