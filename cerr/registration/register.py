@@ -19,7 +19,7 @@ from cerr.utils.bbox import compute_boundingbox
 from cerr.radiomics import preprocess
 import numpy as np
 
-def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir):
+def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir, type_of_transform='deformable'):
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -40,6 +40,11 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     bspSourcePath = os.path.join(dirpath, 'bspline_coefficients.txt')
     bspDestPath = os.path.join(transformSaveDir, 'bspline_coefficients.txt')
 
+    if type_of_transform == 'deformable':
+        algorithm = 'bsplines'
+    elif type_of_transform == 'rigid':
+        algorithm = 'rigid' 
+        
     plm_reg_cmd = "plastimatch register " + cmdFilePathSrc
 
     currDir = os.getcwd()
@@ -58,7 +63,7 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     deform.deformOutFileType = "plm_bspline_coeffs"
     deform.deformOutFilePath = bspDestPath
     deform.registrationTool = 'plastimatch'
-    deform.algorithm = 'bsplines'
+    deform.algorithm = algorithm #'bsplines' or 'rigid'
 
     # Append to base planc
     basePlanC.deform.append(deform)
