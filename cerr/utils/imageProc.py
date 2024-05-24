@@ -37,7 +37,10 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
         origSizeV = [scan3M.shape[0], scan3M.shape[1], scan3M.shape[2]]
     else:
         origSizeV = [mask4M.shape[0], mask4M.shape[1], mask4M.shape[2]]
-    numStr = mask4M.shape[3]
+    if mask4M is None:
+        numStr = 0
+    else:
+        numStr = mask4M.shape[3]
 
     # Get input grid
     xV = gridS[0]
@@ -89,7 +92,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
             zOutV = zV
 
         # Pad mask
-        if mask4M.size == 0:
+        if mask4M is None:
             maskOut4M = None
         else:
             maskOut4M = np.zeros(outputImgSizeV + [numStr])
@@ -114,13 +117,71 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, *argv):
             yOutV = yV[yPad/2:-yPad/2]
             zOutV = zV
 
-        if mask4M.size == 0:
-            maskOut4M = []
+        if mask4M is None:
+            maskOut4M = None
         else:
             maskOut4M = mask4M[xPad:xPad + outputImgSizeV[0],
                         yPad:yPad + outputImgSizeV[1], :, :]
         gridOutS = (xOutV, yOutV, zOutV)
 
+
+    elif methodLower=='pad2d':
+
+        # Initialize resized scan and mask
+        if scan3M.size == 0:
+            scanOut3M = np.array([])
+        else:
+            minScanVal = np.min(scan3M)
+            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1], origSizeV[2]]\
+                                , minScanVal, dtype=scan3M.dtype)
+
+        if mask4M is None:
+            maskOut4M = None
+        else:
+            maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1], numStr), dtype=np.uint32)
+
+        xOutM = np.zeros((outputImgSizeV[1],origSizeV[2]))
+        yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
+
+        # Min/max row and col limits for each slice
+        for slcNum in range(origSizeV[2]):
+            minr = limitsM[slcNum, 0]
+            maxr = limitsM[slcNum, 1]
+            minc = limitsM[slcNum, 2]
+            maxc = limitsM[slcNum, 3]
+
+            rowCenter = round((minr + maxr) / 2)
+            colCenter = round((minc + maxc) / 2)
+
+            rMin = rowCenter - outputImgSizeV[0] // 2
+            cMin = colCenter - outputImgSizeV[1] // 2
+
+            if rMin < 0:
+                rMin = 0
+            if cMin < 0:
+                cMin = 0
+            rMax = rMin + outputImgSizeV[0] - 1
+            cMax = cMin + outputImgSizeV[1] - 1
+
+            if rMax > origSizeV[0]:
+                rMax = origSizeV[0]
+            if cMax > origSizeV[1]:
+                cMax = origSizeV[1]
+
+            outRmin = 0
+            outCmin = 0
+            outRmax = rMax - rMin 
+            outCmax = cMax - cMin 
+
+            if scan3M.size > 0:
+                scanOut3M[outRmin:outRmax, outCmin:outCmax, slcNum] = scan3M[rMin:rMax, cMin:cMax, slcNum]
+
+            if mask4M is not None:
+                maskOut4M[outRmin:outRmax, outCmin:outCmax, slcNum, :] = mask4M[rMin:rMax, cMin:cMax, slcNum, :]
+
+            xOutM[:,slcNum] = np.arange(xV[cMin], xV[cMax+1] , voxSizeV[0])
+            yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax+1] , voxSizeV[1])
+            gridOutS = (xOutM, yOutM)
 
     return scanOut3M, maskOut4M, gridOutS
 
@@ -286,14 +347,19 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=0):
                             selectedLines.append(line)
 
     # Return couch location
-    if np.any(overlapFraction):
-        I = np.argmax(overlapFraction)
-        yCouch = int(yi[I])
+    
+    if len(yi) == 0:
+        if retryOpt:
+            yCouch, selectedLines = getCouchLocationHough(scan3M, minLength / 2)
+        else:
+            yCouch = scanSizeV[0]
     else:
-        yCouch = int(np.min(yi[yi > 0]))
-
-    if retryOpt and yCouch == 0:
-        yCouch, selectedLines = getCouchLocationHough(scan3M, minLength / 2)
+        if np.any(overlapFraction):
+            I = np.argmax(overlapFraction)
+            yCouch = int(yi[I])
+        else:
+            yi = np.array(yi)
+            yCouch = int(np.min(yi[yi > 0]))
 
     return yCouch, selectedLines
 
