@@ -17,11 +17,7 @@
 				 "inPlane": "no"
 			},
 
-			"cropToMask": {
-				 "method": "expand",
-                 "size": [10,10,10]
-			},
-			           
+
 	    "firstOrder" :{ 
 				   "binWidthEntropy": 25,
 				   "offsetForEnergy": 0
