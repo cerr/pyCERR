@@ -5,8 +5,8 @@ import sys
 
 cerrPath = os.path.join(os.getcwd(), "..")
 sys.path.insert(0, cerrPath)
-import cerr._version as ver
-release = ver.version
+#import cerr._version as ver
+release = "latest" #ver.version
 
 # -- Project information -----------------------------------------------------
 
