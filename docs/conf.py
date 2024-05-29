@@ -50,7 +50,6 @@ pygments_style = 'sphinx'
 html_codeblock_linenos_style = 'table'
 html_base_url = 'https://github.com/cerr/pyCERR/'
 html_logo = 'cerr_logo.png'
-html_theme = 'furo'
 html_show_sourcelink = True
 html_last_updated_fmt = '%Y-%m-%d %H:%M:%S'
 html_title = 'pyCERR docs'
