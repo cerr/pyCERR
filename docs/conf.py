@@ -22,7 +22,6 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
     'sphinx.ext.autosectionlabel',
-    'myst_nb',
     'sphinx_design',
     'sphinx_copybutton',
     'sphinxemoji.sphinxemoji',
@@ -32,27 +31,6 @@ sphinxemoji_style = 'twemoji'
 sphinxemoji_source = 'https://unpkg.com/twemoji@latest/dist/twemoji.min.js'
 
 autodoc_member_order = 'bysource'
-suppress_warnings = [
-    'autosectionlabel.*',
-    'mystnb.nbcell',
-    'myst.header',
-    'myst.strikethrough',
-]
-myst_enable_extensions = [
-    "amsmath",
-    "attrs_inline",
-    "colon_fence",
-    "deflist",
-    "dollarmath",
-    "fieldlist",
-    "html_admonition",
-    "html_image",
-    "replacements",
-    "smartquotes",
-    "strikethrough",
-    "substitution",
-    "tasklist",
-]
 
 myst_heading_anchors = 3
 nb_execution_mode = 'off'
