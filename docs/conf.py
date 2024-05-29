@@ -22,7 +22,6 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
     'sphinx.ext.autosectionlabel',
-    'sphinx_design',
     'sphinx_copybutton',
     'sphinxemoji.sphinxemoji',
 ]
