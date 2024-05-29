@@ -3,7 +3,8 @@
 import os
 import sys
 
-sys.path.insert(0, os.getcwd())
+cerrPath = os.path.join(os.getcwd(), "..")
+sys.path.insert(0, cerrPath)
 import cerr._version as ver
 release = ver.version
 
