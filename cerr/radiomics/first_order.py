@@ -1,3 +1,9 @@
+"""
+
+This module contains routine for calculation of 1st order statistical features.
+
+"""
+
 import numpy as np
 from scipy.stats import skew, kurtosis, entropy
 import cerr.contour.rasterseg as rs
@@ -6,6 +12,26 @@ import cerr.plan_container as pc
 from cerr.utils.statistics_utils import quantile, prctile
 
 def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
+    """
+
+    This routine calculates 1st order statistical features from the input image and segmentation based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#intensity-based-statistical-features.
+
+    Args:
+        planC (plan_container.planC or np.ndarray(dtype=flat)): planC containing the image and segmentation
+                                or scan np.ndarray.
+        structNum (int or np.ndarray(dtype=int)): index of structure number in planC or binary mask for segmentation
+                                that matches the scan dimensions
+        offsetForEnergy(float): optional, value to add to scan for computing the Energy, TotalEnergy and RMS features
+        binWidth(float): optional, bin width for discretizing the input scan.  Required when binNum is None.
+                                The default value is None.
+        binNum(int): optional, number of bins to discretize the input scan. Required when binWidth is None.
+                                The default value is None.
+    Returns:
+        dict: dictionary of features
+
+    """
+
     if isinstance(planC, pc.PlanC):
         # Get structure Mask
         maskStruct3M = rs.getStrMask(structNum,planC)
