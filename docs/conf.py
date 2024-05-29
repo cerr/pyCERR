@@ -21,8 +21,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
-    'sphinx.ext.autosectionlabel',
-    'sphinxemoji.sphinxemoji',
+    'sphinx.ext.autosectionlabel'
 ]
 
 sphinxemoji_style = 'twemoji'
