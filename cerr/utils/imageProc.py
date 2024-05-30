@@ -227,10 +227,10 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method,\
 
                 scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
                 for nSlc in range(padded3M.shape[2]):
-                scanOut3M[:, :, nSlc] = resize(padded3M[:, :, nSlc],
-                                               (outputImgSizeV[0], outputImgSizeV[1]),
-                                               anti_aliasing=True,
-                                               order=orderDict[methodLower])
+                    scanOut3M[:, :, nSlc] = resize(padded3M[:, :, nSlc],
+                                                   (outputImgSizeV[0], outputImgSizeV[1]),
+                                                   anti_aliasing=True,
+                                                   order=orderDict[methodLower])
 
             #Resize mask
             if mask4M is not None:
