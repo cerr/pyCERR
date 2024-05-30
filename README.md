@@ -37,10 +37,39 @@ Run python from the above Anaconda environment and try out the following code sa
     from cerr import plan_container as pc
     from cerr import viewer as vwr
 
-### Read directory contents to planC
+### Read DICOM directory contents to planC
     dcm_dir = r"\\path\to\Data\dicom\directory"
     planC = pc.load_dcm_dir(dcm_dir)
+    
+### Read NifTi scan to planC
+    scanNiiFileName = r"\\path\to\Data\scan.nii.gz"
+    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN")
 
+### Read NifTi scan to planC by specifying the orientation
+    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN", direction='HFS')
+
+### Read NifTi scan to planC by appending to an existing planC
+    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN", direction='HFS', planC)
+    
+### Read NifTi segmentation to planC
+    structNiiFileName = r"\\path\to\Data\structure.nii.gz"
+    assocScanNum = 0
+    labels_dict = {1: 'GTV_P', 2: 'GTV_N'}
+    planC = pc.load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict)
+
+### Export Scan, Structure and Dose to NifTi
+    scanNiiFileName = r"\\path\to\Data\scan.nii.gz"
+    scanNum = 0
+    planC.scan[scanNum].save_nii(scanNiiFileName)
+    
+    structNiiFileName = r"\\path\to\Data\structure.nii.gz"
+    structNum = 0
+    planC.structure[structNum].save_nii(structNiiFileName, planC)    
+    
+    doseNiiFileName = r"\\path\to\Data\dose.nii.gz"
+    doseNum = 0
+    planC.dose[doseNum].save_nii(doseNiiFileName)
+    
 
 ### visualize scan, dose and segmentation    
     scanNumList = [0]
