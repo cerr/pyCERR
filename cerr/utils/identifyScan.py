@@ -1,18 +1,28 @@
-"""
- Get scan no. with associated metadata matching supplied list of identifiers.
-"""
 import numpy as np
-import datetime
+from datetime import datetime
 import cerr.dataclasses.scan as cerrScn
 
 
-def getScanNumForIdentifier(idS,planC,origFlag):
+def getScanNumFromIdentifier(idDict,planC,origFlag:bool = False):
+    '''
+    Return index of scan with metadata matching user-input identifier(s).
+    Supported identifiers:
+    :param idDict:  Parameter dictionary with keys specifying identifiers, and values holding expected quantity.
+                    Supported identifiers include: 'imageType', 'seriesDescription', 'scanNum', 'scanType',
+                    'seriesDate' (may be" first" or "last"), 'studyDate' (may be" first" or "last"),
+                    and 'assocStructure' (use structure name to identify associated scans. Set to 'none'
+                    to select scans with no associated structures)
+    :param planC
+    ----- Optional-----
+    :param origFlag: Set to True to ignore 'warped', 'resampled' or 'filtered' scans (default:False).
+    :return: scanNumV : Vector of scan indices matching specified identifier(s).
+    '''
 
     # Get no. scans
     numScan = len(planC.scan)
 
     # Read list of identifiers
-    identifierC = list(idS.keys())
+    identifierC = list(idDict.keys())
 
     # Filter reserved fields
     resFieldsC = ['warped', 'filtered', 'resampled']
@@ -24,7 +34,7 @@ def getScanNumForIdentifier(idS,planC,origFlag):
 
     # Loop over identifiers
     for identifier in identifierC:
-        matchValC = idS[identifier]
+        matchValC = idDict[identifier]
 
         # Match against metadata in planC
         if identifier == 'imageType':
@@ -47,10 +57,11 @@ def getScanNumForIdentifier(idS,planC,origFlag):
             x.scanInfo[0].seriesTime.split('.')[0], '%Y%m%d:%H%M%S') for x in planC.scan]
 
             sortedSeriesDateTimesC = sorted(seriesDateTimesC)
+            idV = np.zeros(numScan,dtype='bool')
             if matchValC == 'first':
-                idV = np.array([seriesDateTimesC.index(sortedSeriesDateTimesC[0])])
+                idV[np.array(seriesDateTimesC.index(sortedSeriesDateTimesC[0]))] = True
             elif matchValC == 'last':
-                idV = np.array([seriesDateTimesC.index(sortedSeriesDateTimesC[-1])])
+                idV[np.array(seriesDateTimesC.index(sortedSeriesDateTimesC[-1]))] = True
             else:
                 raise ValueError(f"seriesDate value '{matchValC}' is not supported.")
 
@@ -59,10 +70,11 @@ def getScanNumForIdentifier(idS,planC,origFlag):
             x.scanInfo[0].studyTime.split('.')[0], '%Y%m%d:%H%M%S') for x in planC.scan]
 
             sortedStudyDateTimesC = sorted(studyDateTimesC)
+            idV = np.zeros(numScan,dtype='bool')
             if matchValC == 'first':
-                idV = np.array([studyDateTimesC.index(sortedStudyDateTimesC[0])])
+                idV[np.array(studyDateTimesC.index(sortedStudyDateTimesC[0]))] = True
             elif matchValC == 'last':
-                idV = np.array([studyDateTimesC.index(sortedStudyDateTimesC[-1])])
+                idV[np.array(studyDateTimesC.index(sortedStudyDateTimesC[-1]))] = True
             else:
                 raise ValueError(f"studyDate value '{matchValC}' is not supported.")
 
@@ -85,14 +97,14 @@ def getScanNumForIdentifier(idS,planC,origFlag):
         matchIdxV &= idV
 
     # Return matching scan nos.
-    scanNumV = np.nonzero(matchIdxV)[0] #+ 1
+    scanNumV = np.nonzero(matchIdxV)[0]
 
     if not origFlag:
-        if 'filtered' in idS and idS['filtered'] and idS:
+        if 'filtered' in idDict and idDict['filtered'] and idDict:
             scanNumV = getAssocFilteredScanNum(scanNumV, planC)
-        if 'warped' in idS and idS['warped'] and idS:
+        if 'warped' in idDict and idDict['warped'] and idDict:
             scanNumV = getAssocWarpedScanNum(scanNumV, planC)
-        if 'resampled' in idS and idS['resampled'] and idS:
+        if 'resampled' in idDict and idDict['resampled'] and idDict:
             scanNumV = getAssocResampledScanNum(scanNumV, planC)
 
     return scanNumV
@@ -102,16 +114,52 @@ def getAssocFilteredScanNum(scanNumV,planC):
     """
     Return filtered scan created from input scanNum
     """
-    pass
+
+    scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
+
+    filtScanNumV = np.full(len(scanNumV), np.nan)  # Initialize
+
+    for nScan in range(len(planC.scan)):
+        baseScanUID = planC.scan[nScan].assocBaseScanUID
+        assocIdxV = [uid == baseScanUID for uid in scanUIDs]
+
+        if any(assocIdxV):
+            filtScanNumV[np.where(scanNumV == np.where(assocIdxV))] = nScan
+
+    filtScanNumV = filtScanNumV[~np.isnan(filtScanNumV)]
+    return filtScanNumV
 
 def getAssocWarpedScanNum(scanNumV,planC):
     """
     Return warped scan created from input scanNum
     """
-    pass
+    assocMovScanUIDs = [planC.scan[scanNum].assocMovingScanUID for scanNum in scanNumV]
+
+    warpedScanNumV = np.full(len(scanNumV),np.nan)
+    for nScan in range(len(scanNumV)):
+        movScanUID = planC.scan[scanNumV(nScan)].scanUID
+        assocIdxV = [uid == movScanUID for uid in assocMovScanUIDs]
+        if any(assocIdxV):
+            warpedScanNumV[nScan] = np.where(assocIdxV)
+
+    warpedScanNumV = warpedScanNumV[~np.isnan(warpedScanNumV)]
+    return warpedScanNumV
+
 
 def getAssocResampledScanNum(scanNumV,planC):
     """
     Return resampled scan created from input scanNum
     """
-    pass
+    scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
+    resampScanNumV = np.full(len(scanNumV),np.nan)
+
+    for nScan in range(len(planC.scan)):
+        baseScanUID = planC.scan[nScan].assocBaseScanUID
+        assocIdxV = [uid == baseScanUID for uid in scanUIDs]
+        if any(assocIdxV):
+            resampScanNumV[scanNumV==np.where(assocIdxV)] = nScan
+
+
+    resampScanNumV = resampScanNumV[~np.isnan(resampScanNumV)]
+    return resampScanNumV
+

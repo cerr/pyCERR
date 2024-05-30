@@ -1,5 +1,5 @@
 """
-Funcitons to compute statistics
+Functions to compute statistics
 """
 import numpy as np
 
