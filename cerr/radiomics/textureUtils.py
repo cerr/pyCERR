@@ -6,7 +6,7 @@ import cerr.contour.rasterseg as rs
 from cerr import plan_container as pc
 from cerr.radiomics import textureFilters
 from cerr.radiomics.preprocess import preProcessForRadiomics
-from cerr.utils.bbox import compute_boundingbox
+from cerr.utils.mask import compute_boundingbox
 
 def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
     """ Load filter parameters from user-input JSON file"""
@@ -170,7 +170,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
         uniqueSlicesV = np.unique(slicesV)
         strName = 'ROI'
     else:
-        scanNum = planC.structure[strNum].getStructureAssociatedScan(planC)[0]
+        scanNum = planC.structure[strNum].getStructureAssociatedScan(planC)
         scan3M = planC.scan[scanNum].getScanArray()
         origSizeV = scan3M.shape
         mask3M = np.zeros(origSizeV, dtype=bool)

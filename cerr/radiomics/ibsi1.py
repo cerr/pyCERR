@@ -5,7 +5,7 @@ This module contains routines for IBSI1 compatible radiomics calculation
 import numpy as np
 from cerr.radiomics import first_order, gray_level_cooccurence, run_length,\
     size_zone, neighbor_gray_level_dependence, neighbor_gray_tone
-from cerr.utils.bbox import compute_boundingbox
+from cerr.utils.mask import compute_boundingbox
 from cerr.radiomics import preprocess, textureUtils
 import json
 

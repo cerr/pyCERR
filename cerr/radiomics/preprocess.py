@@ -6,7 +6,7 @@ This module contains routines for processing image and segmentation mask for rad
 
 import numpy as np
 import cerr.contour.rasterseg as rs
-from cerr.utils.bbox import compute_boundingbox
+from cerr.utils.mask import compute_boundingbox
 import SimpleITK as sitk
 
 # from scipy.interpolate import interpn

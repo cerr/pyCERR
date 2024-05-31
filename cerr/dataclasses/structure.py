@@ -163,7 +163,6 @@ class Structure:
         Returns associated scan index for structure object based on the scan UID associated with
         the structure.
         """
-
         # Preallocate memory
         scanUID = [None] * len(planC.scan)
 
@@ -177,13 +176,10 @@ class Structure:
         assocScanUID = self['assocScanUID']
 
         # Match all the UID to check which scan the structure belongs to.
-        assocScansV = []
-        for uid in assocScanUID:
-            ind = next((i for i, x in enumerate(scanUID) if x == uid), 0)
-            assocScansV.append(ind)
+        assocScans = [i for i, x in enumerate(scanUID) if x == assocScanUID]
 
-        return assocScansV
-
+        return assocScans[0]
+    
     def getSitkImage(self, planC):
         assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
         mask3M = rs.getStrMask(self, planC)
