@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cerr package &mdash; pyCERR 1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=29a6c3e3"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="cerr.ai package" href="cerr.ai.html" />
+    <link rel="prev" title="pyCERR" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            pyCERR
+          </a>
+              <div class="version">
+                0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">pyCERR</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">cerr package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#subpackages">Subpackages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.ai.html">cerr.ai package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.contour.html">cerr.contour package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html">cerr.dataclasses package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.datasets.html">cerr.datasets package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dcm_export.html">cerr.dcm_export package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.radiomics.html">cerr.radiomics package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.roe.html">cerr.roe package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.utils.html">cerr.utils package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cerr-dvh-module">cerr.dvh module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cerr-plan-container-module">cerr.plan_container module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cerr-viewer-module">cerr.viewer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-cerr">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html">setup module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tests.html">tests package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">pyCERR</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">pyCERR</a></li>
+      <li class="breadcrumb-item active">cerr package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/cerr.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="cerr-package">
+<h1>cerr package<a class="headerlink" href="#cerr-package" title="Link to this heading"></a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="cerr.ai.html">cerr.ai package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.ai.html#module-cerr.ai">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.contour.html">cerr.contour package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.contour.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.contour.html#cerr-contour-contour-processing-module">cerr.contour.contour_processing module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.contour.html#cerr-contour-rasterseg-module">cerr.contour.rasterseg module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.contour.html#module-cerr.contour">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.dataclasses.html">cerr.dataclasses package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#module-cerr.dataclasses.beams">cerr.dataclasses.beams module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamLimitingDevicePositionSeq"><code class="docutils literal notranslate"><span class="pre">BeamLimitingDevicePositionSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamLimitingDevicePositionSeq.LeafJawPositions"><code class="docutils literal notranslate"><span class="pre">BeamLimitingDevicePositionSeq.LeafJawPositions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamLimitingDevicePositionSeq.RTBeamLimitingDeviceType"><code class="docutils literal notranslate"><span class="pre">BeamLimitingDevicePositionSeq.RTBeamLimitingDeviceType</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq"><code class="docutils literal notranslate"><span class="pre">BeamSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.BeamDescription"><code class="docutils literal notranslate"><span class="pre">BeamSeq.BeamDescription</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.BeamLimitingDevicePositionSeq"><code class="docutils literal notranslate"><span class="pre">BeamSeq.BeamLimitingDevicePositionSeq</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.BeamName"><code class="docutils literal notranslate"><span class="pre">BeamSeq.BeamName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.BeamNumber"><code class="docutils literal notranslate"><span class="pre">BeamSeq.BeamNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.BeamType"><code class="docutils literal notranslate"><span class="pre">BeamSeq.BeamType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.ControlPointSequence"><code class="docutils literal notranslate"><span class="pre">BeamSeq.ControlPointSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.Manufacturer"><code class="docutils literal notranslate"><span class="pre">BeamSeq.Manufacturer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.NumberOfBlocks"><code class="docutils literal notranslate"><span class="pre">BeamSeq.NumberOfBlocks</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.NumberOfBoli"><code class="docutils literal notranslate"><span class="pre">BeamSeq.NumberOfBoli</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.NumberOfCompensators"><code class="docutils literal notranslate"><span class="pre">BeamSeq.NumberOfCompensators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.NumberOfControlPoints"><code class="docutils literal notranslate"><span class="pre">BeamSeq.NumberOfControlPoints</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.NumberOfWedges"><code class="docutils literal notranslate"><span class="pre">BeamSeq.NumberOfWedges</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.RadiationType"><code class="docutils literal notranslate"><span class="pre">BeamSeq.RadiationType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.SourceAxisDistance"><code class="docutils literal notranslate"><span class="pre">BeamSeq.SourceAxisDistance</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.TreatmentDeliveryType"><code class="docutils literal notranslate"><span class="pre">BeamSeq.TreatmentDeliveryType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.json_serialize"><code class="docutils literal notranslate"><span class="pre">BeamSeq.json_serialize</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams"><code class="docutils literal notranslate"><span class="pre">Beams</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.AcquisitionGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.AcquisitionGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ApprovalStatus"><code class="docutils literal notranslate"><span class="pre">Beams.ApprovalStatus</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.BeamSequence"><code class="docutils literal notranslate"><span class="pre">Beams.BeamSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.BeamUID"><code class="docutils literal notranslate"><span class="pre">Beams.BeamUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.DoseReferenceSequence"><code class="docutils literal notranslate"><span class="pre">Beams.DoseReferenceSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.FractionGroupSequence"><code class="docutils literal notranslate"><span class="pre">Beams.FractionGroupSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ImagePresentationGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.ImagePresentationGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.Manufacturer"><code class="docutils literal notranslate"><span class="pre">Beams.Manufacturer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ManufacturerModelName"><code class="docutils literal notranslate"><span class="pre">Beams.ManufacturerModelName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PatientBirthDate"><code class="docutils literal notranslate"><span class="pre">Beams.PatientBirthDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PatientID"><code class="docutils literal notranslate"><span class="pre">Beams.PatientID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PatientName"><code class="docutils literal notranslate"><span class="pre">Beams.PatientName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PatientSetupSequence"><code class="docutils literal notranslate"><span class="pre">Beams.PatientSetupSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PatientSex"><code class="docutils literal notranslate"><span class="pre">Beams.PatientSex</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PixelPaddingValue"><code class="docutils literal notranslate"><span class="pre">Beams.PixelPaddingValue</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PlanGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.PlanGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.PrescriptionDescription"><code class="docutils literal notranslate"><span class="pre">Beams.PrescriptionDescription</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.RTPlanDate"><code class="docutils literal notranslate"><span class="pre">Beams.RTPlanDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.RTPlanGeometry"><code class="docutils literal notranslate"><span class="pre">Beams.RTPlanGeometry</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.RTPlanLabel"><code class="docutils literal notranslate"><span class="pre">Beams.RTPlanLabel</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.RTPlanTime"><code class="docutils literal notranslate"><span class="pre">Beams.RTPlanTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReferencedDoseSequence"><code class="docutils literal notranslate"><span class="pre">Beams.ReferencedDoseSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReferencedRTGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.ReferencedRTGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReferencedStructureSetSequence"><code class="docutils literal notranslate"><span class="pre">Beams.ReferencedStructureSetSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.RelationshipGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.RelationshipGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReviewDate"><code class="docutils literal notranslate"><span class="pre">Beams.ReviewDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReviewGroupLength"><code class="docutils literal notranslate"><span class="pre">Beams.ReviewGroupLength</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReviewTime"><code class="docutils literal notranslate"><span class="pre">Beams.ReviewTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.ReviewerName"><code class="docutils literal notranslate"><span class="pre">Beams.ReviewerName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.SOPInstanceUID"><code class="docutils literal notranslate"><span class="pre">Beams.SOPInstanceUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.Beams.TreatmentSites"><code class="docutils literal notranslate"><span class="pre">Beams.TreatmentSites</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.BeamLimitingDeviceAngle"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.BeamLimitingDeviceAngle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.BeamLimitingDevicePositionSequence"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.BeamLimitingDevicePositionSequence</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.BeamLimitingDeviceRotationDirection"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.BeamLimitingDeviceRotationDirection</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.ControlPointIndex"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.ControlPointIndex</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.CumulativeMetersetWeight"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.CumulativeMetersetWeight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.GantryAngle"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.GantryAngle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.GantryRotationDirection"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.GantryRotationDirection</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.IsocenterPosition"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.IsocenterPosition</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.NominalBeamEnergy"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.NominalBeamEnergy</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.PatientSupportAngle"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.PatientSupportAngle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.SourceToSurfaceDistance"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.SourceToSurfaceDistance</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.TableTopEccentricAngle"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.TableTopEccentricAngle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence.TableTopEccentricRotationDirection"><code class="docutils literal notranslate"><span class="pre">ControlPointSequence.TableTopEccentricRotationDirection</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.FractionGroupNumber"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.FractionGroupNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.NumberOfBeams"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.NumberOfBeams</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.NumberOfBrachyApplicationSetups"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.NumberOfBrachyApplicationSetups</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.NumberOfFractionsPlanned"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.NumberOfFractionsPlanned</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.RadiationType"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.RadiationType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq.RefBeamSeq"><code class="docutils literal notranslate"><span class="pre">FractionGroupSeq.RefBeamSeq</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.PatientSetupSeq"><code class="docutils literal notranslate"><span class="pre">PatientSetupSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.PatientSetupSeq.PatientPosition"><code class="docutils literal notranslate"><span class="pre">PatientSetupSeq.PatientPosition</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.PatientSetupSeq.PatientSetupNumber"><code class="docutils literal notranslate"><span class="pre">PatientSetupSeq.PatientSetupNumber</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.RefBeamSeq"><code class="docutils literal notranslate"><span class="pre">RefBeamSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.RefBeamSeq.BeamMeterset"><code class="docutils literal notranslate"><span class="pre">RefBeamSeq.BeamMeterset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.RefBeamSeq.ReferencedBeamNumber"><code class="docutils literal notranslate"><span class="pre">RefBeamSeq.ReferencedBeamNumber</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ReferenceSeq"><code class="docutils literal notranslate"><span class="pre">ReferenceSeq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ReferenceSeq.ReferencedSOPClassUID"><code class="docutils literal notranslate"><span class="pre">ReferenceSeq.ReferencedSOPClassUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.ReferenceSeq.ReferencedSOPInstanceUID"><code class="docutils literal notranslate"><span class="pre">ReferenceSeq.ReferencedSOPInstanceUID</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.get_empty_list"><code class="docutils literal notranslate"><span class="pre">get_empty_list()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.get_empty_np_array"><code class="docutils literal notranslate"><span class="pre">get_empty_np_array()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.beams.load_beams"><code class="docutils literal notranslate"><span class="pre">load_beams()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#cerr-dataclasses-deform-module">cerr.dataclasses.deform module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#cerr-dataclasses-dose-module">cerr.dataclasses.dose module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#module-cerr.dataclasses.header">cerr.dataclasses.header module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header"><code class="docutils literal notranslate"><span class="pre">Header</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header.dateCreated"><code class="docutils literal notranslate"><span class="pre">Header.dateCreated</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header.dateLastSaved"><code class="docutils literal notranslate"><span class="pre">Header.dateLastSaved</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header.dt"><code class="docutils literal notranslate"><span class="pre">Header.dt</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header.version"><code class="docutils literal notranslate"><span class="pre">Header.version</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.header.Header.writer"><code class="docutils literal notranslate"><span class="pre">Header.writer</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#cerr-dataclasses-scan-module">cerr.dataclasses.scan module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#module-cerr.dataclasses.scan_info">cerr.dataclasses.scan_info module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo"><code class="docutils literal notranslate"><span class="pre">ScanInfo</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.APflippedToMatchPACS"><code class="docutils literal notranslate"><span class="pre">ScanInfo.APflippedToMatchPACS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.CTAir"><code class="docutils literal notranslate"><span class="pre">ScanInfo.CTAir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.CTOffset"><code class="docutils literal notranslate"><span class="pre">ScanInfo.CTOffset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.CTScale"><code class="docutils literal notranslate"><span class="pre">ScanInfo.CTScale</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.CTWater"><code class="docutils literal notranslate"><span class="pre">ScanInfo.CTWater</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.LRflippedToMatchPACS"><code class="docutils literal notranslate"><span class="pre">ScanInfo.LRflippedToMatchPACS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.SIflippedToMatchPACS"><code class="docutils literal notranslate"><span class="pre">ScanInfo.SIflippedToMatchPACS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.acquisitionDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.acquisitionDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.acquisitionTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.acquisitionTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.bValue"><code class="docutils literal notranslate"><span class="pre">ScanInfo.bValue</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.caseNumber"><code class="docutils literal notranslate"><span class="pre">ScanInfo.caseNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.correctedImage"><code class="docutils literal notranslate"><span class="pre">ScanInfo.correctedImage</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.decayCorrection"><code class="docutils literal notranslate"><span class="pre">ScanInfo.decayCorrection</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.distrustAbove"><code class="docutils literal notranslate"><span class="pre">ScanInfo.distrustAbove</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.frameAcquisitionDuration"><code class="docutils literal notranslate"><span class="pre">ScanInfo.frameAcquisitionDuration</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.frameOfReferenceUID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.frameOfReferenceUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.frameReferenceDateTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.frameReferenceDateTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.grid1Units"><code class="docutils literal notranslate"><span class="pre">ScanInfo.grid1Units</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.grid2Units"><code class="docutils literal notranslate"><span class="pre">ScanInfo.grid2Units</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.halfLife"><code class="docutils literal notranslate"><span class="pre">ScanInfo.halfLife</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.headInOut"><code class="docutils literal notranslate"><span class="pre">ScanInfo.headInOut</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imageNumber"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imageNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imageOrientationPatient"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imageOrientationPatient</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imagePositionPatient"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imagePositionPatient</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imageSource"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imageSource</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imageType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imageType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.imageUnits"><code class="docutils literal notranslate"><span class="pre">ScanInfo.imageUnits</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.injectedDose"><code class="docutils literal notranslate"><span class="pre">ScanInfo.injectedDose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.injectionDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.injectionDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.injectionTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.injectionTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.manufacturer"><code class="docutils literal notranslate"><span class="pre">ScanInfo.manufacturer</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.numberOfDimensions"><code class="docutils literal notranslate"><span class="pre">ScanInfo.numberOfDimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.numberRepresentation"><code class="docutils literal notranslate"><span class="pre">ScanInfo.numberRepresentation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientAttitude"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientAttitude</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientBirthDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientBirthDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientBmi"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientBmi</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientName"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientPosition"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientPosition</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientSex"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientSex</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientSize"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientSize</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.patientWeight"><code class="docutils literal notranslate"><span class="pre">ScanInfo.patientWeight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petActivityConctrScaleFactor"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petActivityConctrScaleFactor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petCountSource"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petCountSource</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petDecayCorrectionDateTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petDecayCorrectionDateTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petIsDecayCorrected"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petIsDecayCorrected</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petNumSlices"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petNumSlices</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petPrimarySourceOfCounts"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petPrimarySourceOfCounts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.petSeriesType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.petSeriesType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.philipsImageUnits"><code class="docutils literal notranslate"><span class="pre">ScanInfo.philipsImageUnits</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.positionInScan"><code class="docutils literal notranslate"><span class="pre">ScanInfo.positionInScan</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.radiopharmaInfoS"><code class="docutils literal notranslate"><span class="pre">ScanInfo.radiopharmaInfoS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.realWorldMeasurCodeMeaning"><code class="docutils literal notranslate"><span class="pre">ScanInfo.realWorldMeasurCodeMeaning</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.rescaleIntercept"><code class="docutils literal notranslate"><span class="pre">ScanInfo.rescaleIntercept</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.rescaleSlope"><code class="docutils literal notranslate"><span class="pre">ScanInfo.rescaleSlope</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.rescaleType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.rescaleType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scanDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scanDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scanFileName"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scanFileName</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scanID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scanID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scanNumber"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scanNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scanType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scanType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.scannerType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.scannerType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.seriesDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.seriesDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.seriesDescription"><code class="docutils literal notranslate"><span class="pre">ScanInfo.seriesDescription</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.seriesInstanceUID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.seriesInstanceUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.seriesTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.seriesTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.siteOfInterest"><code class="docutils literal notranslate"><span class="pre">ScanInfo.siteOfInterest</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.sizeOfDimension1"><code class="docutils literal notranslate"><span class="pre">ScanInfo.sizeOfDimension1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.sizeOfDimension2"><code class="docutils literal notranslate"><span class="pre">ScanInfo.sizeOfDimension2</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.sliceThickness"><code class="docutils literal notranslate"><span class="pre">ScanInfo.sliceThickness</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.sopClassUID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.sopClassUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.sopInstanceUID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.sopInstanceUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.studyDate"><code class="docutils literal notranslate"><span class="pre">ScanInfo.studyDate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.studyDescription"><code class="docutils literal notranslate"><span class="pre">ScanInfo.studyDescription</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.studyInstanceUID"><code class="docutils literal notranslate"><span class="pre">ScanInfo.studyInstanceUID</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.studyNumberOfOrigin"><code class="docutils literal notranslate"><span class="pre">ScanInfo.studyNumberOfOrigin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.studyTime"><code class="docutils literal notranslate"><span class="pre">ScanInfo.studyTime</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.suvType"><code class="docutils literal notranslate"><span class="pre">ScanInfo.suvType</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.tapeOfOrigin"><code class="docutils literal notranslate"><span class="pre">ScanInfo.tapeOfOrigin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.temporalPositionIndex"><code class="docutils literal notranslate"><span class="pre">ScanInfo.temporalPositionIndex</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.transferProtocol"><code class="docutils literal notranslate"><span class="pre">ScanInfo.transferProtocol</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.unitNumber"><code class="docutils literal notranslate"><span class="pre">ScanInfo.unitNumber</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.voxelThickness"><code class="docutils literal notranslate"><span class="pre">ScanInfo.voxelThickness</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.windowCenter"><code class="docutils literal notranslate"><span class="pre">ScanInfo.windowCenter</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.windowWidth"><code class="docutils literal notranslate"><span class="pre">ScanInfo.windowWidth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.xOffset"><code class="docutils literal notranslate"><span class="pre">ScanInfo.xOffset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.yOffset"><code class="docutils literal notranslate"><span class="pre">ScanInfo.yOffset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.ScanInfo.zValue"><code class="docutils literal notranslate"><span class="pre">ScanInfo.zValue</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.firstZValue"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.firstZValue</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.maxCTValue"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.maxCTValue</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.minCTValue"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.minCTValue</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.sliceNumInf"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.sliceNumInf</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.sliceNumSup"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.sliceNumSup</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.UniformScanInfo.supInfScansCreated"><code class="docutils literal notranslate"><span class="pre">UniformScanInfo.supInfScansCreated</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.deduce_voxel_thickness"><code class="docutils literal notranslate"><span class="pre">deduce_voxel_thickness()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.get_empty_list"><code class="docutils literal notranslate"><span class="pre">get_empty_list()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.dataclasses.html#cerr.dataclasses.scan_info.get_empty_np_array"><code class="docutils literal notranslate"><span class="pre">get_empty_np_array()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#cerr-dataclasses-structure-module">cerr.dataclasses.structure module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dataclasses.html#module-cerr.dataclasses">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.datasets.html">cerr.datasets package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.datasets.html#module-cerr.datasets">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.dcm_export.html">cerr.dcm_export package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dcm_export.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dcm_export.html#cerr-dcm-export-iod-helper-module">cerr.dcm_export.iod_helper module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dcm_export.html#cerr-dcm-export-reg-iod-module">cerr.dcm_export.reg_iod module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dcm_export.html#cerr-dcm-export-rtstruct-iod-module">cerr.dcm_export.rtstruct_iod module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.dcm_export.html#module-cerr.dcm_export">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.radiomics.html">cerr.radiomics package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-first-order-module">cerr.radiomics.first_order module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#module-cerr.radiomics.gray_level_cooccurence">cerr.radiomics.gray_level_cooccurence module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.gray_level_cooccurence.calcCooccur"><code class="docutils literal notranslate"><span class="pre">calcCooccur()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.gray_level_cooccurence.cooccurToScalarFeatures"><code class="docutils literal notranslate"><span class="pre">cooccurToScalarFeatures()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-ibsi1-module">cerr.radiomics.ibsi1 module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#module-cerr.radiomics.neighbor_gray_level_dependence">cerr.radiomics.neighbor_gray_level_dependence module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.neighbor_gray_level_dependence.calcNGLDM"><code class="docutils literal notranslate"><span class="pre">calcNGLDM()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.neighbor_gray_level_dependence.ngldmToScalarFeatures"><code class="docutils literal notranslate"><span class="pre">ngldmToScalarFeatures()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#module-cerr.radiomics.neighbor_gray_tone">cerr.radiomics.neighbor_gray_tone module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.neighbor_gray_tone.calcNGTDM"><code class="docutils literal notranslate"><span class="pre">calcNGTDM()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.neighbor_gray_tone.ngtdmToScalarFeatures"><code class="docutils literal notranslate"><span class="pre">ngtdmToScalarFeatures()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-preprocess-module">cerr.radiomics.preprocess module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#module-cerr.radiomics.run_length">cerr.radiomics.run_length module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.run_length.calcRLM"><code class="docutils literal notranslate"><span class="pre">calcRLM()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.run_length.calcRLM_old"><code class="docutils literal notranslate"><span class="pre">calcRLM_old()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.radiomics.html#cerr.radiomics.run_length.rlmToScalarFeatures"><code class="docutils literal notranslate"><span class="pre">rlmToScalarFeatures()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-shape-module">cerr.radiomics.shape module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-size-zone-module">cerr.radiomics.size_zone module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-texturefilters-module">cerr.radiomics.textureFilters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#cerr-radiomics-textureutils-module">cerr.radiomics.textureUtils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.radiomics.html#module-cerr.radiomics">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.roe.html">cerr.roe package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.roe.html#module-cerr.roe">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cerr.utils.html">cerr.utils package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-aipipeline-module">cerr.utils.aiPipeline module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-identifyscan-module">cerr.utils.identifyScan module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-imageproc-module">cerr.utils.imageProc module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-interp-module">cerr.utils.interp module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-mask-module">cerr.utils.mask module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#cerr-utils-mirrorscope-module">cerr.utils.mirrorScope module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#module-cerr.utils.statisticsUtils">cerr.utils.statisticsUtils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.utils.html#cerr.utils.statisticsUtils.prctile"><code class="docutils literal notranslate"><span class="pre">prctile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cerr.utils.html#cerr.utils.statisticsUtils.quantile"><code class="docutils literal notranslate"><span class="pre">quantile()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#module-cerr.utils.uid">cerr.utils.uid module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cerr.utils.html#cerr.utils.uid.createUID"><code class="docutils literal notranslate"><span class="pre">createUID()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cerr.utils.html#module-cerr.utils">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="cerr-dvh-module">
+<h2>cerr.dvh module<a class="headerlink" href="#cerr-dvh-module" title="Link to this heading"></a></h2>
+</section>
+<section id="cerr-plan-container-module">
+<h2>cerr.plan_container module<a class="headerlink" href="#cerr-plan-container-module" title="Link to this heading"></a></h2>
+</section>
+<section id="cerr-viewer-module">
+<h2>cerr.viewer module<a class="headerlink" href="#cerr-viewer-module" title="Link to this heading"></a></h2>
+</section>
+<section id="module-cerr">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-cerr" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="pyCERR" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cerr.ai.html" class="btn btn-neutral float-right" title="cerr.ai package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright GNU GPL v3.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

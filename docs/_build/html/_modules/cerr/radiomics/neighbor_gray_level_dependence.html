@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cerr.radiomics.neighbor_gray_level_dependence &mdash; pyCERR 1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=29a6c3e3"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            pyCERR
+          </a>
+              <div class="version">
+                0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">pyCERR</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pyCERR</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">cerr.radiomics.neighbor_gray_level_dependence</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for cerr.radiomics.neighbor_gray_level_dependence</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains routines for claculation of Gray Level Dependence texture features</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<div class="viewcode-block" id="calcNGLDM">
+<a class="viewcode-back" href="../../../cerr.radiomics.html#cerr.radiomics.neighbor_gray_level_dependence.calcNGLDM">[docs]</a>
+<span class="k">def</span> <span class="nf">calcNGLDM</span><span class="p">(</span><span class="n">scan_array</span><span class="p">,</span> <span class="n">patch_size</span><span class="p">,</span> <span class="n">num_grayscale_levels</span><span class="p">,</span> <span class="n">a</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This function calculates the Neighborhood Gray Level Dependence Matrix for the passed quantized image based on</span>
+<span class="sd">    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbouring-grey-level-dependence-based-features</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        scan_array (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr</span>
+<span class="sd">        patch_size (list): list of length 3 defining patch radius for row, col, slc dimensions.</span>
+<span class="sd">        num_grayscale_levels (int): Number of gray levels.</span>
+<span class="sd">        a: coarseness parameter</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        np.ndarray: NGLDM matrix os size (num_grayscale_levels, max_nbhood_size)</span>
+
+<span class="sd">        The output can be passed to ngldmToScalarFeatures to get NGLDM texture features.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Get indices of non-NaN voxels</span>
+    <span class="n">calc_ind</span> <span class="o">=</span> <span class="n">scan_array</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="c1"># Grid resolution</span>
+    <span class="n">slc_window</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">row_window</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">col_window</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="c1"># Build distance matrices</span>
+    <span class="n">num_cols_pad</span> <span class="o">=</span> <span class="n">col_window</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">num_rows_pad</span> <span class="o">=</span> <span class="n">row_window</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">num_slcs_pad</span> <span class="o">=</span> <span class="n">slc_window</span> <span class="o">//</span> <span class="mi">2</span>
+
+    <span class="c1"># Get number of voxels per slice</span>
+    <span class="n">num_rows</span><span class="p">,</span> <span class="n">num_cols</span><span class="p">,</span> <span class="n">num_slices</span> <span class="o">=</span> <span class="n">scan_array</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">num_voxels</span> <span class="o">=</span> <span class="n">num_rows</span> <span class="o">*</span> <span class="n">num_cols</span>
+
+    <span class="c1"># Pad q for sliding window</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">scan_array</span><span class="p">,</span> <span class="p">((</span><span class="n">num_rows_pad</span><span class="p">,</span> <span class="n">num_rows_pad</span><span class="p">),</span> <span class="p">(</span><span class="n">num_cols_pad</span><span class="p">,</span> <span class="n">num_cols_pad</span><span class="p">),</span> <span class="p">(</span><span class="n">num_slcs_pad</span><span class="p">,</span> <span class="n">num_slcs_pad</span><span class="p">)),</span>
+               <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,))</span>
+
+    <span class="n">calc_ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">calc_ind</span><span class="p">,</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">num_slcs_pad</span><span class="p">,</span> <span class="n">num_slcs_pad</span><span class="p">)),</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+     <span class="c1"># Index calculation adapted from</span>
+     <span class="c1"># http://stackoverflow.com/questions/25449279/efficient-implementation-of-im2col-and-col2im</span>
+    <span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="n">n</span><span class="p">,</span><span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">start_ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">m</span><span class="o">-</span><span class="n">row_window</span><span class="o">+</span><span class="mi">2</span><span class="p">)[</span><span class="kc">None</span><span class="p">,:]</span> <span class="o">+</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">n</span><span class="o">-</span><span class="n">col_window</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">m</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">start_ind</span> <span class="o">=</span> <span class="n">start_ind</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+
+    <span class="c1"># Row indices</span>
+    <span class="n">lin_row</span> <span class="o">=</span> <span class="n">start_ind</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">row_window</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">lin_row</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">moveaxis</span><span class="p">(</span><span class="n">lin_row</span><span class="p">[:,:,</span><span class="kc">None</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">],[</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Get linear indices based on row and col indices and get desired output</span>
+    <span class="n">indM</span> <span class="o">=</span> <span class="n">lin_row</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">col_window</span><span class="p">)[</span><span class="kc">None</span><span class="p">,:,</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">m</span>
+    <span class="n">indM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">indM</span><span class="p">,(</span><span class="n">row_window</span><span class="o">*</span><span class="n">col_window</span><span class="p">,</span><span class="n">indM</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="c1"># Initialize the s (NGLDM) matrix</span>
+    <span class="n">max_nbhood_size</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_grayscale_levels</span><span class="p">,</span> <span class="n">max_nbhood_size</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span>
+    <span class="c1">#p = np.zeros((num_grayscale_levels, 1), dtype=np.uint32)</span>
+
+    <span class="k">for</span> <span class="n">slc_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_slcs_pad</span><span class="p">,</span> <span class="n">num_slices</span> <span class="o">+</span> <span class="n">num_slcs_pad</span><span class="p">):</span>
+        <span class="n">calc_slc_ind</span> <span class="o">=</span> <span class="n">calc_ind</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">slc_num</span><span class="p">]</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span>
+        <span class="n">num_calc_voxels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">calc_slc_ind</span><span class="p">)</span>
+        <span class="n">indSlcM</span> <span class="o">=</span> <span class="n">indM</span><span class="p">[:,</span><span class="n">calc_slc_ind</span><span class="p">]</span>
+        <span class="c1">#ind_slc = np.where(calc_slc_ind)[0]</span>
+        <span class="n">slc_v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">slc_num</span> <span class="o">-</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">slc_num</span> <span class="o">+</span> <span class="n">patch_size</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">nbhood_size</span> <span class="o">=</span> <span class="n">indSlcM</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">slcNeighborSiz</span> <span class="o">=</span> <span class="n">slc_v</span><span class="o">.</span><span class="n">size</span> <span class="o">*</span> <span class="n">nbhood_size</span>
+
+        <span class="n">q_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">slcNeighborSiz</span><span class="p">,</span> <span class="n">num_calc_voxels</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">m_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">slcNeighborSiz</span><span class="p">,</span> <span class="n">num_calc_voxels</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i_slc</span> <span class="ow">in</span> <span class="n">slc_v</span><span class="p">:</span>
+            <span class="n">q_slc</span> <span class="o">=</span> <span class="n">q</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">i_slc</span><span class="p">]</span>
+            <span class="n">mask_slc_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">calc_ind</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">i_slc</span><span class="p">],</span> <span class="p">((</span><span class="n">num_rows_pad</span><span class="p">,</span> <span class="n">num_rows_pad</span><span class="p">),</span> <span class="p">(</span><span class="n">num_cols_pad</span><span class="p">,</span> <span class="n">num_cols_pad</span><span class="p">)),</span>
+                               <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">q_m</span><span class="p">[</span><span class="n">count</span> <span class="o">*</span> <span class="n">nbhood_size</span><span class="p">:(</span><span class="n">count</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">nbhood_size</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">q_slc</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)[</span><span class="n">indSlcM</span><span class="p">]</span>
+            <span class="n">m_m</span><span class="p">[</span><span class="n">count</span> <span class="o">*</span> <span class="n">nbhood_size</span><span class="p">:(</span><span class="n">count</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">nbhood_size</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">mask_slc_m</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)[</span><span class="n">indSlcM</span><span class="p">]</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">current_voxel_index</span> <span class="o">=</span> <span class="n">nbhood_size</span> <span class="o">*</span> <span class="n">slc_v</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">vox_val_v</span> <span class="o">=</span> <span class="n">q_m</span><span class="p">[</span><span class="n">current_voxel_index</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">vox_mask_v</span> <span class="o">=</span> <span class="n">m_m</span><span class="p">[</span><span class="n">current_voxel_index</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">q_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">q_m</span><span class="p">,</span> <span class="n">current_voxel_index</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">m_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">m_m</span><span class="p">,</span> <span class="n">current_voxel_index</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c1">#q_m[np.isnan(q_m)] = 0</span>
+        <span class="n">q_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">q_m</span> <span class="o">-</span> <span class="n">vox_val_v</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">a</span>
+        <span class="n">q_m</span><span class="p">[</span><span class="n">m_m</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">q_m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">q_m</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">lev</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_grayscale_levels</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">ind_lev_v</span> <span class="o">=</span> <span class="p">(</span><span class="n">vox_val_v</span> <span class="o">==</span> <span class="n">lev</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">vox_mask_v</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="n">vals_v</span> <span class="o">=</span> <span class="n">q_m</span><span class="p">[</span><span class="n">ind_lev_v</span><span class="p">]</span>
+            <span class="n">s</span><span class="p">[</span><span class="n">lev</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">vals_v</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">minlength</span><span class="o">=</span><span class="n">slcNeighborSiz</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">s</span></div>
+
+
+
+<div class="viewcode-block" id="ngldmToScalarFeatures">
+<a class="viewcode-back" href="../../../cerr.radiomics.html#cerr.radiomics.neighbor_gray_level_dependence.ngldmToScalarFeatures">[docs]</a>
+<span class="k">def</span> <span class="nf">ngldmToScalarFeatures</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">numVoxels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This function calculates scalar texture features from Neighborhood Gray Level Dependence matrix as per</span>
+<span class="sd">    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbouring-grey-level-dependence-based-features</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        s (np.ndarray: NGLDM matrix of size (num_grayscale_levels, max_nbhood_size)</span>
+<span class="sd">        numVoxels (int): number of voxels in the region of interest used for generating s.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict: dictionary with scalar NGLDM texture features as its</span>
+<span class="sd">             fields.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">featuresS</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">Ns</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">Nn</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">Ng</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">lenV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">Nn</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+    <span class="n">levV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">Ng</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+    <span class="n">levV</span> <span class="o">=</span> <span class="n">levV</span><span class="p">[</span><span class="kc">None</span><span class="p">,:]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">lenV</span> <span class="o">=</span> <span class="n">lenV</span><span class="p">[</span><span class="kc">None</span><span class="p">,:]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="c1"># Low dependence emphasis</span>
+    <span class="n">sLdeM</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;lowDependenceEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sLdeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># High dependence emphasis</span>
+    <span class="n">sHdeM</span> <span class="o">=</span> <span class="n">s</span> <span class="o">*</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;highDependenceEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sHdeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Low gray level count emphasis</span>
+    <span class="n">sLgceM</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;lowGrayLevelCountEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sLgceM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># High gray level count emphasis</span>
+    <span class="n">sHgceM</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;highGrayLevelCountEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sHgceM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Low dependence low gray level emphasis</span>
+    <span class="n">sLdlgeM</span> <span class="o">=</span> <span class="n">sLdeM</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;lowDependenceLowGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sLdlgeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Low dependence high gray level emphasis</span>
+    <span class="n">sLdhgeM</span> <span class="o">=</span> <span class="n">sLdeM</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;lowDependenceHighGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sLdhgeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># High dependence low gray level emphasis</span>
+    <span class="n">sHdlgeM</span> <span class="o">=</span> <span class="n">sHdeM</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;highDependenceLowGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sHdlgeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># High dependence high gray level emphasis</span>
+    <span class="n">sHdhgeM</span> <span class="o">=</span>  <span class="n">sHdeM</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">levV</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;highDependenceHighGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sHdhgeM</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Gray level non-uniformity</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Gray level non-uniformity normalized</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformityNorm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">Ns</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Dependence count non-uniformity</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountNonuniformity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">Ns</span>
+
+    <span class="c1"># Dependence count non-uniformity normalized</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountNonuniformityNorm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">Ns</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Dependence count percentage</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountPercentage&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Ns</span> <span class="o">/</span> <span class="n">numVoxels</span>
+
+    <span class="c1"># Gray level variance</span>
+    <span class="n">iPij</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="n">levV</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">iPij</span><span class="p">)</span>
+    <span class="n">iMinusMuPij</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">levV</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;grayLevelVariance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">iMinusMuPij</span><span class="p">)</span>
+
+    <span class="c1"># Dependence count variance</span>
+    <span class="n">jPij</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="n">lenV</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jPij</span><span class="p">)</span>
+    <span class="n">jMinusMuPij</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">lenV</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountVariance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jMinusMuPij</span><span class="p">)</span>
+
+    <span class="c1"># Dependence count entropy</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">s</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountEntropy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">p</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">))</span>
+
+    <span class="c1"># Dependence count energy</span>
+    <span class="n">featuresS</span><span class="p">[</span><span class="s1">&#39;dependenceCountEnergy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">featuresS</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright GNU GPL v3.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

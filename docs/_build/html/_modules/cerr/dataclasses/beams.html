@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cerr.dataclasses.beams &mdash; pyCERR 1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=29a6c3e3"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            pyCERR
+          </a>
+              <div class="version">
+                0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">pyCERR</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pyCERR</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">cerr.dataclasses.beams</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for cerr.dataclasses.beams</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;beams module.</span>
+
+<span class="sd">Ths beams module defines metadata for RT Plan (RTPLAN).</span>
+<span class="sd">The metadata are attributes of the Beams class.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">pydicom</span> <span class="kn">import</span> <span class="n">dcmread</span>
+<span class="kn">from</span> <span class="nn">cerr.utils</span> <span class="kn">import</span> <span class="n">uid</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<div class="viewcode-block" id="get_empty_list">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.get_empty_list">[docs]</a>
+<span class="k">def</span> <span class="nf">get_empty_list</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">[]</span></div>
+
+<div class="viewcode-block" id="get_empty_np_array">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.get_empty_np_array">[docs]</a>
+<span class="k">def</span> <span class="nf">get_empty_np_array</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Beams">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.Beams">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">Beams</span><span class="p">:</span>
+    <span class="n">PatientName</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">PatientID</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">PatientBirthDate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">PatientSex</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">Manufacturer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">ManufacturerModelName</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">AcquisitionGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">RelationshipGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ImagePresentationGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">PixelPaddingValue</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">PlanGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">RTPlanLabel</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">RTPlanDate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">RTPlanTime</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">RTPlanGeometry</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">TreatmentSites</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">PrescriptionDescription</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">DoseReferenceSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">FractionGroupSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">BeamSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">PatientSetupSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">ReferencedRTGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ReferencedStructureSetSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">ReferencedDoseSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">ReviewGroupLength</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ApprovalStatus</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">ReviewDate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">ReviewTime</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">ReviewerName</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">SOPInstanceUID</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamUID</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="ReferenceSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.ReferenceSeq">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">ReferenceSeq</span><span class="p">:</span>
+    <span class="n">ReferencedSOPClassUID</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">ReferencedSOPInstanceUID</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="PatientSetupSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.PatientSetupSeq">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">PatientSetupSeq</span><span class="p">:</span>
+    <span class="n">PatientSetupNumber</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">PatientPosition</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="BeamLimitingDevicePositionSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.BeamLimitingDevicePositionSeq">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">BeamLimitingDevicePositionSeq</span><span class="p">:</span>
+    <span class="n">RTBeamLimitingDeviceType</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">LeafJawPositions</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ControlPointSequence">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.ControlPointSequence">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">ControlPointSequence</span><span class="p">:</span>
+    <span class="n">BeamLimitingDevicePositionSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">ControlPointIndex</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NominalBeamEnergy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">GantryAngle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">GantryRotationDirection</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamLimitingDeviceAngle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">BeamLimitingDeviceRotationDirection</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">PatientSupportAngle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">TableTopEccentricAngle</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">TableTopEccentricRotationDirection</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">IsocenterPosition</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">SourceToSurfaceDistance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">CumulativeMetersetWeight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="RefBeamSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.RefBeamSeq">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">()</span>
+<span class="k">class</span> <span class="nc">RefBeamSeq</span><span class="p">:</span>
+    <span class="n">ReferencedBeamNumber</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">BeamMeterset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="FractionGroupSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.FractionGroupSeq">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">FractionGroupSeq</span><span class="p">:</span>
+    <span class="n">FractionGroupNumber</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfFractionsPlanned</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfBeams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfBrachyApplicationSetups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">RadiationType</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">RefBeamSeq</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BeamSeq">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">BeamSeq</span><span class="p">:</span>
+    <span class="n">Manufacturer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamName</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamType</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamDescription</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">BeamNumber</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">SourceAxisDistance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">BeamLimitingDevicePositionSeq</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+    <span class="n">RadiationType</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">TreatmentDeliveryType</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="n">NumberOfWedges</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfBoli</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfCompensators</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfBlocks</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">NumberOfControlPoints</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ControlPointSequence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">get_empty_np_array</span><span class="p">)</span>
+
+<div class="viewcode-block" id="BeamSeq.json_serialize">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.json_serialize">[docs]</a>
+    <span class="k">class</span> <span class="nc">json_serialize</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">JSONEncoder</span><span class="p">):</span>
+<div class="viewcode-block" id="BeamSeq.json_serialize.default">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.BeamSeq.json_serialize.default">[docs]</a>
+        <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">Beams</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;beams&#39;</span><span class="p">:</span><span class="n">obj</span><span class="o">.</span><span class="n">BeamUID</span><span class="p">}</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span> <span class="c1">#json.JSONEncoder.default(self, obj)</span></div>
+</div>
+</div>
+
+
+
+<div class="viewcode-block" id="load_beams">
+<a class="viewcode-back" href="../../../cerr.dataclasses.html#cerr.dataclasses.beams.load_beams">[docs]</a>
+<span class="k">def</span> <span class="nf">load_beams</span><span class="p">(</span><span class="n">file_list</span><span class="p">):</span>
+    <span class="n">beams_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">file_list</span><span class="p">:</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="n">dcmread</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ds</span><span class="o">.</span><span class="n">Modality</span> <span class="o">==</span> <span class="s2">&quot;RTPLAN&quot;</span><span class="p">:</span>
+            <span class="n">beams_meta</span> <span class="o">=</span> <span class="n">Beams</span><span class="p">()</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">patientName</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientName</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">PatientID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientID</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">PatientBirthDate</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientBirthDate</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">PatientSex</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientSex</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">SOPInstanceUID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">SOPInstanceUID</span>
+            <span class="n">ref_dose_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span><span class="n">dtype</span><span class="o">=</span><span class="n">ReferenceSeq</span><span class="p">)</span>
+            <span class="n">ref_str_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span><span class="n">dtype</span><span class="o">=</span><span class="n">ReferenceSeq</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ReferencedStructureSetSequence&quot;</span><span class="p">):</span>
+                <span class="c1">#ref_str_seq_list = np.array([],dtype=ReferenceSeq)</span>
+                <span class="n">refStrSetSeq</span> <span class="o">=</span> <span class="n">ReferenceSeq</span><span class="p">()</span>
+                <span class="n">refStrSetSeq</span><span class="o">.</span><span class="n">ReferencedSOPClassUID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReferencedStructureSetSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ReferencedSOPClassUID</span>
+                <span class="n">refStrSetSeq</span><span class="o">.</span><span class="n">ReferencedSOPInstanceUID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReferencedStructureSetSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ReferencedSOPInstanceUID</span>
+                <span class="n">ref_str_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ref_str_seq_list</span><span class="p">,</span><span class="n">refStrSetSeq</span><span class="p">)</span>
+                <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReferencedStructureSetSequence</span> <span class="o">=</span> <span class="n">ref_str_seq_list</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ReferencedDoseSequence&quot;</span><span class="p">):</span>
+                <span class="c1">#ref_dose_seq_list = np.array([],dtype=ReferenceSeq)</span>
+                <span class="n">refDoseSetSeq</span> <span class="o">=</span> <span class="n">ReferenceSeq</span><span class="p">()</span>
+                <span class="n">refDoseSetSeq</span><span class="o">.</span><span class="n">ReferencedSOPClassUID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReferencedDoseSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ReferencedSOPClassUID</span>
+                <span class="n">refDoseSetSeq</span><span class="o">.</span><span class="n">ReferencedSOPInstanceUID</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReferencedDoseSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ReferencedSOPInstanceUID</span>
+                <span class="n">ref_dose_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ref_dose_seq_list</span><span class="p">,</span><span class="n">refDoseSetSeq</span><span class="p">)</span>
+                <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReferencedDoseSequence</span> <span class="o">=</span> <span class="n">ref_dose_seq_list</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;PatientSetupSequence&quot;</span><span class="p">):</span>
+                <span class="n">patient_setup_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span><span class="n">dtype</span><span class="o">=</span><span class="n">PatientSetupSeq</span><span class="p">)</span>
+                <span class="n">patientSetupSeq</span> <span class="o">=</span> <span class="n">PatientSetupSeq</span><span class="p">()</span>
+                <span class="n">patientSetupSeq</span><span class="o">.</span><span class="n">PatientPosition</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientSetupSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">PatientPosition</span>
+                <span class="n">patientSetupSeq</span><span class="o">.</span><span class="n">PatientSetupNumber</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PatientSetupSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">PatientSetupNumber</span>
+                <span class="n">ref_dose_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patient_setup_seq_list</span><span class="p">,</span><span class="n">patientSetupSeq</span><span class="p">)</span>
+                <span class="n">beams_meta</span><span class="o">.</span><span class="n">PatientSetupSequence</span> <span class="o">=</span> <span class="n">patient_setup_seq_list</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;FractionGroupSequence&quot;</span><span class="p">):</span>
+                <span class="n">fx_grp_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                <span class="k">for</span> <span class="n">fx_grp</span> <span class="ow">in</span> <span class="n">ds</span><span class="o">.</span><span class="n">FractionGroupSequence</span><span class="p">:</span>
+                    <span class="n">f</span> <span class="o">=</span> <span class="n">FractionGroupSeq</span><span class="p">()</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">NumberOfBeams</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">NumberOfBeams</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">NumberOfFractionsPlanned</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">NumberOfFractionsPlanned</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">NumberOfBeams</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">NumberOfBeams</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">NumberOfBrachyApplicationSetups</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">NumberOfBrachyApplicationSetups</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fx_grp</span><span class="p">,</span><span class="s2">&quot;RadiationType&quot;</span><span class="p">):</span> <span class="n">f</span><span class="o">.</span><span class="n">RadiationType</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">RadiationType</span>
+                    <span class="n">ref_beam_seq</span> <span class="o">=</span> <span class="n">RefBeamSeq</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fx_grp</span><span class="p">,</span><span class="s2">&quot;ReferencedBeamSequence&quot;</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fx_grp</span><span class="o">.</span><span class="n">ReferencedBeamSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;BeamMeterset&quot;</span><span class="p">):</span>
+                            <span class="n">ref_beam_seq</span><span class="o">.</span><span class="n">BeamMeterset</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">ReferencedBeamSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">BeamMeterset</span>
+                        <span class="n">ref_beam_seq</span><span class="o">.</span><span class="n">ReferencedBeamNumber</span> <span class="o">=</span> <span class="n">fx_grp</span><span class="o">.</span><span class="n">ReferencedBeamSequence</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ReferencedBeamNumber</span>
+                        <span class="n">f</span><span class="o">.</span><span class="n">RefBeamSeq</span> <span class="o">=</span> <span class="n">ref_beam_seq</span>
+                    <span class="c1"># add code to read ReferencedBrachyApplicationSetupSequence</span>
+                    <span class="n">fx_grp_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fx_grp_list</span><span class="p">,</span><span class="n">f</span><span class="p">)</span>
+                <span class="n">beams_meta</span><span class="o">.</span><span class="n">FractionGroupSequence</span> <span class="o">=</span> <span class="n">fx_grp_list</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;BeamSequence&quot;</span><span class="p">):</span>
+                <span class="n">beam_item_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span><span class="n">dtype</span><span class="o">=</span><span class="n">BeamSeq</span><span class="p">)</span>
+                <span class="n">num_beams</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="o">.</span><span class="n">BeamSequence</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">beam</span> <span class="ow">in</span> <span class="n">ds</span><span class="o">.</span><span class="n">BeamSequence</span><span class="p">:</span>
+                    <span class="n">bs</span> <span class="o">=</span> <span class="n">BeamSeq</span><span class="p">()</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">Manufacturer</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">Manufacturer</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">BeamName</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">BeamName</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">BeamType</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">BeamType</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">BeamDescription</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">BeamDescription</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">BeamNumber</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">BeamNumber</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">SourceAxisDistance</span><span class="p">:</span> <span class="n">beam</span><span class="o">.</span><span class="n">SourceAxisDistance</span>
+                    <span class="n">limit_sevice_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                    <span class="k">for</span> <span class="n">limitDevSeq</span> <span class="ow">in</span> <span class="n">beam</span><span class="o">.</span><span class="n">BeamLimitingDeviceSequence</span><span class="p">:</span>
+                        <span class="n">seq</span> <span class="o">=</span> <span class="n">BeamLimitingDevicePositionSeq</span><span class="p">()</span>
+                        <span class="n">seq</span><span class="o">.</span><span class="n">RTBeamLimitingDeviceType</span> <span class="o">=</span> <span class="n">limitDevSeq</span><span class="o">.</span><span class="n">RTBeamLimitingDeviceType</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">limitDevSeq</span><span class="p">,</span> <span class="s2">&quot;LeafJawPositions&quot;</span><span class="p">):</span>
+                            <span class="n">seq</span><span class="o">.</span><span class="n">LeafJawPositions</span> <span class="o">=</span> <span class="n">limitDevSeq</span><span class="o">.</span><span class="n">LeafJawPositions</span>
+                        <span class="n">limit_sevice_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">limit_sevice_seq</span><span class="p">,</span><span class="n">seq</span><span class="p">)</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">BeamLimitingDevicePositionSeq</span> <span class="o">=</span> <span class="n">limit_sevice_seq</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">RadiationType</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">RadiationType</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">TreatmentDeliveryType</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">TreatmentDeliveryType</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">NumberOfWedges</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">NumberOfWedges</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">NumberOfBoli</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">NumberOfBoli</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">NumberOfCompensators</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">NumberOfCompensators</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">NumberOfBlocks</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">NumberOfBlocks</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">NumberOfControlPoints</span> <span class="o">=</span> <span class="n">beam</span><span class="o">.</span><span class="n">NumberOfControlPoints</span>
+                    <span class="n">ctr_pt_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                    <span class="k">for</span> <span class="n">ctr_pt</span> <span class="ow">in</span> <span class="n">beam</span><span class="o">.</span><span class="n">ControlPointSequence</span><span class="p">:</span>
+                        <span class="n">c</span> <span class="o">=</span> <span class="n">ControlPointSequence</span><span class="p">()</span>
+                        <span class="n">beam_lim_pos_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;BeamLimitingDevicePositionSequence&quot;</span><span class="p">):</span>
+                            <span class="k">for</span> <span class="n">lim_seq</span> <span class="ow">in</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">BeamLimitingDevicePositionSequence</span><span class="p">:</span>
+                                <span class="n">beam_lim_pos_seq</span> <span class="o">=</span> <span class="n">BeamLimitingDevicePositionSeq</span><span class="p">()</span>
+                                <span class="n">beam_lim_pos_seq</span><span class="o">.</span><span class="n">RTBeamLimitingDeviceType</span> <span class="o">=</span> <span class="n">lim_seq</span><span class="o">.</span><span class="n">RTBeamLimitingDeviceType</span>
+                                <span class="n">beam_lim_pos_seq</span><span class="o">.</span><span class="n">LeafJawPositions</span> <span class="o">=</span> <span class="n">lim_seq</span><span class="o">.</span><span class="n">LeafJawPositions</span>
+                                <span class="n">beam_lim_pos_seq_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">beam_lim_pos_seq_list</span><span class="p">,</span><span class="n">beam_lim_pos_seq</span><span class="p">)</span>
+                        <span class="n">c</span><span class="o">.</span><span class="n">BeamLimitingDevicePositionSequence</span> <span class="o">=</span> <span class="n">beam_lim_pos_seq_list</span>
+                        <span class="n">c</span><span class="o">.</span><span class="n">ControlPointIndex</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">ControlPointIndex</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;NominalBeamEnergy&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">NominalBeamEnergy</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">NominalBeamEnergy</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;GantryAngle&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">GantryAngle</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">GantryAngle</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;GantryRotationDirection&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">GantryRotationDirection</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">GantryRotationDirection</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;BeamLimitingDeviceAngle&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">BeamLimitingDeviceAngle</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">BeamLimitingDeviceAngle</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;BeamLimitingDeviceRotationDirection&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">BeamLimitingDeviceRotationDirection</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">BeamLimitingDeviceRotationDirection</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;PatientSupportAngle&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">PatientSupportAngle</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">PatientSupportAngle</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;TableTopEccentricAngle&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">TableTopEccentricAngle</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">TableTopEccentricAngle</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;TableTopEccentricRotationDirection&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">TableTopEccentricRotationDirection</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">TableTopEccentricRotationDirection</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;IsocenterPosition&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">IsocenterPosition</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">IsocenterPosition</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;SourceToSurfaceDistance&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">SourceToSurfaceDistance</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">SourceToSurfaceDistance</span>
+                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctr_pt</span><span class="p">,</span> <span class="s2">&quot;CumulativeMetersetWeight&quot;</span><span class="p">):</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">CumulativeMetersetWeight</span> <span class="o">=</span> <span class="n">ctr_pt</span><span class="o">.</span><span class="n">CumulativeMetersetWeight</span>
+                        <span class="n">ctr_pt_seq</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ctr_pt_seq</span><span class="p">,</span><span class="n">c</span><span class="p">)</span>
+                    <span class="n">bs</span><span class="o">.</span><span class="n">ControlPointSequence</span> <span class="o">=</span> <span class="n">ctr_pt_seq</span>
+                    <span class="n">beam_item_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">beam_item_list</span><span class="p">,</span><span class="n">bs</span><span class="p">)</span>
+                <span class="n">beams_meta</span><span class="o">.</span><span class="n">BeamSequence</span> <span class="o">=</span> <span class="n">beam_item_list</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReferencedDoseSequence</span> <span class="o">=</span> <span class="n">ref_dose_seq_list</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ReviewerName&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReviewerName</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReviewerName</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ReviewDate&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReviewDate</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReviewDate</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ReviewTime&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">ReviewTime</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ReviewTime</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ApprovalStatus&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">ApprovalStatus</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ApprovalStatus</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;PixelPaddingValue&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">PixelPaddingValue</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PixelPaddingValue</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;Manufacturer&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">Manufacturer</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">Manufacturer</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;ManufacturerModelName&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">ManufacturerModelName</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">ManufacturerModelName</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">RTPlanLabel</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">RTPlanLabel</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">RTPlanDate</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">RTPlanDate</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">RTPlanDate</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">RTPlanTime</span>
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">RTPlanGeometry</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">RTPlanGeometry</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;TreatmentSites&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">TreatmentSites</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">TreatmentSites</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ds</span><span class="p">,</span><span class="s2">&quot;PrescriptionDescription&quot;</span><span class="p">):</span> <span class="n">beams_meta</span><span class="o">.</span><span class="n">PrescriptionDescription</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">PrescriptionDescription</span>
+
+
+
+            <span class="n">beams_meta</span><span class="o">.</span><span class="n">BeamUID</span> <span class="o">=</span> <span class="n">uid</span><span class="o">.</span><span class="n">createUID</span><span class="p">(</span><span class="s2">&quot;beams&quot;</span><span class="p">)</span>
+
+            <span class="n">beams_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">beams_list</span><span class="p">,</span> <span class="n">beams_meta</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">beams_list</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright GNU GPL v3.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

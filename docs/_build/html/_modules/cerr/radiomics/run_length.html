@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cerr.radiomics.run_length &mdash; pyCERR 1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=29a6c3e3"></script>
+        <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            pyCERR
+          </a>
+              <div class="version">
+                0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">pyCERR</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pyCERR</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">cerr.radiomics.run_length</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for cerr.radiomics.run_length</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains routines for claculation of Run Length texture features</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<div class="viewcode-block" id="calcRLM">
+<a class="viewcode-back" href="../../../cerr.radiomics.html#cerr.radiomics.run_length.calcRLM">[docs]</a>
+<span class="k">def</span> <span class="nf">calcRLM</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="n">offsetsM</span><span class="p">,</span> <span class="n">nL</span><span class="p">,</span> <span class="n">rlmType</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This function calculates the run-length matrix for the passed quantized image based on</span>
+<span class="sd">    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-run-length-based-features</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        quantizedM (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr</span>
+<span class="sd">        offsetsM (np.ndarray(dtype=int)): Offsets for directionality/neighbors, obtained from radiomics.ibsi1.getDirectionOffsets</span>
+<span class="sd">        nL (int): Number of gray levels. nL must be less than 65535.</span>
+<span class="sd">        rlmType (int): flag, 1 or 2.</span>
+<span class="sd">                          1: returns a single run length matrix by combining</span>
+<span class="sd">                          contributions from all offsets into one cooccurrence</span>
+<span class="sd">                          matrix.</span>
+<span class="sd">                          2: returns a list of run length matrices, per row row of offsetsM.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        np.ndarray: run-length matrix of size (nL x L) for rlmType = 1,</span>
+<span class="sd">                    list of size equal to the number of directions for rlmType = 2.</span>
+
+<span class="sd">                    The output can be passed to rlmToScalarFeatures to get RLM texture features.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">pad_width</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">*</span> <span class="n">quantizedM</span><span class="o">.</span><span class="n">ndim</span>
+    <span class="n">quantizedM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="n">pad_width</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">numRowsPad</span><span class="p">,</span> <span class="n">numColsPad</span><span class="p">,</span> <span class="n">numSlcsPad</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="p">((</span><span class="n">numRowsPad</span><span class="p">,</span> <span class="n">numRowsPad</span><span class="p">),</span> <span class="p">(</span><span class="n">numColsPad</span><span class="p">,</span> <span class="n">numColsPad</span><span class="p">),</span> <span class="p">(</span><span class="n">numSlcsPad</span><span class="p">,</span> <span class="n">numSlcsPad</span><span class="p">)),</span>
+               <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">q</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">q</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+
+    <span class="n">numOffsets</span> <span class="o">=</span> <span class="n">offsetsM</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">maxRunLen</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">quantizedM</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">*</span><span class="mi">2</span><span class="p">))</span>
+    <span class="c1">#maxRunLen = 1000</span>
+    <span class="c1">#print(&#39;Max Run Length = &#39; + str(maxRunLen))</span>
+
+    <span class="n">rlmM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nL</span><span class="p">,</span> <span class="n">maxRunLen</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nL</span><span class="p">,</span> <span class="n">maxRunLen</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numOffsets</span><span class="p">)]</span>
+
+    <span class="n">siz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="n">rowV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">siz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">colV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">siz</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)[</span><span class="kc">None</span><span class="p">,:]</span>
+
+    <span class="n">rowIndM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">rowV</span><span class="p">,</span><span class="n">siz</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)[:,:,</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">colIndM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">colV</span><span class="p">,</span><span class="n">siz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)[:,:,</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">rowIndM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">rowIndM</span><span class="p">,</span> <span class="n">siz</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">colIndM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">colIndM</span><span class="p">,</span> <span class="n">siz</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">slcIndM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">siz</span><span class="p">,</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">slc</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">siz</span><span class="p">[</span><span class="mi">2</span><span class="p">]):</span>
+        <span class="n">slcIndM</span><span class="p">[:,:,</span><span class="n">slc</span><span class="p">]</span> <span class="o">=</span> <span class="n">slc</span>
+
+
+    <span class="k">for</span> <span class="n">off</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numOffsets</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">rlmM</span> <span class="o">=</span> <span class="n">rlmOut</span><span class="p">[</span><span class="n">off</span><span class="p">]</span>
+
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">offsetsM</span><span class="p">[</span><span class="n">off</span><span class="p">]</span>
+        <span class="n">rolled_q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c1">#t = time.time()</span>
+            <span class="n">prevM</span> <span class="o">=</span> <span class="p">(</span><span class="n">q</span> <span class="o">==</span> <span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="c1"># diffM = prevM - np.roll(prevM, offset, axis=(0, 1, 2))</span>
+            <span class="n">diffM</span> <span class="o">=</span> <span class="n">prevM</span> <span class="o">-</span> <span class="p">(</span><span class="n">rolled_q</span> <span class="o">==</span> <span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="n">startM</span> <span class="o">=</span> <span class="n">diffM</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="c1">#startIndV = np.where(startM)</span>
+            <span class="c1">#convergedV = np.full(len(startIndV[0]),False,dtype=bool)</span>
+            <span class="n">rowStartV</span> <span class="o">=</span> <span class="n">rowIndM</span><span class="p">[</span><span class="n">startM</span><span class="p">]</span>
+            <span class="n">colStartV</span> <span class="o">=</span> <span class="n">colIndM</span><span class="p">[</span><span class="n">startM</span><span class="p">]</span>
+            <span class="n">slcStartV</span> <span class="o">=</span> <span class="n">slcIndM</span><span class="p">[</span><span class="n">startM</span><span class="p">]</span>
+            <span class="n">startIndV</span> <span class="o">=</span> <span class="p">(</span><span class="n">rowStartV</span><span class="p">,</span> <span class="n">colStartV</span><span class="p">,</span> <span class="n">slcStartV</span><span class="p">)</span>
+            <span class="n">stopM</span> <span class="o">=</span> <span class="n">diffM</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="n">convergedV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rowStartV</span><span class="p">),</span><span class="kc">False</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">convergedV</span><span class="p">):</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">nextIndV</span> <span class="o">=</span> <span class="n">startIndV</span> <span class="o">+</span> <span class="n">count</span> <span class="o">*</span> <span class="n">offset</span><span class="p">[:,</span><span class="kc">None</span><span class="p">]</span>
+                <span class="n">nextIndV</span><span class="p">[</span><span class="n">nextIndV</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">nextIndV</span><span class="p">[</span><span class="n">nextIndV</span> <span class="o">&gt;=</span> <span class="n">siz</span><span class="p">[:,</span><span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># assign 0 as it will have value of 0</span>
+                <span class="n">newConvergedV</span> <span class="o">=</span> <span class="n">stopM</span><span class="p">[</span><span class="n">nextIndV</span><span class="p">[</span><span class="mi">0</span><span class="p">,:],</span><span class="n">nextIndV</span><span class="p">[</span><span class="mi">1</span><span class="p">,:],</span><span class="n">nextIndV</span><span class="p">[</span><span class="mi">2</span><span class="p">,:]]</span>
+                <span class="n">numConverged</span> <span class="o">=</span> <span class="p">(</span><span class="o">~</span><span class="n">convergedV</span><span class="p">[</span><span class="n">newConvergedV</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                <span class="n">convergedV</span><span class="p">[</span><span class="n">newConvergedV</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">rlmM</span><span class="p">[</span><span class="n">level</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">count</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">numConverged</span>
+
+        <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1">#rlmOut.append(rlmM)</span>
+            <span class="n">rlmOut</span><span class="p">[</span><span class="n">off</span><span class="p">]</span> <span class="o">=</span> <span class="n">rlmM</span>
+
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="n">rlmM</span>
+
+    <span class="k">return</span> <span class="n">rlmOut</span></div>
+
+
+
+<span class="c1">##### ======= Matlab implementation that uses np.roll (circshift)</span>
+<div class="viewcode-block" id="calcRLM_old">
+<a class="viewcode-back" href="../../../cerr.radiomics.html#cerr.radiomics.run_length.calcRLM_old">[docs]</a>
+<span class="k">def</span> <span class="nf">calcRLM_old</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="n">offsetsM</span><span class="p">,</span> <span class="n">nL</span><span class="p">,</span> <span class="n">rlmType</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">pad_width</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">*</span> <span class="n">quantizedM</span><span class="o">.</span><span class="n">ndim</span>
+    <span class="n">quantizedM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="n">pad_width</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">numRowsPad</span><span class="p">,</span> <span class="n">numColsPad</span><span class="p">,</span> <span class="n">numSlcsPad</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">quantizedM</span><span class="p">,</span> <span class="p">((</span><span class="n">numRowsPad</span><span class="p">,</span> <span class="n">numRowsPad</span><span class="p">),</span> <span class="p">(</span><span class="n">numColsPad</span><span class="p">,</span> <span class="n">numColsPad</span><span class="p">),</span> <span class="p">(</span><span class="n">numSlcsPad</span><span class="p">,</span> <span class="n">numSlcsPad</span><span class="p">)),</span>
+               <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span> <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">q</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">q</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+
+    <span class="n">numOffsets</span> <span class="o">=</span> <span class="n">offsetsM</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">maxRunLen</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">quantizedM</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">*</span><span class="mi">2</span><span class="p">))</span>
+    <span class="c1">#maxRunLen = 1000</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Max Run Length = &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">maxRunLen</span><span class="p">))</span>
+
+    <span class="n">rlmM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nL</span><span class="p">,</span> <span class="n">maxRunLen</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nL</span><span class="p">,</span> <span class="n">maxRunLen</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numOffsets</span><span class="p">)]</span>
+
+    <span class="c1">#lenV = np.zeros(np.prod(q.shape), dtype = np.uint16)</span>
+
+    <span class="n">siz</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">for</span> <span class="n">off</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numOffsets</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">rlmM</span> <span class="o">=</span> <span class="n">rlmOut</span><span class="p">[</span><span class="n">off</span><span class="p">]</span>
+
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">offsetsM</span><span class="p">[</span><span class="n">off</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c1">#t = time.time()</span>
+            <span class="n">prevM</span> <span class="o">=</span> <span class="p">(</span><span class="n">q</span> <span class="o">==</span> <span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="c1">#diffM = (q == level).astype(int) - (np.roll(q, offset, axis=(0, 1, 2)) == level).astype(int)</span>
+            <span class="n">diffM</span> <span class="o">=</span> <span class="n">prevM</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">prevM</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+            <span class="n">startM</span> <span class="o">=</span> <span class="n">diffM</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="n">startIndV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">startM</span><span class="p">)</span>
+
+            <span class="c1">#prevM = (q == level).astype(np.uint16)</span>
+            <span class="n">prevM</span> <span class="o">=</span> <span class="n">prevM</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+            <span class="n">convergedM</span> <span class="o">=</span> <span class="o">~</span><span class="n">startM</span>
+
+            <span class="c1">#elapsed = time.time() - t</span>
+            <span class="c1">#print(&#39;Level start = &#39; + str(level) + &#39;. Time = &#39; + str(elapsed))</span>
+            <span class="c1">#t = time.time()</span>
+
+            <span class="c1">#lenV *= 0</span>
+            <span class="c1">#start = 0</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">convergedM</span><span class="p">):</span>
+                <span class="n">nextM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">prevM</span><span class="p">,</span> <span class="o">-</span><span class="n">offset</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+                <span class="n">addM</span> <span class="o">=</span> <span class="n">prevM</span> <span class="o">+</span> <span class="n">nextM</span>
+                <span class="n">newConvergedM</span> <span class="o">=</span> <span class="p">(</span><span class="n">addM</span> <span class="o">==</span> <span class="n">prevM</span><span class="p">)</span>
+                <span class="n">toUpdateM</span> <span class="o">=</span> <span class="o">~</span><span class="n">convergedM</span> <span class="o">&amp;</span> <span class="n">newConvergedM</span>
+                <span class="n">prevM</span> <span class="o">=</span> <span class="n">nextM</span>
+                <span class="n">prevM</span><span class="p">[</span><span class="n">startIndV</span><span class="p">]</span> <span class="o">=</span> <span class="n">addM</span><span class="p">[</span><span class="n">startIndV</span><span class="p">]</span>
+                <span class="n">lenV</span> <span class="o">=</span> <span class="n">addM</span><span class="p">[</span><span class="n">toUpdateM</span><span class="p">]</span>
+                <span class="c1"># if len(lenV) &gt; 0:</span>
+                <span class="c1">#     countsV = np.bincount(lenV)</span>
+                <span class="c1">#     numCounts = len(countsV) - 1</span>
+                <span class="c1">#     rlmM[level - 1, :numCounts] = rlmM[level - 1, :numCounts] + countsV[1:]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lenV</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">rlmM</span><span class="p">[</span><span class="n">level</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">level</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">lenV</span><span class="p">,</span> <span class="n">minlength</span><span class="o">=</span><span class="n">maxRunLen</span><span class="o">+</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="c1">#stop = start + len(addM[toUpdateM])</span>
+                <span class="c1">#lenV[start:stop] = addM[toUpdateM]</span>
+                <span class="c1">#start = stop</span>
+                <span class="n">convergedM</span> <span class="o">=</span> <span class="n">convergedM</span> <span class="o">|</span> <span class="n">newConvergedM</span>
+            <span class="c1">#rlmM[level - 1, :] = np.bincount(lenV[:stop], minlength=maxRunLen+1)[1:]</span>
+            <span class="c1">#elapsed = time.time() - t</span>
+            <span class="c1">#print(&#39;Level end = &#39; + str(level) + &#39;. Time = &#39; + str(elapsed))</span>
+
+        <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1">#rlmOut.append(rlmM)</span>
+            <span class="n">rlmOut</span><span class="p">[</span><span class="n">off</span><span class="p">]</span> <span class="o">=</span> <span class="n">rlmM</span>
+
+    <span class="k">if</span> <span class="n">rlmType</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">rlmOut</span> <span class="o">=</span> <span class="n">rlmM</span>
+
+    <span class="k">return</span> <span class="n">rlmOut</span></div>
+
+
+
+<div class="viewcode-block" id="rlmToScalarFeatures">
+<a class="viewcode-back" href="../../../cerr.radiomics.html#cerr.radiomics.run_length.rlmToScalarFeatures">[docs]</a>
+<span class="k">def</span> <span class="nf">rlmToScalarFeatures</span><span class="p">(</span><span class="n">rlmM</span><span class="p">,</span> <span class="n">numVoxels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    This function calculates scalar texture features from run length matrix as per</span>
+<span class="sd">    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-run-length-based-features</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        rlmM (np.ndarray(dtype=int)): run-length matrix of size (nL x L) for rlmType = 1,</span>
+<span class="sd">                    list of size equal to the number of directions for rlmType = 2.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict: dictionary with scalar texture features as its</span>
+<span class="sd">             fields. Each field&#39;s value is a vector containing the feature values</span>
+<span class="sd">             for each list element of rlmM.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">featureS</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">numDirs</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rlmM</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span>
+        <span class="n">numDirs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rlmM</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rlmM</span> <span class="o">=</span> <span class="p">[</span><span class="n">rlmM</span><span class="p">]</span>
+
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformityNorm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthNonUniformity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthNonUniformityNorm&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runPercentage&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;lowGrayLevelRunEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;highGrayLevelRunEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunLowGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunHighGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunLowGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunHighGrayLevelEmphasis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelVariance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthVariance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+    <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runEntropy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numDirs</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">dirNum</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numDirs</span><span class="p">):</span>
+        <span class="n">nL</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">lenV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+        <span class="n">levV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+        <span class="n">lenV</span> <span class="o">=</span> <span class="n">lenV</span><span class="p">[</span><span class="kc">None</span><span class="p">,:]</span>
+        <span class="n">levV</span> <span class="o">=</span> <span class="n">levV</span><span class="p">[</span><span class="kc">None</span><span class="p">,:]</span>
+
+        <span class="n">sreM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sreM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">lreM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">*</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">lreM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformity&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelNonUniformityNorm&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]))</span>
+
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthNonUniformity&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthNonUniformityNorm&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="n">numVoxels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">numVoxels</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runPercentage&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span> <span class="o">/</span> <span class="n">numVoxels</span>
+
+        <span class="n">lglreM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;lowGrayLevelRunEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">lglreM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">hglreM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">*</span> <span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;highGrayLevelRunEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">hglreM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">levLenM</span> <span class="o">=</span> <span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">srlgleM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">levLenM</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunLowGrayLevelEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">srlgleM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">levLenM</span> <span class="o">=</span> <span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">srhgleM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">*</span> <span class="n">levLenM</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;shortRunHighGrayLevelEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">srhgleM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">levLenM</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">lrlgleM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">],</span> <span class="n">levLenM</span><span class="p">)</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunLowGrayLevelEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">lrlgleM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">levLenM</span> <span class="o">=</span> <span class="n">levV</span><span class="o">.</span><span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">lenV</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">lrhgleM</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">*</span> <span class="n">levLenM</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;longRunHighGrayLevelEmphasis&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">lrhgleM</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+
+        <span class="n">iPij</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span> <span class="o">*</span> <span class="n">levV</span>
+        <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">iPij</span><span class="p">)</span>
+        <span class="n">iMinusMuPij</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="n">levV</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;grayLevelVariance&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">iMinusMuPij</span><span class="p">)</span>
+
+        <span class="n">jPij</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span> <span class="o">*</span> <span class="n">lenV</span>
+        <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jPij</span><span class="p">)</span>
+        <span class="n">jMinusMuPij</span> <span class="o">=</span> <span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span> <span class="o">*</span>  <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">lenV</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runLengthVariance&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jMinusMuPij</span><span class="p">)</span>
+
+        <span class="n">runSum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">])</span>
+        <span class="n">featureS</span><span class="p">[</span><span class="s1">&#39;runEntropy&#39;</span><span class="p">][</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">runSum</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">rlmM</span><span class="p">[</span><span class="n">dirNum</span><span class="p">]</span> <span class="o">/</span> <span class="n">runSum</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">featureS</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright GNU GPL v3.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
