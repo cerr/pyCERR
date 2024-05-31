@@ -1,55 +1,45 @@
-# -*- coding: utf-8 -*-
+# Configuration file for the Sphinx documentation builder.
+#
+# For the full list of built-in configuration values, see the documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
+
+# -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os
 import sys
-
-cerrPath = os.path.join(os.getcwd(), "..")
-sys.path.insert(0, cerrPath)
-#import cerr._version as ver
-release = "latest" #ver.version
-
-# -- Project information -----------------------------------------------------
+sys.path.insert(0, os.path.abspath('..'))
 
 project = 'pyCERR'
 copyright = 'GNU GPL v3'
 author = 'Aditya Apte, Aditi Iyer, Eve LoCastro, Joseph Deasy'
 
+version = '0.1'
+release = '1'
+
 # -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.coverage',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.napoleon',      # Supports Google / Numpy docstring
+    'sphinx.ext.autodoc',       # Documentation from docstrings
+    'sphinx.ext.doctest',       # Test snippets in documentation
+    'sphinx.ext.todo',          # to-do syntax highlighting
+    'sphinx.ext.ifconfig',      # Content based configuration
+    'sphinx.ext.viewcode'
 ]
 
-sphinxemoji_style = 'twemoji'
-sphinxemoji_source = 'https://unpkg.com/twemoji@latest/dist/twemoji.min.js'
+templates_path = ['_templates']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-autodoc_member_order = 'bysource'
+autodoc_mock_imports = ['numpy']
 
-myst_heading_anchors = 3
-nb_execution_mode = 'off'
-# nb_remove_code_outputs = True
 
-master_doc = 'index'
-copybutton_remove_prompts = True
+# -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-exclude_patterns = [
-    '.ipynb_checkpoints',
-    'README.md',
-    'conf.py',
-    '.git',
-]
+html_theme = 'sphinx_rtd_theme'
+html_static_path = ['_static']
 
-pygments_style = 'sphinx'
+#source_suffix = ['.rst']
 
-# -- HTML configuration ---------------------------------------------------
-
-html_codeblock_linenos_style = 'table'
-html_base_url = 'https://github.com/cerr/pyCERR/'
-html_logo = 'cerr_logo.png'
-html_show_sourcelink = True
-html_last_updated_fmt = '%Y-%m-%d %H:%M:%S'
-html_title = 'pyCERR docs'

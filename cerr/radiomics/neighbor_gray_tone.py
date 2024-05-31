@@ -1,7 +1,27 @@
+"""
+This module contains routines for claculation of Gray Tone Difference texture features
+"""
+
 import numpy as np
 
-
 def calcNGTDM(scan_array, patch_size, numGrLevels):
+    """
+
+    This function calculates the Neighborhood Gray Tone Difference Matrix for the passed quantized image based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbourhood-grey-tone-difference-based-features
+
+    Args:
+        scan_array (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
+        patch_size (list): list of length 3 defining patch radius for row, col, slc dimensions.
+        num_grayscale_levels (int): Number of gray levels.
+        a: coarseness parameter
+
+    Returns:
+        np.ndarray: NGLDM matrix os size (num_grayscale_levels, max_nbhood_size)
+
+        The output can be passed to ngldmToScalarFeatures to get NGLDM texture features.
+
+    """
 
     # Get indices of non-NaN voxels
     calc_ind = scan_array > 0

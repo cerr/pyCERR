@@ -15,11 +15,11 @@ build:
     # rust: "1.64"
     # golang: "1.19"
 
-# Build documentation in the "docs/" directory with Sphinx
+# Build documentation in the "docs_old/" directory with Sphinx
 sphinx:
   configuration: docs/conf.py
 
-# Optionally build your docs in additional formats such as PDF and ePub
+# Optionally build your docs_old in additional formats such as PDF and ePub
 # formats:
 #    - pdf
 #    - epub
@@ -27,6 +27,6 @@ sphinx:
 # Optional but recommended, declare the Python requirements required
 # to build your documentation
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
-# python:
-#    install:
-#    - requirements: docs/requirements.txt
+python:
+    install:
+    - requirements: docs/requirements.txt

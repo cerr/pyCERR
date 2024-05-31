@@ -1,7 +1,29 @@
+"""
+This module contains routines for claculation of Size Zone texture features
+"""
+
 import numpy as np
 from scipy.ndimage import label
 
 def calcSZM(quantized3M, nL, szmType):
+    """
+
+    This function calculates the Size Zone Matrix for the passed quantized image based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-size-zone-based-features
+
+    Args:
+        quantized3M (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
+        nL (int): Number of gray levels.
+        szmType: flag, 1 or 2.
+                   1: 3D zones
+                   2: 2D zones
+    Returns:
+        np.ndarray: size-zone matrix of size (nL x L)
+
+        The output can be passed to szmToScalarFeatures to get SZM texture features.
+
+    """
+
     if szmType == 1:
         s = np.ones((3,3,3))
     else:
@@ -32,6 +54,22 @@ def calcSZM(quantized3M, nL, szmType):
 
 
 def szmToScalarFeatures(szmM, numVoxels):
+    """
+
+    This function calculates scalar texture features from Size Zone Matrix as per
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-size-zone-based-features
+
+    Args:
+        szmM (np.ndarray(dtype=int)): size-zone matrix of size (nL x L)
+        numVoxels (int): number of voxels in the region of interest for szmM calculation
+
+    Returns:
+        dict: dictionary with scalar texture features as its
+             fields. Each field's value is a vector containing the feature values
+             for each list element of rlmM.
+
+    """
+
     featureS = {}
 
     nL, maxLength = szmM.shape
