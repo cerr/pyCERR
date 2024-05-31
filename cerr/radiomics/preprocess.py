@@ -1,3 +1,9 @@
+"""
+
+This module contains routines for processing image and segmentation mask for radiomics calculation.
+
+"""
+
 import numpy as np
 import cerr.contour.rasterseg as rs
 from cerr.utils.bbox import compute_boundingbox
@@ -11,7 +17,10 @@ import SimpleITK as sitk
 
 def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     """
+
     Function to quantize an image based on the number of bins (num_level) or the bin width (bin_width).
+    The min and max are computed from the input image image when they are not provided.
+
     Args:
         x: Input image matrix.
         num_level: Number of quantization levels (optional).
@@ -19,9 +28,9 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
         xmax: Maximum value for quantization (optional).
         bin_width: Bin width for quantization (optional).
     Returns:
-        q: Quantized image.
-    Note: If xmin and xmax are not provided, they are computed from the input image x.
+        np.ndarray(dtype=int): Quantized image.
     """
+
     if xmin is not None:
         x[x < xmin] = xmin
     else:
@@ -50,6 +59,20 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
 
 
 def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod='center', *args):
+    """
+
+    Function to create x,y,z image grid by resampling the input x,y,z grid at the required resolution.
+
+    Args:
+        resampResolutionV: Input image matrix.
+        xValsV: x-coordinates of the image grid.
+        yValsV: y-coordinates od the image grid.
+        zValsV: z-coordinates od the image grid.
+        gridAlignMethod (optional): Currently, the only method supported is "center".
+    Returns:
+        Tuple: (xResampleV, yResampleV, zResampleV) Resamples x,y,z grid coordinates.
+    """
+
     if not gridAlignMethod:
         gridAlignMethod = 'center'
 
@@ -106,6 +129,7 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
         yResampleV = np.flip(yResampleV)
 
     return xResampleV, yResampleV, zResampleV
+
 
 def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResampleV,
                   method, extrapVal=None, inPlane=False):
@@ -253,7 +277,27 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
     #     resampimg3M = np.reshape(resampimg3M,[numRowsResamp,numColsResamp,numSlcsResamp])
 
 def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
-    """Return padded array using specified methosd and dimensions"""
+    """
+
+    Function to pad the input image using specified method and padding size.
+
+    Args:
+        scan3M: np.ndarray for scan
+        mask3M: np.ndarray for mask
+        method: string representing padding method. The following methods are supported:
+                'expand' - Image is cropped around the mask and expanded using the specified margin.
+                'padzeros' - Image is padded by zeros.
+                'periodic' - Image is padded with periodic expansion.
+                'nearest' - Image is padded by using values from nearest neighbors.
+                'mirror' - Image is padded by mirrorig the boundary region as per the margin.
+        marginV:
+        cropFlag:
+    Returns:
+        np.ndarray(dtype=:
+        np.ndarray(dtype=int): , maskBoundingBox3M, morphmask3M, gridS, paramS, diagS
+
+    """
+
     if cropFlag is None:
         cropFlag = True
 
@@ -327,8 +371,17 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
     return outScan3M, outMask3M, outLimitsV
 
 
-def unpadScan(padScan3M, method, marginV):
-    """Return original array after stripping off specified padding margin"""
+def unpadScan(padScan3M, marginV):
+    """
+    This function return the image array after stripping off specified padding margin
+
+    Args:
+        padScan3M (np.ndarray): image to be unpadded
+        marginV (list): padding margin for row, col, slc
+    Returns:
+        np.ndarray: unpadded image
+
+    """
 
     if len(marginV) == 2:
         marginV = np.append(marginV,[0])
@@ -342,6 +395,22 @@ def unpadScan(padScan3M, method, marginV):
 
 
 def preProcessForRadiomics(scanNum, structNum, paramS, planC):
+    """
+    This function applies pre-processing to scanNum as per settings specified in paramS dictionary.
+
+    Args:
+        scanNum (int):
+        structNum (int):
+        paramS (dict):
+        planC (plan_container.planC):
+    Returns:
+        np.ndarray(dtype=float): unpadded image
+        np.ndarray(dtype=int): maskBoundingBox3M
+        np.ndarray(dtype=int):
+        tuple: x,y,z grid corresponding to the processed image
+        paramS: dictionary of parameters
+        diagS: dictionary of diagnostics from the region of interest
+    """
 
     diagS = {}
     scanArray3M = np.double(planC.scan[scanNum].getScanArray())

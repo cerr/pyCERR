@@ -1,6 +1,32 @@
+"""
+This module contains routines for claculation of Run Length texture features
+"""
+
 import numpy as np
 
 def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
+    """
+
+    This function calculates the run-length matrix for the passed quantized image based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-run-length-based-features
+
+    Args:
+        quantizedM (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
+        offsetsM (np.ndarray(dtype=int)): Offsets for directionality/neighbors, obtained from radiomics.ibsi1.getDirectionOffsets
+        nL (int): Number of gray levels. nL must be less than 65535.
+        rlmType (int): flag, 1 or 2.
+                          1: returns a single run length matrix by combining
+                          contributions from all offsets into one cooccurrence
+                          matrix.
+                          2: returns a list of run length matrices, per row row of offsetsM.
+    Returns:
+        np.ndarray: run-length matrix of size (nL x L) for rlmType = 1,
+                    list of size equal to the number of directions for rlmType = 2.
+
+                    The output can be passed to rlmToScalarFeatures to get RLM texture features.
+
+    """
+
     if rlmType != 1:
         rlmOut = []
 
@@ -160,6 +186,22 @@ def calcRLM_old(quantizedM, offsetsM, nL, rlmType=1):
 
 
 def rlmToScalarFeatures(rlmM, numVoxels):
+    """
+
+    This function calculates scalar texture features from run length matrix as per
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-run-length-based-features
+
+    Args:
+        rlmM (np.ndarray(dtype=int)): run-length matrix of size (nL x L) for rlmType = 1,
+                    list of size equal to the number of directions for rlmType = 2.
+
+    Returns:
+        dict: dictionary with scalar texture features as its
+             fields. Each field's value is a vector containing the feature values
+             for each list element of rlmM.
+
+    """
+
     featureS = {}
     numDirs = 1
     if isinstance(rlmM,list):

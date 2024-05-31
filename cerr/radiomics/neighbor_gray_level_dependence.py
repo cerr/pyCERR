@@ -1,6 +1,27 @@
+"""
+This module contains routines for claculation of Gray Level Dependence texture features
+"""
+
 import numpy as np
 
 def calcNGLDM(scan_array, patch_size, num_grayscale_levels, a):
+    """
+
+    This function calculates the Neighborhood Gray Level Dependence Matrix for the passed quantized image based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbouring-grey-level-dependence-based-features
+
+    Args:
+        scan_array (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
+        patch_size (list): list of length 3 defining patch radius for row, col, slc dimensions.
+        num_grayscale_levels (int): Number of gray levels.
+        a: coarseness parameter
+
+    Returns:
+        np.ndarray: NGLDM matrix os size (num_grayscale_levels, max_nbhood_size)
+
+        The output can be passed to ngldmToScalarFeatures to get NGLDM texture features.
+
+    """
 
     # Get indices of non-NaN voxels
     calc_ind = scan_array > 0
@@ -85,6 +106,20 @@ def calcNGLDM(scan_array, patch_size, num_grayscale_levels, a):
 
 
 def ngldmToScalarFeatures(s, numVoxels):
+    """
+
+    This function calculates scalar texture features from Neighborhood Gray Level Dependence matrix as per
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbouring-grey-level-dependence-based-features
+
+    Args:
+        s (np.ndarray: NGLDM matrix of size (num_grayscale_levels, max_nbhood_size)
+        numVoxels (int): number of voxels in the region of interest used for generating s.
+
+    Returns:
+        dict: dictionary with scalar NGLDM texture features as its
+             fields.
+    """
+
     featuresS = {}
 
     Ns = np.sum(s)
@@ -164,6 +199,3 @@ def ngldmToScalarFeatures(s, numVoxels):
     featuresS['dependenceCountEnergy'] = np.sum(p**2)
 
     return featuresS
-
-# Example usage:
-# featuresS = ngldmToScalarFeatures(s, numVoxels)

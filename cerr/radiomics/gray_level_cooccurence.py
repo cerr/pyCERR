@@ -1,8 +1,34 @@
-import numpy as np
-from scipy.sparse import lil_matrix
+"""
 
+This module contains routines for calculation of Gray Level Co-occurrence matrix and features.
+
+"""
+
+import numpy as np
 
 def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
+    """
+
+    This function calculates the cooccurrence matrix for the passed quantized image based on
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-co-occurrence-based-features
+
+    Args:
+        quantizedM (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
+        offsetsM (np.ndarray(dtype=int)): Offsets for directionality/neighbors, obtained from radiomics.ibsi1.getDirectionOffsets
+        nL (int): Number of gray levels. nL must be less than 65535.
+        cooccurType (int): flag, 1 or 2.
+                          1: returns a single cooccurrence matrix by combining
+                          contributions from all offsets into one cooccurrence
+                          matrix.
+                          2: returns cooccurM with each column containing
+                          cooccurrence matrix for the row of offsetsM.
+    Returns:
+        np.ndarray: cooccurrence matrix of size (nL*nL) x 1 for cooccurType = 1,
+                                             or (nL*nL) x offsetsM.shape[0] for cooccurType = 2.
+                    The output can be passed to cooccurToScalarFeatures to get GLCM texture features.
+
+    """
+
     # Default to building cooccurrence by combining all offsets
     numColsPad = 1
     numRowsPad = 1
@@ -75,9 +101,21 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
 
 
 def cooccurToScalarFeatures(cooccurM):
-    ''''
-    Calculate scalar texture features from cooccurM
-    '''''
+    """
+
+    This function calculates scalar texture features from cooccurrence matrix as per
+    IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-co-occurrence-based-features
+
+    Args:
+        cooccurM (np.ndarray(dtype=int)): cooccurrence matrix of size (nL*nL) x 1 for combined cooccurrrences from all the directions,
+                                                             or (nL*nL) x offsetsM.shape[0] for individual directions or patches.
+
+    Returns:
+        dict: dictionary with scalar texture features as its
+         fields. Each field's value is a vector containing the feature values
+         for each column cooccurM.
+
+    """
 
     # Initialize featureS dictionaries
     # Calculate the number of cooccur matrices (number of columns in cooccurM)
