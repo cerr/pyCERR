@@ -8,12 +8,9 @@
 
 import os
 import sys
-# sys.path.insert(0, os.path.abspath('.'))
-# sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, 'C:\\software\\pyCERR_master\\pyCERR')
 
-from cerr import plan_container as pc
-from cerr import dvh
+sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('..'))
 
 project = 'pyCERR'
 copyright = 'GNU GPL v3'
