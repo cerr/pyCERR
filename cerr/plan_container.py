@@ -626,7 +626,15 @@ def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     dx = xV[1] - xV[0]
     dy = yV[0] - yV[1]
     for slc in range(siz[2]):
-        cerrImgPatPos = [xV[0], yV[0], zV[slc], 1]
+        if xV.ndim == 2 and yV.ndim==2:
+            #xV is a num_cols x num slices matrix
+            #yV is a num_rows x num_slices matrix
+            #with x,y values varying across slices
+            dx = xV[1,slc] - xV[0,slc]
+            dy = yV[0,slc] - yV[1,slc]
+            cerrImgPatPos = [xV[0,slc], yV[0,slc], zV[slc], 1]
+        else:
+            cerrImgPatPos = [xV[0], yV[0], zV[slc], 1]
         dcmImgPos = np.matmul(planC.scan[assocScanNum].cerrToDcmTransM, cerrImgPatPos)[:3]
         s_info = scn_info.ScanInfo()
         s_info.frameOfReferenceUID = forUID
