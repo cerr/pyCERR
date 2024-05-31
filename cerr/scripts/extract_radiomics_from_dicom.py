@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
 
     # Crop scan to extents of mask
-    from cerr.utils import bbox
+    from cerr.utils.mask import compute_boundingbox
     from cerr.dataclasses import scan as scn
     from cerr.contour import rasterseg as rs
     import numpy as np
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     mask3M = rs.getStrMask(structNum, planC)
     scanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     scan3M = planC.scan[scanNum].scanArray - planC.scan[scanNum].scanInfo[0].CTOffset
-    (rmin, rmax, cmin, cmax, smin, smax, _) = bbox.compute_boundingbox(mask3M)
+    (rmin, rmax, cmin, cmax, smin, smax, _) = compute_boundingbox(mask3M)
     croppedScan3M = scan3M[rmin:rmax + 1, cmin:cmax + 1, smin:smax + 1]
     croppedMask3M = mask3M[rmin:rmax + 1, cmin:cmax + 1, smin:smax + 1]
     croppedScan3M[~croppedMask3M] = np.NAN

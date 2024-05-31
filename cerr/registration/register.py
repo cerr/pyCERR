@@ -13,9 +13,8 @@ from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure as cerrStr
 import cerr.plan_container as pc
 from cerr.contour import rasterseg as rs
-from cerr.utils.mask import getSurfacePoints
+from cerr.utils.mask import getSurfacePoints, compute_boundingbox
 from cerr.utils.interp import finterp3
-from cerr.utils.bbox import compute_boundingbox
 from cerr.radiomics import preprocess
 import numpy as np
 

@@ -1,7 +1,7 @@
 from cerr import plan_container as pc
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.structure as strct
-from cerr.utils.bbox import compute_boundingbox
+from cerr.utils.mask import compute_boundingbox
 from cerr.radiomics.preprocess import imgResample3D, getResampledGrid
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from scipy.signal import convolve2d
 from scipy.signal import convolve
 from scipy.ndimage import rotate
 from cerr.radiomics.preprocess import padScan
-from cerr.utils.bbox import compute_boundingbox
+from cerr.utils.mask import compute_boundingbox
 
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
