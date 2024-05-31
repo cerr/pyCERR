@@ -1,5 +1,5 @@
 .. pyCERR documentation master file, created by
-   sphinx-quickstart on Thu May 30 11:42:30 2024.
+   sphinx-quickstart on Fri May 31 16:31:02 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -11,6 +11,7 @@ Welcome to pyCERR's documentation!
    :caption: Contents:
 
    modules
+
 
 Indices and tables
 ==================

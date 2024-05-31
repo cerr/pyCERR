@@ -4,10 +4,10 @@ cerr.utils package
 Submodules
 ----------
 
-cerr.utils.bbox module
-----------------------
+cerr.utils.aiPipeline module
+----------------------------
 
-.. automodule:: cerr.utils.bbox
+.. automodule:: cerr.utils.aiPipeline
    :members:
    :undoc-members:
    :show-inheritance:
@@ -52,10 +52,10 @@ cerr.utils.mirrorScope module
    :undoc-members:
    :show-inheritance:
 
-cerr.utils.statistics\_utils module
------------------------------------
+cerr.utils.statisticsUtils module
+---------------------------------
 
-.. automodule:: cerr.utils.statistics_utils
+.. automodule:: cerr.utils.statisticsUtils
    :members:
    :undoc-members:
    :show-inheritance:
