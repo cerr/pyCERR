@@ -1,21 +1,20 @@
-Welcome to pyCERR documentation!
-===================================
+.. pyCERR documentation master file, created by
+   sphinx-quickstart on Thu May 30 11:42:30 2024.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
 
-**pyCERR** (/py'Sir/) is a Python library for radiological image processing.
-It provides an uniform data structure for radiological image metadata and 
-computational utilities.
-
-Check out the :doc:`usage` section for further information, including
-how to :ref:`installation` the project.
-
-.. note::
-
-   This project is under active development.
-
-Contents
---------
+Welcome to pyCERR's documentation!
+==================================
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Contents:
 
-   Home <self>
-   usage
+   modules
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
