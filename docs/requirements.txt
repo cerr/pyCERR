@@ -1,1 +1,16 @@
 sphinx-rtd-theme
+numpy
+pydicom
+python-dateutil
+scipy
+h5py
+SimpleITK
+matplotlib
+nibabel
+scikit-learn
+scikit-image
+PyWavelets
+pandas
+shapelysmooth
+ipywidgets
+napari[all]
