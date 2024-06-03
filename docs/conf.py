@@ -8,8 +8,17 @@
 
 import os
 import sys
+import shutil
+
 sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath('..'))
+pycerrPath = os.path.abspath('..')
+sys.path.insert(0, pycerrPath)
+
+# Copy version file
+tmpVersionFie = os.path.join(pycerrPath, '.github/workflows/_version_tmp.py')
+versionFile = os.path.join(pycerrPath, 'cerr/_version.py')
+shutil.copyfile(tmpVersionFie, versionFile)
+
 from cerr import dvh
 from cerr import plan_container as pc
 
