@@ -41,7 +41,7 @@ cerr.dataclasses.scan module
 
 .. automodule:: cerr.dataclasses.scan
    :members:
-   :undoc-members:
+   :exclude-members: json_serialize
    :show-inheritance:
 
 cerr.dataclasses.scan\_info module

@@ -55,3 +55,7 @@ html_static_path = ['_static']
 
 #source_suffix = ['.rst']
 
+autodoc_default_options = {
+    'members':         True,
+    'member-order':    'bysource'
+}
