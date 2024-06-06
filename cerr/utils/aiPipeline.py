@@ -38,7 +38,14 @@ def createSessionDir(sessionPath, inputDicomPath):
 
 def getAssocFilteredScanNum(scanNumV,planC):
     """
-    Return filtered scan created from input scanNum
+
+    Args:
+        scanNumV (list): list of scan indices in planC
+        planC: pyCERR's plan container object
+
+    Returns:
+        list: list of filtered scan indices in planC created from input list of scan numbers
+
     """
 
     scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
@@ -54,6 +61,7 @@ def getAssocFilteredScanNum(scanNumV,planC):
 
     filtScanNumV = filtScanNumV[~np.isnan(filtScanNumV)]
     return filtScanNumV
+
 
 def getAssocWarpedScanNum(scanNumV,planC):
     """
