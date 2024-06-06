@@ -7,8 +7,6 @@ from scipy import ndimage
 from scipy.ndimage import label, binary_opening, binary_fill_holes, uniform_filter
 from skimage import exposure, filters, morphology, transform
 from skimage.morphology import square, octagon
-
-import cerr.plan_container as pc
 import cerr.utils.statisticsUtils as stat
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import scan as cerrScan
@@ -219,10 +217,14 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
 
         assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
                                                   planC)
+        newStructNum = None
         if replaceFlag:
             # Delete structNum
-            del planC.structure[structNum]
-        pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, planC)
+            #del planC.structure[structNum]
+            newStructNum = structNum
+        #pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, planC)
+        planC = cerrStr.import_structure_mask(filledMask3M, assocScanNum, procSructName, newStructNum, planC)
+
 
     return filledMask3M, planC
 
@@ -273,10 +275,12 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
 
         assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
                                                   planC)
+        newStructNum = None
         if replaceFlag:
             # Delete structNum
-            del planC.structure[structNum]
-        cerrStr.import_structure_mask(maskOut3M, assocScanNum, procSructName, None, planC)
+            #del planC.structure[structNum]
+            newStructNum = structNum
+        planC = cerrStr.import_structure_mask(maskOut3M, assocScanNum, procSructName, newStructNum, planC)
 
     return maskOut3M, planC
 
