@@ -506,112 +506,131 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         reader.ReadImageInformation()
         image = reader.Execute()
 
-        # Set direction same as associated scan
-        scanOrientV = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
-        oriStr = planC.scan[assocScanNum].getScanOrientation()
-        # slice_normal = scanOrientV[[1,2,0]] * scanOrientV[[5,3,4]] \
-        #                - scanOrientV[[2,0,1]] * scanOrientV[[4,5,3]]
-        # assocScanDir = np.vstack((scanOrientV[:3], scanOrientV[3:6], slice_normal))
-        # itkImgOrient = assocScanDir.reshape(9,order='C')
-        image = sitk.DICOMOrient(image, oriStr)
+        # Get mask on scan grid
+        scanImage = planC.scan[assocScanNum].getSitkImage()
+        extrapVal = 0
+        resample = sitk.ResampleImageFilter()
+        resample.SetReferenceImage(scanImage)
+        resample.SetInterpolator(getattr(sitk,'sitkNearestNeighbor'))
+        resample.SetDefaultPixelValue(extrapVal)
+        resampMaskImage = resample.Execute(image)
+        maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
 
-        #img_ori = image.GetDirection()
-        #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
-        #image = sitk.DICOMOrient(image,"LPS")
-        niiSegArray3M = sitk.GetArrayFromImage(image)
-        niiSegArray3M = np.moveaxis(niiSegArray3M,[0,1,2],[2,0,1])
-        siz = niiSegArray3M.shape
-        # No need to check whether slice direction is reversed as we match based on dicom z values later on
-        origin = list(image.GetOrigin())
-        orient_nii = np.asarray(image.GetDirection())
-        orient_nii.reshape(3, 3,order="C")
-        orient_nii = np.reshape(orient_nii, (3,3), order = "C")
-        dcmImgOrient = orient_nii.reshape(9,order='F')[:6]
-        if np.max((dcmImgOrient - scanOrientV)**2) > 1e-5:
-            #scanOrientV
-            #scanDirection = []
-            #image.SetDirection(scanDirection)
-            raise Exception("nii file orientation does not match the associated scan")
-        slice_normal = dcmImgOrient[[1,2,0]] * dcmImgOrient[[5,3,4]] \
-               - dcmImgOrient[[2,0,1]] * dcmImgOrient[[4,5,3]]
-        #s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-        structZvalsV = np.empty((siz[2],1))
-        for slc in range(siz[2]):
-            imagePositionPatient = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
-            structZvalsV[slc] = - np.sum(slice_normal * imagePositionPatient) / 10
-
-
-        dim = np.asarray(image.GetSize())
-        res = np.asarray(image.GetSpacing())
-        xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
-        cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
-        dcmIm2PhysTransM = planC.scan[assocScanNum].Image2PhysicalTransM
-        numSlcs = len(planC.scan[assocScanNum].scanInfo)
-        #zDicomV = np.empty((len(zV),1))
-        all_labels = np.unique(niiSegArray3M)
-        all_labels = all_labels[all_labels != 0]
-        if len(labels_dict) == 0:
-            for label in all_labels:
-                labels_dict[label] = "Label " + str(label)
-        slcMatchTol = 1e-6
-        dt = datetime.now()
-        #for i in range(len(zV)):
-        #    zDicomV[i] = np.matmul(cerrToDcmTransM, np.asarray((xV[0],yV[0],zV[i], 1)).T)[2]
         for label in labels_dict.keys():
-            struct_meta = Structure()
-            struct_meta.structureName = labels_dict[label]
-            struct_meta.dateWritten = dt.strftime("%Y%m%d")
-            struct_meta.roiNumber = ""
-            strNum = numStructs + numAdded
-            struct_meta.structureColor = getColorForStructNum(strNum)
-            #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
-            struct_meta.strUID = uid.createUID("structure")
-            struct_meta.structureFileFormat = "NIFTI"
-            struct_meta.structSetSopInstanceUID = generate_uid()
-            struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
-            contour_list = np.empty((0),Contour)
-            for slc in range(dim[2]):
-                if not np.any(niiSegArray3M[:,:,slc]):
-                    continue
-                contours = measure.find_contours(niiSegArray3M[:,:,slc] == label, 0.5)
-                ind = np.argwhere((zV - structZvalsV[slc])**2 < slcMatchTol)
-                #_,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
-                #ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
-                #ipp = image.TransformIndexToPhysicalPoint((0,0,slc))
-                #niiZ = - np.sum(slice_normal * ipp) / 10
-                #ind = np.where((zV - niiZ)**2 < slcMatchTol)
-                if len(ind) > 0 and len(ind[0]) == 1:
-                    ind = ind[0][0]
-                else:
-                    raise Exception('No matching slices found.')
-                if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
-                    slcNum = numSlcs - ind - 1
-                else:
-                    slcNum = ind
-                sopClassUID = planC.scan[assocScanNum].scanInfo[ind].sopClassUID
-                sopInstanceUID = planC.scan[assocScanNum].scanInfo[ind].sopInstanceUID
+            planC = import_structure_mask(maskOnScan3M == label, assocScanNum, labels_dict[label], None, planC)
 
-                num_contours = len(contours)
-                for iContour, contour in enumerate(contours):
-                    contObj = Contour()
-                    segment = np.empty((contour.shape[0],3))
-                    colV = contour[:, 1]
-                    rowV = contour[:, 0]
-                    slcV = np.ones_like(rowV) * slcNum
-                    ptsM = np.asarray((colV,rowV,slcV))
-                    ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
-                    ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
-                    contObj.segments = ptsM
-                    contObj.referencedSopInstanceUID = sopInstanceUID
-                    contObj.referencedSopClassUID = sopClassUID
-                    #contour_list.append(contObj)
-                    contour_list = np.append(contour_list,contObj)
-                struct_meta.contour = contour_list
+        # # Set direction same as associated scan
+        # scanOrientV = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+        # oriStr = planC.scan[assocScanNum].getScanOrientation()
+        # # slice_normal = scanOrientV[[1,2,0]] * scanOrientV[[5,3,4]] \
+        # #                - scanOrientV[[2,0,1]] * scanOrientV[[4,5,3]]
+        # # assocScanDir = np.vstack((scanOrientV[:3], scanOrientV[3:6], slice_normal))
+        # # itkImgOrient = assocScanDir.reshape(9,order='C')
+        #
+        # image = sitk.DICOMOrient(image, oriStr)
 
-            struct_list.append(struct_meta)
-            numAdded += 1
-
-    return struct_list
+    #     #img_ori = image.GetDirection()
+    #     #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+    #     #image = sitk.DICOMOrient(image,"LPS")
+    #     niiSegArray3M = sitk.GetArrayFromImage(image)
+    #     niiSegArray3M = np.moveaxis(niiSegArray3M,[0,1,2],[2,0,1])
+    #     siz = niiSegArray3M.shape
+    #     # No need to check whether slice direction is reversed as we match based on dicom z values later on
+    #     origin = list(image.GetOrigin())
+    #     orient_nii = np.asarray(image.GetDirection())
+    #     orient_nii.reshape(3, 3,order="C")
+    #     orient_nii = np.reshape(orient_nii, (3,3), order = "C")
+    #     dcmImgOrient = orient_nii.reshape(9,order='F')[:6]
+    #     if np.max((dcmImgOrient - scanOrientV)**2) > 1e-5:
+    #         #scanOrientV
+    #         #scanDirection = []
+    #         #image.SetDirection(scanDirection)
+    #         raise Exception("nii file orientation does not match the associated scan")
+    #     slice_normal = dcmImgOrient[[1,2,0]] * dcmImgOrient[[5,3,4]] \
+    #            - dcmImgOrient[[2,0,1]] * dcmImgOrient[[4,5,3]]
+    #     #s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+    #     structZvalsV = np.empty((siz[2],1))
+    #     for slc in range(siz[2]):
+    #         imagePositionPatient = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
+    #         structZvalsV[slc] = - np.sum(slice_normal * imagePositionPatient) / 10
+    #
+    #
+    #     dim = np.asarray(image.GetSize())
+    #     res = np.asarray(image.GetSpacing())
+    #     xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
+    #     slcSpacing = np.median(np.diff(zV))
+    #     cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
+    #     dcmIm2PhysTransM = planC.scan[assocScanNum].Image2PhysicalTransM
+    #     numSlcs = len(planC.scan[assocScanNum].scanInfo)
+    #     #zDicomV = np.empty((len(zV),1))
+    #     all_labels = np.unique(niiSegArray3M)
+    #     all_labels = all_labels[all_labels != 0]
+    #     if len(labels_dict) == 0:
+    #         for label in all_labels:
+    #             labels_dict[label] = "Label " + str(label)
+    #     slcMatchTol = 1e-6
+    #     dt = datetime.now()
+    #     #for i in range(len(zV)):
+    #     #    zDicomV[i] = np.matmul(cerrToDcmTransM, np.asarray((xV[0],yV[0],zV[i], 1)).T)[2]
+    #     for label in labels_dict.keys():
+    #         struct_meta = Structure()
+    #         struct_meta.structureName = labels_dict[label]
+    #         struct_meta.dateWritten = dt.strftime("%Y%m%d")
+    #         struct_meta.roiNumber = ""
+    #         strNum = numStructs + numAdded
+    #         struct_meta.structureColor = getColorForStructNum(strNum)
+    #         #struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
+    #         struct_meta.strUID = uid.createUID("structure")
+    #         struct_meta.structureFileFormat = "NIFTI"
+    #         struct_meta.structSetSopInstanceUID = generate_uid()
+    #         struct_meta.assocScanUID = planC.scan[assocScanNum].scanUID
+    #         contour_list = np.empty((0),Contour)
+    #         for slc in range(dim[2]):
+    #             if not np.any(niiSegArray3M[:,:,slc]):
+    #                 continue
+    #             contours = measure.find_contours(niiSegArray3M[:,:,slc] == label, 0.5)
+    #             ind = np.argwhere((zV - structZvalsV[slc])**2 < slcMatchTol)
+    #             #_,_,niiZ = image.TransformIndexToPhysicalPoint((0,0,slc))
+    #             #ind = np.where((zDicomV - niiZ)**2 < slcMatchTol)
+    #             #ipp = image.TransformIndexToPhysicalPoint((0,0,slc))
+    #             #niiZ = - np.sum(slice_normal * ipp) / 10
+    #             #ind = np.where((zV - niiZ)**2 < slcMatchTol)
+    #             if len(ind) > 0 and len(ind[0]) == 1:
+    #                 ind = ind[0][0]
+    #             else: # Get the closest slice
+    #                 ind = np.argmin((zV - structZvalsV[slc])**2)
+    #             if np.abs(zV[ind] - structZvalsV[slc]) > slcSpacing/2:
+    #                 # Difference between slice matching coordinates is greater than half the slice spacing
+    #                 raise Exception('No matching slices found.')
+    #             if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+    #                 slcNum = numSlcs - ind - 1
+    #             else:
+    #                 slcNum = ind
+    #             sopClassUID = planC.scan[assocScanNum].scanInfo[ind].sopClassUID
+    #             sopInstanceUID = planC.scan[assocScanNum].scanInfo[ind].sopInstanceUID
+    #
+    #             num_contours = len(contours)
+    #             for iContour, contour in enumerate(contours):
+    #                 contObj = Contour()
+    #                 segment = np.empty((contour.shape[0],3))
+    #                 colV = contour[:, 1]
+    #                 rowV = contour[:, 0]
+    #                 slcV = np.ones_like(rowV) * slcNum
+    #                 ptsM = np.asarray((colV,rowV,slcV))
+    #                 ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
+    #                 ptsM = np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, ptsM)[:3,:].T
+    #                 contObj.segments = ptsM
+    #                 contObj.referencedSopInstanceUID = sopInstanceUID
+    #                 contObj.referencedSopClassUID = sopClassUID
+    #                 #contour_list.append(contObj)
+    #                 contour_list = np.append(contour_list,contObj)
+    #             struct_meta.contour = contour_list
+    #
+    #         struct_list.append(struct_meta)
+    #         numAdded += 1
+    #
+    # return struct_list
+    return planC
 
 
 def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):

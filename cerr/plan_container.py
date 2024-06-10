@@ -522,15 +522,15 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=
 
 
 def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
-    struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
-    numOrigStructs = len(planC.structure)
-    planC.structure.extend(struct_meta)
-    numStructs = len(planC.structure)
-    # Convert structure coordinates to CERR's virtual coordinates
-    for str_num in range(numOrigStructs,numStructs):
-        planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
-        planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
-
+    planC = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
+    # struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
+    # numOrigStructs = len(planC.structure)
+    # planC.structure.extend(struct_meta)
+    # numStructs = len(planC.structure)
+    # # Convert structure coordinates to CERR's virtual coordinates
+    # for str_num in range(numOrigStructs,numStructs):
+    #     planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
+    #     planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
     return planC
 
 
