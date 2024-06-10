@@ -516,6 +516,12 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
         resampMaskImage = resample.Execute(image)
         maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
 
+        all_labels = np.unique(maskOnScan3M)
+        all_labels = all_labels[all_labels != 0]
+        if len(labels_dict) == 0:
+            for label in all_labels:
+                labels_dict[label] = "Label " + str(label)
+
         for label in labels_dict.keys():
             planC = import_structure_mask(maskOnScan3M == label, assocScanNum, labels_dict[label], None, planC)
 
