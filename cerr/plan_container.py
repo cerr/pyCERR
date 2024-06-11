@@ -106,16 +106,15 @@ def savNiiStructure(niiFileName, strNumV, planC, labelDict={}, dim=3):
     if dim == 3:
         # Export label map
         if len(labelDict) == 0:
-            # Export single structure
-            strName = planC.structure[strNumV].structureName
-            labelDict = {1: strName}
+            for idx in range(len(strNumV)):
+                strName = planC.structure[strNumV[idx]].structureName
+                labelDict[idx+1] = strName
 
         allLabels = labelDict.keys()
         assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
         affine3M = planC.scan[assocScan].get_nii_affine()
         shape = planC.scan[assocScan].getScanSize()
         maskOut = np.zeros(shape,dtype=int)
-
         for strNum in strNumV:
             strName = planC.structure[strNum].structureName
             strLabel = [labelDict[label] for label in allLabels if labelDict[label]==strName ]
