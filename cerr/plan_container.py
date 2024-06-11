@@ -15,7 +15,7 @@ from pydicom.uid import generate_uid
 import h5py
 import nibabel as nib
 import cerr.dataclasses.scan_info as scn_info
-from cerr.utils import uid, mask
+from cerr.utils import uid
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import beams as bms
 from cerr.dataclasses import dose as rtds
