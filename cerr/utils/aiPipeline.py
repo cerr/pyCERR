@@ -8,8 +8,20 @@ from datetime import datetime
 import cerr.dataclasses.scan as cerrScn
 
 def createSessionDir(sessionPath, inputDicomPath):
-    # Create session directory for temporary files
+    """
+    Function to create a directory to write temporary files when deploying AI models.
+    inputDicomPath
 
+    Args:
+        sessionPath: string for desired location of session directory
+        inputDicomPath: string for path to DICOM input data. The session directory is assigned a unique name
+                        derived in aprt from the DICOM folder name.
+
+    Returns:
+        modInputPath: string for path to directory containing data input to AI model
+        modOutputPath: string for path to directory containing data output by AI model
+    """
+    
     if inputDicomPath[-1] == os.sep:
         _, folderNam = os.path.split(inputDicomPath[:-1])
     else:
@@ -38,14 +50,15 @@ def createSessionDir(sessionPath, inputDicomPath):
 
 def getAssocFilteredScanNum(scanNumV,planC):
     """
+    Function to return index of filtered scan derived from original input scan.
 
     Args:
-        scanNumV (list): list of scan indices in planC
+        scanNumV: list for original scan indices in planC
         planC: pyCERR's plan container object
 
     Returns:
-        list: list of filtered scan indices in planC created from input list of scan numbers
-
+        filtScanNumV: list for filtered scan indices in planC created from input list
+                      of scan numbers
     """
 
     scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
@@ -65,7 +78,15 @@ def getAssocFilteredScanNum(scanNumV,planC):
 
 def getAssocWarpedScanNum(scanNumV,planC):
     """
-    Return warped scan created from input scanNum
+        Function to return index of deformed scan derived from original input scan.
+
+        Args:
+            scanNumV: list for original scan indices in planC
+            planC: pyCERR's plan container object
+
+        Returns:
+            warpedScanNumV: list for warped scan indices in planC created from input list
+                            of scan numbers
     """
     assocMovScanUIDs = [planC.scan[scanNum].assocMovingScanUID for scanNum in scanNumV]
 
@@ -79,11 +100,19 @@ def getAssocWarpedScanNum(scanNumV,planC):
     warpedScanNumV = warpedScanNumV[~np.isnan(warpedScanNumV)]
     return warpedScanNumV
 
-
 def getAssocResampledScanNum(scanNumV,planC):
     """
-    Return resampled scan created from input scanNum
+        Function to return index of resampled scan derived from original input scan.
+
+        Args:
+            scanNumV: list for original scan indices in planC
+            planC: pyCERR's plan container object
+
+        Returns:
+            warpedScanNumV: list for resampled scan indices in planC created from input list
+                            of scan numbers
     """
+
     scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
     resampScanNumV = np.full(len(scanNumV),np.nan)
 
@@ -98,19 +127,21 @@ def getAssocResampledScanNum(scanNumV,planC):
     return resampScanNumV
 
 def getScanNumFromIdentifier(idDict,planC,origFlag:bool = False):
-    '''
-    Return index of scan with metadata matching user-input identifier(s).
-    Supported identifiers:
-    :param idDict:  Parameter dictionary with keys specifying identifiers, and values holding expected quantity.
-                    Supported identifiers include: 'imageType', 'seriesDescription', 'scanNum', 'scanType',
-                    'seriesDate' (may be" first" or "last"), 'studyDate' (may be" first" or "last"),
-                    and 'assocStructure' (use structure name to identify associated scans. Set to 'none'
-                    to select scans with no associated structures)
-    :param planC
-    ----- Optional-----
-    :param origFlag: Set to True to ignore 'warped', 'resampled' or 'filtered' scans (default:False).
-    :return: scanNumV : Vector of scan indices matching specified identifier(s).
-    '''
+    """ 
+    Function to retrieve index of scan with metadata matching user-input identifier(s).
+
+    Args:
+        idDict: dictionary with keys specifying identifiers, and values holding expected quantity.
+                Supported identifiers include: 'imageType', 'seriesDescription', 'scanNum', 'scanType',
+                'seriesDate' (may be" first" or "last"), 'studyDate' (may be" first" or "last"),
+                and 'assocStructure' (use structure name to identify associated scans. Set to 'none'
+                to select scans with no associated structures)
+        planC: pyCERR's plan container object.
+        origFlag: [optional, default:False] bool for ignoring 'warped', 'resampled' or 'filtered' scans.
+
+    Returns:
+        scanNumV : np.array for scan indices matching specified identifier(s).
+    """
 
     # Get no. scans
     numScan = len(planC.scan)

@@ -9,11 +9,28 @@ from skimage.transform import resize
 def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                       limitsM=None, preserveAspectFlag=False):
     """
-    Script to resize images and label maps for deep learning.
-    """
+    Args:
+        scan3M: np.ndarray for 3d input scan
+        mask4M: np.ndarray for 4d input mask of dimension [nRows x nCols x nSlices x nStructures]
+                (stack of binary masks representing various structures)
+        gridS: tuple (xV, yV, zV) for coordinates of input scan/mask
+        outputImgSizeV: np.array for output image dimensions [nRows, nCols, nSlices]
+        method: string for method used to resize input scan. Supported values include
+                'padorcrop3d', 'pad3d', 'unpad3d', 'pad2d', 'unpad2d', 'padslices'
+                'unpadslices', 'bilinear','bicubic', and 'nearest'.
+                 Note: Masks are resized using 'nearest' for input methods 'bilinear','bicubic', and 'nearest'.
+        limitsM: [optional, default=None] np.ndarray for extents of bounding box on each
+                 slice. minr = limitsM[slcNum, 0], maxr = limitsM[slcNum, 1],
+                 minc = limitsM[slcNum, 2], maxc = limitsM[slcNum, 3]
+        preserveAspectFlag: bool for flag to preserve input aspect ratio by padding prior to resizing.
 
+    Returns:
+          scanOut3M: np.ndarray for 3d resized scan
+          maskOut4M: np.ndarray for 3d resized mask
+          gridOutS: tuple (xV, yV, zV) for coordinates of output scan/mask
+    """
     # Get input image size
-    if scan3M.size != 0:
+    if scan3M is not None:
         origSizeV = [scan3M.shape[0], scan3M.shape[1], scan3M.shape[2]]
     else:
         origSizeV = [mask4M.shape[0], mask4M.shape[1], mask4M.shape[2]]
@@ -196,7 +213,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
     elif methodLower in ['bilinear','bicubic','nearest']:
         #3D resizing. TBD: 2D
-
+        scanOut3M = None
         maskOut4M = None
         orderDict = {'bilinear': 1, 'bicubic': 3, 'nearest': 0} #Resizing order
 
@@ -216,7 +233,6 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 idx21 = 1 + (padding - scanSize[1]) // 2
                 idx22 = idx21 + scanSize[1] - 1
                 padded3M[idx11:idx12+1, idx21:idx22+1, :] = scan3M
-
                 scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
                 for nSlc in range(padded3M.shape[2]):
                     scanOut3M[:, :, nSlc] = resize(padded3M[:, :, nSlc],
@@ -246,20 +262,27 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 idx22 = idx21 + cropDim[1] - 1
                 maskOut4M = maskResize4M[idx11:idx12+1, idx21:idx22+1, :, :]
 
+            #Padded coordinates
+            xPadV = np.arange(xV[0] - (padding / 2) * voxSizeV[0],
+                           xV[-1] + (padding / 2) * voxSizeV[0], voxSizeV[0])
+            yPadV = np.arange(yV[0] - (padding / 2) * voxSizeV[1],
+                           yV[-1] + (padding / 2) * voxSizeV[1], voxSizeV[1])
             # Rescaled coordinates
-            scaleFactor = [outputImgSizeV[1] / padSize[1], outputImgSizeV[0] / padSize[0]]
-            xScaleV = xV * scaleFactor[0]
-            yScaleV = yV * scaleFactor[1]
+            scaleFactor = [outputImgSizeV[1] / padSize[1],
+                           outputImgSizeV[0] / padSize[0]]
+            xScaleV = xPadV * scaleFactor[0]
+            yScaleV = yPadV * scaleFactor[1]
             xOutV = np.linspace(xScaleV.min(), xScaleV.max(), outputImgSizeV[1])
             yOutV = np.linspace(yScaleV.min(), yScaleV.max(), outputImgSizeV[0])
             gridOutS = (xOutV,yOutV,zV)
 
         else:
             # Resize scan
-            scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
-            for nSlc in range(scan3M.shape[2]):
-                scanOut3M[:, :, nSlc] = resize(scan3M[:, :, nSlc],
-                                               (outputImgSizeV[0], outputImgSizeV[1]),
+            if scan3M is not None:
+                scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
+                for nSlc in range(scan3M.shape[2]):
+                    scanOut3M[:, :, nSlc] = resize(scan3M[:, :, nSlc],
+                                               (outputImgSizeV[:-1]),
                                                anti_aliasing=True,
                                                order=orderDict[methodLower])
             # Resize mask
@@ -267,12 +290,13 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 maskOut4M = np.zeros((*outputImgSizeV[0:2], mask4M.shape[2], mask4M.shape[3]))
                 for nSlc in range(mask4M.shape[2]):
                     maskOut4M[:, :, nSlc, :] = resize(np.squeeze(mask4M[:, :, nSlc, :]),
-                                                      outputImgSizeV[0:2],
-                                                      order = 0,  # 'nearest' interpolation
+                                                      outputImgSizeV[:-1],
+                                                      order=0,  # 'nearest' interpolation
                                                       anti_aliasing=False)
 
             # Rescaled coordinates
-            scaleFactor = [outputImgSizeV[1] / origSizeV[1], outputImgSizeV[0] / origSizeV[0]]
+            scaleFactor = [outputImgSizeV[1] / origSizeV[1],\
+                           outputImgSizeV[0] / origSizeV[0]]
             xScaleV = xV * scaleFactor[0]
             yScaleV = yV * scaleFactor[1]
             xOutV = np.linspace(xScaleV.min(), xScaleV.max(), outputImgSizeV[1])
@@ -293,7 +317,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             maskOut4M = np.zeros((scan3M.shape[0], scan3M.shape[1], numSlices, numLabels))
             maskOut4M[:, :, :origSizeV[2], :] = mask4M
 
-        zOutV = np.arange(zV[0], zV[-1]+(zPad)*voxSizeV[2], voxSizeV[2])
+        zOutV = np.arange(zV[0], zV[-1]+(zPad+1)*voxSizeV[2], voxSizeV[2])
         gridOutS = (xV, yV, zOutV)
 
     elif methodLower=='unpadslices':
