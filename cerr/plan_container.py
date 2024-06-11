@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from pydicom.uid import generate_uid
 import h5py
+import nibabel as nib
 import cerr.dataclasses.scan_info as scn_info
 from cerr.utils import uid
 from cerr.contour import rasterseg as rs
@@ -84,6 +85,29 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=
         doseGrp = saveH5Dose(doseGrp, doseNumV, planC)
         deformGrp = saveH5Deform(deformGrp, deformNumV, planC)
     return 0
+
+def saveLabelMapToNii(strNumV,labels,niiFileName,planC):
+        maskList = []
+        for idx in range(len(strNumV)):
+            scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID,planC)
+            affine3M = planC.scan[scanNum].get_nii_affine()
+            mask3M = rs.getStrMask(strNumV[idx],planC)
+            mask3M = np.moveaxis(mask3M,[0,1],[1,0])
+        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+        # dcmImgOri = planC.scan[scan_num].scanInfo[0].imageOrientationPatient
+        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        # zDiff = np.matmul(slice_normal, planC.scan[scan_num].scanInfo[1].imagePositionPatient) \
+        #         - np.matmul(slice_normal, planC.scan[scan_num].scanInfo[0].imagePositionPatient)
+        # ippDiffV = planC.scan[scan_num].scanInfo[1].imagePositionPatient - planC.scan[scan_num].scanInfo[0].imagePositionPatient
+            if scn.flipSliceOrderFlag(planC.scan[scanNum]): # np.all(np.sign(zDiff) < 0):
+            #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+                mask3M = np.flip(mask3M,axis=2)
+            maskList.append(mask3M)
+
+        mask4M = np.array(maskList)
+        strImg = nib.Nifti1Image(mask4M.astype('uint16'), affine3M)
+        nib.save(strImg, niiFileName)
 
 def loadFromH5(h5File, initplanC=''):
     if not isinstance(initplanC, PlanC):
