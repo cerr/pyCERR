@@ -3,7 +3,7 @@
  Supported filters include: "mean", "sobel", "LoG", "gabor", "gabor3d", "laws", "lawsEnergy"
  "rotationInvariantLaws", "rotationInvariantLawsEnergy"
 """
-import pywt
+#import pywt
 import numpy as np
 from scipy.signal import convolve2d
 from scipy.signal import convolve
@@ -836,12 +836,12 @@ def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS):
                across orientations as specified.
    """
 
-    filter = {"lawsFilter": lawsFilter}
-    response = rotationInvariantFilt(scan3M, [], filter,\
+   filter = {"lawsFilter": lawsFilter}
+   response = rotationInvariantFilt(scan3M, [], filter,\
                direction, filterDim, normFlag, rotS)
-    out3M = response[filterDim]
+   out3M = response[filterDim]
 
-    return out3M
+   return out3M
 
 
 def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
@@ -1127,7 +1127,7 @@ def rotate3dSequence(vol3M, index, sign):
 
     rotArr3M = switch[index](vol3M)
 
-    return rotArray3M
+    return rotArr3M
 
 
 def flipSequenceForWavelets():
