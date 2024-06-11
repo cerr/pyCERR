@@ -92,8 +92,18 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
 
 def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
     """
-    Create structuring element for morphological operations given desired dimensions in cm.
+    Function to create structuring element for morphological operations given
+    desired dimensions in cm.
+
+    Args:
+        sizeCm: float for size of structuring element in cm.
+        resolutionCmV: np.array for image resolution in cm [dx, dy, dz].
+        dimensions: [optional, default=3] int 3 for 3d or 2 for 2d.
+
+    Returns:
+        structuringElement: np.ndarray for structuring element.
     """
+
     sizeCmV =  np.repeat(sizeCm, dimensions)
     sizePixels = np.ceil(np.divide(sizeCmV, resolutionCmV))
     evenIdxV = sizePixels % 2 == 0
@@ -105,23 +115,51 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
 
 def fillHoles(binaryMask):
     """
-    Fill small holes in input binary mask
+    Function to fill small holes in input binary mask
+
+    Args:
+        binaryMask: np.ndarray(type=bool) for input mask.
+
+    Returns:
+        filledMask: np.ndarray(type=bool) for filled mask.
     """
+
     filledMask = ndimage.binary_fill_holes(binaryMask)
     return filledMask
 
 def morphologicalClosing(binaryMask, structuringElement):
     """
-    Morphological closing of input binary mask
+    Function for morphological closing of input binary mask
+
+    Args:
+        binaryMask: np.ndarray(type=bool) for input mask.
+        structuringElement: np.array for flat morphological structuring element.
+
+    Returns:
+        closedMask: np.ndarray(type=bool) for closed mask using input structuring element.
     """
     closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
     return closedMask
 
 def compute_boundingbox(binaryMaskM, is2DFlag=False, maskFlag=0):
-    # Finding extents of bounding box given a binary mask
-    # If maskFlag > 0, it is interpreted as a padding parameter
-    # If sliceWiseFlag is True slice-wise extents are returned
+    """
+    Function for finding extents of bounding box given a binary mask
 
+    Args:
+        binaryMaskM: np.ndarray(type=bool) for input mask.
+        is2DFlag: [optional, default=False] bool for computing
+                  slice-wise extents if true.
+        maskFlag: [optional, default=0] If maskFlag > 0, it is interpreted as a
+                  padding parameter.
+    Returns:
+        minr: int for start of mask along rows.
+        maxr: int for end of mask along rows.
+        minc: int for start of mask along cols.
+        maxc: int for end of mask along cols.
+        mins: int for start of mask along slices.
+        maxs: int for end of mask along slices.
+        bboxmask: np.ndarray(dtype=bool) for mask of bounding box.
+    """
     maskFlag = int(maskFlag)
 
     if is2DFlag:
@@ -181,15 +219,20 @@ def compute_boundingbox(binaryMaskM, is2DFlag=False, maskFlag=0):
 def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
               replaceFlag=None, procSructName=None):
     """
-    Morphological closing and hole-filling for binary masks
+    Function for morphological closing and hole-filling for binary masks
 
-    :param structNum : Index of structure in planC
-    :param structuringElementSizeCm : Desired size of structuring element for closing in cm
-    :param planC
-    :param saveFlag : Set to true to save processed mask to planC (Default:False)
-    :param replaceFlag: Set to true to replace input mask with processed mask to planC (Default:False)
-    :param procSructName : Output structure name. Original structure name is used if empty
-    :returns filledMask3M, planC
+    Args:
+        structNum : int for index of structure in planC.
+        structuringElementSizeCm : float for size of structuring element for closing in cm
+        planC: pyCERR plan container object.
+        saveFlag: [optional, default=False] bool flag for saving processed mask to planC.
+        replaceFlag: [optional, default=False] bool flag for replacing input mask with
+                    processed mask in planC.
+        procSructName: [optional, default=None] string for output structure name.
+                      Original structure name is used if None.
+    Returns:
+        filledMask3M: np.ndarray(dtype=bool) for filled mask.
+        planC: pyCERR plan container object.
     """
 
     # Get binary mask of structure
@@ -231,16 +274,27 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
 def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,\
                         replaceFlag=None, procSructName=None):
     """
-    Returns 'N' largest connected components in input binary mask
+    Function to retain 'N' largest connected components in input binary mask
 
-    :param structNum : Index of structure in planC (OR) 3D binary mask
-    :param structuringElementSizeCm : Desired size of structuring element for closing in cm
-    :param planC
-    :param saveFlag : Import filtered mask to planC structure
-    :param replaceFlag : Set to true to replace input mask with processed mask to planC (Default:False)
-    :param procSructName : Output structure name. Original structure name is used if empty
-    :returns maskOut3M, planC
+    Args:
+        structNum: int for index of structure in planC
+                   (OR) np.ndarray(dtype=bool) 3D binary mask.
+        structuringElementSizeCm: float for desired size of structuring element for
+                                  morphological closing in cm.
+        planC: [optional, default=None] pyCERR plan container object.
+        saveFlag: [optional, default=False] bool flag for importing filtered mask
+                  to planC if set to True.
+        replaceFlag: [optional, default=False] bool flag for replacing
+                     input mask with processed mask to planC if set to True.
+        procSructName: [optional, default=None] string for output structure name.
+                      Original structure name is used if empty.
+
+    Returns:
+        maskOut3M: np.ndarray(dtype=bool) filtered binary mask.
+        planC: pyCERR plan container object.
+
     """
+    
 
     if np.isscalar(structNum):
         # Get binary mask of structure
@@ -285,9 +339,22 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     return maskOut3M, planC
 
 
-def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=0):
+def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
     """
-    Return location (row no.) of couch in input scan
+
+    Function to identify location (row no.) of couch in input scan
+
+    Args:
+        scan3M: np.ndarray for input scan.
+        minLengthOpt: [optional, default=None] float for minimum length
+                      of couch expected (in no. voxels). If set to None,
+                      min. length is set to 1/8th image size.
+        retryOpt: [optional, default=False] bool for flag to rerun search
+                  with minLengthOpt halved if couch length is 0.
+
+    Returns:
+        yCouch: int for row no. representing couch location.
+        selectedLines: Candidate lines representing couch.
     """
     if minLengthOpt is None:
         minLengthOpt = []
@@ -386,22 +453,28 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=0):
 
 
 def getPatientOutline(scan3M, outThreshold, slicesV=None,
-                      minMaskSize=None, normFlag=False):
+                      minMaskSize=1500, normFlag=False):
     """
-    Returns binary mask of patient outline on input scan
-    :param scan3M: 3D scan array
-    :param outThreshold: Intensity level representing air
-    ---Optional---
-    :param slicesV: Range of slices for outline extraction(default:all)
-    :param minMaskSize: Minimum size of mask on any slice in no. xoels (default: 1500)
-    :param normFlag: Set to True to normalize scan before thresholding (recommended for MR images)
+    Function to extract binary mask of patient outline on input scan.
+
+    Args:
+        scan3M: np.ndarray representing 3D scan.
+        outThreshold: Intensity level representing air.
+                      Recommended:-400 HU for CT scans.
+        slicesV: [optional, default=None] np.array for range of slices for
+                 outline extraction. All slices are analyzed if set to None.
+        minMaskSize: [optional, default=1500] int for minimum acceptable size of mask
+                     on any slice in no. voxels.
+        normFlag: [optional, default=False] bool for flag to normalize scan3M
+                  before applying air threshold (recommended for MR images).
+
+    Returns:
+        conn3dPtMask3M: np.ndarray(dtype=bool) for mask of patient outline.
+
     """
     # Define default values for optional inputs
     if slicesV is None:
         slicesV = np.arange(scan3M.shape[2])
-
-    if minMaskSize is None:
-        minMaskSize = 1500
 
     # Mask out couch
     couchStartIdx, __ = getCouchLocationHough(scan3M)
