@@ -9,6 +9,9 @@ from skimage.transform import resize
 def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                       limitsM=None, preserveAspectFlag=False):
     """
+    Function to resize input scan and mask using specified coordinates, method, and output dimensions.
+    Supports preserving aspect ratio and slice-wise resizing within bounding box limits.
+
     Args:
         scan3M: np.ndarray for 3d input scan
         mask4M: np.ndarray for 4d input mask of dimension [nRows x nCols x nSlices x nStructures]
