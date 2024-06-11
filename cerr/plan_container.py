@@ -22,7 +22,7 @@ from cerr.dataclasses import dose as rtds
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
-from cerr.dataclasses.structure import Contour
+from cerr.dataclasses.structure import Contour, getLabelMap, getMaskList
 from cerr.dataclasses import header as headr
 
 def get_empty_list():
@@ -86,28 +86,40 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=
         deformGrp = saveH5Deform(deformGrp, deformNumV, planC)
     return 0
 
-def saveLabelMapToNii(strNumV,labels,niiFileName,planC):
-        maskList = []
-        for idx in range(len(strNumV)):
-            scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID,planC)
-            affine3M = planC.scan[scanNum].get_nii_affine()
-            mask3M = rs.getStrMask(strNumV[idx],planC)
-            mask3M = np.moveaxis(mask3M,[0,1],[1,0])
-        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
-        # dcmImgOri = planC.scan[scan_num].scanInfo[0].imageOrientationPatient
-        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
-        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-        # zDiff = np.matmul(slice_normal, planC.scan[scan_num].scanInfo[1].imagePositionPatient) \
-        #         - np.matmul(slice_normal, planC.scan[scan_num].scanInfo[0].imagePositionPatient)
-        # ippDiffV = planC.scan[scan_num].scanInfo[1].imagePositionPatient - planC.scan[scan_num].scanInfo[0].imagePositionPatient
-            if scn.flipSliceOrderFlag(planC.scan[scanNum]): # np.all(np.sign(zDiff) < 0):
-            #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
-                mask3M = np.flip(mask3M,axis=2)
-            maskList.append(mask3M)
+def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
+    """
+    Function to export pyCERR structure to NIfTi format mask/label map.
 
-        mask4M = np.array(maskList)
-        strImg = nib.Nifti1Image(mask4M.astype('uint16'), affine3M)
-        nib.save(strImg, niiFileName)
+    Args:
+        niiFileName: string specifying path to output NIfTI file.
+        strNumV: list of structure indices to be exported.
+        planC: pyCERR plan_container object.
+        labelDict: [optional, default=None] dictionary mapping indices with structure names
+        dim: [optional, default=3]
+
+    Returns:
+        0 on successful export.
+    """
+    if not isinstance(strNumV, list):
+        strNumV = [strNumV]
+
+    if dim == 3:
+        # Export label map
+        maskOut = getLabelMap(strNumV, planC, labelDict)
+    elif dim == 4:
+        # Export stack of binary masks
+        # Required for overlapping structures
+        maskList = getMaskList(strNumV, planC, labelDict=None)
+        maskOut = np.array(maskList)
+    else:
+        raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
+
+    assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+    affine3M = planC.scan[assocScan].get_nii_affine()
+    strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
+    nib.save(strImg, niiFileName)
+
+    return 0
 
 def loadFromH5(h5File, initplanC=''):
     if not isinstance(initplanC, PlanC):
