@@ -1,8 +1,9 @@
 """scan module.
 
-Ths scan module defines metadata for an image (CT, MR, PT, US).
-The metadata and pixel-array are attributes of the Scan class.
-This module also defines routines converting images to real world units.
+This module defines pyCERR data object for images (CT, MR, PT, US).
+Metadata can be imported from various file formats such as DICOM, NifTi.
+It also provides methods to transform the Scan object to other formats such NifTi, SimpleITK
+and for converting images to real world units and SUV calculation.
 
 """
 
@@ -22,6 +23,20 @@ def get_empty_np_array():
 
 @dataclass
 class Scan:
+    """This class defines data object for volumetric images such as CT, MR, PET or derived image type.
+
+    Attributes:
+        scanArray (np.ndarray): numpy array for the image.
+        scanType (str): Type of scan. e.g. 'CT SCAN'
+        scanInfo (cerr.dataclasses.scan_info.ScanInfo): scan_info object containing metadata for each scan slice
+        scanUID (str): unique identifier for each scan.
+        assocDeformUID (str): optional, UID of associated deformation object that was used to generate this scan.
+        assocTextureUID (str): optional, UID of associated texture object that was used to generate this scan.
+        assocBaseScanUID (str): optional, UID of associated base scan in the deformation that was used to generate this scan.
+        assocMovingScanUID (str): optional, UID of associated moving scan in the deformation that was used to generate this scan.
+
+    """
+
     scanArray: np.ndarray = field(default_factory=get_empty_np_array)
     scanType: str = ''
     scanInfo: scn_info.ScanInfo = field(default_factory=list)
@@ -52,10 +67,20 @@ class Scan:
             return "" #json.JSONEncoder.default(self, obj)
 
     def getScanArray(self):
+        """ Routine to obtain image in the units defined in planC.scan[scanNum].scanInfo[slcNum].imageUnits
+        Returns:
+             np.ndarray: CTOffset is added to to scanArray such that the resulting array is in
+                real world units such as HU, SUV
+        """
         scan3M = self.scanArray - self.scanInfo[0].CTOffset
         return scan3M
 
     def get_nii_affine(self):
+        """ Routine for affine transformation of pyCERR scan object for storing in NifTi format
+
+        Returns:
+            np.ndarray: 3x3 affine matrix
+        """
         # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
         affine3M = self.Image2PhysicalTransM.copy()
         affine3M[0,:] = -affine3M[0,:] * 10 #nii row is reverse of dicom, cm to mm
@@ -64,6 +89,14 @@ class Scan:
         return affine3M
 
     def save_nii(self, niiFileName):
+        """ Routine to save pyCERR Scan object to NifTi file
+
+        Args:
+            niiFileName (str): File name including the full path to save the pyCERR scan object to NifTi file.
+
+        Returns:
+            int: 0 when NifTi file is written successfully.
+        """
         affine3M = self.get_nii_affine()
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
@@ -82,6 +115,13 @@ class Scan:
         return success
 
     def getSitkImage(self):
+        """ Routine to convert pyCERR Scan object to SimpleITK Image object
+
+        Returns:
+            sitk.Image: SimpleITK Image
+
+        """
+
         #sitkArray = np.moveaxis(self.getScanArray(),[0,1,2],[1,2,0])
         sitkArray = np.transpose(self.getScanArray(), (2, 0, 1)) # z,y,x order
         # CERR slice ordering is opposite of DICOM
@@ -107,7 +147,13 @@ class Scan:
 
 
     def getScanXYZVals(self):
+        """ Routine to obtain pyCERR scan object's x,y,z grid coordinates. The coordinates are in pyCERR's
+        virtual coordinate system.
 
+        Returns:
+            tuple: x, y, z coordinates corresponding to the columns, rows, slices of scan voxels
+
+        """
         scan_info = self.scanInfo[0]
         sizeDim1 = scan_info.sizeOfDimension1-1
         sizeDim2 = scan_info.sizeOfDimension2-1
@@ -128,11 +174,24 @@ class Scan:
         return (xvals,yvals,zvals)
 
     def getScanSize(self):
+        """ Routine to get scan dimensions.
+
+        Returns:
+            np.array:  numRows, numCols, numSlcs of pyCERR scan object
+
+        """
         numRows, numCols, numSlcs = self.scanInfo[0].sizeOfDimension1, self.scanInfo[0].sizeOfDimension2, \
                                     len(self.scanInfo)
         return np.asarray([numRows, numCols, numSlcs])
 
     def getScanOrientation(self):
+        """ Routine to get orientation of sacn w.r.t. patient.
+
+        Returns:
+            str: 3-character String representing the orientation of Scans's row, column and slice.
+
+        """
+
         orientPos = ['L', 'P', 'S']
         orientNeg = ['R', 'A', 'I']
         flipDict = {}
@@ -162,6 +221,13 @@ class Scan:
         return orientString
 
     def getScanSpacing(self):
+        """ Routine to get voxel spacing in cm.
+
+        Returns:
+            np.array: 3-element array containing dx, dy, dz of scan
+
+        """
+
         x_vals_v, y_vals_v, z_vals_v = self.getScanXYZVals()
         if y_vals_v[0] > y_vals_v[1]:
             y_vals_v = np.flip(y_vals_v)
@@ -171,7 +237,12 @@ class Scan:
         spacing_v = np.array([dx, dy, dz])
         return spacing_v
 
+
     def convertDcmToCerrVirtualCoords(self):
+        """ Routine to get scan from DICOM to pyCERR virtual coordinates. More information
+        about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+
+        """
 
         # Construct DICOM Affine transformation matrix
         # To construct DICOM affine transformation matrix it is necessary to figure out
@@ -243,6 +314,14 @@ class Scan:
 
 
     def convertDcmToRealWorldUnits(self, opts={}):
+        """ Routine to convert pixel array from DICOM storage units to real world units.
+
+        Args:
+            opts (dict): Dictionary of options to convert to real world units. Currrently, only one option
+             if supported - importMRPreciseValueFlag (yes or no) to specify whether to convert MR image from
+              Philips scanner to precise values.
+
+        """
 
         importMRPreciseValueFlag = 'no'
         if 'importMRPreciseValueFlag' in opts:
@@ -313,6 +392,14 @@ class Scan:
                 self.scanArray = self.scanArray.astype(float) / (rescaleSlope * scaleSlope)
 
     def convert_to_suv(self,suvType="BW"):
+        """ Routine to convert pixel array for PET scan from DICOM storage to SUV
+
+        Args:
+            suvType (str): optional, type of SUV. When not specified, the suvType is read from DICOM if available.
+             When not specified and not available in DIOCM, a default value of 'BW' is used. Currently supported
+             options are 'BW', 'BSA', 'LBM', 'LBMJANMA'
+
+        """
 
         scan3M = self.scanArray
         headerS = self.scanInfo
@@ -457,6 +544,12 @@ class Scan:
         self.scanArray = suv3M
 
     def getScanDict(self):
+        """ Routine to get dictionary representation of scan metadata
+
+        Returns:
+            dict: fields of the dictionary are attributes of the Scan object.
+
+        """
         scanDict = self.__dict__.copy()
         sInfoList = []
         for sInfo in scanDict['scanInfo']:
@@ -466,6 +559,16 @@ class Scan:
         return scanDict
 
 def flipSliceOrderFlag(scan):
+    """ Routine to determine slice order for determining the origin for conversion to NifTi and SimpleITK formats.
+
+    Args:
+        scan (cerr.dataclasses.scan.Scan): pyCERR scan object
+
+    Returns:
+        bool: True when dot product of slice normal and imagePositionPatient increases with slice order
+
+    """
+
     dcmImgOri = scan.scanInfo[0].imageOrientationPatient
     slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
            - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
@@ -475,6 +578,15 @@ def flipSliceOrderFlag(scan):
     return np.all(np.sign(zDiff) < 0)
 
 def getITKDirection(scan):
+    """
+
+    Args:
+        scan (cerr.dataclasses.scan.Scan): pyCERR scan object
+
+    Returns:
+        np.ndarray: 9-element array of direction cosines of row, column and slice w.r.t. patient.
+    """
+
     img_ori = scan.scanInfo[0].imageOrientationPatient
     img_ori = img_ori.reshape(6,1)
     slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
@@ -504,6 +616,16 @@ def get_slice_position(scan_info_item):
     return scan_info_item[1].zValue
 
 def populate_scan_info_fields(s_info, ds):
+    """
+
+    Args:
+        s_info (cerr.dataclasses.scan_info.ScanInfo): pyCERR's scanInfo object for storing metadata per slice.
+        ds (pydicom.dataset.Dataset): pydicom dataset object
+
+    Returns:
+        cerr.dataclasses.scan_info.ScanInfo: scanInfo object with attributes populated from metadata from input ds.
+
+    """
     s_info.frameOfReferenceUID = ds.FrameOfReferenceUID
     s_info.imageType = ds.Modality
     if not "SCAN" in s_info.imageType.upper():
@@ -555,6 +677,18 @@ def populate_scan_info_fields(s_info, ds):
     return s_info
 
 def populate_real_world_fields(s_info, perFrameSeq):
+    """
+
+    Args:
+        s_info (cerr.dataclasses.scan_info.ScanInfo): pyCERR's scanInfo object for storing metadata per slice.
+        perFrameSeq (pydicom.dataset.Dataset): pydicom dataset object or ds.PerFrameFunctionalGroupsSequence
+        for multiFrameFlg images.
+
+    Returns:
+        cerr.dataclasses.scan_info.ScanInfo: scanInfo object with attributes populated from metadata from input ds.
+
+    """
+
     if 'RealWorldValueMappingSequence' in perFrameSeq:
         RealWorldValueMappingSeq = perFrameSeq.RealWorldValueMappingSequence[0]
         if hasattr(RealWorldValueMappingSeq,'RealWorldValueSlope'):
@@ -571,6 +705,16 @@ def populate_real_world_fields(s_info, perFrameSeq):
     return s_info
 
 def populate_radiopharma_fields(s_info, seq):
+    """
+
+    Args:
+        s_info (cerr.dataclasses.scan_info.ScanInfo): pyCERR's scanInfo object for storing metadata per slice.
+        seq (pydicom.dataset.Dataset): dataset containing radiopharma metadata for PET scan.
+
+    Returns:
+        cerr.dataclasses.scan_info.ScanInfo: scanInfo object with attributes populated from metadata from input ds.
+
+    """
     # populate radiopharma info
     if ("0054","0016") in seq:
         radiopharmaInfoSeq = seq["0054","0016"].value[0]
@@ -586,6 +730,16 @@ def populate_radiopharma_fields(s_info, seq):
     return s_info
 
 def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
+    """
+
+    Args:
+        ds (pydicom.dataset.Dataset): Dataset object read from DICOM file
+        multiFrameFlg (bool): True when dataset is multiFrame image, otherwise False.
+
+    Returns:
+        cerr.dataclasses.scan_info.ScanInfo: scanInfo object with attributes populated from metadata from input ds.
+
+    """
     #numberOfFrames = ds.NumberOfFrames.real
     # s_info.frameOfReferenceUID = ds.FrameOfReferenceUID
     #s_info.seriesDescription = ds.SeriesDescription
@@ -649,6 +803,15 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
     return (scan_info, ds.pixel_array, ds.SeriesInstanceUID)
 
 def load_sorted_scan_info(file_list):
+    """
+
+    Args:
+        file_list (list): list of files to read into pyCERR's Scan object
+
+    Returns:
+        cerr.daatclasses.scan.Scan: pyCERR scan object containing metadata from from file_list.
+
+    """
     scan = Scan()
     #scan_info = [] #scn_info.ScanInfo()
     #scan_array = []
@@ -703,6 +866,16 @@ def load_sorted_scan_info(file_list):
     return scan
 
 def getScanNumFromUID(assocScanUID,planC) -> int:
+    """
+
+    Args:
+        assocScanUID (str): UID of scan.
+        planC (cerr.plan_container.planC): pyCERR's plan container object.
+
+    Returns:
+        int: index within planC.scan that matches input assocScanUID.
+    """
+
     uid_list = [s.scanUID for s in planC.scan]
     if assocScanUID in uid_list:
         return uid_list.index(assocScanUID)
@@ -710,6 +883,17 @@ def getScanNumFromUID(assocScanUID,planC) -> int:
         return None
 
 def getCERRScanArrayFromITK(itkImage, assocScanNum, planC):
+    """ This routine returns a numpy array in pyCERR coordinate system (orientation) from a SimpleITK Image.
+
+    Args:
+        itkImage (SimpleITK.Image): SimpleITK's Image object
+        assocScanNum (int): Scan index to associate orientation of itkImage in pyCERR.
+        planC (cerr.planC_container.planC): pyCERR's plan container object.
+
+    Returns:
+        np.ndarray: array in CERR virtual coordinates.
+
+    """
     if isinstance(itkImage, sitk.Image):
         itkImage = sitk.GetArrayFromImage(itkImage)
     cerrArray = np.transpose(itkImage, (1, 2, 0))
