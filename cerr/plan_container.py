@@ -15,14 +15,14 @@ from pydicom.uid import generate_uid
 import h5py
 import nibabel as nib
 import cerr.dataclasses.scan_info as scn_info
-from cerr.utils import uid
+from cerr.utils import uid, mask
 from cerr.contour import rasterseg as rs
 from cerr.dataclasses import beams as bms
 from cerr.dataclasses import dose as rtds
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
-from cerr.dataclasses.structure import Contour
+from cerr.dataclasses.structure import Contour, getLabelMap, getMaskList
 from cerr.dataclasses import header as headr
 
 def get_empty_list():
@@ -86,63 +86,40 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=
         deformGrp = saveH5Deform(deformGrp, deformNumV, planC)
     return 0
 
-def savNiiStructure(niiFileName, strNumV, planC, labelDict={}, dim=3):
+def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
     """
     Function to export pyCERR structure to NIfTi format mask/label map.
 
     Args:
         niiFileName: string specifying path to output NIfTI file.
-        strNumV: list of structures to be exported.
+        strNumV: list of structure indices to be exported.
         planC: pyCERR plan_container object.
-        labelDict: [optional, default={}] dictionary mapping indices with structure names
+        labelDict: [optional, default=None] dictionary mapping indices with structure names
         dim: [optional, default=3]
 
     Returns:
-     
+        0 on successful export.
     """
-    if not isinstance(strNumV,list):
+    if not isinstance(strNumV, list):
         strNumV = [strNumV]
 
     if dim == 3:
         # Export label map
-        if len(labelDict) == 0:
-            for idx in range(len(strNumV)):
-                strName = planC.structure[strNumV[idx]].structureName
-                labelDict[idx+1] = strName
-
-        allLabels = labelDict.keys()
-        assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
-        affine3M = planC.scan[assocScan].get_nii_affine()
-        shape = planC.scan[assocScan].getScanSize()
-        maskOut = np.zeros(shape,dtype=int)
-        for strNum in strNumV:
-            strName = planC.structure[strNum].structureName
-            strLabel = [labelDict[label] for label in allLabels if labelDict[label]==strName ]
-            if isinstance(strLabel,str):
-                strLabel = int(strLabel)
-            mask3M = rs.getStrMask(strNum,planC)
-            if np.any(mask3M and maskOut > 0):
-                raise Exception("Overlapping structures encountered. Please set dim=4.")
-            maskOut[mask3M] = strLabel
-
+        maskOut = getLabelMap(strNumV, planC, labelDict)
     elif dim == 4:
         # Export stack of binary masks
         # Required for overlapping structures
-        maskList = []
-        for idx in range(len(strNumV)):
-            scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID,planC)
-            affine3M = planC.scan[scanNum].get_nii_affine()
-            mask3M = rs.getStrMask(strNumV[idx],planC)
-            mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
-            if scn.flipSliceOrderFlag(planC.scan[scanNum]):
-                mask3M = np.flip(mask3M, axis=2)
-            maskList.append(mask3M)
+        maskList = getMaskList(strNumV, planC, labelDict=None)
         maskOut = np.array(maskList)
     else:
         raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
 
+    assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+    affine3M = planC.scan[assocScan].get_nii_affine()
     strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
     nib.save(strImg, niiFileName)
+
+    return 0
 
 def loadFromH5(h5File, initplanC=''):
     if not isinstance(initplanC, PlanC):

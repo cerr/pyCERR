@@ -808,3 +808,75 @@ def getContourPolygons(strNum, planC, rcsFlag=False):
                     pts = seg.points
                 polygons.append(pts)
     return polygons
+
+def getLabelMap(strNumV, planC, labelDict=None):
+    """
+    Function to create label map for user-specified structures.
+
+    Args:
+        strNumV: list of structure indices to be exported.
+        planC: pyCERR plan_container object.
+        labelDict: [optional, default={}] dictionary mapping indices with structure names.
+
+    Returns:
+       labelMap3M: np.ndarray(dtype=int) for label map.
+    """
+
+    if labelDict is None:
+        labelDict = {}
+        # Assign default labels
+        for idx in range(len(strNumV)):
+            strName = planC.structure[strNumV[idx]].structureName
+            labelDict[idx + 1] = strName
+
+    allLabels = labelDict.keys()
+    assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+    shape = planC.scan[assocScan].getScanSize()
+    labelMap3M = np.zeros(shape, dtype=int)
+
+    for strNum in strNumV:
+        strName = planC.structure[strNum].structureName
+        strLabel = [labelDict[label] for label in allLabels if labelDict[label] == strName]
+        if isinstance(strLabel, str):
+            strLabel = int(strLabel)
+        mask3M = rs.getStrMask(strNum, planC)
+        if np.any(mask3M and labelMap3M > 0):
+            raise Exception("Overlapping structures encountered. Please set dim=4.")
+        labelMap3M[mask3M] = strLabel
+
+    return labelMap3M
+
+def getMaskList(strNumV, planC, labelDict=None):
+    """
+        Function to create list of binary masks of user-specified structures.
+
+        Args:
+            strNumV: list of structure indices to be exported.
+            planC: pyCERR plan_container object.
+            labelDict: [optional, default={}] dictionary mapping indices with structure names.
+
+        Returns:
+           maskList: list(dtype=bool) of binary masks.
+    """
+
+    if labelDict is None:
+        labelDict = {}
+        # Assign default labels
+        for idx in range(len(strNumV)):
+            strName = planC.structure[strNumV[idx]].structureName
+            labelDict[idx + 1] = strName
+
+    maskList = []
+    for idx in range(len(strNumV)):
+        scanNum = cerrScan.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID, planC)
+        mask3M = rs.getStrMask(strNumV[idx], planC)
+        strName = planC.structure[strNumV[idx]].structureName
+        strLabel = [labelDict[label] for label in allLabels if labelDict[label] == strName]
+        if isinstance(strLabel, str):
+            strLabel = int(strLabel)
+        mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
+        if cerrScan.flipSliceOrderFlag(planC.scan[scanNum]):
+            mask3M = np.flip(mask3M, axis=2)
+        maskList.insert(strLabel, mask3M)
+
+    return maskList
