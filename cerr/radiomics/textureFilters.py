@@ -13,12 +13,16 @@ from cerr.utils.mask import compute_boundingbox
 
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
-    """meanFilter
-    Returns  mean filter response.
+    """
+    Function to compute patchwise mean on input image using specified kernel size.
 
-    scan3M     : 3D scan (numpy) arr3ay
-    kernelSize  : 1-D array specifying filter dimensions (2D/3D) [numRows, numCols, optional:numSlc]
-    absFlag     : Set to true to return mean of absolute intensities (default:false)
+    Args:
+        scan3M: Input image matrix.
+        kernelSize: Number of quantization levels (optional).
+        absFlag: Minimum value for quantization (optional).
+    Returns:
+        np.ndarray(dtype=float): Mean filter response.
+
     """
 
     # Generate mean filter kernel
@@ -35,16 +39,22 @@ def meanFilter(scan3M, kernelSize, absFlag=False):
     elif len(kernelSize) == 2 or kernelSize[2] == 0:  # 2d
         out3M = np.empty_like(scan3M)
         for slc in range(scan3M.shape[2]):
-            out3M[:, :, slc] = convolve2d(scan3M[:, :, slc], filt3M, mode='same', boundary='fill', fillvalue=0)
+            out3M[:, :, slc] = convolve2d(scan3M[:, :, slc],\
+                               filt3M, mode='same', boundary='fill', fillvalue=0)
 
     return out3M
 
 
 def sobelFilter(scan3M):
-    """sobelFilter
-    Returns  Sobel filter response.
+    """
+    Function to compute gradient magnitude and direction using Sobel filter.
 
-    scan3M      : 3D scan (numpy) array
+    Args:
+        scan3M: np.ndarray for input scan matrix.
+    Returns:
+        np.ndarray(dtype=float): gradient magnitude
+        np.ndarray(dtype=float): gradient direction
+
     """
 
     fx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
@@ -64,14 +74,18 @@ def sobelFilter(scan3M):
 
 
 def LoGFilter(scan3M, sigmaV, cutoffV, voxelSizeV):
-    """LoGFilter
-    Returns IBSI-compatible Laplacian of Gaussian filter response
+    """
+    Function to apply IBSI standard Laplacian of Gaussian (LoG) filter
 
-    scan3M      : 3D scan (numpy) array
-    sigmaV      : 1-D numpy array of Gaussian smoothing widths
-                  [sigmaRows,sigmaCols,sigmaSlc] in mm.
-    cutoffV     : 1-D numpy array of filter cutoffs [cutOffRow, cutOffCol cutOffSlc] in mm. Filter size = 2.*cutoffV+1
-    voxelSizeV  : 1-D numpy array [dx, dy, dz] of scan voxel dimensions in mm.
+    Args:
+        scan3M: np.ndarray for 3d scan matrix.
+        sigmaV: np.array (1-D) of Gaussian smoothing widths, [sigmaRows,sigmaCols,sigmaSlc] in mm.
+        cutoffV: np.array (1-D) of filter cutoffs [cutOffRow, cutOffCol cutOffSlc] in mm.
+                Note: Filter size = 2.*cutoffV+1
+        voxelSizeV: np.array (1-D) of scan voxel dimensions [dx, dy, dz]  in mm.
+
+    Returns:
+        np.ndarray(dtype=float): IBSI-compatible Laplacian of Gaussian filter response.
     """
 
     # Convert from physical to voxel units
@@ -90,12 +104,14 @@ def LoGFilter(scan3M, sigmaV, cutoffV, voxelSizeV):
         xSig2 = sigmaV[1] ** 2
         ySig2 = sigmaV[0] ** 2
         zSig2 = sigmaV[2] ** 2
-        h = np.exp(-(x ** 2 / (2 * xSig2) + y ** 2 / (2 * ySig2) + z ** 2 / (2 * zSig2)))
+        h = np.exp(-(x ** 2 / (2 * xSig2) + y ** 2 / (2 * ySig2) + \
+                     z ** 2 / (2 * zSig2)))
         h[h < np.finfo(float).eps * h.max()] = 0
         sumH = h.sum()
         if sumH != 0:
             h = h / sumH
-        h1 = h * (x ** 2 / xSig2 ** 2 + y ** 2 / ySig2 ** 2 + z ** 2 / zSig2 ** 2 - 1 / xSig2 - 1 / ySig2 - 1 / zSig2)
+        h1 = h * (x ** 2 / xSig2 ** 2 + y ** 2 / ySig2 ** 2 + \
+                  z ** 2 / zSig2 ** 2 - 1 / xSig2 - 1 / ySig2 - 1 / zSig2)
         h = h1 - h1.sum() / np.prod(filtSizeV)  # Shift to ensure sum result=0 on homogeneous regions
         # Apply LoG filter
         out3M = convolve(scan3M, h, mode='same')
@@ -123,19 +139,24 @@ def LoGFilter(scan3M, sigmaV, cutoffV, voxelSizeV):
     return out3M
 
 
-def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None, paddingV=None):
-    """gaborFilter
-    Returns 2D Gabor filter response (IBSI-compatible)
+def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV,\
+                aggS=None, radius=None, paddingV=None):
+    """
+    Function to apply IBSI standard 2D Gabor filter
 
-    scan3M     : 3D scan (numpy) array
-    sigma       : Std. dev. of Gaussian envelope (no. voxels)
-    lambda      : Wavelength (no. voxels)
-    gamma       : Spatial aspect ratio
-    thetaV     : Vector of orientations (degrees)
-    --- Optional---
-    aggS        : Parameter dictionary for averaging responses across orientations
-    radius      : Kernel radius in voxels [nRows nCols]
-    paddingV    : Amount of paddingV applied to scan3M in voxels [nRows nCols]
+    Args:
+        scan3M: np.ndarray for 3d scan matrix.
+        sigma: float for Std. deviation Gaussian envelope in no. voxels.
+        lambda: float for wavelength in no. voxels.
+        gamma: float for Spatial aspect ratio
+        thetaV: np.array of orientations in degrees
+        aggS: [optional, default=None] dict for parameters for averaging responses across orientations
+        radius: [optional, default=None] np.array for kernel radius in voxels [nRows nCols]
+        paddingV: [optional, default=None] np.array for amount of padding applied to scan3 in voxels [nRows nCols]
+
+    Returns:
+        np.ndarray(dtype=float): IBSI-compatible 2D Gabor filter response.
+
     """
 
     # Convert input orientation(s) to list
@@ -158,13 +179,17 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
     # Define filter extents
     d = 4
     if int(radius[0])==radius[0] and int(radius[1])==radius[1]:
-        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0]+1 ,1))
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1),\
+                           np.arange(-radius[0], radius[0]+1 ,1))
     elif int(radius[0])==radius[0]:
-        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0]+1 ,1))
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1),\
+                           np.arange(-radius[0], radius[0]+1 ,1))
     elif int(radius[1])==radius[1]:
-        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1), np.arange(-radius[0], radius[0] ,1))
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1]+1 ,1),\
+                           np.arange(-radius[0], radius[0] ,1))
     else:
-        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1), np.arange(-radius[0], radius[0] ,1))
+        x, y = np.meshgrid(np.arange(-radius[1], radius[1] ,1),\
+                           np.arange(-radius[0], radius[0] ,1))
 
     # Loop over input orientations
     outS = dict()
@@ -176,7 +201,8 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
         yTheta = x * np.sin(np.deg2rad(theta)) - y * np.cos(np.deg2rad(theta))
 
         # Compute filter coefficients
-        hGaussian = np.exp(-0.5 * (xTheta ** 2 / sigmaX ** 2 + yTheta ** 2 / sigmaY ** 2))
+        hGaussian = np.exp(-0.5 * (xTheta ** 2 / sigmaX ** 2 +\
+                                   yTheta ** 2 / sigmaY ** 2))
         hGaborEven = hGaussian * np.cos(2 * np.pi * xTheta / wavelength)
         hGaborOdd = hGaussian * np.sin(2 * np.pi * xTheta / wavelength)
         h = hGaborEven + 1j * hGaborOdd
@@ -197,7 +223,8 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
     gaborThetas = dict()
     if len(thetaV) > 1:
         if 'OrientationAggregation' in aggS:
-            gaborThetas4M = [filt_response3M for theta, filt_response3M in outS.items()]
+            gaborThetas4M = [filt_response3M for theta,\
+                             filt_response3M in outS.items()]
             aggMethod = aggS['OrientationAggregation']
             if aggMethod == 'average':
                 gaborAggThetaS3M = np.mean(gaborThetas4M, axis=0)
@@ -223,19 +250,28 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS=None, radius=None
     return gaborThetas, hGabor
 
 
-def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, paddingV=None):
+def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV,\
+                  aggS, radius=None, paddingV=None):
     """gaborFilter3d
-    Returns Gabor filter responses aggregated across the 3 orthogonal planes (IBSI-compatible)
+    Function to return Gabor filter responses aggregated across the 3 orthogonal planes
+    (IBSI-compatible)
 
-    scan3M     : 3D scan (numpy) array
-    sigma      : Std. dev. of Gaussian envelope (no. voxels)
-    lambda     : Wavelength (no. voxels)
-    gamma      : Spatial aspect ratio
-    thetaV     : List of orientations (degrees)
-    aggS       : Parameter dictionary for aggregation of responses across orientations and/or planes.
-    --- Optional---
-    radius      : Kernel radius in voxels [nRows nCols]
-    paddingV     : Amount of paddingV applied to scan3M in voxels [nRows nCols]
+    Args:
+        scan3M: np.ndarray for 3D scan array.
+        sigma: int for std. dev. of Gaussian envelope in no. voxels.
+        lambda: int for wavelength in no. voxels.
+        gamma: float for spatial aspect ratio.
+        thetaV: list(dtype=float) of orientations in degrees.
+        aggS: dictionary of parameters for aggregation of responses across orientations
+          and/or planes.
+        radius: [optional, default=None] np.array of kernel radii in voxels [nRows, nCols].
+        paddingV: [optional, default=None] np.array for amount of padding applied to
+              scan3M in voxels [nRows nCols].
+
+    Returns:
+        gaborOut: dict of Gabor filter responses.
+        hGaborPlane: dict of Gabor filter kernels for each plane.
+
     """
 
     if thetaV.ndim == 0:
@@ -267,7 +303,8 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, p
             scan3M = np.transpose(scan3M, (2, 1, 0))
 
         # Apply filter
-        gaborThetas, hGabor = gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+        gaborThetas, hGabor = gaborFilter(scan3M, sigma, wavelength,\
+                              gamma, thetaV, aggS, radius, paddingV)
         for fieldName in gaborThetas.keys():
             gaborThetaPlanes[(plane + '_') + fieldName] = gaborThetas[fieldName]
 
@@ -299,7 +336,8 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, p
         aggMethod = aggS['PlaneAggregation']
 
         for key in range(len(uqSettings)):
-            matchIdxV = [idx for idx, val in enumerate(commonSettings) if val == uqSettings[key]]
+            matchIdxV = [idx for idx, val in enumerate(commonSettings)\
+                         if val == uqSettings[key]]
             matchFields = [settings[match_idx] for match_idx in matchIdxV]
             if type(matchFields) is not list:
                 matchFields = [matchFields]
@@ -324,8 +362,18 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius=None, p
     return gaborOut, hGaborPlane
 
 
-# Get 3D Laws' filter kernel (IBSI-compatible)
 def get3dLawsMask(x, y, z):
+    """
+    Function to get 3D Laws' filter kernel (IBSI-compatible)
+
+    Args:
+        x: np.array (1D) of supported Laws filter coefficients applied along rows.
+        y: np.array (1D) of supported Laws filter coefficients applied along cols.
+        z: np.array (1D) of supported Laws filter coefficients applied along slices.
+
+    Returns:
+        conved3M: np.array (3D) Laws' kernel.
+    """
     convedM = np.outer(y, x)
     numRows, numCols = convedM.shape
     conved3M = np.zeros((numRows, numCols, len(z)), dtype='float32')
@@ -336,12 +384,19 @@ def get3dLawsMask(x, y, z):
 
 def getLawsMasks(direction='all', filterType='all', normFlag=False):
     """getLawsMasks
-    Return Laws filter kernels
+    Function to get Laws filter kernels.
 
-    direction   : '2d', '3d' or 'All'
-    filterType  : '3', '5', 'all', or a combination of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
-    normFlag   :  0 - no normalization (default) 1 - normalize  ( Normalization ensures average pixel in filtered image
-                 is as bright as the average pixel in the original image)
+    Args:
+        direction: [optional, default='all'] string specifying '2d', '3d' or 'All'
+        filterType: [optional, default='all'] string specifying '3', '5', 'all',
+                    or a combination of any 2 (if 2d)
+                    or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+        normFlag: [optional, default=False] bool for flag to normalize filter coefficients
+                 when True. Normalization ensures average pixel in filtered image
+                 is as bright as the average pixel in the original image.
+
+    Returns:
+        lawsMasks: Dictionary of Laws kernels for specified filter types and directions.
     """
 
     filterType = filterType.upper()
@@ -584,14 +639,21 @@ def getLawsMasks(direction='all', filterType='all', normFlag=False):
 
 
 def lawsFilter(scan3M, direction, filterDim, normFlag):
-    """lawsFilter
-    Return Laws' filter response (IBSI-compatible)
+    """
+    Function to compute Laws' filter response (IBSI-compatible)
 
-    scan3M    : 3D scan (numpy) array
-    direction  : '2d', '3d' or 'All'
-    filterDim : '3', '5', 'all', or a combination of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
-    normFlag  : False - no normalization (default) or True - normalize  ( Normalization ensures average pixel in filtered image
-                 is as bright as the average pixel in the original image)
+    Args:
+        scan3M: np.ndarray for 3D scan.
+        direction: string specifying '2d', '3d' or 'All'
+        filterDim: string specifying '3', '5', 'all', or a combination of
+                    any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+        normFlag: bool for flag to normalize filter coefficients if True.
+                  Normalization ensures average pixel in filtered image
+                  is as bright as the average pixel in the original image)
+
+    Returns:
+       lawsOut: Dictionary of filter responses for specified filter types and directions.
+
     """
 
     if isinstance(filterDim, (int, float)):
@@ -602,34 +664,46 @@ def lawsFilter(scan3M, direction, filterDim, normFlag):
 
     # Compute features
     fieldNames = list(lawsMasks.keys())
-    num_features = len(fieldNames)
+    numFeatures = len(fieldNames)
 
-    out_dict = {}
+    lawsOut = {}
 
-    for i in range(num_features):
-        filter_weights = lawsMasks[fieldNames[i]]
+    for i in range(numFeatures):
+        filterWeights = lawsMasks[fieldNames[i]]
         if direction.lower() == '3d':
-            response3M = convolve(scan3M, filter_weights, mode='same')
+            response3M = convolve(scan3M, filterWeights, mode='same')
         elif direction.lower() == '2d':
             response3M = np.empty_like(scan3M)
             for slc in range(scan3M.shape[2]):
-                response3M[:, :, slc] = convolve2d(scan3M[:, :, slc], filter_weights, mode='same')
-        out_dict[fieldNames[i]] = response3M
+                response3M[:, :, slc] = convolve2d(scan3M[:, :, slc],\
+                                        filterWeights, mode='same')
+        lawsOut[fieldNames[i]] = response3M
 
-    return out_dict
+    return lawsOut
 
 
-def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
-    """energyFilter
-    Returns local mean of absolute values
+def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod,\
+                 energyKernelSizeV, energyPadSizeV, energyPadMethod):
+    """
+    Function to compute energy (local mean of absolute intensities)
 
-    tex3M              : Response map
-    mask3M             : Pre-processed mask
-    texPadSizeV        : Padding applied in computing tex3M
-    texPadMethod       : Padding method applied prior to computing tex3M
-    energyKernelSizeV  : Patch size for mean filtering [numRows numCols num_slc] in voxels
-    energyPadMethod    : Padding method for mean filter
-    energyPadSizeV     : Padding for mean filter [numRows numCols num_slc] in voxels
+    Args:
+        tex3M: np.ndarray(dtype=float) for input filter response map
+        mask3M: np.ndarray(dtype=bool) for processed mask returned by radiomics.preprocess.
+        texPadFlag: bool for flag to indicate if padding was applied to compute
+                    Laws filter response.
+        texPadSizeV: np.array(dtype=int) for amount of padding applied to compute tex3M
+        texPadMethod: string for padding method applied prior to compute tex3M
+        energyKernelSizeV: np.array(dtype=int) for patch size used to calculate local energy
+                           [numRows numCols num_slc] in voxels.
+        energyPadMethod: np.array(dtype=int) for padding method applied to
+                        calculate local energy.
+        energyPadSizeV: np.array(dtype=int) for amount padding applied to
+                        calculate local energy [numRows numCols num_slc] in voxels.
+
+    Returns:
+        texEnergyPad3M: np.ndarray(dtype=float) of energy filter response.
+
     """
 
     # Calc. padding applied
@@ -690,22 +764,36 @@ def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod, energyKer
     return texEnergyPad3M
 
 
-def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadFlag, lawsPadSizeV,
-                     lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod):
-    """lawsEnergyFilter
-    Returns local mean of absolute values of laws filter response
+def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag,\
+                     lawsPadFlag, lawsPadSizeV,lawsPadMethod, energyKernelSizeV,\
+                     energyPadSizeV, energyPadMethod):
+    """
+    Function to compute local mean of absolute values of laws filter response
 
-   scan3M             : 3D scan (numpy) array
-   mask3M             : 3D mask
-   direction          : '2d', '3d' or 'All'
-   filterDim          : '3', '5', 'all', or a combination of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
-   normFlag           : False - no normalization (default) or True - normalize  ( Normalization ensures average pixel in filtered image
-                         is as bright as the average pixel in the original image)
-   lawsPadSizeV       :
-   lawsPadMethod      :
-   energyKernelSizeV  :
-   energyPadMethod    :
-   energyPadSizeV     :
+    Args:
+        scan3M: np.ndarray for 3D scan.
+        mask3M: np.ndarray(dtype=bool) for 3D mask.
+        direction: string specifying '2d', '3d' or 'All'.
+        filterDim: string specifying '3', '5', 'all', or a combination
+                    of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+        normFlag: bool for flag to normalize kernel coefficients if set to True.
+                  Normalization ensures average pixel in filtered image
+                  is as bright as the average pixel in the original image.
+        lawsPadFlag: bool for flag to indicate if padding was applied to compute
+                     Laws filter response.
+        lawsPadSizeV: np.array(dtype=int) for amount of padding applied to compute Laws
+                 filter response.
+        lawsPadMethod: string for padding method applied to compute Laws filter response.
+        energyKernelSizeV: np.array(dtype=int) for patch size used to calculate local energy
+                      [numRows numCols num_slc] in voxels.
+        energyPadMethod: np.array(dtype=int) for padding method applied to
+                   calculate local energy.
+        energyPadSizeV: np.array(dtype=int) for amount padding applied to
+                   calculate local energy [numRows numCols num_slc] in voxels.
+
+   Returns:
+        outS: Dictionary of filter responses for specified directions and filter types.
+
    """
 
     # Compute Laws filter(s) reponse(s)
@@ -729,21 +817,73 @@ def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadFlag
 
 
 def rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS):
+   """
+   Function to return rotation-invariant Laws filter response.
+
+   Args:
+        scan3M: np.ndarray for 3D scan.
+        direction: string specifying '2d', '3d' or 'All'.
+        filterDim: string specifying '3', '5', 'all', or a combination
+                    of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+        normFlag: bool for flag to normalize kernel coefficients if set to True.
+                  Normalization ensures average pixel in filtered image
+                  is as bright as the average pixel in the original image
+        rotS: dictionary of parameters for aggregating filter response across
+              different orientations
+
+   Returns:
+        out3M: np.ndarray(dtype=float) for Laws filter response aggregated
+               across orientations as specified.
+   """
+
     filter = {"lawsFilter": lawsFilter}
-    response = rotationInvariantFilt(scan3M, [], filter, direction, filterDim, normFlag, rotS)
+    response = rotationInvariantFilt(scan3M, [], filter,\
+               direction, filterDim, normFlag, rotS)
     out3M = response[filterDim]
 
     return out3M
 
 
-def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag, lawsPadFlag, lawsPadSizeV,\
-                                      lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod, rotS):
+def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
+                                      normFlag, lawsPadFlag, lawsPadSizeV,\
+                                      lawsPadMethod, energyKernelSizeV,\
+                                      energyPadSizeV, energyPadMethod, rotS):
+    """
+       Function to return rotation-invariant Laws energy response.
 
+       Args:
+            scan3M: np.ndarray for 3D scan.
+            direction: string specifying '2d', '3d' or 'All'.
+            filterDim: string specifying '3', '5', 'all', or a combination
+                        of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+            normFlag: bool for flag to normalize kernel coefficients if set to True.
+                      Normalization ensures average pixel in filtered image
+                      is as bright as the average pixel in the original image
+            lawsPadFlag: bool for flag to indicate if padding was applied to compute
+                     Laws filter response.
+            lawsPadSizeV: np.array(dtype=int) for amount of padding applied to compute Laws
+                 filter response.
+            lawsPadMethod: string for padding method applied to compute Laws filter response.
+            energyKernelSizeV: np.array(dtype=int) for patch size used to calculate local energy
+                      [numRows numCols num_slc] in voxels.
+            energyPadMethod: np.array(dtype=int) for padding method applied to
+                   calculate local energy.
+            energyPadSizeV: np.array(dtype=int) for amount padding applied to
+                   calculate local energy [numRows numCols num_slc] in voxels.
+
+            rotS: dictionary of parameters for aggregating filter response across
+                  different orientations
+
+       Returns:
+            lawsEnergyAggPad3M: np.ndarray(dtype=float) for energy of Laws filter response
+                                aggregated across orientations as specified.
+       """
     # Compute rotation-invariant Laws response map
     lawsAggTex3m = rotationInvariantLawsFilter(scan3M, direction, filterDim, normFlag, rotS)
 
     # Compute energy on aggregated response
-    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, mask3M, lawsPadFlag, lawsPadSizeV, lawsPadMethod, energyKernelSizeV,\
+    lawsEnergyAggPad3M = energyFilter(lawsAggTex3m, mask3M, lawsPadFlag,\
+                                      lawsPadSizeV, lawsPadMethod,energyKernelSizeV,\
                                       energyPadSizeV, energyPadMethod)
 
     return lawsEnergyAggPad3M
@@ -887,28 +1027,60 @@ def getMatchFields(dictIn, *args):
 
 
 def aggregateRotatedResponses(rotTexture, aggregationMethod):
-    """Aggregate textures from all orientations"""
+    """
+    Function to aggregate textures from all orientations.
 
-    out_4m = np.stack(rotTexture, axis=0)
+    Args:
+        rotTexture: list of filter response maps to be aggregated,
+                    computed at different orientations.
+        aggregationMethod: string for aggregation method. May be 'avg','max', or 'std'.
+
+    Returns:
+        Aggregated response map.
+
+    """
+
+    out4M = np.stack(rotTexture, axis=0)
     if aggregationMethod == 'avg':
-        agg3M = np.mean(out_4m, axis=0)
+        agg3M = np.mean(out4M, axis=0)
     elif aggregationMethod == 'max':
-        agg3M = np.max(out_4m, axis=0)
+        agg3M = np.max(out4M, axis=0)
     elif aggregationMethod == 'std':
-        agg3M = np.std(out_4m, axis=0)
+        agg3M = np.std(out4M, axis=0)
 
     return agg3M
 
 
 def rot3d90(arr3M, axis, angle):
-    """Rotate 3D array 90 degrees around a specific axis"""
+    """
+    Function to rotate a 3D array 90 degrees around a specified axis.
+
+    Args:
+        arr3M: np.ndarray for 3D scan.
+        axis: int for axis around which to rotate the array.
+        angle: angle of rotation in degrees.
+
+    Returns:
+        rotArr3M: np.ndarray for rotated scan.
+    """
 
     rotArr3M = rotate(arr3M, angle, axes=(axis % 3, (axis + 1) % 3), reshape=False)
     return rotArr3M
 
 
 def rotate3dSequence(vol3M, index, sign):
-    """Apply pre-defined sequence of right angle rotations to 2D/3D arrays"""
+    """
+    Function to apply pre-defined sequence of right angle rotations to 2D/3D arrays
+
+    Args:
+        vol3M: np.ndarray for 3D scan.
+        index: int for multiplicative factor of 90 degrees.
+        sign: int to indicate direction of rotation (+1 or -1).
+
+    Returns:
+        rotArr3M: np.ndarray for rotated scan.
+
+    """
 
     signedAngle = sign * 90
     switch = {
@@ -953,7 +1125,9 @@ def rotate3dSequence(vol3M, index, sign):
         23: lambda x: rot3d90(x, 3, signedAngle * 3),
     }
 
-    return switch[index](vol3M)
+    rotArr3M = switch[index](vol3M)
+
+    return rotArray3M
 
 
 def flipSequenceForWavelets():
@@ -961,7 +1135,20 @@ def flipSequenceForWavelets():
 
 
 def rotationInvariantFilt(scan3M, mask3M, filter, *params):
-    """Apply filter over a range of orientations"""
+    """
+    Function to apply filter over a range of orientations to approximate rotation
+    invariant filter.
+
+    Args:
+        scan3M: np.ndarray for 3D scan.
+        mask3M: np.ndarray(dtype=bool) for 3D mask.
+        filter: dictionary of filter names and associated parameters.
+        params:
+
+    Returns:
+        aggS: dictionary of rotation -invariant filter responses.
+
+    """
 
     filterType = list(filter.keys())
     filterType = filterType[0].replace(' ', '')
