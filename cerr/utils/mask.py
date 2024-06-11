@@ -2,15 +2,13 @@
 Functions for processing of binary masks, including morphological
 operations and custom routines mask generation.
 """
+
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import label, binary_opening, binary_fill_holes, uniform_filter
 from skimage import exposure, filters, morphology, transform
 from skimage.morphology import square, octagon
-import cerr.utils.statisticsUtils as stat
-from cerr.contour import rasterseg as rs
-from cerr.dataclasses import scan as cerrScan
-from cerr.dataclasses import structure as cerrStr
+import cerr.utils.statisticsUtils as statUtil
 
 
 def getDown2Mask(inM, sample):
@@ -216,32 +214,18 @@ def compute_boundingbox(binaryMaskM, is2DFlag=False, maskFlag=0):
 
     return minr, maxr, minc, maxc, mins, maxs, bboxmask
 
-def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
-              replaceFlag=None, procSructName=None):
+def closeMask(mask3M, inputResV, structuringElementSizeCm):
+
     """
     Function for morphological closing and hole-filling for binary masks
 
     Args:
-        structNum : int for index of structure in planC.
+        mask3M : Binary mask to close and hole-fill.
+        inputResV: Physical Resolution of the mask in cm.
         structuringElementSizeCm : float for size of structuring element for closing in cm
-        planC: pyCERR plan container object.
-        saveFlag: [optional, default=False] bool flag for saving processed mask to planC.
-        replaceFlag: [optional, default=False] bool flag for replacing input mask with
-                    processed mask in planC.
-        procSructName: [optional, default=None] string for output structure name.
-                      Original structure name is used if None.
     Returns:
         filledMask3M: np.ndarray(dtype=bool) for filled mask.
-        planC: pyCERR plan container object.
     """
-
-    # Get binary mask of structure
-    mask3M = rs.getStrMask(structNum,planC)
-
-    # Get mask resolution
-    assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
-                                              planC)
-    inputResV = planC.scan[assocScanNum].getScanSpacing()
 
     # Create structuring element
     structuringElement = createStructuringElement(structuringElementSizeCm,\
@@ -253,55 +237,23 @@ def closeMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
     # Fill any remaining holes
     filledMask3M = fillHoles(closedMask3M)
 
-    # Save to planC
-    if saveFlag:
-        if procSructName is None:
-            procSructName = planC.structure[structNum].structureName
-
-        assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
-                                                  planC)
-        newStructNum = None
-        if replaceFlag:
-            # Delete structNum
-            #del planC.structure[structNum]
-            newStructNum = structNum
-        #pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, planC)
-        planC = cerrStr.import_structure_mask(filledMask3M, assocScanNum, procSructName, newStructNum, planC)
+    return filledMask3M
 
 
-    return filledMask3M, planC
-
-def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,\
-                        replaceFlag=None, procSructName=None):
+def largestConnComps(mask3M, numConnComponents):
     """
     Function to retain 'N' largest connected components in input binary mask
 
     Args:
-        structNum: int for index of structure in planC
-                   (OR) np.ndarray(dtype=bool) 3D binary mask.
-        structuringElementSizeCm: float for desired size of structuring element for
-                                  morphological closing in cm.
-        planC: [optional, default=None] pyCERR plan container object.
-        saveFlag: [optional, default=False] bool flag for importing filtered mask
-                  to planC if set to True.
-        replaceFlag: [optional, default=False] bool flag for replacing
-                     input mask with processed mask to planC if set to True.
-        procSructName: [optional, default=None] string for output structure name.
-                      Original structure name is used if empty.
+        mask3M (np.ndarray(dtype=bool)): 3D binary segmentation mask
+                   (OR)  3D binary mask.
+        numConnComponents (int): number of largest components to retain.
 
     Returns:
-        maskOut3M: np.ndarray(dtype=bool) filtered binary mask.
-        planC: pyCERR plan container object.
+        maskOut3M (np.ndarray(dtype=bool)): 3D mask with labels corresponding to components.
 
     """
-    
 
-    if np.isscalar(structNum):
-        # Get binary mask of structure
-        mask3M = rs.getStrMask(structNum,planC)
-    else:
-        # Input is binary structure mask
-        mask3M = structNum
 
     if np.sum(mask3M) > 1:
         #Extract connected components
@@ -323,20 +275,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     else:
         maskOut3M = mask3M
 
-    if planC is not None and saveFlag and np.isscalar(structNum):
-        if procSructName is None:
-            procSructName = planC.structure[structNum].structureName
-
-        assocScanNum = cerrScan.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
-                                                  planC)
-        newStructNum = None
-        if replaceFlag:
-            # Delete structNum
-            #del planC.structure[structNum]
-            newStructNum = structNum
-        planC = cerrStr.import_structure_mask(maskOut3M, assocScanNum, procSructName, newStructNum, planC)
-
-    return maskOut3M, planC
+    return maskOut3M
 
 
 def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
@@ -486,7 +425,7 @@ def getPatientOutline(scan3M, outThreshold, slicesV=None,
         scan3M = scan3M / (np.max(scan3M) + np.finfo(float).eps)
 
     scanThreshV = scan3M[scan3M>outThreshold]
-    adjustedThreshold = stat.prctile(scanThreshV,5)
+    adjustedThreshold = statUtil.prctile(scanThreshV, 5)
     minInt = np.min(scan3M)
 
     # Loop over slices
@@ -536,6 +475,6 @@ def getPatientOutline(scan3M, outThreshold, slicesV=None,
                 ptMask3M[:, :, slc] = maskM
 
     # 3D connected component filter
-    conn3dPtMask3M, __ = getLargestConnComps(ptMask3M, 1)
+    conn3dPtMask3M, __ = largestConnComps(ptMask3M, 1)
 
     return conn3dPtMask3M
