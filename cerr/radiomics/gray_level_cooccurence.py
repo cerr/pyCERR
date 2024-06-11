@@ -7,9 +7,7 @@ This module contains routines for calculation of Gray Level Co-occurrence matrix
 import numpy as np
 
 def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
-    """
-
-    This function calculates the cooccurrence matrix for the passed quantized image based on
+    """This function calculates the cooccurrence matrix for the passed quantized image based on
     IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#grey-level-co-occurrence-based-features
 
     Args:
@@ -26,7 +24,6 @@ def calcCooccur(quantizedM, offsetsM, nL, cooccurType=1):
         np.ndarray: cooccurrence matrix of size (nL*nL) x 1 for cooccurType = 1,
                                              or (nL*nL) x offsetsM.shape[0] for cooccurType = 2.
                     The output can be passed to cooccurToScalarFeatures to get GLCM texture features.
-
     """
 
     # Default to building cooccurrence by combining all offsets

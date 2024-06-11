@@ -767,8 +767,7 @@ def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod,\
 def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag,\
                      lawsPadFlag, lawsPadSizeV,lawsPadMethod, energyKernelSizeV,\
                      energyPadSizeV, energyPadMethod):
-    """
-    Function to compute local mean of absolute values of laws filter response
+    """Function to compute local mean of absolute values of laws filter response
 
     Args:
         scan3M: np.ndarray for 3D scan.
@@ -793,7 +792,6 @@ def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag,\
 
    Returns:
         outS: Dictionary of filter responses for specified directions and filter types.
-
    """
 
     # Compute Laws filter(s) reponse(s)

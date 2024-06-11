@@ -70,8 +70,9 @@ class Scan:
         """ Routine to obtain image in the units defined in planC.scan[scanNum].scanInfo[slcNum].imageUnits
         Returns:
              np.ndarray: CTOffset is added to to scanArray such that the resulting array is in
-                real world units such as HU, SUV
+                         real world units such as HU, SUV
         """
+
         scan3M = self.scanArray - self.scanInfo[0].CTOffset
         return scan3M
 
@@ -239,9 +240,8 @@ class Scan:
 
 
     def convertDcmToCerrVirtualCoords(self):
-        """ Routine to get scan from DICOM to pyCERR virtual coordinates. More information
-        about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
-
+        """Routine to get scan from DICOM to pyCERR virtual coordinates. More information
+            about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
         """
 
         # Construct DICOM Affine transformation matrix

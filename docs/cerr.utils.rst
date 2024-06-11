@@ -12,14 +12,6 @@ cerr.utils.aiPipeline module
    :undoc-members:
    :show-inheritance:
 
-cerr.utils.identifyScan module
-------------------------------
-
-.. automodule:: cerr.utils.identifyScan
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 cerr.utils.imageProc module
 ---------------------------
 

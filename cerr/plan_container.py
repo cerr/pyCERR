@@ -347,16 +347,20 @@ def loadH5Strucutre(structGrp, planC):
 
 
 def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
+    """This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
+
+    Args:
+        dcm_dir (str): absolute path to directory containing dicom files
+        opts (dict): dictionary of import options. Currently supported options are:
+                     'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
+                    e.g.  opts = {'suvType': 'LBM'}
+        initplanC (PlanC): An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
+
+    Returns:
+        PlanC: An instance of PlanC with metadata populated from DICOM files in dcm_dir
+
     """
-    This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
-    INPUTS -
-        dcm_dir - absolute path to directory containing dicom files
-        initplanC - An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
-    OUTPUT - An instance of PlanC
-        opts - dictionary of import options. Currently supported options are:
-            'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
-            e.g.  opts = {'suvType': 'LBM'}
-    """
+
     import os
     if not os.path.isdir(dcm_dir):
         raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
