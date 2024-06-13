@@ -9,7 +9,19 @@ from cerr.radiomics.preprocess import preProcessForRadiomics
 from cerr.utils.mask import compute_boundingbox
 
 def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
-    """ Load filter parameters from user-input JSON file"""
+    """
+    Function to load filter parameters from user-input JSON.
+
+    Args:
+        settingsFile: string from path to JSON file.
+        scanNum: [optional, default=None] Scan no. from which to extract additional
+                    parameters like voxel size.
+        planC: [optional, default=None] pyCERR's plan container object.
+
+    Returns:
+        paramS: dictionary of radiomics parameters parsed from JSON file.
+         filterTypes: list of texture filters specified in JSON file.
+    """
 
     # Read settings
     with open(settingsFile) as json_file:
@@ -29,12 +41,15 @@ def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
 
 def processImage(filterType, scan3M, mask3M, paramS):
     """
-    Process scan using selected filter and parameters
+    Function to process scan using selected filter and parameters
+    Args:
+        filterType: String for name of supported filter.
+        scan3M: np.ndarray for 3D scan.
+        mask3M: np.ndarray(dtype=bool) for 3D binary mask.
+        paramS: dictionary of parameters (read from JSON).
+    Returns:
+        outS: dictionary containing response maps for each filter type.
 
-    filterType : Name of supported filter
-    scan3M     : 3D scan array
-    mask3M     : 3D mask
-    paramS     : Dictionary of parameters (read from JSON)
     """
 
     filterType = filterType.strip().lower()
@@ -156,11 +171,16 @@ def processImage(filterType, scan3M, mask3M, paramS):
 
 def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
     """
-    Filter image and add to planC
-    planC           : Plan container
-    scanNum         : Index of scan to be filtered
-    strNum          : Index of ROI
-    configFilePath  : Path to JSON config file with filter parameters
+    Function to filter scan and import result to planC.
+
+    Args:
+        planC: pyCERR's plan container object.
+        scanNum: int for index of scan to be filtered.
+        strNum: int for index of ROI.
+        configFilePath: string for path to JSON config file with filter parameters.
+
+    Returns:
+        planC: pyCERR's plan container object with texture map as pseudo-scan.
     """
 
     # Extract scan and mask
