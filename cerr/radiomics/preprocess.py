@@ -290,16 +290,17 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
                 'periodic' - Image is padded with periodic expansion.
                 'nearest' - Image is padded by using values from nearest neighbors.
                 'mirror' - Image is padded by mirrorig the boundary region as per the margin.
-        marginV:
-        cropFlag:
+        marginV: np.array (1D) specifying amount of padding to be applied
+                [nRows, nCols, nSlices] in voxels.
+        cropFlag: [optional, default:True] bool for flag to crop around mask bounding box
+                  when set to True.
     Returns:
-        np.ndarray(dtype=:
+        np.ndarray(dtype=:) outScan3M
+         outMask3M
+          outLimitsV
         np.ndarray(dtype=int): , maskBoundingBox3M, morphmask3M, gridS, paramS, diagS
 
     """
-
-    if cropFlag is None:
-        cropFlag = True
 
     if method.lower() == 'none':
         marginV = [0, 0, 0]

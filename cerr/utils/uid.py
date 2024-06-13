@@ -2,6 +2,17 @@ import random
 from datetime import datetime
 
 def createUID(modality):
+    """
+    Function to create a unique identifier for various pyCERR dataclass objects.
+
+    Args:
+        modality: string for pyCERR object. May be 'SCAN', 'STRUCTURE', 'DOSE',
+                  'BEAMS', 'STRUCTURESET', 'DVH', 'IVH', 'DEFORM', 'BEAM', 'CERR',
+                  'TEXTURE', 'ANNOTATION', 'SEGLABEL', 'REGISTRATION', 'IM', 'FEATURESET'.
+
+    Returns:
+        Unique identifier for object of specified class, using current date and time.
+    """
     modality = modality.upper()
     if modality == 'SCAN':
         modality = 'CT'
