@@ -98,6 +98,7 @@ class Scan:
         Returns:
             int: 0 when NifTi file is written successfully.
         """
+
         affine3M = self.get_nii_affine()
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])

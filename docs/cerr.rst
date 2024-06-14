@@ -7,7 +7,6 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   cerr.ai
    cerr.contour
    cerr.dataclasses
    cerr.datasets

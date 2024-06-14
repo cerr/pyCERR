@@ -34,6 +34,35 @@ def get_empty_np_array():
 
 @dataclass
 class Structure:
+    """This class defines data object for volumetric segmentation. The metadata can be populated from DICOM, NifTi and
+    numpy arrays.
+
+    Attributes:
+        patientName (str): Patient's name.
+        structureName (str): Structure's name.
+        ROIInterpretedType (str): maps to DICOM tag (3006,00A4).
+        numberOfScans (int): Number of scan slices containing segmentation.
+        dateWritten (str): Date structure was created. Corresponds to DICOM tag (3006,0008) StructureSetDate.
+        structureColor (List): rgb triplet representing the color for this structure
+        structureDescription (str): Description of the structure. DICOM SeriesDescription.
+        roiGenerationAlgorithm (str) = Type of algorithm used to generate ROI. DICOM tag (3006,0036).
+                                        Permitted values are AUTOMATIC, SEMIAUTOMATIC and MANUAL
+        roiGenerationDescription (str): User-defined description of technique used to generate ROI. DICOM tag (3006,0038).
+        contour (List): List of contours including segmentation x,y,z CERR virtual coordinates per scan slice.
+                        The ith entry in the list corresponds to the ith slice of the associated scanArray.
+        rasterSegments (np.ndarray):  Numpy array of size numSegments x 10. The columns of this array are
+                                      z-value, y-value, x segment start, x segment stop, x increment, slice, row,
+                                      column start, column stop, voxel thickness for that slice.
+                                      Each row represents a scan segment.
+        strUID (str): unique identifier for structure object
+        assocScanUID (str): unique identifier for the scan associated with the structure object.
+        structSetSopInstanceUID: str = ""
+        referencedFrameOfReferenceUID (str): UID for frame of reference
+        referencedSeriesUID (str): UID of structure series i.e. DICOM SeriesInstanceUID
+        structureFileFormat (str): File format from which structure's metadata was populated.
+                                   Permitted values are "RTSTRUCT", "NPARRAY", "NIFTI".
+    """
+
     roiNumber: int = 0
     patientName: str = ""
     structureName: str = ""
@@ -57,7 +86,6 @@ class Structure:
     orientationOfStructure: str = ""
     transferProtocol: str = ""
     visible: bool = True
-    associatedScan: str = ""
     strUID: str = ""
     assocScanUID: str = ""
     structSetSopInstanceUID: str = ""
@@ -73,6 +101,16 @@ class Structure:
         return setattr(self, key, value)
 
     def save_nii(self,niiFileName,planC):
+        """ Routine to save pyCERR Structure object to NifTi file
+
+        Args:
+            niiFileName (str): File name including the full path to save the pyCERR scan object to NifTi file.
+            planC (cerr.plan_container.PlanC): pyCERR plan container object.
+
+        Returns:
+            int: 0 when NifTi file is written successfully.
+        """
+
         str_num = getStructNumFromUID(self.strUID, planC)
         scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
         affine3M = planC.scan[scan_num].get_nii_affine()
@@ -92,6 +130,10 @@ class Structure:
         nib.save(str_img, niiFileName)
 
     def convertDcmToCerrVirtualCoords(self,planC):
+        """Routine to convert x,y,z coordinates of segmentation from DICOM to pyCERR virtual coordinates. More information
+            about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+        """
+
         assocScanUID = self.assocScanUID
         scan_num = scn.getScanNumFromUID(assocScanUID,planC)
         im_to_virtual_phys_transM = planC.scan[scan_num].Image2VirtualPhysicalTransM
@@ -161,9 +203,14 @@ class Structure:
 
     def getStructureAssociatedScan(self, planC):
         """
-        Returns associated scan index for structure object based on the scan UID associated with
-        the structure.
+        Args:
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            int: associated scan index for structure object based on the scan UID associated with
+                the structure.
         """
+
         # Preallocate memory
         scanUID = [None] * len(planC.scan)
 
@@ -182,6 +229,13 @@ class Structure:
         return assocScans[0]
     
     def getSitkImage(self, planC):
+        """ Routine to convert pyCERR Structure object to SimpleITK Image object
+
+        Returns:
+            sitk.Image: SimpleITK Image with value of 1 assigned to segmented pixels
+
+        """
+
         assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
         mask3M = rs.getStrMask(self, planC)
         sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1)) # z,y,x order
@@ -207,6 +261,13 @@ class Structure:
         return img
 
     def getStructDict(self):
+        """ Routine to get dictionary representation of structure metadata
+
+        Returns:
+            dict: fields of the dictionary are attributes of the Structure object.
+
+        """
+
         structDict = self.__dict__.copy()
         contourList = []
         for ctr in structDict['contour']:
@@ -224,14 +285,29 @@ class Structure:
 
 @dataclass
 class Contour:
-    #sopInstanceUID: str = ""
-    #sopClassUID: str = ""
+    """This class defines data object for storing segmented contours. The metadata can be populated from DICOM, NifTi and
+    numpy arrays.
+
+    Attributes:
+        referencedSopInstanceUID (str): Instance UID of associated image slice.
+        referencedSopClassUID (str): Class UID of associated image slice.
+        segments (np.array): array of segments.
+
+    """
+
     referencedSopInstanceUID: str = ""
     referencedSopClassUID: str = ""
     segments: np.array = field(default_factory=get_empty_np_array)
 
 @dataclass
 class Segment:
+    """This class defines data object for storing contour segments.
+
+    Attributes:
+        points (numpy.ndarray): (n X 3) array containing x,y,z coordinates of the segment in pyCERR virtual coordinate system.
+
+    """
+
     points: np.ndarray = field(default_factory=get_empty_np_array)
 
 class jsonSerializeSegment(json.JSONEncoder):
@@ -292,11 +368,34 @@ def getJsonList(structNumV, planC):
     return strList
 
 def saveJson(structNumV, jsonFileName, planC):
+    """
+    Args:
+        structNumV (List): List of structure indices to export to JSON format.
+        jsonFileName (str): JSON file name.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        None
+    """
+
     strList = getJsonList(structNumV, planC)
     with open(jsonFileName, 'w', encoding='utf-8') as f:
         json.dump(strList, f, ensure_ascii=False, indent=4)
 
 def importJson(planC, strList=None, jsonFileName=None):
+    """
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        strList (list of structures): (optional) list of structure metadata imported from json.
+                                      Required when jsonFileName is None.
+        jsonFileName: (optional) JSON file name containing structure metadata.
+                      Required when strList is None.
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object.
+    """
+
     if jsonFileName:
         with open(jsonFileName, 'r', encoding='utf-8') as f:
             strList = json.load(f)
@@ -341,6 +440,15 @@ def importJson(planC, strList=None, jsonFileName=None):
 
 
 def parse_contours(contour_seq):
+    """This routine parses the ContourSequence metadata from DICOM and returns a list of pyCERR Contour objects.
+
+    Args:
+        contour_seq (pydicom.dataset.Dataset): Pydicom Dataset object for ContourSequence, DICOM tag (3006,0040).
+
+    Returns:
+        List[cerr.dataclasses.structure.Contour]: list of pyCERR Contour objects
+    """
+
     num_contours = len(contour_seq)
     contour_list = np.empty(num_contours,Contour)
     for ctr_num,contr in enumerate(contour_seq):
@@ -366,6 +474,18 @@ def parse_contours(contour_seq):
 
 
 def load_structure(file_list):
+    """This routine parses a list of DICOM files and imports metadata from RTSTRUCT and SEG modalities
+    to a list of pyCERR's Structure objects
+    .
+
+    Args:
+        file_list (List[str]): List of DICOM file paths.
+
+    Returns:
+        List[cerr.dataclasses.structure.Structure]: List of pyCERR's Structure objects.
+
+    """
+
     struct_list = []
     for file in file_list:
         ds = dcmread(file)
@@ -495,6 +615,18 @@ def load_structure(file_list):
     return struct_list
 
 def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
+    """This routine imports segmentation from a list of nii files into planC.
+
+    Args:
+        file_list (List or str): List of nii file paths or a string containing path for a single file.
+        assocScanNum (int): index of scan in planC to associate the segmentation.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        labels_dict (dict): dictionary of index to structure name mapping. e.g. {1: 'GTV', 2: 'Lung_total'}
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object
+    """
+
     if isinstance(file_list,str) and os.path.exists(file_list):
         file_list = [file_list]
     struct_list = []
@@ -530,6 +662,18 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
 
 
 def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
+    """
+
+    Args:
+        mask3M (np.ndarray): binary mask for segmentation which is of the same shape as the associated scan
+        assocScanNum (int): index of scan object within planC.scan to associate the structure
+        structName (str): Name of the structure
+        structNum (int or None): None to add new structure or index of structure object within planC.structure to replace
+        planC (cerr.plan_container.PlanC): pyCERR's container object
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's container object with updated planC.structure attribute
+    """
 
     # Pad mask to account for boundary edges
     paddedMask3M = mask3M.astype(int)
@@ -595,6 +739,15 @@ def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
 
 
 def getColorForStructNum(structNum):
+    """This routine returns the rgb color triplet to assign to a new structure object.
+
+    Args:
+        structNum (int): index of structure object in planC.structure
+
+    Returns:
+        List: rgb triplet
+    """
+
     colorMat = np.array([[ 230,   161,     0],
            [0,   230,     0],
            [230,     0,     0],
@@ -629,6 +782,18 @@ def getColorForStructNum(structNum):
 
 
 def copyToScan(structNum, scanNum, planC):
+    """This routine copies structure object at index structNum to scan objact at index scanNum in planC.scan.
+
+    Args:
+        structNum (int): index of structure object in planC.structure
+        scanNum (int): index of scan object in planC.scan
+        planC (cerr.plan_container.PlanC): pyCERR's planc ontainer object
+
+    Returns:
+        cerr.plan_container.PlanC): updated planC with new planC.structure element associated with scanNum
+
+    """
+
     # Get associated scan number for structNum
     origScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     mask3M = rs.getStrMask(structNum,planC)
@@ -646,13 +811,35 @@ def copyToScan(structNum, scanNum, planC):
 
 
 def getStructNumFromUID(assocStrUID, planC) -> int:
+    """This routine returns the index of the planC.structure element corresponding to the input pyCERR's structure UID
+
+    Args:
+        assocStrUID (str): UID of the structure object
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        int: Index of the planC.structure element corresponding to the input UID
+             None when there is no matching element in planC.structure corresponding to the input UID.
+    """
+
     uid_list = [s.strUID for s in planC.structure]
     if assocStrUID in uid_list:
         return uid_list.index(assocStrUID)
     else:
         return None
 
-def get_struct_num_from_sop_instance_uid(assocStrUID,planC) -> int:
+def getStructNumFromSOPInstanceUID(assocStrUID,planC) -> int:
+    """This routine returns the index of the planC.structure element corresponding to the input SOP Instance UID
+
+    Args:
+        assocStrUID (str): SOP Instance UID of the structure object
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        int: Index of the planC.structure element corresponding to the input UID
+             None when there is no matching element in planC.structure corresponding to the input SOP Instance UID.
+    """
+
     uid_list = [s.structSetSopInstanceUID for s in planC.structure]
     if assocStrUID in uid_list:
         return uid_list.index(assocStrUID)
@@ -660,6 +847,16 @@ def get_struct_num_from_sop_instance_uid(assocStrUID,planC) -> int:
         return None
 
 def calcIsocenter(strNum, planC):
+    """This routine calculates the isocenter of the input structure index in planC.structure
+
+    Args:
+        strNum (int): Index of structure object in planC.structure
+        planC (cerr.plan_container.PlanC): pyCERR's plan container
+
+    Returns:
+        List: x,y,z coordinates in pyCERR's virtual coordinate system for the isocenter.
+    """
+
     assocScanNum = scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC)
     mask3M = rs.getStrMask(strNum,planC)
     rV, cV, sV = np.where(mask3M)
@@ -672,6 +869,19 @@ def calcIsocenter(strNum, planC):
     return isocenter
 
 def getMatchingIndex(structName, strList, matchCriteria='exact'):
+    """This routine returns the index of element/s from the list of structure names that match the input name.
+
+    Args:
+        structName (str): Structure name to find a match
+        strList: List of structure names
+        matchCriteria: Criteria used to find the match
+            'EXACT' - returns indices of exact matches
+            'FIRSTCHARS' - returns indices where first characters of elements in the list match input structName
+
+    Returns:
+        List: list of matching indices from input strList
+    """
+
     if matchCriteria.upper() == 'EXACT':
         indMatchV = [i for i, s in enumerate(strList) if s.lower() == structName.lower()]
     elif matchCriteria.upper() == 'FIRSTCHARS':
@@ -685,6 +895,19 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
     return indMatchV
 
 def getContourPolygons(strNum, planC, rcsFlag=False):
+    """This routine returns the list of polygonal coordinates for all the segments of input structutre.
+
+    Args:
+        strNum (int): index of structure element in planC.structure
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        rcsFlag (bool): optional, flag to return polygonal coordinates in row,col,slc units.
+                        By default, the polygonal coordinates are returned in physical units of cm.
+
+    Returns:
+        list: list of nx3 arrays corresponding to polygonal segments, where n is the number of points in that segment,
+            the columns of each array are x,y,z coordinates in physical units of cm or r,c,s units.
+
+    """
     assocScanNum = scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC)
     numSlcs = len(planC.structure[strNum].contour)
     polygons = []

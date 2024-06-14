@@ -5,4 +5,5 @@ pyCERR
    :maxdepth: 4
 
    cerr
+   setup
    tests

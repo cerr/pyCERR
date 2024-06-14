@@ -57,7 +57,7 @@ cerr.dataclasses.structure module
 
 .. automodule:: cerr.dataclasses.structure
    :members:
-   :undoc-members:
+   :exclude-members: jsonSerializeSegment, jsonSerializeContour
    :show-inheritance:
 
 Module contents

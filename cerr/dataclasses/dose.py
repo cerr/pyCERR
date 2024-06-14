@@ -134,7 +134,7 @@ class Dose:
             if self.refRTPlanSopInstanceUID == plan.SOPInstanceUID:
                 if len(plan.ReferencedStructureSetSequence[0].ReferencedSOPInstanceUID) > 0:
                     self.refStructSetSopInstanceUID = plan.ReferencedStructureSetSequence[0].ReferencedSOPInstanceUID
-                    assoc_str_num = structure.get_struct_num_from_sop_instance_uid(self.refStructSetSopInstanceUID,planC)
+                    assoc_str_num = structure.getStructNumFromSOPInstanceUID(self.refStructSetSopInstanceUID,planC)
                     break
         if assoc_str_num != None:
             assocScanUID = planC.structure[assoc_str_num].assocScanUID
