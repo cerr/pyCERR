@@ -475,6 +475,6 @@ def getPatientOutline(scan3M, outThreshold, slicesV=None,
                 ptMask3M[:, :, slc] = maskM
 
     # 3D connected component filter
-    conn3dPtMask3M, __ = largestConnComps(ptMask3M, 1)
+    conn3dPtMask3M = largestConnComps(ptMask3M, 1)
 
     return conn3dPtMask3M
