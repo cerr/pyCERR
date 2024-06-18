@@ -94,12 +94,12 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
     desired dimensions in cm.
 
     Args:
-        sizeCm: float for size of structuring element in cm.
-        resolutionCmV: np.array for image resolution in cm [dx, dy, dz].
-        dimensions: [optional, default=3] int 3 for 3d or 2 for 2d.
+        sizeCm (np.float): Size of structuring element in cm.
+        resolutionCmV (np.array): Image resolution in cm [dx, dy, dz].
+        dimensions (int): [optional, default=3] Specify 3 for 3D or 2 for 2D.
 
     Returns:
-        structuringElement: np.ndarray for structuring element.
+        structuringElement (np.ndarray): Structuring element.
     """
 
     sizeCmV =  np.repeat(sizeCm, dimensions)
@@ -130,11 +130,11 @@ def morphologicalClosing(binaryMask, structuringElement):
     Function for morphological closing of input binary mask
 
     Args:
-        binaryMask: np.ndarray(type=bool) for input mask.
-        structuringElement: np.array for flat morphological structuring element.
+        binaryMask (np.ndarray(dtype=bool)): Input mask.
+        structuringElement (np.array): Flat morphological structuring element.
 
     Returns:
-        closedMask: np.ndarray(type=bool) for closed mask using input structuring element.
+        closedMask (np.ndarray(dtype=bool)) Closed mask using input structuring element.
     """
     closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
     return closedMask
@@ -144,19 +144,19 @@ def compute_boundingbox(binaryMaskM, is2DFlag=False, maskFlag=0):
     Function for finding extents of bounding box given a binary mask
 
     Args:
-        binaryMaskM: np.ndarray(type=bool) for input mask.
-        is2DFlag: [optional, default=False] bool for computing
+        binaryMaskM (np.ndarray(type=bool)): Input mask.
+        is2DFlag (bool): [optional, default=False] Flag for computing
                   slice-wise extents if true.
-        maskFlag: [optional, default=0] If maskFlag > 0, it is interpreted as a
-                  padding parameter.
+        maskFlag (int): [optional, default=0] If maskFlag > 0, it is interpreted as a
+                         padding parameter.
     Returns:
-        minr: int for start of mask along rows.
-        maxr: int for end of mask along rows.
-        minc: int for start of mask along cols.
-        maxc: int for end of mask along cols.
-        mins: int for start of mask along slices.
-        maxs: int for end of mask along slices.
-        bboxmask: np.ndarray(dtype=bool) for mask of bounding box.
+        minr (int): Start of mask along rows.
+        maxr(int): End of mask along rows.
+        minc(int): Start of mask along cols.
+        maxc(int): End of mask along cols.
+        mins(int): Start of mask along slices.
+        maxs(int): End of mask along slices.
+        bboxmask (np.ndarray(dtype=bool)): Mask of bounding box.
     """
     maskFlag = int(maskFlag)
 
@@ -220,11 +220,12 @@ def closeMask(mask3M, inputResV, structuringElementSizeCm):
     Function for morphological closing and hole-filling for binary masks
 
     Args:
-        mask3M : Binary mask to close and hole-fill.
-        inputResV: Physical Resolution of the mask in cm.
-        structuringElementSizeCm : float for size of structuring element for closing in cm
+        mask3M (np.ndarray): Binary mask to close and hole-fill.
+        inputResV (np.array): Physical Resolution of the mask in cm.
+        structuringElementSizeCm( float): Size of structuring element for closing in cm
+
     Returns:
-        filledMask3M: np.ndarray(dtype=bool) for filled mask.
+        filledMask3M (np.ndarray(dtype=bool)): Filled mask.
     """
 
     # Create structuring element
@@ -284,16 +285,16 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
     Function to identify location (row no.) of couch in input scan
 
     Args:
-        scan3M: np.ndarray for input scan.
-        minLengthOpt: [optional, default=None] float for minimum length
-                      of couch expected (in no. voxels). If set to None,
-                      min. length is set to 1/8th image size.
-        retryOpt: [optional, default=False] bool for flag to rerun search
-                  with minLengthOpt halved if couch length is 0.
+        scan3M (np.ndarray): Input scan.
+        minLengthOpt (float): [optional, default=None] Minimum length
+                              of couch expected (in no. voxels). If set to None,
+                              min. length is taken to be 1/8th image size.
+        retryOpt (bool): [optional, default=False] Flag to rerun search
+                         with minLengthOpt halved if couch length is 0.
 
     Returns:
-        yCouch: int for row no. representing couch location.
-        selectedLines: Candidate lines representing couch.
+        yCouch (int): Row no. representing couch location.
+        selectedLines (dict): Candidate lines representing couch.
     """
     if minLengthOpt is None:
         minLengthOpt = []
@@ -397,18 +398,18 @@ def getPatientOutline(scan3M, outThreshold, slicesV=None,
     Function to extract binary mask of patient outline on input scan.
 
     Args:
-        scan3M: np.ndarray representing 3D scan.
-        outThreshold: Intensity level representing air.
-                      Recommended:-400 HU for CT scans.
-        slicesV: [optional, default=None] np.array for range of slices for
-                 outline extraction. All slices are analyzed if set to None.
-        minMaskSize: [optional, default=1500] int for minimum acceptable size of mask
-                     on any slice in no. voxels.
-        normFlag: [optional, default=False] bool for flag to normalize scan3M
-                  before applying air threshold (recommended for MR images).
+        scan3M (np.ndarray): 3D scan.
+        outThreshold (float): Intensity level representing air.
+                              Recommended:-400 HU for CT scans.
+        slicesV (np.array): [optional, default=None] Range of slices for
+                            outline extraction. All slices are analyzed if set to None.
+        minMaskSize (int): [optional, default=1500] Minimum acceptable size of mask
+                            on any slice in no. voxels.
+        normFlag (bool): [optional, default=False] Flag to normalize scan3M
+                         before applying air threshold (recommended for MR images).
 
     Returns:
-        conn3dPtMask3M: np.ndarray(dtype=bool) for mask of patient outline.
+        conn3dPtMask3M (np.ndarray(dtype=bool)): Mask of patient outline.
 
     """
     # Define default values for optional inputs

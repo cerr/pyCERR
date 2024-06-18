@@ -19,8 +19,8 @@ def createSessionDir(sessionPath, inputDicomPath, inputSubDirs=None):
         inputSubDirs (list): [optional, default=None] Create subdirectories for inputs other than scans.
 
     Returns:
-        modInputPath: string for path to directory containing data input to AI model
-        modOutputPath: string for path to directory containing data output by AI model
+        modInputPath (string): Path to directory containing data input to AI model
+        modOutputPath (string): Path to directory containing data output by AI model
     """
     
     if inputDicomPath[-1] == os.sep:
@@ -59,12 +59,12 @@ def getAssocFilteredScanNum(scanNumV,planC):
     Function to return index of filtered scan derived from original input scan.
 
     Args:
-        scanNumV: list for original scan indices in planC
-        planC: pyCERR's plan container object
+        scanNumV (list): Original scan indices in planC
+        planC (plan_container.planC): pyCERR's plan container object
 
     Returns:
-        filtScanNumV: list for filtered scan indices in planC created from input list
-                      of scan numbers
+        filtScanNumV (list): Filtered scan indices in planC created from input list
+                             of scans.
     """
 
     scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
@@ -87,12 +87,12 @@ def getAssocWarpedScanNum(scanNumV,planC):
         Function to return index of deformed scan derived from original input scan.
 
         Args:
-            scanNumV: list for original scan indices in planC
-            planC: pyCERR's plan container object
+            scanNumV (list): Original scan indices in planC
+            planC (plan_container.planC): pyCERR's plan container object
 
         Returns:
-            warpedScanNumV: list for warped scan indices in planC created from input list
-                            of scan numbers
+            warpedScanNumV (list): Warped scan indices in planC created from input list
+                                   of scans.
     """
     assocMovScanUIDs = [planC.scan[scanNum].assocMovingScanUID for scanNum in scanNumV]
 
@@ -111,12 +111,12 @@ def getAssocResampledScanNum(scanNumV,planC):
         Function to return index of resampled scan derived from original input scan.
 
         Args:
-            scanNumV: list for original scan indices in planC
-            planC: pyCERR's plan container object
+            scanNumV (list): Original scan indices in planC
+            planC (plan_container.planC): pyCERR's plan container object
 
         Returns:
-            warpedScanNumV: list for resampled scan indices in planC created from input list
-                            of scan numbers
+            warpedScanNumV (list): Resampled scan indices in planC created from input list
+                                   of scans.
     """
 
     scanUIDs = [planC.scan[scanNum].scanUID for scanNum in scanNumV]
@@ -137,16 +137,18 @@ def getScanNumFromIdentifier(idDict,planC,origFlag:bool = False):
     Function to retrieve index of scan with metadata matching user-input identifier(s).
 
     Args:
-        idDict: dictionary with keys specifying identifiers, and values holding expected quantity.
-                Supported identifiers include: 'imageType', 'seriesDescription', 'scanNum', 'scanType',
-                'seriesDate' (may be" first" or "last"), 'studyDate' (may be" first" or "last"),
-                and 'assocStructure' (use structure name to identify associated scans. Set to 'none'
-                to select scans with no associated structures)
-        planC: pyCERR's plan container object.
-        origFlag: [optional, default:False] bool for ignoring 'warped', 'resampled' or 'filtered' scans.
+        idDict (dictionary): Scan identifiers specified in keys specifying,
+                             with corresponding values specifying expected quantity.
+                             Supported identifiers include: 'imageType', 'seriesDescription', 'scanNum', 'scanType',
+                             'seriesDate' (may be" first" or "last"), 'studyDate' (may be" first" or "last"),
+                             and 'assocStructure' (use structure name to identify associated scans. Set to 'none'
+                             to select scans with no associated structures)
+        planC (plan_container.planC): pyCERR's plan container object
+        origFlag (bool): [optional, default:False] Flag to ignore 'warped', 'resampled' or 'filtered'
+                         scans.
 
     Returns:
-        scanNumV : np.array for scan indices matching specified identifier(s).
+        scanNumV (np.array) : Scan indices matching specified identifier(s).
     """
 
     # Get no. scans

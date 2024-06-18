@@ -13,24 +13,24 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
     Supports preserving aspect ratio and slice-wise resizing within bounding box limits.
 
     Args:
-        scan3M: np.ndarray for 3d input scan
-        mask4M: np.ndarray for 4d input mask of dimension [nRows x nCols x nSlices x nStructures]
-                (stack of binary masks representing various structures)
-        gridS: tuple (xV, yV, zV) for coordinates of input scan/mask
-        outputImgSizeV: np.array for output image dimensions [nRows, nCols, nSlices]
-        method: string for method used to resize input scan. Supported values include
+        scan3M (np.ndarray): 3D input scan.
+        mask4M (np.ndarray): 4D input mask of dimension [nRows x nCols x nSlices x nStructures]
+                            (stack of binary masks representing various structures).
+        gridS (tuple): (xV, yV, zV) for coordinates of input scan/mask.
+        outputImgSizeV (np.array): Output image dimensions [nRows, nCols, nSlices].
+        method (string): Resizing method for input scan. Supported options include
                 'padorcrop3d', 'pad3d', 'unpad3d', 'pad2d', 'unpad2d', 'padslices'
                 'unpadslices', 'bilinear','bicubic', and 'nearest'.
                  Note: Masks are resized using 'nearest' for input methods 'bilinear','bicubic', and 'nearest'.
-        limitsM: [optional, default=None] np.ndarray for extents of bounding box on each
-                 slice. minr = limitsM[slcNum, 0], maxr = limitsM[slcNum, 1],
-                 minc = limitsM[slcNum, 2], maxc = limitsM[slcNum, 3]
-        preserveAspectFlag: bool for flag to preserve input aspect ratio by padding prior to resizing.
+        limitsM (np.ndarray): [optional, default=None] Extents of bounding box on each slice.
+                              minr = limitsM[slcNum, 0], maxr = limitsM[slcNum, 1],
+                              minc = limitsM[slcNum, 2], maxc = limitsM[slcNum, 3]
+        preserveAspectFlag (bool): Flag to preserve input aspect ratio by padding prior to resizing.
 
     Returns:
-          scanOut3M: np.ndarray for 3d resized scan
-          maskOut4M: np.ndarray for 3d resized mask
-          gridOutS: tuple (xV, yV, zV) for coordinates of output scan/mask
+          scanOut3M (np.ndarray): 3D resized scan.
+          maskOut4M (np.ndarray): 4D resized mask.
+          gridOutS (tuple): (xV, yV, zV) for coordinates of output scan/mask.
     """
     # Get input image size
     if scan3M is not None:
