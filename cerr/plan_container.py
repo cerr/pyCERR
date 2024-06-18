@@ -660,9 +660,9 @@ def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     studyDate = planC.scan[assocScanNum].scanInfo[0].studyDate
     studyTime = planC.scan[assocScanNum].scanInfo[0].studyTime
     studyNumberOfOrigin = planC.scan[assocScanNum].scanInfo[0].studyNumberOfOrigin
-    currentDate = str(date.today())
+    currentDate = date.today().strftime('%Y%m%d')
     now = datetime.now()
-    currentTime = now.strftime("%H:%M:%S")
+    currentTime = now.strftime('%H%M%S')
     dx = xV[1] - xV[0]
     dy = yV[0] - yV[1]
     for slc in range(siz[2]):
