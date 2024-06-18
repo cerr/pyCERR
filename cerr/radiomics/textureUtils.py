@@ -13,14 +13,15 @@ def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
     Function to load filter parameters from user-input JSON.
 
     Args:
-        settingsFile: string from path to JSON file.
-        scanNum: [optional, default=None] Scan no. from which to extract additional
-                    parameters like voxel size.
-        planC: [optional, default=None] pyCERR's plan container object.
+        settingsFile (string): Path to JSON file.
+        scanNum (int): [optional, default=None] Scan no. from which to extract additional
+                       parameters like voxel size.
+        planC (plan_container.planC): [optional, default=None] pyCERR's plan container object.
+
 
     Returns:
-        paramS: dictionary of radiomics parameters parsed from JSON file.
-         filterTypes: list of texture filters specified in JSON file.
+        paramS (dict): Radiomics parameters parsed from JSON file.
+        filterTypes (list): Texture filters specified in JSON file.
     """
 
     # Read settings
@@ -43,12 +44,12 @@ def processImage(filterType, scan3M, mask3M, paramS):
     """
     Function to process scan using selected filter and parameters
     Args:
-        filterType: String for name of supported filter.
-        scan3M: np.ndarray for 3D scan.
-        mask3M: np.ndarray(dtype=bool) for 3D binary mask.
-        paramS: dictionary of parameters (read from JSON).
+        filterType (string): Name of supported filter.
+        scan3M (np.ndarray): 3D scan.
+        mask3M (np.ndarray(dtype=bool)): 3D binary mask.
+        paramS (dict): Parameters (read from JSON).
     Returns:
-        outS: dictionary containing response maps for each filter type.
+        outS(dict): Containing response maps for each filter type.
 
     """
 
@@ -180,7 +181,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
         configFilePath: string for path to JSON config file with filter parameters.
 
     Returns:
-        planC: pyCERR's plan container object with texture map as pseudo-scan.
+        planC (plan_container.planC): pyCERR plan_container object with texture map as pseudo-scan.
     """
 
     # Extract scan and mask
