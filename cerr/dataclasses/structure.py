@@ -1049,14 +1049,17 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     return maskOut3M, planC
 
 
-def getLabelMap(strNumV, planC, labelDict=None):
+def getLabelMap(strNumV, planC, labelDict=None, dim=3):
     """
     Function to create label map for user-specified structures.
 
     Args:
-        strNumV: list of structure indices to be exported.
-        planC: pyCERR plan_container object.
-        labelDict: [optional, default={}] dictionary mapping indices with structure names.
+        strNumV (list) : Structure indices to be exported.
+        planC (plan_container.planC): pyCERR plan_container object.
+        labelDict (dict): [optional, default={}] dictionary mapping indices with structure names.
+        dim (int): [optional, default=3] int indicating dimensions of output label map.
+                   When set to 3, returns 3D label map np.array(dtype=int).
+                   When set to 4, returns 4D array of binary masks (required for overlapping structures).
 
     Returns:
        labelMap3M: np.ndarray(dtype=int) for label map.
@@ -1070,21 +1073,26 @@ def getLabelMap(strNumV, planC, labelDict=None):
             labelDict[idx + 1] = strName
 
     allLabels = labelDict.keys()
-    assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
-    shape = planC.scan[assocScan].getScanSize()
-    labelMap3M = np.zeros(shape, dtype=int)
 
-    for strNum in strNumV:
-        strName = planC.structure[strNum].structureName
-        strLabel = [labelDict[label] for label in allLabels if labelDict[label] == strName]
-        if isinstance(strLabel, str):
-            strLabel = int(strLabel)
-        mask3M = rs.getStrMask(strNum, planC)
-        if np.any(mask3M and labelMap3M > 0):
-            raise Exception("Overlapping structures encountered. Please set dim=4.")
-        labelMap3M[mask3M] = strLabel
+    if dim == 3:
+        assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+        shape = planC.scan[assocScan].getScanSize()
+        labelMap = np.zeros(shape, dtype=int)
+        for strNum in strNumV:
+            strName = planC.structure[strNum].structureName
+            strLabel = [label for label in allLabels if labelDict[label] == strName]
+            if isinstance(strLabel, str):
+                strLabel = int(strLabel)
+            mask3M = rs.getStrMask(strNum, planC)
+            if np.any(np.logical_and(mask3M, labelMap > 0)):
+                raise Exception("Overlapping structures encountered. Please set dim=4.")
+            labelMap[mask3M] = strLabel
+    elif dim == 4:
+        labelMap = np.array(getMaskList(strNumV, planC, labelDict=labelDict))
+    else:
+        raise ValueError("Invalid input. Dim must be 3 or 4.")
 
-    return labelMap3M
+    return labelMap
 
 def getMaskList(strNumV, planC, labelDict=None):
     """
@@ -1112,12 +1120,12 @@ def getMaskList(strNumV, planC, labelDict=None):
         scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID, planC)
         mask3M = rs.getStrMask(strNumV[idx], planC)
         strName = planC.structure[strNumV[idx]].structureName
-        strLabel = [labelDict[label] for label in allLabels if labelDict[label] == strName]
+        strLabel = [label for label in allLabels if labelDict[label] == strName][0]
         if isinstance(strLabel, str):
             strLabel = int(strLabel)
         mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
         if scn.flipSliceOrderFlag(planC.scan[scanNum]):
             mask3M = np.flip(mask3M, axis=2)
-        maskList.insert(strLabel, mask3M)
+        maskList.insert(strLabel-1, mask3M)
 
     return maskList
