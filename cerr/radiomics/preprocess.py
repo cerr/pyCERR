@@ -22,11 +22,11 @@ def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     The min and max are computed from the input image image when they are not provided.
 
     Args:
-        x: Input image matrix.
-        num_level: Number of quantization levels (optional).
-        xmin: Minimum value for quantization (optional).
-        xmax: Maximum value for quantization (optional).
-        bin_width: Bin width for quantization (optional).
+        x (np.ndarray): Input image matrix.
+        num_level (int): [optional, default: Use fixed bin_width] Number of quantization levels.
+        xmin (int): [optional, default: Use min intensity in x] Minimum value for quantization.
+        xmax (int): [optional, default: Use max intensity in x] Maximum value for quantization.
+        bin_width (int): [optional, default: Use fixed num_level] Bin width for quantization.
     Returns:
         np.ndarray(dtype=int): Quantized image.
     """
@@ -64,11 +64,11 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     Function to create x,y,z image grid by resampling the input x,y,z grid at the required resolution.
 
     Args:
-        resampResolutionV: Input image matrix.
-        xValsV: x-coordinates of the image grid.
-        yValsV: y-coordinates od the image grid.
-        zValsV: z-coordinates od the image grid.
-        gridAlignMethod (optional): Currently, the only method supported is "center".
+        resampResolutionV (np.ndarray): Input image matrix.
+        xValsV (np.array): x-coordinates of the image grid.
+        yValsV (np.array): y-coordinates od the image grid.
+        zValsV (np.array): z-coordinates od the image grid.
+        gridAlignMethod: [optional, default='center'] Currently, the only method supported is "center".
     Returns:
         Tuple: (xResampleV, yResampleV, zResampleV) Resamples x,y,z grid coordinates.
     """
@@ -136,24 +136,24 @@ def imgResample3D(img3M, xValsV, yValsV, zValsV, xResampleV, yResampleV, zResamp
     """
 
     Args:
-        img3M: 3D numpy Array. e.g. planC.scan[scanNum].getScanArray()
-        xValsV: 1D array of x-coordinates i.e. along columns of img3M. Must be monotonically increasing order as per CERR coordinate system.
-        yValsV: 1D array of y-coordinates i.e. along rows of img3M. Must be monotonically decreasing order as per CERR coordinate system.
-        zValsV: 1D array of z-coordinates i.e. along slices of img3M. Must be monotonically increasing order as per CERR coordinate system.
-        xResampleV: 1D array of new x-coordinates i.e. along columns of resampled image
-        yResampleV: 1D array of new y-coordinates i.e. along rows of resampled image
-        zResampleV: 1D array of new z-coordinates i.e. along slices of resampled image
-        method: string representing one of the supported methods from SimpleITK, viz.
+        img3M (np.ndarray): 3D scan array e.g. planC.scan[scanNum].getScanArray()
+        xValsV (np.array): x-coordinates i.e. along columns of img3M. Must be monotonically increasing order as per CERR coordinate system.
+        yValsV (np.array): y-coordinates i.e. along rows of img3M. Must be monotonically decreasing order as per CERR coordinate system.
+        zValsV (np.array): z-coordinates i.e. along slices of img3M. Must be monotonically increasing order as per CERR coordinate system.
+        xResampleV (np.array): new x-coordinates i.e. along columns of resampled image
+        yResampleV (np.array): new y-coordinates i.e. along rows of resampled image
+        zResampleV (np.array): new z-coordinates i.e. along slices of resampled image
+        method (string): Resampling methods supported by SimpleITK, viz.
                 'sitkNearestNeighbor', 'sitkLinear',
                 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian','sitkHammingWindowedSinc','sitkCosineWindowedSinc',
                 'sitkWelchWindowedSinc','sitkLanczosWindowedSinc', 'sitkBlackmanWindowedSinc'
-        extrapVal: value of extrapolated pixels. When not specified, the value of an extrapolated pixel
+        extrapVal (float): Value of extrapolated pixels. When not specified, the value of an extrapolated pixel
                    is assigned from the nearest neighbor.
-        inPlane: True or False, specify whether to restrict the interpolation to in-plane. (e.g. bi-linear).
-                  The default is 3D interpolation.
+        inPlane (bool): [optional, default=False] Specify whether to restrict the interpolation to in-plane. (e.g. bi-linear).
+                        The default is 3D interpolation.
 
     Returns:
-        3D numpy Array reampled at xResampleV, yResampleV, zResampleV
+        (np.ndarray) 3D array resampled at xResampleV, yResampleV, zResampleV
     """
 
     sitkMethods = {'sitkNearestNeighbor', 'sitkLinear', 'sitkBSpline', 'sitkGaussian', 'sitkLabelGaussian',
@@ -282,15 +282,15 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
     Function to pad the input image using specified method and padding size.
 
     Args:
-        scan3M: np.ndarray for scan
-        mask3M: np.ndarray for mask
-        method: string representing padding method. The following methods are supported:
+        scan3M (np.ndarray) : 3D scan.
+        mask3M (np.ndarray): 3D mask.
+        method (string): Padding method. The following methods are supported:
                 'expand' - Image is cropped around the mask and expanded using the specified margin.
                 'padzeros' - Image is padded by zeros.
                 'periodic' - Image is padded with periodic expansion.
                 'nearest' - Image is padded by using values from nearest neighbors.
                 'mirror' - Image is padded by mirrorig the boundary region as per the margin.
-        marginV: np.array (1D) specifying amount of padding to be applied
+        marginV (np.array, 1D) specifying amount of padding to be applied
                 [nRows, nCols, nSlices] in voxels.
         cropFlag: [optional, default:True] bool for flag to crop around mask bounding box
                   when set to True.
@@ -408,9 +408,9 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         np.ndarray(dtype=float): unpadded image
         np.ndarray(dtype=int): maskBoundingBox3M
         np.ndarray(dtype=int):
-        tuple: x,y,z grid corresponding to the processed image
-        paramS: dictionary of parameters
-        diagS: dictionary of diagnostics from the region of interest
+        tuple: (x,y,z) grid corresponding to the processed image
+        paramS (dictionary): Parameters for pre-processing.
+        diagS (dictionary): Diagnostic features from the region of interest
     """
 
     diagS = {}
