@@ -7,15 +7,16 @@ import numpy as np
 from datetime import datetime
 import cerr.dataclasses.scan as cerrScn
 
-def createSessionDir(sessionPath, inputDicomPath):
+def createSessionDir(sessionPath, inputDicomPath, inputSubDirs=None):
     """
     Function to create a directory to write temporary files when deploying AI models.
     inputDicomPath
 
     Args:
-        sessionPath: string for desired location of session directory
-        inputDicomPath: string for path to DICOM input data. The session directory is assigned a unique name
-                        derived in aprt from the DICOM folder name.
+        sessionPath (string): Desired location of session directory
+        inputDicomPath (string): Path to DICOM input data. The session directory is assigned a unique name
+                                 derived in aprt from the DICOM folder name.
+        inputSubDirs (list): [optional, default=None] Create subdirectories for inputs other than scans.
 
     Returns:
         modInputPath: string for path to directory containing data input to AI model
@@ -32,7 +33,7 @@ def createSessionDir(sessionPath, inputDicomPath):
     sessionDir = f"session{folderNam}{dateTimeV[3]}{dateTimeV[4]}{dateTimeV[5]}{randStr}"
     fullSessionPath = os.path.join(sessionPath, sessionDir)
 
-    # Create sub-directories
+    # Create default sub-directories
     if not os.path.exists(sessionPath):
         os.mkdir(sessionPath)
     os.mkdir(fullSessionPath)
@@ -44,6 +45,11 @@ def createSessionDir(sessionPath, inputDicomPath):
     os.mkdir(modOutputPath)
     AIoutputPath = os.path.join(fullSessionPath, "AIoutput")
     os.mkdir(AIoutputPath)
+
+    # Create optional input sub-dirs
+    if inputSubDirs is not None:
+        for subDir in inputSubDirs:
+            os.mkdir(os.path.join(modInputPath,subDir))
 
     return modInputPath, modOutputPath
 
