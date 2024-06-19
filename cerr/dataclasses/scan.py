@@ -34,6 +34,9 @@ class Scan:
         assocTextureUID (str): optional, UID of associated texture object that was used to generate this scan.
         assocBaseScanUID (str): optional, UID of associated base scan in the deformation that was used to generate this scan.
         assocMovingScanUID (str): optional, UID of associated moving scan in the deformation that was used to generate this scan.
+        Image2PhysicalTransM (np.ndarray): Transformation matrix to convert pyCERR row,col,slc to DICOM physical coordinates.
+        Image2VirtualPhysicalTransM (np.ndarray): Transformation matrix to convert pyCERR's scan row,col,slc to pyCERR virtual coordinates.
+        cerrToDcmTransM (np.ndarray): Transformation matrix to convert pyCERR virtual x,y,z coordinates to DICOM physical coordinates.
 
     """
 
@@ -810,7 +813,7 @@ def load_sorted_scan_info(file_list):
         file_list (list): list of files to read into pyCERR's Scan object
 
     Returns:
-        cerr.daatclasses.scan.Scan: pyCERR scan object containing metadata from from file_list.
+        cerr.daatclasses.scan.Scan: pyCERR scan object containing metadata from the file_list.
 
     """
     scan = Scan()

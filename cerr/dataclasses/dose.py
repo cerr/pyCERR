@@ -1,6 +1,6 @@
 """dose module.
 
-Ths dose module defines metadata for an RTDOSE object.
+The dose module defines metadata for an RTDOSE object.
 The metadata are attributes of the Dose class.
 This module also defines routines for transforming and
 accessig the Dose metadata in CERR coordinate system.
@@ -24,6 +24,50 @@ def get_empty_np_array():
 
 @dataclass
 class Dose:
+    """This class defines data object for RTDose. The metadata is populated from DICOM.
+    patientName (str): Patient's name
+    doseType (str): Type of dose as per (3004,0004). Values can be PHYSICAL, EFFECTIVE or ERROR
+    doseSummationType (str): Type of dose summation as per (3004,000A)
+    refBeamNumber (int): Referenced beam number from ReferencedRTPlanSequence
+    refFractionGroupNumber (int): Referenced Fraction Group number from ReferencedRTPlanSequence
+    numberMultiFrameImages (int): Number of image frames
+    doseUnits (str): Units used to describe dose. GY or RELATIVE
+    doseScale (float): Scaling factor that when multiplied by the dose grid data found in Pixel Data (7FE0,0010) Attribute
+        of the Image Pixel Module, yields grid doses in the dose units as specified by Dose Units (3004,0002).
+    fractionGroupID (str): Fraction Group ID from Referenced RTPLAN
+    imagePositionPatient (np.array): x,y,z coordinate of the top left voxel of the dose volume.
+    imageOrientationPatient (np.array): Direction cosine of dose row and column with patient coordinate system.
+    sizeOfDimension1 (int): Number of columns of doseArray
+    sizeOfDimension2 (int): Number of rows of doseArray
+    sizeOfDimension3 (int): Number of slices of doseArray
+    coord1OFFirstPoint (float): x-coordinate of dose in CERR virtual coordinates
+    coord2OFFirstPoint (float): y-coordinate of dose in CERR virtual coordinates
+    horizontalGridInterval (float): delta x of dose in CERR virtual coordinates
+    verticalGridInterval (float): delta y of dose in CERR virtual coordinates
+    writer (str): Equipment Manufacturer for RTDOSE delivery.
+    dateWritten (str): Study Date.
+    studyInstanceUID (str): Study Instance UID of dose.
+    xcoordOfNormaliznPoint (float): x-ccordinate of normalization point
+    ycoordOfNormaliznPoint (float): y-ccordinate of normalization point
+    zcoordOfNormaliznPoint (float): z-ccordinate of normalization point
+    doseAtNormaliznPoint (float): dose at normalization point
+    coord3OfFirstPoint (float): z-coordinate of dose in CERR virtual coordinates
+    doseArray (np.array): 3D volume for RTODSE in doseUnits
+    zValues (np.array): z-coordinates of doseArray in CERR virtual coordinate system.
+    delivered (str): whether the dose was delivered.
+    transM (np.array): transformation matrix to transform dose.
+    doseUID (str): unique identifier of dose.
+    assocScanUID (str): associated scan's unique identifier
+    assocBeamUID (str): associated RTPLAN's unique identifier
+    frameOfReferenceUID (str): Frame of Reference UID
+    refRTPlanSopInstanceUID (str): SOP Instance UID of associated RTPLAN
+    refStructSetSopInstanceUID (str): SOP Instance UID of referenced RTSTRUCT
+    prescriptionDose (float): Prescription dose
+    doseOffset (float): offset value to add to doseArray
+    Image2PhysicalTransM (np.ndarray): Transformation matrix to convert pyCERR's dose row,col,slc to DICOM physical coordinates.
+    cerrDcmSliceDirMatch (bool): Flag whether pyCERR slice order matches DICOM.
+    """
+
     caseNumber: int = 0
     patientName: str = ""
     doseNumber: int = 0
@@ -58,13 +102,13 @@ class Dose:
     studyNumberOfOrigin: int = 0
     studyInstanceUID: str = ""
     versionNumberOfProgram: str = ""
-    xcoordOfNormaliznPoint: float = 0
-    ycoordOfNormaliznPoint: float = 0
-    zcoordOfNormaliznPoint: float = 0
-    doseAtNormaliznPoint: float = 0
-    doseError: float = 0
-    coord3OfFirstPoint: float = 0
-    depthGridInterval: float = 0
+    xcoordOfNormaliznPoint: float = np.NaN
+    ycoordOfNormaliznPoint: float = np.NaN
+    zcoordOfNormaliznPoint: float = np.NaN
+    doseAtNormaliznPoint: float = np.NaN
+    doseError: float = np.NaN
+    coord3OfFirstPoint: float = np.NaN
+    depthGridInterval: float = np.NaN
     planIDOfOrigin: str = ""
     doseArray: np.array = field(default_factory=get_empty_np_array)
     zValues: np.array = field(default_factory=get_empty_np_array)
@@ -73,7 +117,7 @@ class Dose:
     cachedTime: str = ""
     numCachedSlices: int = 0
     transferProtocol: str = ""
-    associatedScan: int = 0
+    associatedScan: int = np.NAN
     transM: np.array = field(default_factory=get_empty_np_array)
     doseUID: str = ""
     assocScanUID: str = ""
@@ -81,7 +125,7 @@ class Dose:
     frameOfReferenceUID: str = ""
     refRTPlanSopInstanceUID: str = ""
     refStructSetSopInstanceUID: str = ""
-    Rx: float = 0
+    prescriptionDose: float = 0
     doseOffset: float = 0
     Image2PhysicalTransM: np.array = field(default_factory=get_empty_np_array)
     cerrDcmSliceDirMatch: bool = False
@@ -94,6 +138,12 @@ class Dose:
 
 
     def get_nii_affine(self):
+        """ Routine for affine transformation of pyCERR dose object for storing in NifTi format
+
+        Returns:
+            np.ndarray: 3x3 affine matrix
+        """
+
         doseAffine3M = self.Image2PhysicalTransM.copy()
         # nii row and col are reverse of dicom, convert cm to mm
         doseAffine3M[0,:] = -doseAffine3M[0,:] * 10
@@ -102,6 +152,15 @@ class Dose:
         return doseAffine3M
 
     def save_nii(self,niiFileName):
+        """ Routine to save pyCERR Dose object to NifTi file
+
+        Args:
+            niiFileName (str): File name including the full path to save the pyCERR dose object to NifTi file.
+
+        Returns:
+            int: 0 when NifTi file is written successfully.
+        """
+
         # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
         doseArray = self.doseArray
         doseArray = np.moveaxis(doseArray,[0,1],[1,0])
@@ -113,6 +172,9 @@ class Dose:
         nib.save(dose_img, niiFileName)
 
     def convertDcmToCerrVirtualCoords(self, planC):
+        """Routine to get scan from DICOM to pyCERR virtual coordinates. More information
+            about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+        """
 
         # Get CERR z-ccordiinate for dose slices based on associated scan's virtual coordinate transform.
 
@@ -181,6 +243,13 @@ class Dose:
         return self
 
     def getDoseXYZVals(self):
+        """ Routine to obtain pyCERR dose object's x,y,z grid coordinates. The coordinates are in pyCERR's
+        virtual coordinate system.
+
+        Returns:
+            tuple: x, y, z coordinates corresponding to the columns, rows, slices of scan voxels
+
+        """
         xValsV = np.arange(self.coord1OFFirstPoint,
                            self.sizeOfDimension1*self.horizontalGridInterval + self.coord1OFFirstPoint,
                             self.horizontalGridInterval)
@@ -192,6 +261,14 @@ class Dose:
         return xValsV,yValsV,zVals
 
     def getDoseAt(self,xV,yV,zV):
+        """ Routine to obtain dose at input x,y,z grid coordinates. The coordinates are in pyCERR's
+        virtual coordinate system.
+
+        Returns:
+            tuple (np.array): An array of dose values.
+
+        """
+
         xVD, yVD, zVD = self.getDoseXYZVals()
         delta = 1e-8
         zVD[0] = zVD[0] - 1e-3
@@ -203,6 +280,16 @@ class Dose:
         return doseV
 
 def load_dose(file_list):
+    """
+
+    Args:
+        file_list (list): list of files to read into pyCERR's Dose object
+
+    Returns:
+        List[cerr.daatclasses.dose.Dose]: List whose elements are pyCERR Dose objects containing metadata from file_list.
+
+    """
+
     dose_list = []
     for file in file_list:
         ds = dcmread(file)
@@ -287,6 +374,16 @@ def load_dose(file_list):
 
 
 def getDoseNumFromUID(assocDoseUID,planC) -> int:
+    """
+
+    Args:
+        assocDoseUID (str): doseUID
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        int: index of planC.dose matching input assocDoseUID
+    """
+
     uid_list = [s.doseUID for s in planC.dose]
     if assocDoseUID in uid_list:
         return uid_list.index(assocDoseUID)

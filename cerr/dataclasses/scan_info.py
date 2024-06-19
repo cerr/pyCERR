@@ -1,9 +1,8 @@
 """scan_info module.
 
 The scan_info module defines metadata for images (CT, PT, MR, US).
-The metadata are attributes of the ScanInfo class.
-This module also defines routines for transforming and
-accessing the Scan metadata in CERR coordinate system.
+The metadata are attributes of the ScanInfo class. This metadata is used to generate
+physical grid coordinates and for conversion of raw image to real world units.
 
 """
 
@@ -17,6 +16,97 @@ def get_empty_np_array():
 
 @dataclass
 class ScanInfo:
+    """
+    imageType (str):
+    patientName (str):
+    patientID (str):
+    patientBirthDate (str):
+    scanType (str):
+    CTOffset (float):
+    rescaleSlope (float):
+    rescaleIntercept (float):
+    rescaleType (str):
+    scaleSlope (float):
+    scaleIntercept (float):
+    realWorldValueSlope (float):
+    realWorldValueIntercept (float):
+    realWorldMeasurCodeMeaning (str):
+    philipsImageUnits (str):
+    philipsRescaleSlope (float):
+    philipsRescaleIntercept (float):
+    grid1Units (float):
+    grid2Units (float):
+    numberRepresentation (int):
+    bitsAllocated (int):
+    bitsStored (int):
+    pixelRepresentation (int):
+    numberOfDimensions (int):
+    sizeOfDimension1 (int):
+    sizeOfDimension2 (int):
+    zValue (float):
+    xOffset (float):
+    yOffset (float):
+    CTAir (float):
+    CTWater (float):
+    sliceThickness (float):
+    voxelThickness (float):
+    siteOfInterest (str):
+    unitNumber (int):
+    seriesDescription (str):
+    studyDescription (str):
+    scannerType (str):
+    manufacturer (str):
+    scanFileName (str):
+    headInOut (str):
+    positionInScan (float):
+    bValue (float):
+    acquisitionDate (str):
+    acquisitionTime (str):
+    patientWeight (float):
+    patientSize (float):
+    patientBmi (float):
+    patientSex (str):
+    radiopharmaInfoS (float):
+    injectionTime (str):
+    injectionDate (str):
+    injectedDose (float):
+    halfLife (float):
+    imageUnits (str):
+    suvType (str):
+    petCountSource (str):
+    petSeriesType (str):
+    petActivityConctrScaleFactor (float):
+    petNumSlices (int):
+    petIsDecayCorrected (str):
+    petPrimarySourceOfCounts (str):
+    petDecayCorrectionDateTime (str):
+    decayCorrection (float):
+    correctedImage (float):
+    seriesDate (str):
+    seriesTime (str):
+    studyDate (str):
+    studyTime (str):
+    tapeOfOrigin (str):
+    studyNumberOfOrigin (int):
+    scanID (str):
+    scanDate (str):
+    CTScale (float):
+    transferProtocol (str):
+    studyInstanceUID (str):
+    seriesInstanceUID (str):
+    sopInstanceUID (str):
+    sopClassUID (str):
+    frameOfReferenceUID (str):
+    patientPosition (str):
+    imageOrientationPatient (np.array)
+    imagePositionPatient (np.array):
+    windowCenter (float):
+    windowWidth (float):
+    temporalPositionIndex (float):
+    frameAcquisitionDuration (float):
+    frameReferenceDateTime (str):
+    """
+
     imageNumber: float = 0.0
     imageType: str = ''
     caseNumber: int = 0

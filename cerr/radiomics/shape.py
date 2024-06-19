@@ -1,3 +1,9 @@
+"""shape module.
+
+The shape module contains routine for calculation of shape features.
+
+"""
+
 import numpy as np
 from cerr.utils.mask import getSurfacePoints
 from scipy.spatial import distance
