@@ -160,7 +160,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         if mask4M is None:
             maskOut4M = None
         else:
-            maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1], numLabels), dtype=np.uint32)
+            maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1],\
+                                  numLabels), dtype=np.uint32)
 
         xOutM = np.zeros((outputImgSizeV[1],origSizeV[2]))
         yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
@@ -202,17 +203,79 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             outCmax = cMax - cMin
 
             if scan3M.size > 0:
-                scanOut3M[outRmin:outRmax, outCmin:outCmax, slcNum] = scan3M[rMin:rMax, cMin:cMax, slcNum]
+                scanOut3M[outRmin:outRmax+1, outCmin:outCmax+1, slcNum] = \
+                    scan3M[rMin:rMax+1, cMin:cMax+1, slcNum]
 
             if mask4M is not None:
-                maskOut4M[outRmin:outRmax, outCmin:outCmax, slcNum, :] = mask4M[rMin:rMax, cMin:cMax, slcNum, :]
+                maskOut4M[outRmin:outRmax+1, outCmin:outCmax+1, slcNum, :] = \
+                    mask4M[rMin:rMax+1, cMin:cMax+1, slcNum, :]
 
             xOutM[:,slcNum] = np.arange(xV[cMin], xV[cMax] + voxSizeV[0], voxSizeV[0])
-            yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax]+ voxSizeV[1], voxSizeV[1])
+            yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax] + voxSizeV[1], voxSizeV[1])
             gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower=='unpad2d':
-        pass
+        # Initialize resized scan and mask
+        if scan3M.size == 0:
+            scanOut3M = np.array([])
+        else:
+            minScanVal = np.min(scan3M)
+            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1], origSizeV[2]] \
+                                , minScanVal, dtype=scan3M.dtype)
+
+        if mask4M.size == 0:
+            maskOut4M = np.array([])
+        else:
+            maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1],\
+                                  numLabels), dtype=np.uint32)
+
+        xOutM = np.zeros((outputImgSizeV[1],origSizeV[2]))
+        yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
+
+        # Min/max row and col limits for each slice
+        for slcNum in range(origSizV[2]):
+            minr = limitsM[slcNum, 0]
+            maxr = limitsM[slcNum, 1]
+            minc = limitsM[slcNum, 2]
+            maxc = limitsM[slcNum, 3]
+
+            rowCenter = (minr + maxr) / 2
+            colCenter = (minc + maxc) / 2
+
+            rMin = rowCenter - origSizV[0] // 2
+            cMin = colCenter - origSizV[1] // 2
+
+            if rMin < 0:
+                rMin = 0
+            if cMin < 0:
+                cMin = 0
+
+            rMax = rMin + origSizV[0]
+            cMax = cMin + origSizV[1]
+
+            rMin = np.ceil(rMin).astype(int)
+            cMin = np.ceil(cMin).astype(int)
+            rMax = np.ceil(rMax).astype(int)
+            cMax = np.ceil(cMax).astype(int)
+
+            if rMax > outputImgSizeV[0] - 1:
+                rMax = outputImgSizeV[0] - 1
+            if cMax > outputImgSizeV[1] - 1:
+                cMax = outputImgSizeV[1] - 1
+
+            outRmin = 0
+            outCmin = 0
+            outRmax = rMax - rMin + 1
+            outCmax = cMax - cMin + 1
+
+            if scan3M.size != 0:
+                scanOut3M[rMin:rMax, cMin:cMax, slcNum] = scan3M[outRmin:outRmax, outCmin:outCmax, slcNum]
+            if mask4M.size != 0:
+                maskOut4M[rMin:rMax, cMin:cMax, slcNum, :] = mask4M[outRmin:outRmax, outCmin:outCmax, slcNum, :]
+
+            xOutM[:,slcNum] = np.arange(xV[cMin], xV[cMax], voxSizeV[0])
+            yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax], voxSizeV[1])
+            gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower in ['bilinear','bicubic','nearest']:
         #3D resizing. TBD: 2D
