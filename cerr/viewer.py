@@ -980,10 +980,12 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
     masks = list()
     strNameList = list()
+    strColorList = list()
     for nStr in range (len(structNumV)):
         mask3M = rs.getStrMask(structNumV[nStr],planC)
         masks.append(mask3M)
         strNameList.append(planC.structure[structNumV[nStr]].structureName)
+        strColorList.append(np.array(planC.structure[structNumV[nStr]].structureColor)/255)
 
     # Create slider widgets
     imgSize = np.shape(scan3M)
@@ -1012,13 +1014,13 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
             fig, ax = plt.subplots(1,1)
             # # #ax_legend.set_visible(False)
 
-        colors = ['Oranges', 'Blues', 'Greens','Purples',
-                  'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu', 'RdYlBu',
-                  'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']
-        cmaps = [plt.colormaps[color].copy() for color in colors] * 10
-
-        cm = plt.colormaps['tab20'].copy()
-        colors = cm.colors * 5
+        # colors = ['Oranges', 'Blues', 'Greens','Purples',
+        #           'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu', 'RdYlBu',
+        #           'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']
+        # cmaps = [plt.colormaps[color].copy() for color in colors] * 10
+        #
+        # cm = plt.colormaps['tab20'].copy()
+        # colors = cm.colors * 5
 
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
@@ -1040,10 +1042,11 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         numLabel = len(masks)
         if view.lower() == 'axial':
             for maskNum in range(0,numLabel,1):
-                maskCmap = cmaps[maskNum]
-                maskCmap.set_under('k', alpha=0)
+                #maskCmap = cmaps[maskNum]
+                #maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                col = colors[maskNum]
+                #col = colors[maskNum]
+                col = strColorList[maskNum]
                 if mask3M.any():
                     im2 = ax.contour(np.flip(np.squeeze(mask3M[:,:,slcNum-1]), axis=0),
                             levels = [0.5], colors = [col],
@@ -1054,10 +1057,11 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
         elif view.lower() == 'sagittal':
             for maskNum in range(0,numLabel,1):
-                maskCmap = cmaps[maskNum]
-                maskCmap.set_under('k', alpha=0)
+                #maskCmap = cmaps[maskNum]
+                #maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                col = colors[maskNum]
+                #col = colors[maskNum]
+                col = strColorList[maskNum]
                 if mask3M.any():
                     im2 = ax.contour(np.flip(rotateImage(mask3M[:,slcNum-1,:]),axis=0),
                             levels = [0.5], colors = [col],
@@ -1068,10 +1072,11 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
         elif view.lower() == 'coronal':
             for maskNum in range(0,numLabel,1):
-                maskCmap = cmaps[maskNum]
-                maskCmap.set_under('k', alpha=0)
+                #maskCmap = cmaps[maskNum]
+                #maskCmap.set_under('k', alpha=0)
                 mask3M = masks[maskNum]
-                col = colors[maskNum]
+                #col = colors[maskNum]
+                col = strColorList[maskNum]
                 if mask3M.any():
                     im2 = ax.contour(np.flip(rotateImage(mask3M[slcNum-1,:,:]), axis=0),
                             levels = [0.5], colors = [col],
@@ -1080,7 +1085,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                     #             cmap=maskCmap, alpha=.8, extent=extent,
                     #             interpolation='none', clim=[0.5, 1])
 
-        proxy = [plt.Rectangle((0,0),1,1,fc = col) for col in colors[:numLabel]]
+        proxy = [plt.Rectangle((0,0),1,1,fc = col) for col in strColorList]
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xticklabels([])
