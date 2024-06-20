@@ -233,7 +233,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
 
         # Min/max row and col limits for each slice
-        for slcNum in range(origSizV[2]):
+        for slcNum in range(origSizeV[2]):
             minr = limitsM[slcNum, 0]
             maxr = limitsM[slcNum, 1]
             minc = limitsM[slcNum, 2]
@@ -242,16 +242,16 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             rowCenter = (minr + maxr) / 2
             colCenter = (minc + maxc) / 2
 
-            rMin = rowCenter - origSizV[0] // 2
-            cMin = colCenter - origSizV[1] // 2
+            rMin = rowCenter - origSizeV[0] // 2
+            cMin = colCenter - origSizeV[1] // 2
 
             if rMin < 0:
                 rMin = 0
             if cMin < 0:
                 cMin = 0
 
-            rMax = rMin + origSizV[0]
-            cMax = cMin + origSizV[1]
+            rMax = rMin + origSizeV[0]
+            cMax = cMin + origSizeV[1]
 
             rMin = np.ceil(rMin).astype(int)
             cMin = np.ceil(cMin).astype(int)
