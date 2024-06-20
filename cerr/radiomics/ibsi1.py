@@ -43,11 +43,13 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     featDict = {}
 
     # Get feature extraction settings
-    firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
+    firstOrderOffsetEnergy = None
     firstOrderEntropyBinWidth = None
     firstOrderEntropyBinNum = None
     textureBinNum = None
     textureBinWidth = None
+    if  'offsetForEnergy' in [paramS['settings']['firstOrder']]:
+        firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
     if 'binWidthEntropy' in paramS['settings']['firstOrder'] \
         and isinstance(paramS['settings']['firstOrder']['binWidthEntropy'], (int, float)):
         firstOrderEntropyBinWidth = paramS['settings']['firstOrder']['binWidthEntropy']
