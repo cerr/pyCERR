@@ -894,7 +894,7 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     return h_scan, h_dose
 
 
-def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
+def showMplNb(scanNum, structNumV, doseNum, planC, windowCenter=0, windowWidth=300):
     """
     Interactive plot using matplotlib for jupyter notebooks
     """
@@ -934,17 +934,27 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     #     with outputSlcCoronal:
     #         showSlice(change['new'], 'coronal')
 
-    def createWidgets(imgSize):
+    def createWidgets(imgSize, scanNumV, doseNum=None):
 
         viewSelect = widgets.Dropdown(
             options=['Axial', 'Sagittal', 'Coronal'],
             value='Axial',
             description='view',
-            disabled=False,
+            disabled=False
         )
 
+        if doseNum is not None:
+            doseVisFlag = True
+        else:
+            doseVisFlag = False
+
+        doseAlphaSlider = widgets.FloatSlider(
+            min=0,max=1,value=0.5,
+            step=.02, description="doseAlpha",
+            visible= doseVisFlag)
+
         sliceSliderAxial = widgets.IntSlider(
-            min=0,max=imgSize[2]-1,value=int(imgSize[2]/2),
+            min=1,max=imgSize[2],value=int(imgSize[2]/2),
             step=1, description="slcNum")
 
         # viewSelect.observe(updateView, names='value')
@@ -967,7 +977,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         #
         # return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
 
-        return sliceSliderAxial, viewSelect
+        return sliceSliderAxial, viewSelect, doseAlphaSlider
 
 
     # Extract scan and mask
@@ -977,6 +987,17 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     extentSag = np.min(yVals), np.max(yVals), np.min(zVals), np.max(zVals)
     extentCor = np.min(xVals), np.max(xVals), np.min(zVals), np.max(zVals)
     imgSiz = np.shape(scan3M)
+
+    if isinstance(doseNum,(int,float)):
+        dose3M = planC.dose[doseNum].doseArray
+        maxDose = dose3M.max()
+        minDose = dose3M.min()
+        xDoseVals, yDoseVals, zDoseVals = planC.dose[doseNum].getDoseXYZVals()
+        extentDoseTrans = np.min(xDoseVals), np.max(xDoseVals), np.min(yDoseVals), np.max(yDoseVals)
+        extentDoseSag = np.min(yDoseVals), np.max(yDoseVals), np.min(zDoseVals), np.max(zDoseVals)
+        extentDoseCor = np.min(xDoseVals), np.max(xDoseVals), np.min(zDoseVals), np.max(zDoseVals)
+    else:
+        doseNum = None
 
     masks = list()
     strNameList = list()
@@ -990,7 +1011,7 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     # Create slider widgets
     imgSize = np.shape(scan3M)
     #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
-    sliceSliderAxial, viewSelect = createWidgets(imgSize)
+    sliceSliderAxial, viewSelect, doseAlphaSlider = createWidgets(imgSize, scanNum, doseNum)
 
     def update_numSlcs(*args):
         if viewSelect.value == 'Axial':
@@ -1004,10 +1025,10 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
 
     viewSelect.observe(update_numSlcs, 'value')
 
-    def showSlice(view, slcNum):
+    def showSlice(view, slcNum, doseAlpha):
 
         #clear_output(wait=True)
-        print(view + ' view slice ' + str(slcNum))
+        #print(view + ' view slice ' + str(slcNum))
 
         ax = showSlice.ax
         if ax is None:
@@ -1022,21 +1043,38 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         # cm = plt.colormaps['tab20'].copy()
         # colors = cm.colors * 5
 
+        doseImage = None
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
             extent = extentTrans
+            if doseNum is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
+                doseSlcNum = np.argmin((zVals[slcNum-1] - zDoseVals)**2)
+                doseImage = dose3M[:,:,doseSlcNum]
+                extentDose = extentDoseTrans
         elif view.lower() == 'sagittal':
             windowedImage = rotateImage(windowImage(scan3M[:, slcNum - 1, :], windowCenter, windowWidth))
             extent = extentSag
+            if doseNum is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
+                doseSlcNum = np.argmin((xVals[slcNum-1] - xDoseVals)**2)
+                doseImage = rotateImage(dose3M[:,doseSlcNum,:])
+                extentDose = extentDoseSag
         elif view.lower() == 'coronal':
             windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
             extent = extentCor
+            if doseNum is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
+                doseSlcNum = np.argmin((yVals[slcNum-1] - yDoseVals)**2)
+                doseImage = rotateImage(dose3M[doseSlcNum,:,:])
+                extentDose = extentDoseCor
         else:
             raise ValueError('Invalid view type: ' + view)
 
         # Display scan
         im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
                     interpolation='nearest', extent=extent)
+        if doseNum is not None and doseImage is not None:
+            imDose = ax.imshow(doseImage, cmap=plt.cm.jet, alpha=doseAlpha,
+                        interpolation='nearest', extent=extentDose,
+                        vmin=minDose, vmax=maxDose)
 
         #Display mask
         numLabel = len(masks)
@@ -1091,10 +1129,15 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.legend(strNameList, fontsize=12)
+        if doseImage is not None:
+            plt.colorbar(imDose, location='left', shrink=0.6)
         plt.rcParams["figure.figsize"] = (6, 6)
         plt.legend(proxy, strNameList, loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
     showSlice.ax = None
 
-    interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, continuous_update=False)
+    if doseAlphaSlider == None:
+        interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, continuous_update=False)
+    else:
+        interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, doseAlpha=doseAlphaSlider, continuous_update=False)
