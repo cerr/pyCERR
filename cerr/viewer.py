@@ -426,12 +426,12 @@ def initialize_dvf_colorbar_widget() -> FunctionGui:
     return mz_canvas
 
 
-def showNapari(planC, scan_nums=0, str_nums=[], dose_nums=[], vectors_dict={}, displayMode = '2d'):
+def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}, displayMode = '2d'):
 
     if isinstance(scan_nums, (int, float)):
         scan_nums = [scan_nums]
-    if isinstance(str_nums, (int, float)):
-        str_nums = [str_nums]
+    if isinstance(struct_nums, (int, float)):
+        struct_nums = [struct_nums]
     if isinstance(dose_nums, (int, float)):
         dose_nums = [dose_nums]
 
@@ -442,7 +442,7 @@ def showNapari(planC, scan_nums=0, str_nums=[], dose_nums=[], vectors_dict={}, d
 
     # Get Scan affines
     assocScanV = []
-    for str_num in str_nums:
+    for str_num in struct_nums:
         assocScanV.append(scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC))
     allScanNums = [s for s in scan_nums]
     allScanNums.extend(assocScanV)
@@ -535,7 +535,7 @@ def showNapari(planC, scan_nums=0, str_nums=[], dose_nums=[], vectors_dict={}, d
     # maxes = np.array([max(y), max(x), max(z)])
     # ranges = maxes - mins
     struct_layer = []
-    for i,str_num in enumerate(str_nums):
+    for i,str_num in enumerate(struct_nums):
         # Get scan affine
         scan_num = scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC)
         scan_affine = scanAffineDict[scan_num]
@@ -894,12 +894,14 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     return h_scan, h_dose
 
 
-def showMplNb(planC, scan_nums=0, str_nums=[], dose_nums=None, windowPreset=None, windowCenter=0, windowWidth=300):
+def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=None, windowCenter=0, windowWidth=300):
     """
     Interactive plot using matplotlib for jupyter notebooks
     """
 
-    #fig, (ax,ax_legend) = plt.subplots(1,2)
+    if windowPreset is not None and windowPreset in window_dict:
+        windowCenter = window_dict[windowPreset][0]
+        windowWidth = window_dict[windowPreset][1]
 
     def windowImage(image, windowCenter, windowWidth):
         imgMin = windowCenter - windowWidth // 2
@@ -1002,11 +1004,11 @@ def showMplNb(planC, scan_nums=0, str_nums=[], dose_nums=None, windowPreset=None
     masks = list()
     strNameList = list()
     strColorList = list()
-    for nStr in range (len(str_nums)):
-        mask3M = rs.getStrMask(str_nums[nStr],planC)
+    for nStr in range (len(struct_nums)):
+        mask3M = rs.getStrMask(struct_nums[nStr],planC)
         masks.append(mask3M)
-        strNameList.append(planC.structure[str_nums[nStr]].structureName)
-        strColorList.append(np.array(planC.structure[str_nums[nStr]].structureColor)/255)
+        strNameList.append(planC.structure[struct_nums[nStr]].structureName)
+        strColorList.append(np.array(planC.structure[struct_nums[nStr]].structureColor)/255)
 
     # Create slider widgets
     imgSize = np.shape(scan3M)
