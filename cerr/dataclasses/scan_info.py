@@ -17,94 +17,82 @@ def get_empty_np_array():
 @dataclass
 class ScanInfo:
     """
-    imageType (str):
-    patientName (str):
-    patientID (str):
-    patientBirthDate (str):
-    scanType (str):
-    CTOffset (float):
-    rescaleSlope (float):
-    rescaleIntercept (float):
-    rescaleType (str):
-    scaleSlope (float):
-    scaleIntercept (float):
-    realWorldValueSlope (float):
-    realWorldValueIntercept (float):
-    realWorldMeasurCodeMeaning (str):
-    philipsImageUnits (str):
-    philipsRescaleSlope (float):
-    philipsRescaleIntercept (float):
-    grid1Units (float):
-    grid2Units (float):
-    numberRepresentation (int):
-    bitsAllocated (int):
-    bitsStored (int):
-    pixelRepresentation (int):
-    numberOfDimensions (int):
-    sizeOfDimension1 (int):
-    sizeOfDimension2 (int):
-    zValue (float):
-    xOffset (float):
-    yOffset (float):
-    CTAir (float):
-    CTWater (float):
-    sliceThickness (float):
-    voxelThickness (float):
-    siteOfInterest (str):
-    unitNumber (int):
-    seriesDescription (str):
-    studyDescription (str):
-    scannerType (str):
-    manufacturer (str):
-    scanFileName (str):
-    headInOut (str):
-    positionInScan (float):
-    bValue (float):
-    acquisitionDate (str):
-    acquisitionTime (str):
-    patientWeight (float):
-    patientSize (float):
-    patientBmi (float):
-    patientSex (str):
-    radiopharmaInfoS (float):
-    injectionTime (str):
-    injectionDate (str):
-    injectedDose (float):
-    halfLife (float):
-    imageUnits (str):
-    suvType (str):
-    petCountSource (str):
-    petSeriesType (str):
-    petActivityConctrScaleFactor (float):
-    petNumSlices (int):
-    petIsDecayCorrected (str):
-    petPrimarySourceOfCounts (str):
-    petDecayCorrectionDateTime (str):
-    decayCorrection (float):
-    correctedImage (float):
-    seriesDate (str):
-    seriesTime (str):
-    studyDate (str):
-    studyTime (str):
-    tapeOfOrigin (str):
-    studyNumberOfOrigin (int):
-    scanID (str):
-    scanDate (str):
-    CTScale (float):
-    transferProtocol (str):
-    studyInstanceUID (str):
-    seriesInstanceUID (str):
-    sopInstanceUID (str):
-    sopClassUID (str):
-    frameOfReferenceUID (str):
-    patientPosition (str):
-    imageOrientationPatient (np.array)
-    imagePositionPatient (np.array):
-    windowCenter (float):
-    windowWidth (float):
-    temporalPositionIndex (float):
-    frameAcquisitionDuration (float):
-    frameReferenceDateTime (str):
+    imageType (str): Type of scan. MR SCAN, CT SCAN, PT SCAN.
+    patientName (str): Patient's name
+    patientID (str): Patieint's ID
+    patientBirthDate (str): Patient's date of birth
+    CTOffset (float): Offset to add to scanArray to get image in scanUnits (e.g. HU). This is required so as to store
+        only (+)ve values in scanArray.
+    rescaleSlope (float): m in the equation Output units = m*SV + b. Slope to transform image from storage to
+        real world units as per (0028,1053) tag.
+    rescaleIntercept (float): b in the equation Output units = m*SV + b. Read from (0028,1052) tag
+    rescaleType (str): Specifies the output units of Rescale Slope (0028,1053) and Rescale Intercept (0028,1052)
+    scaleSlope (float): Private tag (2005,100E) used for conversion to MR precise values
+    scaleIntercept (float): Private tag (2005,100D)
+    realWorldValueSlope (float): The Slope value in relationship between stored values (SV) and the
+        Real World Values as per (0040,9225) tag.
+    realWorldValueIntercept (float): The Intercept value in relationship between stored values (SV) and
+        the Real World values as per (0040,9224) tag.
+    realWorldMeasurCodeMeaning (str): Real World code value as per (0008,0100) tag
+    philipsImageUnits (str): Private tag containing image units as per (2005,140B)
+    philipsRescaleSlope (float): Private tag containing rescale slope as per (2005,140A)
+    philipsRescaleIntercept (float): Private tag containing rescale intercept as per (2005,1409)
+    grid1Units (float): delta y of the scan grid in CERR virtual coordinates
+    grid2Units (float): delta x of the scan grid in CERR virtual coordinates
+    bitsAllocated (int): Number of bits allocated for each pixel sample as per (0028,0100)
+    bitsStored (int): Number of bits stored for each pixel sample as per (0028,0101)
+    pixelRepresentation (int): Data representation of the pixel samples as per (0028,0103)
+        0000H - unsigned integer, 0001H - 2's complement
+    numberOfDimensions (int): Number of scan dimensions
+    sizeOfDimension1 (int): Number of rows of scanArray
+    sizeOfDimension2 (int): Number of columns of scanArray
+    zValue (float): z-coordinate of the slice in CERR virtual coordinate system
+    xOffset (float): x-offset of the center of scanArray in CERR virtual coordinates
+    yOffset (float): y-offset of the center of scanArray in CERR virtual coordinates
+    sliceThickness (float): Nominal slice thickness as per (0018,0050).
+    voxelThickness (float): Physical spacing between the next and the previous slice in CERR virtual coordinates.
+    seriesDescription (str): Series description as per (0008,103E)
+    studyDescription (str): Study description as per (0008,1030)
+    scannerType (str): Manufacturer model name
+    manufacturer (str): Scanner Mmanufacturer
+    scanFileName (str): Location of DICOM file from which metadata was read
+    bValue (float): b-value of MR scan
+    acquisitionDate (str): Acquisition date
+    acquisitionTime (str): Acquisition time
+    patientWeight (float): Patient's weight
+    patientSize (float): Patient's size
+    patientBmi (float): Patient's BMI
+    patientSex (str): Patient's gender
+    injectionTime (str): The actual time of radiopharmaceutical administration to the patient for imaging purposes.
+    injectionDate (str): The actual date of radiopharmaceutical administration to the patient for imaging purposes.
+    injectedDose (float):  The radiopharmaceutical dose administered to the patient measured in MegaBecquerels (MBq)
+        at the Radiopharmaceutical Start DateTime (0018,1078).
+    halfLife (float): The radionuclide half life, in seconds, that was used in the correction of this image.
+    imageUnits (str): realWorldMeasurCodeMeaning when available or rescaleType.
+    suvType (str): The type of SUV stored in scanArray as per (0054,1006) tag.
+    petCountSource (str): The primary source of counts as per (0054,1002).  EMISSION or TRANSMISSION
+    petSeriesType (str): A multi-valued indicator of the type of Series as per (0054,1000).
+    petActivityConctrScaleFactor (float): Used to convert the pixel data from counts to Activity Concentration (in Bq/ml) as per (7053, 1009 tag
+    petNumSlices (int): The number of slices in each separate volume as per (0054,0081)
+    petDecayCorrectionDateTime (str): The date and time to which all frames in this Image were decay corrected as per (0018,9701)
+    decayCorrection (float): Whether Decay (DECY) correction has been applied to image. YES or NO.
+    correctedImage (float): One or more values that indicate which, if any, corrections have been applied to the image as per (0028,0051)
+    seriesDate (str): Series date
+    seriesTime (str): Series yime
+    studyDate (str): Study date
+    studyTime (str): Study time
+    studyInstanceUID (str): Study Instance UID
+    seriesInstanceUID (str): Series Instance UID of image volume
+    sopInstanceUID (str): SOP Instance UID of image frame
+    sopClassUID (str): SOP Class UID of image frame
+    frameOfReferenceUID (str): Frame of Reference UID
+    imageOrientationPatient (np.array): Direction cosine of dose row and column with patient coordinate system.
+    imagePositionPatient (np.array): x,y,z coordinate of the top left voxel of the scan volume.
+    windowCenter (float): Window center used for visualization
+    windowWidth (float): Window width used for visualization
+    temporalPositionIndex (float): Temporal position in the dynamic sequence from the FrameContentSequence.
+    frameAcquisitionDuration (float): Duration of Frame acquisition from the FrameContentSequence.
+    frameReferenceDateTime (str): FrameReferenceDateTime from the FrameContentSequence
     """
 
     imageNumber: float = 0.0
@@ -170,7 +158,6 @@ class ScanInfo:
     petSeriesType: str = ''
     petActivityConctrScaleFactor: float = '' #np.NAN
     petNumSlices: int = '' #np.NAN
-    petIsDecayCorrected: str = ''
     petPrimarySourceOfCounts: str = ''
     petDecayCorrectionDateTime: str = ''
     decayCorrection: float = '' #np.NAN
@@ -188,9 +175,6 @@ class ScanInfo:
     distrustAbove: float = '' #np.NAN
     imageSource: str = ''
     transferProtocol: str = ''
-    LRflippedToMatchPACS: int = 0
-    APflippedToMatchPACS: int = 0
-    SIflippedToMatchPACS: int = 0
     studyInstanceUID: str = ''
     seriesInstanceUID: str = ''
     sopInstanceUID: str = ''

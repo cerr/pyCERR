@@ -12,6 +12,7 @@ import cerr.dataclasses.structure as cerrStr
 import cerr.plan_container as pc
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
+from IPython import display
 import ipywidgets as widgets
 from ipywidgets import interact
 from typing import Annotated, Literal
@@ -443,7 +444,7 @@ def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode 
     assocScanV = []
     for str_num in str_nums:
         assocScanV.append(scn.getScanNumFromUID(planC.structure[str_num].assocScanUID, planC))
-    allScanNums = scan_nums.copy()
+    allScanNums = [s for s in scan_nums]
     allScanNums.extend(assocScanV)
     allScanNums = np.unique(allScanNums)
     scanAffineDict = {}
@@ -898,6 +899,8 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     Interactive plot using matplotlib for jupyter notebooks
     """
 
+    #fig, (ax,ax_legend) = plt.subplots(1,2)
+
     def windowImage(image, windowCenter, windowWidth):
         imgMin = windowCenter - windowWidth // 2
         imgMax = windowCenter + windowWidth // 2
@@ -909,40 +912,62 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     def rotateImage(img):
         return(list(zip(*img)))
 
-    def updateSliceAxial(change):
-        outputSlcAxial = widgets.Output()
-        with outputSlcAxial:
-            showSlice(change['new'], 'axial')
-
-    def updateSliceSagittal(change):
-        outputSlcSagittal = widgets.Output()
-        with outputSlcSagittal:
-            showSlice(change['new'], 'sagittal')
-
-    def updateSliceCoronal(change):
-        outputSlcCoronal = widgets.Output()
-        with outputSlcCoronal:
-            showSlice(change['new'], 'coronal')
+    # def updateView(change):
+    #     # outputViewSelect = widgets.Output()
+    #     # with outputViewSelect:
+    #     #     showSlice(change['new'], 10)
+    #     showSlice(change['new'], 10)
+    #
+    # def updateSliceAxial(change):
+    #     # outputSlcAxial = widgets.Output()
+    #     # with outputSlcAxial:
+    #     #     showSlice('axial', change['new'])
+    #     showSlice('axial', change['new'])
+    #
+    # def updateSliceSagittal(change):
+    #     outputSlcSagittal = widgets.Output()
+    #     with outputSlcSagittal:
+    #         showSlice(change['new'], 'sagittal')
+    #
+    # def updateSliceCoronal(change):
+    #     outputSlcCoronal = widgets.Output()
+    #     with outputSlcCoronal:
+    #         showSlice(change['new'], 'coronal')
 
     def createWidgets(imgSize):
 
-        sliceSliderAxial = widgets.IntSlider(min=1,max=imgSize[2],value=int(imgSize[2]/2),
-                                             step=1, description="Axial")
-        outputSlcAxial = widgets.Output()
+        viewSelect = widgets.Dropdown(
+            options=['Axial', 'Sagittal', 'Coronal'],
+            value='Axial',
+            description='view',
+            disabled=False,
+        )
 
-        sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),
-                                                step=1, description="Sagittal")
-        outputSlcSagittal = widgets.Output()
+        sliceSliderAxial = widgets.IntSlider(
+            min=0,max=imgSize[2]-1,value=int(imgSize[2]/2),
+            step=1, description="slcNum")
 
-        sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),
-                                               step=1, description="Coronal")
-        outputSlcCoronal = widgets.Output()
+        # viewSelect.observe(updateView, names='value')
+        # sliceSliderAxial.observe(updateSliceAxial, names='value')
 
-        sliceSliderAxial.observe(updateSliceAxial, names='value')
-        sliceSliderSagittal.observe(updateSliceSagittal, names='value')
-        sliceSliderCoronal.observe(updateSliceCoronal, names='value')
 
-        return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
+        #outputSlcAxial = widgets.Output()
+
+
+        # sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),
+        #                                         step=1, description="Sagittal")
+        # outputSlcSagittal = widgets.Output()
+        #
+        # sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),
+        #                                        step=1, description="Coronal")
+        # outputSlcCoronal = widgets.Output()
+        #
+        # sliceSliderSagittal.observe(updateSliceSagittal, names='value')
+        # sliceSliderCoronal.observe(updateSliceCoronal, names='value')
+        #
+        # return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
+
+        return sliceSliderAxial, viewSelect
 
 
     # Extract scan and mask
@@ -954,25 +979,38 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
     imgSiz = np.shape(scan3M)
 
     masks = list()
+    strNameList = list()
     for nStr in range (len(structNumV)):
         mask3M = rs.getStrMask(structNumV[nStr],planC)
         masks.append(mask3M)
+        strNameList.append(planC.structure[structNumV[nStr]].structureName)
 
     # Create slider widgets
-    clear_output(wait=True)
     imgSize = np.shape(scan3M)
-    sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
+    #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
+    sliceSliderAxial, viewSelect = createWidgets(imgSize)
 
-    def showSlice(slcNum, view):
+    def update_numSlcs(*args):
+        if viewSelect.value == 'Axial':
+            numSlcs = imgSize[2]
+        elif viewSelect.value == 'Sagittal':
+            numSlcs = imgSize[1]
+        else:
+            numSlcs = imgSize[0]
+        sliceSliderAxial.max = numSlcs
+        sliceSliderAxial.value = int(numSlcs / 2)
 
-        clear_output(wait=True)
+    viewSelect.observe(update_numSlcs, 'value')
+
+    def showSlice(view, slcNum):
+
+        #clear_output(wait=True)
         print(view + ' view slice ' + str(slcNum))
 
-        fig = None
-        if fig is not None: #'fig' in locals():
-            fig.remove()
-        fig, (ax,ax_legend) = plt.subplots(1,2)
-        ax_legend.set_visible(False)
+        ax = showSlice.ax
+        if ax is None:
+            fig, ax = plt.subplots(1,1)
+            # # #ax_legend.set_visible(False)
 
         colors = ['Oranges', 'Blues', 'Greens','Purples',
                   'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu', 'RdYlBu',
@@ -1041,33 +1079,17 @@ def showMplNb(scanNum, structNumV, planC, windowCenter=0, windowWidth=300):
                     # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
                     #             cmap=maskCmap, alpha=.8, extent=extent,
                     #             interpolation='none', clim=[0.5, 1])
+
+        proxy = [plt.Rectangle((0,0),1,1,fc = col) for col in colors[:numLabel]]
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        plt.rcParams["figure.figsize"] = (10, 10)
+        ax.legend(strNameList, fontsize=12)
+        plt.rcParams["figure.figsize"] = (6, 6)
+        plt.legend(proxy, strNameList, loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
-    # sliceSliderAxial.value = round(imgSiz[2]/2)
-    # sliceSliderSagittal.value = round(imgSiz[1]/2)
-    # sliceSliderCoronal.value = round(imgSiz[0]/2)
+    showSlice.ax = None
 
-    interact(showSlice, slcNum=sliceSliderAxial.value, view='axial')
-    interact(showSlice, slcNum=sliceSliderSagittal.value, view='sagittal')
-    interact(showSlice, slcNum=sliceSliderCoronal.value, view='coronal')
-
-
-    def updateSliceAxial(change):
-            outputSlcAxial = widgets.Output()
-            with outputSlcAxial:
-                showSlice(change['new'], 'axial')
-
-    def updateSliceSagittal(change):
-            outputSlcSagittal = widgets.Output()
-            with outputSlcSagittal:
-                showSlice(change['new'], 'sagittal')
-
-    def updateSliceCoronal(change):
-            outputSlcCoronal = widgets.Output()
-            with outputSlcCoronal:
-                showSlice(change['new'], 'coronal')
+    interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, continuous_update=False)

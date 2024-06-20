@@ -3,7 +3,7 @@
 The dose module defines metadata for an RTDOSE object.
 The metadata are attributes of the Dose class.
 This module also defines routines for transforming and
-accessig the Dose metadata in CERR coordinate system.
+accessing the Dose metadata in CERR coordinate system.
 
 """
 

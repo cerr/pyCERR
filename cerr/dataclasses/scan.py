@@ -663,7 +663,6 @@ def populate_scan_info_fields(s_info, ds):
     if hasattr(ds,"PatientSize"): s_info.patientSize = ds.PatientSize
     if ("0010","1022") in ds: s_info.patientBmi = ds["0010","1022"].value
     if hasattr(ds,"PatientSex"): s_info.patientSex = ds.PatientSex
-    if ("0054","1006") in ds: s_info.suvType = ds["0054","1006"].value
     if hasattr(ds,"SeriesType"): s_info.petSeriesType = ds.SeriesType
     if hasattr(ds,"Units"): s_info.imageUnits = ds.Units
     if hasattr(ds,"CountsSource"): s_info.petCountSource = ds.CountsSource
