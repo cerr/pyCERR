@@ -426,7 +426,7 @@ def initialize_dvf_colorbar_widget() -> FunctionGui:
     return mz_canvas
 
 
-def showNapari(scan_nums, str_nums, dose_nums, vectors_dict, planC, displayMode = '2d'):
+def showNapari(planC, scan_nums=0, str_nums=[], dose_nums=[], vectors_dict={}, displayMode = '2d'):
 
     if isinstance(scan_nums, (int, float)):
         scan_nums = [scan_nums]
@@ -894,7 +894,7 @@ def show_scan_dose(scan_num,dose_num,slc_num,planC):
     return h_scan, h_dose
 
 
-def showMplNb(scanNum, structNumV, doseNum, planC, windowCenter=0, windowWidth=300):
+def showMplNb(planC, scan_nums=0, str_nums=[], dose_nums=None, windowPreset=None, windowCenter=0, windowWidth=300):
     """
     Interactive plot using matplotlib for jupyter notebooks
     """
@@ -981,37 +981,37 @@ def showMplNb(scanNum, structNumV, doseNum, planC, windowCenter=0, windowWidth=3
 
 
     # Extract scan and mask
-    scan3M = planC.scan[scanNum].getScanArray()
-    xVals, yVals, zVals = planC.scan[scanNum].getScanXYZVals()
+    scan3M = planC.scan[scan_nums].getScanArray()
+    xVals, yVals, zVals = planC.scan[scan_nums].getScanXYZVals()
     extentTrans = np.min(xVals), np.max(xVals), np.min(yVals), np.max(yVals)
     extentSag = np.min(yVals), np.max(yVals), np.min(zVals), np.max(zVals)
     extentCor = np.min(xVals), np.max(xVals), np.min(zVals), np.max(zVals)
     imgSiz = np.shape(scan3M)
 
-    if isinstance(doseNum,(int,float)):
-        dose3M = planC.dose[doseNum].doseArray
+    if isinstance(dose_nums,(int,float)):
+        dose3M = planC.dose[dose_nums].doseArray
         maxDose = dose3M.max()
         minDose = dose3M.min()
-        xDoseVals, yDoseVals, zDoseVals = planC.dose[doseNum].getDoseXYZVals()
+        xDoseVals, yDoseVals, zDoseVals = planC.dose[dose_nums].getDoseXYZVals()
         extentDoseTrans = np.min(xDoseVals), np.max(xDoseVals), np.min(yDoseVals), np.max(yDoseVals)
         extentDoseSag = np.min(yDoseVals), np.max(yDoseVals), np.min(zDoseVals), np.max(zDoseVals)
         extentDoseCor = np.min(xDoseVals), np.max(xDoseVals), np.min(zDoseVals), np.max(zDoseVals)
     else:
-        doseNum = None
+        dose_nums = None
 
     masks = list()
     strNameList = list()
     strColorList = list()
-    for nStr in range (len(structNumV)):
-        mask3M = rs.getStrMask(structNumV[nStr],planC)
+    for nStr in range (len(str_nums)):
+        mask3M = rs.getStrMask(str_nums[nStr],planC)
         masks.append(mask3M)
-        strNameList.append(planC.structure[structNumV[nStr]].structureName)
-        strColorList.append(np.array(planC.structure[structNumV[nStr]].structureColor)/255)
+        strNameList.append(planC.structure[str_nums[nStr]].structureName)
+        strColorList.append(np.array(planC.structure[str_nums[nStr]].structureColor)/255)
 
     # Create slider widgets
     imgSize = np.shape(scan3M)
     #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
-    sliceSliderAxial, viewSelect, doseAlphaSlider = createWidgets(imgSize, scanNum, doseNum)
+    sliceSliderAxial, viewSelect, doseAlphaSlider = createWidgets(imgSize, scan_nums, dose_nums)
 
     def update_numSlcs(*args):
         if viewSelect.value == 'Axial':
@@ -1047,21 +1047,21 @@ def showMplNb(scanNum, structNumV, doseNum, planC, windowCenter=0, windowWidth=3
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
             extent = extentTrans
-            if doseNum is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
+            if dose_nums is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
                 doseSlcNum = np.argmin((zVals[slcNum-1] - zDoseVals)**2)
                 doseImage = dose3M[:,:,doseSlcNum]
                 extentDose = extentDoseTrans
         elif view.lower() == 'sagittal':
             windowedImage = rotateImage(windowImage(scan3M[:, slcNum - 1, :], windowCenter, windowWidth))
             extent = extentSag
-            if doseNum is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
+            if dose_nums is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
                 doseSlcNum = np.argmin((xVals[slcNum-1] - xDoseVals)**2)
                 doseImage = rotateImage(dose3M[:,doseSlcNum,:])
                 extentDose = extentDoseSag
         elif view.lower() == 'coronal':
             windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
             extent = extentCor
-            if doseNum is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
+            if dose_nums is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
                 doseSlcNum = np.argmin((yVals[slcNum-1] - yDoseVals)**2)
                 doseImage = rotateImage(dose3M[doseSlcNum,:,:])
                 extentDose = extentDoseCor
@@ -1071,7 +1071,7 @@ def showMplNb(scanNum, structNumV, doseNum, planC, windowCenter=0, windowWidth=3
         # Display scan
         im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
                     interpolation='nearest', extent=extent)
-        if doseNum is not None and doseImage is not None:
+        if dose_nums is not None and doseImage is not None:
             imDose = ax.imshow(doseImage, cmap=plt.cm.jet, alpha=doseAlpha,
                         interpolation='nearest', extent=extentDose,
                         vmin=minDose, vmax=maxDose)
