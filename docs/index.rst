@@ -7,11 +7,15 @@ Welcome to pyCERR's documentation!
 ==================================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
-   modules
-
+   cerr
+   cerr.dataclasses
+   cerr.radiomics
+   cerr.registration
+   cerr.utils
+   tests
 
 Indices and tables
 ==================
@@ -19,3 +23,4 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+

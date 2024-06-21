@@ -19,30 +19,32 @@ def get_empty_np_array():
 @dataclass
 class Beams:
     """This class defines data object for Beams in an RTPlan. The metadata is populated from DICOM.
-    PatientName (str): Patient's name
-    PatientID (str): Patient's ID
-    PatientBirthDate (str): Patient's birth date
-    PatientSex (str): Patient's gender
-    Manufacturer (str): Equipment manufacturer
-    ManufacturerModelName (str): Equipment model
-    PixelPaddingValue (float): Pixel padding value as defined in (0028,0120) DICOM tag
-    RTPlanLabel (str): User-defined label for treatment plan as defined by (300A,0002) DICOM tag
-    RTPlanDate (str): Date treatment plan was last modified as defined by (300A,0006) DICOM tag
-    RTPlanTime (str): Time treatment plan was last modified as defined by (300A,0007) DICOM tag
-    RTPlanGeometry (str): Describes whether RT Plan is based on patient or treatment device geometry (300A,000C) tag
-    TreatmentSites (np.array): A free-text label describing the anatomical treatment site. (3010,0077) tag
-    PrescriptionDescription (str): User-defined description of treatment prescription as defined in (300A,000E)
-    FractionGroupSequence (np.array): Sequence of Fraction Groups as per (300A,0070) DICOM tag
-    BeamSequence (np.array): Sequence of treatment beams for current RT Plan as per (300A,00B0) DICOM tag
-    PatientSetupSequence (np.array): Sequence of patient setup data for current plan as per (300A,0180) DICOM tag
-    ReferencedStructureSetSequence (np.array): The RT Structure Set on which the RT Plan is based as per (300C,0060) DICOM tag
-    ReferencedDoseSequence (np.array): Sequence of Dose References.
-    ApprovalStatus (str): Approval status at the time the SOP Instance was created as per (300E,0002) DICOM tag.
-    ReviewDate (str): Date plan was reviewed
-    ReviewTime (str): Time plan was reviewed
-    ReviewerName (str): Reviewer name
-    SOPInstanceUID (str): SOP Instance UID of the Plan
-    BeamUID (str): pyCERR's UID of RTPLAN
+    Attributes:
+        PatientName (str): Patient's name
+        PatientID (str): Patient's ID
+        PatientBirthDate (str): Patient's birth date
+        PatientSex (str): Patient's gender
+        Manufacturer (str): Equipment manufacturer
+        ManufacturerModelName (str): Equipment model
+        PixelPaddingValue (float): Pixel padding value as defined in (0028,0120) DICOM tag
+        RTPlanLabel (str): User-defined label for treatment plan as defined by (300A,0002) DICOM tag
+        RTPlanDate (str): Date treatment plan was last modified as defined by (300A,0006) DICOM tag
+        RTPlanTime (str): Time treatment plan was last modified as defined by (300A,0007) DICOM tag
+        RTPlanGeometry (str): Describes whether RT Plan is based on patient or treatment device geometry (300A,000C) tag
+        TreatmentSites (np.array): A free-text label describing the anatomical treatment site. (3010,0077) tag
+        PrescriptionDescription (str): User-defined description of treatment prescription as defined in (300A,000E)
+        FractionGroupSequence (np.array): Sequence of Fraction Groups as per (300A,0070) DICOM tag
+        BeamSequence (np.array): Sequence of treatment beams for current RT Plan as per (300A,00B0) DICOM tag
+        PatientSetupSequence (np.array): Sequence of patient setup data for current plan as per (300A,0180) DICOM tag
+        ReferencedStructureSetSequence (np.array): The RT Structure Set on which the RT Plan is based as per (300C,0060) DICOM tag
+        ReferencedDoseSequence (np.array): Sequence of Dose References.
+        ApprovalStatus (str): Approval status at the time the SOP Instance was created as per (300E,0002) DICOM tag.
+        ReviewDate (str): Date plan was reviewed
+        ReviewTime (str): Time plan was reviewed
+        ReviewerName (str): Reviewer name
+        SOPInstanceUID (str): SOP Instance UID of the Plan
+        BeamUID (str): pyCERR's UID of RTPLAN
+
     """
 
     PatientName: str = ""
@@ -79,8 +81,9 @@ class Beams:
 @dataclass
 class ReferenceSeq:
     """This class defines referenced sequence.
-    ReferencedSOPClassUID (str): Referenced SOP class UID
-    ReferencedSOPInstanceUID (str): Referenced SOP instance UID
+    Attributes:
+        ReferencedSOPClassUID (str): Referenced SOP class UID
+        ReferencedSOPInstanceUID (str): Referenced SOP instance UID
 
     """
     ReferencedSOPClassUID: str = ""
@@ -89,8 +92,9 @@ class ReferenceSeq:
 @dataclass
 class PatientSetupSeq:
     """This class defines patient setup sequence.
-    PatientSetupNumber (int): Identification number of the Patient Setup as per (300A,0182) DICOM tag
-    PatientPosition (str): Patient position descriptor relative to the equipment as per (0018,5100) DICOM tag
+    Attributes:
+        PatientSetupNumber (int): Identification number of the Patient Setup as per (300A,0182) DICOM tag
+        PatientPosition (str): Patient position descriptor relative to the equipment as per (0018,5100) DICOM tag
 
     """
 
@@ -100,9 +104,10 @@ class PatientSetupSeq:
 @dataclass
 class BeamLimitingDevicePositionSeq:
     """This class defines data model for Sequence of beam limiting device (collimator) jaw or leaf (element) positions.
-    RTBeamLimitingDeviceType (str): Type of beam limiting device (collimator) as per (300A,00B8) DICOM tag
-    LeafJawPositions (np.array): Positions of beam limiting device (collimator) leaf (element) or jaw pairs (in mm)
-     in IEC BEAM LIMITING DEVICE coordinate axis appropriate to RT Beam Limiting Device Type as defined in (300A,011C) DICOM tag
+    Attributes:
+        RTBeamLimitingDeviceType (str): Type of beam limiting device (collimator) as per (300A,00B8) DICOM tag
+        LeafJawPositions (np.array): Positions of beam limiting device (collimator) leaf (element) or jaw pairs (in mm)
+         in IEC BEAM LIMITING DEVICE coordinate axis appropriate to RT Beam Limiting Device Type as defined in (300A,011C) DICOM tag
 
     """
     RTBeamLimitingDeviceType: str = ""
@@ -111,27 +116,28 @@ class BeamLimitingDevicePositionSeq:
 @dataclass
 class ControlPointSequence:
     """This class defines data model for the Sequence of machine configurations describing treatment beam.
-    BeamLimitingDevicePositionSequence (np.array): Sequence of beam limiting device (collimator) jaw or leaf (element)
-        positions as per (300A,011A) DICOM tag.
-    ControlPointIndex (int): Index of current Control Point, starting at 0 for first Control Point as per (300A,0112) DICOM tag.
-    NominalBeamEnergy (float): Nominal Beam Energy at control point (MV/MeV) as per (300A,0114) DICOM tag
-    GantryAngle (float): Gantry angle of radiation source, i.e., orientation of IEC GANTRY coordinate system with respect to
-        IEC FIXED REFERENCE coordinate system (degrees) as per (300A,011E) DICOM tag.
-    GantryRotationDirection (str): Direction of Gantry Rotation when viewing gantry from isocenter,
-        for segment following Control Point as per (300A,011F) DICOM tag.
-    BeamLimitingDeviceAngle (float): Beam Limiting Device angle, i.e., orientation of IEC BEAM LIMITING DEVICE coordinate
-        system with respect to IEC GANTRY coordinate system (degrees) as per (300A,0120) DICOM tag.
-    BeamLimitingDeviceRotationDirection (str): Direction of Beam Limiting Device Rotation when viewing beam limiting device
-        (collimator) from radiation source, for segment following Control Point as per (300A,0121) DICOM tag
-    PatientSupportAngle (float): Patient Support angle, i.e., orientation of IEC PATIENT SUPPORT (turntable) coordinate
-        system with respect to IEC FIXED REFERENCE coordinate system (degrees) as per (300A,0122) DICOM tag
-    TableTopEccentricAngle (float): Table Top (non-isocentric) angle, i.e., orientation of IEC TABLE TOP ECCENTRIC coordinate
-        system with respect to IEC PATIENT SUPPORT coordinate system (degrees) as per (300A,0125) DICOM tag.
-    TableTopEccentricRotationDirection (str):
-    IsocenterPosition (np.array): Direction of Table Top Eccentric Rotation when viewing table from above,
-        for segment following Control Point as per 	(300A,0126) DICOM tag
-    SourceToSurfaceDistance (float): Source to Patient Surface (skin) distance (mm) as per (300A,0130) DICOM tag
-    CumulativeMetersetWeight (float): Cumulative weight to current control point as per (300A,0134) DICOM tag
+    Attributes:
+        BeamLimitingDevicePositionSequence (np.array): Sequence of beam limiting device (collimator) jaw or leaf (element)
+            positions as per (300A,011A) DICOM tag.
+        ControlPointIndex (int): Index of current Control Point, starting at 0 for first Control Point as per (300A,0112) DICOM tag.
+        NominalBeamEnergy (float): Nominal Beam Energy at control point (MV/MeV) as per (300A,0114) DICOM tag
+        GantryAngle (float): Gantry angle of radiation source, i.e., orientation of IEC GANTRY coordinate system with respect to
+            IEC FIXED REFERENCE coordinate system (degrees) as per (300A,011E) DICOM tag.
+        GantryRotationDirection (str): Direction of Gantry Rotation when viewing gantry from isocenter,
+            for segment following Control Point as per (300A,011F) DICOM tag.
+        BeamLimitingDeviceAngle (float): Beam Limiting Device angle, i.e., orientation of IEC BEAM LIMITING DEVICE coordinate
+            system with respect to IEC GANTRY coordinate system (degrees) as per (300A,0120) DICOM tag.
+        BeamLimitingDeviceRotationDirection (str): Direction of Beam Limiting Device Rotation when viewing beam limiting device
+            (collimator) from radiation source, for segment following Control Point as per (300A,0121) DICOM tag
+        PatientSupportAngle (float): Patient Support angle, i.e., orientation of IEC PATIENT SUPPORT (turntable) coordinate
+            system with respect to IEC FIXED REFERENCE coordinate system (degrees) as per (300A,0122) DICOM tag
+        TableTopEccentricAngle (float): Table Top (non-isocentric) angle, i.e., orientation of IEC TABLE TOP ECCENTRIC coordinate
+            system with respect to IEC PATIENT SUPPORT coordinate system (degrees) as per (300A,0125) DICOM tag.
+        TableTopEccentricRotationDirection (str):
+        IsocenterPosition (np.array): Direction of Table Top Eccentric Rotation when viewing table from above,
+            for segment following Control Point as per 	(300A,0126) DICOM tag
+        SourceToSurfaceDistance (float): Source to Patient Surface (skin) distance (mm) as per (300A,0130) DICOM tag
+        CumulativeMetersetWeight (float): Cumulative weight to current control point as per (300A,0134) DICOM tag
 
     """
 
@@ -153,9 +159,10 @@ class ControlPointSequence:
 class RefBeamSeq:
     """This class defies data model for the sequence of Beams in current Fraction Group contributing to dose
     as per (300C,0004) DICOM tag.
-    ReferencedBeamNumber (int): Uniquely identifies Beam specified by Beam Number as per (300C,0006) DICOM tag
-    BeamMeterset (float): Meterset duration over which image is to be acquired, specified in Monitor units (MU)
-        as per (3002,0032) DICOM tag
+    Attributes:
+        ReferencedBeamNumber (int): Uniquely identifies Beam specified by Beam Number as per (300C,0006) DICOM tag
+        BeamMeterset (float): Meterset duration over which image is to be acquired, specified in Monitor units (MU)
+            as per (3002,0032) DICOM tag
     """
     ReferencedBeamNumber: int = 0
     BeamMeterset: float = 0
@@ -163,12 +170,13 @@ class RefBeamSeq:
 @dataclass
 class FractionGroupSeq:
     """This class defines data model for Sequence of Fraction Groups in current Fraction Scheme as per (300A,0070) DICOM tag.
-    FractionGroupNumber (int): Identification number of the Fraction Group as per (300A,0071)
-    NumberOfFractionsPlanned (int): Total number of treatments (Fractions) prescribed for current Fraction Group as per (300A,0078)
-    NumberOfBeams (int): Number of Beams in current Fraction Group as per (300A,0080)
-    NumberOfBrachyApplicationSetups (int): Number of Brachy Application Setups in current Fraction Group as per (300A,00A0)
-    RadiationType (str): Particle type of Beam as per (300A,00C6)
-    RefBeamSeq (np.array): Sequence of Beams in current Fraction Group contributing to dose as per (300C,0004)
+    Attributes:
+        FractionGroupNumber (int): Identification number of the Fraction Group as per (300A,0071)
+        NumberOfFractionsPlanned (int): Total number of treatments (Fractions) prescribed for current Fraction Group as per (300A,0078)
+        NumberOfBeams (int): Number of Beams in current Fraction Group as per (300A,0080)
+        NumberOfBrachyApplicationSetups (int): Number of Brachy Application Setups in current Fraction Group as per (300A,00A0)
+        RadiationType (str): Particle type of Beam as per (300A,00C6)
+        RefBeamSeq (np.array): Sequence of Beams in current Fraction Group contributing to dose as per (300C,0004)
 
     """
     FractionGroupNumber: int = 0
@@ -181,23 +189,24 @@ class FractionGroupSeq:
 @dataclass
 class BeamSeq:
     """This class defines data model for Sequence of treatment beams for current RT Plan as per (300A,00B0) DICOM tag.
-    Manufacturer (str): Manufacturer of the equipment to be used for beam delivery as per (0008,0070)
-    BeamName (str): primary beam identifier (often referred to as "field identifier") as per (300A,00C2)
-    BeamType (str): Motion characteristic of Beam as per (300A,00C4)
-    BeamDescription (str): User-defined description for Beam as per (300A,00C3)
-    BeamNumber (int): Identification number of the Beam as per (300A,00C0)
-    SourceAxisDistance (float): Radiation source to Gantry rotation axis distance of the equipment that is to be
-        used for beam delivery (mm) as per (300A,00B4)
-    BeamLimitingDevicePositionSeq (np.array): Sequence of beam limiting device (collimator) jaw or leaf (element) sets
-        as per (300A,00B6)
-    RadiationType (str): Particle type of Beam as per (300A,00C6)
-    TreatmentDeliveryType (str): Delivery Type of treatment as per (300A,00CE)
-    NumberOfWedges (float): Number of wedges associated with current Beam as per (300A,00D0)
-    NumberOfBoli (float): Number of boli associated with current Beam as per (300A,00ED)
-    NumberOfCompensators (float): Number of compensators associated with current Beam as per (300A,00E0)
-    NumberOfBlocks (float): Number of shielding blocks associated with Beam as per (300A,00F0)
-    NumberOfControlPoints (float): Number of control points in Beam as per (300A,0110)
-    ControlPointSequence (np.array): Sequence of machine configurations describing treatment beam as per (300A,0111)
+    Attributes:
+        Manufacturer (str): Manufacturer of the equipment to be used for beam delivery as per (0008,0070)
+        BeamName (str): primary beam identifier (often referred to as "field identifier") as per (300A,00C2)
+        BeamType (str): Motion characteristic of Beam as per (300A,00C4)
+        BeamDescription (str): User-defined description for Beam as per (300A,00C3)
+        BeamNumber (int): Identification number of the Beam as per (300A,00C0)
+        SourceAxisDistance (float): Radiation source to Gantry rotation axis distance of the equipment that is to be
+            used for beam delivery (mm) as per (300A,00B4)
+        BeamLimitingDevicePositionSeq (np.array): Sequence of beam limiting device (collimator) jaw or leaf (element) sets
+            as per (300A,00B6)
+        RadiationType (str): Particle type of Beam as per (300A,00C6)
+        TreatmentDeliveryType (str): Delivery Type of treatment as per (300A,00CE)
+        NumberOfWedges (float): Number of wedges associated with current Beam as per (300A,00D0)
+        NumberOfBoli (float): Number of boli associated with current Beam as per (300A,00ED)
+        NumberOfCompensators (float): Number of compensators associated with current Beam as per (300A,00E0)
+        NumberOfBlocks (float): Number of shielding blocks associated with Beam as per (300A,00F0)
+        NumberOfControlPoints (float): Number of control points in Beam as per (300A,0110)
+        ControlPointSequence (np.array): Sequence of machine configurations describing treatment beam as per (300A,0111)
 
     """
 
@@ -227,7 +236,6 @@ class BeamSeq:
 def load_beams(file_list):
     """This routine parses a list of DICOM files and imports metadata from RTPLAN modality into a list of
     pyCERR's Beams objects
-    .
 
     Args:
         file_list (List[str]): List of DICOM file paths.

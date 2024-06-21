@@ -245,7 +245,7 @@ class Scan:
 
     def convertDcmToCerrVirtualCoords(self):
         """Routine to get scan from DICOM to pyCERR virtual coordinates. More information
-            about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+        about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
         """
 
         # Construct DICOM Affine transformation matrix
