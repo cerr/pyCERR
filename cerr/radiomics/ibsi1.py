@@ -6,7 +6,7 @@ import numpy as np
 from cerr.radiomics import first_order, gray_level_cooccurence, run_length,\
     size_zone, neighbor_gray_level_dependence, neighbor_gray_tone
 from cerr.utils.mask import compute_boundingbox
-from cerr.radiomics import preprocess, textureUtils
+from cerr.radiomics import preprocess, texture_utils
 import json
 
 
@@ -224,7 +224,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
                 filterParamS["VoxelSize_mm"]  = voxSizeV * 10
                 filterParamS["Padding"] = {"Size":padSizeV,"Method": padMethod,"Flag":False}
 
-                paddedResponseS = textureUtils.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
+                paddedResponseS = texture_utils.processImage(imgType, processedScan3M, processedMask3M, filterParamS)
                 filterName = list(paddedResponseS.keys())[0] # must be single output
                 filteredPadScan3M = paddedResponseS[filterName]
 

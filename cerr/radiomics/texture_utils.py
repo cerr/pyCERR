@@ -4,7 +4,7 @@ import numpy as np
 
 import cerr.contour.rasterseg as rs
 from cerr import plan_container as pc
-from cerr.radiomics import textureFilters
+from cerr.radiomics import texture_filters
 from cerr.radiomics.preprocess import preProcessForRadiomics
 from cerr.utils.mask import compute_boundingbox
 
@@ -67,12 +67,12 @@ def processImage(filterType, scan3M, mask3M, paramS):
         kernelSize = np.array(paramS['KernelSize'])
         if 'Absolute' in paramS.keys():
             absFlag = paramS['Absolute'].lower() == 'yes'
-        mean3M = textureFilters.meanFilter(scan3M, kernelSize, absFlag)
+        mean3M = texture_filters.meanFilter(scan3M, kernelSize, absFlag)
         outS['mean'] = mean3M
 
     elif filterType == 'sobel':
 
-        mag3M, dir3M = textureFilters.sobelFilter(scan3M)
+        mag3M, dir3M = texture_filters.sobelFilter(scan3M)
         outS['SobelMag'] = mag3M
         outS['SobelDir'] = dir3M
 
@@ -81,7 +81,7 @@ def processImage(filterType, scan3M, mask3M, paramS):
         sigmaV = paramS['Sigma_mm']
         cutOffV = np.array(paramS['CutOff_mm'])
         voxelSizeV = np.array(paramS['VoxelSize_mm'])
-        LoG3M = textureFilters.LoGFilter(scan3M, sigmaV, cutOffV, voxelSizeV)
+        LoG3M = texture_filters.LoGFilter(scan3M, sigmaV, cutOffV, voxelSizeV)
         outS['LoG'] = LoG3M
 
     elif filterType in ['gabor', 'gabor3d']:
@@ -102,14 +102,14 @@ def processImage(filterType, scan3M, mask3M, paramS):
         if filterType == 'gabor':
             if 'OrientationAggregation' in paramS.keys():
                 aggS = {'OrientationAggregation': paramS['OrientationAggregation']}
-                outS, __ = textureFilters.gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+                outS, __ = texture_filters.gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
             else:
-                outS, __ = textureFilters.gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius, paddingV)
+                outS, __ = texture_filters.gaborFilter(scan3M, sigma, wavelength, gamma, thetaV, radius, paddingV)
         elif filterType == 'gabor3d':
             aggS = {'PlaneAggregation': paramS['PlaneAggregation']}
             if 'OrientationAggregation' in paramS.keys():
                 aggS['OrientationAggregation'] = paramS['OrientationAggregation']
-            outS, __ = textureFilters.gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
+            outS, __ = texture_filters.gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV, aggS, radius, paddingV)
 
     elif filterType in ['laws', 'rotationinvariantlaws']:
 
@@ -119,10 +119,10 @@ def processImage(filterType, scan3M, mask3M, paramS):
         if 'Normalize' in paramS.keys():
             normFlag = paramS['Normalize'].lower()=='yes'
         if filterType == 'laws':
-            outS = textureFilters.lawsFilter(scan3M, direction, type, normFlag)
+            outS = texture_filters.lawsFilter(scan3M, direction, type, normFlag)
         elif filterType == 'rotationinvariantlaws':
             rotS = paramS['RotationInvariance']
-            out3M = textureFilters.rotationInvariantLawsFilter(scan3M, direction, type, normFlag, rotS)
+            out3M = texture_filters.rotationInvariantLawsFilter(scan3M, direction, type, normFlag, rotS)
             outS[type] = out3M
 
     elif filterType in ['lawsenergy', 'rotationinvariantlawsenergy']:
@@ -141,14 +141,14 @@ def processImage(filterType, scan3M, mask3M, paramS):
             lawsPadSizeV = paramS['Padding']['Size']
             lawsPadMethod = paramS['Padding']['Method']
         if filterType == 'lawsenergy':
-            outS = textureFilters.lawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, lawsPadFlag, lawsPadSizeV,\
-                                                   lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod)
+            outS = texture_filters.lawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, lawsPadFlag, lawsPadSizeV, \
+                                                    lawsPadMethod, energyKernelSizeV, energyPadSizeV, energyPadMethod)
         elif filterType == 'rotationinvariantlawsenergy':
             rotS = paramS['RotationInvariance']
-            out3M = textureFilters.rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, \
-                                                                     lawsPadFlag, lawsPadSizeV, lawsPadMethod, \
-                                                                     energyKernelSizeV, energyPadSizeV, \
-                                                                     energyPadMethod, rotS)
+            out3M = texture_filters.rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, type, normFlag, \
+                                                                      lawsPadFlag, lawsPadSizeV, lawsPadMethod, \
+                                                                      energyKernelSizeV, energyPadSizeV, \
+                                                                      energyPadMethod, rotS)
             outS[type + '_Energy'] = out3M
 
     # elif filterType in ['wavelets', 'rotationinvariantwavelets']:

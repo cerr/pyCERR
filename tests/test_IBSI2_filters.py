@@ -10,7 +10,7 @@ import os
 import numpy as np
 import scipy.io
 from cerr import plan_container
-from cerr.radiomics import textureUtils
+from cerr.radiomics import texture_utils
 import matplotlib.pyplot as plt
 
 currPath = os.path.abspath(__file__)
@@ -80,7 +80,7 @@ def run_test(planC, mask3M, config):
     refMapName = config+'.mat'
 
     #Calc. filter response
-    planC = textureUtils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
+    planC = texture_utils.generateTextureMapFromPlanC(planC, scanNum, mask3M, settingsFile)
     filtIdx = len(planC.scan)-1
     responseMap3M = planC.scan[filtIdx].getScanArray()
 
