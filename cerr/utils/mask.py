@@ -8,7 +8,7 @@ from scipy import ndimage
 from scipy.ndimage import label, binary_opening, binary_fill_holes, uniform_filter
 from skimage import exposure, filters, morphology, transform
 from skimage.morphology import square, octagon
-import cerr.utils.statisticsUtils as statUtil
+import cerr.utils.statistics as statUtil
 
 
 def getDown2Mask(inM, sample):

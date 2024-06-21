@@ -9,7 +9,7 @@ from scipy.stats import skew, kurtosis, entropy
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.plan_container as pc
-from cerr.utils.statisticsUtils import quantile, prctile
+from cerr.utils.statistics import quantile, prctile
 
 def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     """
