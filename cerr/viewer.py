@@ -1,3 +1,10 @@
+"""Viewer module.
+
+The "viewer" module defines routines for visualizing scan,
+structure, dose and vector field.
+
+"""
+
 import typing
 import warnings
 import matplotlib as mpl
@@ -12,17 +19,18 @@ import cerr.dataclasses.structure as cerrStr
 import cerr.plan_container as pc
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
-from IPython import display
 import ipywidgets as widgets
 from ipywidgets import interact
 from typing import Annotated, Literal
-import napari
-from napari.layers import Labels, Image
-from napari.types import LayerDataTuple
-from qtpy.QtWidgets import QTabBar
-from magicgui import magicgui
-from magicgui.widgets import FunctionGui
-import vispy.color
+import importlib
+if importlib.util.find_spec('napari') is not None:
+    import napari
+    from napari.layers import Labels, Image
+    from napari.types import LayerDataTuple
+    from qtpy.QtWidgets import QTabBar
+    from magicgui import magicgui
+    from magicgui.widgets import FunctionGui
+    import vispy.color
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -427,6 +435,31 @@ def initialize_dvf_colorbar_widget() -> FunctionGui:
 
 
 def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}, displayMode = '2d'):
+    """Routine to display images in the Napari viewer. This routine requires a display (physical or virtual).
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        scan_nums (list or int): scan indices to display from planC.scan
+        struct_nums (list or int): structure indices to display from planC.structure
+        dose_nums (list or int): dose indices to display from planC.dose
+        vectors_dict: A dictionary whose fields are "vectors" and "features".
+            vectors must be an array of size nx2x3, where n is the number of vectors.
+            The 1st element along the 2nd dimension contains (row,col,slc) representing the start co-ordinate
+            The 2nd element along the 2nd dimension contains (yDeform,xDeform,zDeform) representing the lengths of
+            vectors along y, x and z axis in CERR virtual coordinates.
+            i.e. vectors[i,0,:] = [rStartV[i], cStartV[i], sStartV[i]]
+                 vectors[i,1,:] = [yDeformV[i], xDeformV[i], zDeformV[i]]
+        displayMode: '2d': contours are displayed by labels layer
+                     '3d' contours are displayed by surface layer.
+
+    Returns:
+        napari.Viewer: Napari Viewer object
+        scan_layers[napari.layers.Image]: List of scan layers corresponding to input scan_nums
+        struct_layer[napari.layers.Labels]: List of structure layers corresponding to input struct_nums
+        dose_layers[napari.layers.Image]: List of dose layers corresponding to input dose_nums
+        dvf_layer[napari.layers.Vectors]: List containing DVF layer corresponding to input vector_dict
+
+    """
 
     if isinstance(scan_nums, (int, float)):
         scan_nums = [scan_nums]
@@ -434,11 +467,6 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         struct_nums = [struct_nums]
     if isinstance(dose_nums, (int, float)):
         dose_nums = [dose_nums]
-
-    # Default scan window
-    scanWindow = {'name': "--- Select ---",
-                  'center': 0,
-                  'width': 300}
 
     # Get Scan affines
     assocScanV = []
@@ -511,7 +539,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                       "center": centerDose,
                       "width": widthDose}
         dose_lyr = viewer.add_image(doseArray,name='dose',affine=dose_affine,
-                                  opacity=0.5,colormap="gist_earth",
+                                  opacity=0.5,colormap="turbo",
                                   blending="additive",interpolation2d="linear",
                                   interpolation3d="linear",
                                   metadata = {'dataclass': 'dose',
@@ -583,7 +611,8 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     dvf_layer = []
     if vectors_dict and 'vectors' in vectors_dict:
-        vectors = vectors_dict['vectors']
+        vectors = vectors_dict['vectors'].copy()
+        vectors[:,1,0] = -vectors[:,1,0]
         feats = vectors_dict['features']
         scan_affine = scanAffineDict[0]# {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
         vect_layr = viewer.add_vectors(vectors, edge_width=0.3, opacity=0.8,
@@ -877,31 +906,40 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     # Set Image colorbar active
     dvf_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
 
-    return viewer, scan_layers, dose_layers, struct_layer, dvf_layer
-
-
-def show_scan_dose(scan_num,dose_num,slc_num,planC):
-    sa = planC.scan[scan_num].scanArray - planC.scan[scan_num].scanInfo[0].CTOffset
-    da = planC.dose[scan_num].doseArray
-    c1 = plt.cm.ScalarMappable(cmap='gray')
-    c2 = plt.cm.ScalarMappable(cmap='jet')
-    fig,ax = plt.subplots(1,2)
-    h_scan = ax[0].imshow(sa[:,:,slc_num])
-    h_dose = ax[1].imshow(da[:,:,slc_num])
-    #ax[0].colorbar(c1)
-    #ax[1].colorbar(c1)
-    plt.show(block=True)
-    return h_scan, h_dose
+    return viewer, scan_layers, struct_layer, dose_layers, dvf_layer
 
 
 def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=None, windowCenter=0, windowWidth=300):
-    """
-    Interactive plot using matplotlib for jupyter notebooks
+    """Routine to display interactive plot using matplotlib in a jupyter notebook
+
+    Args:
+        planC (cerr.plan_container.PlanC):
+        scan_nums (list or int): scan indices to display from planC.scan
+        struct_nums (list or int): structure indices to display from planC.structure
+        dose_nums (list or int): dose indices to display from planC.dose
+        windowPreset (str): optional, string representing preset window.
+            'Abd/Med': (-10, 330),
+            'Head': (45, 125),
+            'Liver': (80, 305),
+            'Lung': (-500, 1500),
+            'Spine': (30, 300),
+            'Vrt/Bone': (400, 1500),
+            'PET SUV': (5, 10)
+        windowCenter (float): optional, defaults to 0 when windowPreset is not specified.
+        windowWidth (float): optional, defaults to 300 when windowPreset is not specified.
+
+    Returns:
+        None
     """
 
-    if windowPreset is not None and windowPreset in window_dict:
-        windowCenter = window_dict[windowPreset][0]
-        windowWidth = window_dict[windowPreset][1]
+    windowPresetList = [w for w in list(window_dict.keys())]
+    lowerWindowPresetList = [w.lower() for w in windowPresetList]
+
+    # Find whether the preset window exists
+    if windowPreset is not None and windowPreset.lower() in lowerWindowPresetList:
+        presetIndex = lowerWindowPresetList.index(windowPreset.lower())
+        windowCenter = window_dict[windowPresetList[presetIndex]][0]
+        windowWidth = window_dict[windowPresetList[presetIndex]][1]
 
     def windowImage(image, windowCenter, windowWidth):
         imgMin = windowCenter - windowWidth // 2
@@ -1029,7 +1067,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
 
     def showSlice(view, slcNum, doseAlpha):
 
-        #clear_output(wait=True)
+        clear_output(wait=True)
         #print(view + ' view slice ' + str(slcNum))
 
         ax = showSlice.ax
@@ -1143,3 +1181,5 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, continuous_update=False)
     else:
         interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, doseAlpha=doseAlphaSlider, continuous_update=False)
+
+    return

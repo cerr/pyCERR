@@ -317,13 +317,13 @@ def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0
         for i in range(numPts):
             vectors[i,0,:] = [rSurfV[i], cSurfV[i], sSurfV[i]]
             #vectors[i,1,:] = [yDeformV[i]/dy, xDeformV[i]/dx, zDeformV[i]/dz]
-            vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
+            vectors[i,1,:] = [yDeformV[i], xDeformV[i], zDeformV[i]]
         deformMedian = np.median(vectors, axis = 0)[1,:]
         vectors[:,1,:] -= deformMedian
     else: # (x,y,z) physical coordinates
         if cerrDeform.flipSliceOrderFlag(deformS):
             zDeformV = - zDeformV
         for i in range(numPts):
-            vectors[i,0,:] = [-ySurfV[i], xSurfV[i], zSurfV[i]]
-            vectors[i,1,:] = [-yDeformV[i], xDeformV[i], zDeformV[i]]
+            vectors[i,0,:] = [ySurfV[i], xSurfV[i], zSurfV[i]]
+            vectors[i,1,:] = [yDeformV[i], xDeformV[i], zDeformV[i]]
     return vectors
