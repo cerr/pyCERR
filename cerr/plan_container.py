@@ -30,6 +30,20 @@ def get_empty_list():
 
 @dataclass
 class PlanC:
+    """Plan Container for imaging metadata. Each Attribute of this class holds metadata for a particular type
+    of imaging object. Additional attributes can be added to this class without breaking the functionality
+    fom other attributes.
+    Attributes:
+        header (cerr.dataclasses.header.Header): Header storing information about date of creation, version etc.
+        scan (List[cerr.dataclasses.scan.Scan]): List of pyCERR's scan objects for modalities such as CT, MR, PT or derived types.
+        structure (List[cerr.dataclasses.structure.Structure]): List of pyCERR's structure objects for modalities such as
+            RTSTRUCT, SEG or user defined segmentation masks.
+        dose (List[cerr.dataclasses.dose.Dose]): List of pyCERR's dose objects for RTDOSE modality.
+        beams (List[cerr.dataclasses.beams.Beams]): List of pyCERR's beams objects for RTPLAN modality.
+        deform: (List[cerr.dataclasses.deform.Deform]): List of pyCERR's deformable image registration objects.
+
+    """
+
     header: headr.Header = None
     scan: List[scn.Scan] = field(default_factory=get_empty_list) #scan.Scan()
     structure: List[structr.Structure] = field(default_factory=get_empty_list) #structure.Structure()
@@ -70,6 +84,19 @@ def addToH5Grp(h5Grp,structDict,key):
 
 
 def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=[]):
+    """Routine to serialize planC to H5 file
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        h5File (str): File path/name to save planC
+        scanNumV: Indices for scan objects from planC.scan to export to h5 file
+        structNumV: Indices for structure objects from planC.structure to export to h5 file
+        doseNumV: Indices for dose objects from planC.dose to export to h5 file
+        deformNumV: Indices for deformation objects from planC.deform to export to h5 file
+
+    Returns:
+
+    """
     dt = datetime.now()
     planC.header.dateLastSaved = dt.strftime("%Y%m%d")
     with h5py.File(h5File, 'w') as f:
@@ -88,14 +115,14 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=
 
 def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
     """
-    Function to export pyCERR structure to NIfTi format mask/label map.
+    Function to export a pyCERR's structure objects to NIfTi format mask/label map.
 
     Args:
         niiFileName: string specifying path to output NIfTI file.
         strNumV: list of structure indices to be exported.
         planC: pyCERR plan_container object.
         labelDict: [optional, default=None] dictionary mapping indices with structure names
-        dim: [optional, default=3]
+        dim: [optional, default=3]. 3: writes a 3D array to nii, 4: writes 4D array to nii.
 
     Returns:
         0 on successful export.
@@ -122,6 +149,17 @@ def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
     return 0
 
 def loadFromH5(h5File, initplanC=''):
+    """Routine to load contents of H5 file into planC
+
+    Args:
+        h5File (str): File path/name of .h5 file containing matadata from planC
+        initplanC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with metadata imported from input H5 file.
+
+    """
+
     if not isinstance(initplanC, PlanC):
         planC = PlanC(header=headr.Header()) #pc.PlanC()
     else:

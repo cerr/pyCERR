@@ -33,6 +33,29 @@ def eig(a):
 def sepsq(a, b):
     return np.sum((a - b)**2, axis=0)
 
+def calcMaxDistBetweenPts(ptsM, distType):
+    dmax = 0
+    numPts = ptsM.shape[0]
+    step = 1000
+    numSteps = numPts // step
+    remPts = numPts % step
+    startV = np.arange(numSteps) * step
+    stopV = startV + step
+    if remPts > 0:
+        startV = np.append(startV,stopV[-1])
+        stopV = np.append(stopV,numPts)
+
+    for i in range(len(startV)):
+        iStart = startV[i]
+        iStop = stopV[i]
+        for j in range(len(startV)):
+            jStart = startV[j]
+            jStop = stopV[j]
+            distM = distance.cdist(ptsM[iStart:iStop,:], ptsM[jStart:jStop,:], distType)
+            dmax = max(dmax, np.max(distM))
+
+    return dmax
+
 def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     # Convert grid from cm to mm
@@ -76,54 +99,58 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
 
     # Get the surface points for the structure mask
     surf_points = getSurfacePoints(maskForShape3M)
-    sample_rate = 1
-    dx = abs(np.median(np.diff(xValsV)))
-    dz = abs(np.median(np.diff(zValsV)))
-    while surf_points.shape[0] > 50000:
-        sample_rate += 1
-        if dz / dx < 2:
-            surf_points = getSurfacePoints(maskForShape3M, sample_rate, sample_rate)
-        else:
-            surf_points = getSurfacePoints(maskForShape3M, sample_rate, 1)
+
+    # Downsample surface points
+    # sample_rate = 1
+    # dx = abs(np.median(np.diff(xValsV)))
+    # dz = abs(np.median(np.diff(zValsV)))
+    # while surf_points.shape[0] > 50000:
+    #     sample_rate += 1
+    #     if dz / dx < 2:
+    #         surf_points = getSurfacePoints(maskForShape3M, sample_rate, sample_rate)
+    #     else:
+    #         surf_points = getSurfacePoints(maskForShape3M, sample_rate, 1)
 
     xSurfV = xValsV[surf_points[:, 1]]
     ySurfV = yValsV[surf_points[:, 0]]
     zSurfV = zValsV[surf_points[:, 2]]
     #distM = sepsq(np.column_stack((xSurfV, ySurfV, zSurfV)), np.column_stack((xSurfV, ySurfV, zSurfV)))
     ptsM = np.column_stack((xSurfV, ySurfV, zSurfV))
-    distM = distance.cdist(ptsM, ptsM, 'euclidean')
+    #distM = distance.cdist(ptsM, ptsM, 'euclidean')
     #shapeS['max3dDiameter'] = np.max(distM)
+
+    dmaxAxial = 0
+    dmaxCor = 0
+    dmaxSag = 0
 
     rowV = np.unique(surf_points[:, 0])
     colV = np.unique(surf_points[:, 1])
     slcV = np.unique(surf_points[:, 2])
 
     # Max diameter along slices
-    dmax = 0
     for i in range(len(slcV)):
         slc = slcV[i]
         indV = surf_points[:, 2] == slc
-        distSlcM = distM[indV][:, indV]
-        dmax = max(dmax, np.max(distSlcM))
-    shapeS['max2dDiameterAxialPlane'] = dmax
+        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxAxial = max(dmaxAxial, np.max(distM))
 
     # Max diameter along cols
-    dmax = 0
     for i in range(len(colV)):
         col = colV[i]
         indV = surf_points[:, 1] == col
-        distColM = distM[indV][:, indV]
-        dmax = max(dmax, np.max(distColM))
-    shapeS['max2dDiameterSagittalPlane'] = dmax
+        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxSag = max(dmaxSag, np.max(distM))
 
     # Max diameter along rows
-    dmax = 0
     for i in range(len(rowV)):
         row = rowV[i]
         indV = surf_points[:, 0] == row
-        distRowM = distM[indV][:, indV]
-        dmax = max(dmax, np.max(distRowM))
-    shapeS['max2dDiameterCoronalPlane'] = dmax
+        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxCor = max(dmaxCor, np.max(distM))
+
+    shapeS['max2dDiameterAxialPlane'] = dmaxAxial
+    shapeS['max2dDiameterSagittalPlane'] = dmaxSag
+    shapeS['max2dDiameterCoronalPlane'] = dmaxCor
 
     # Surface Area
     # Pad mask to account for contribution from edge slices
@@ -132,8 +159,9 @@ def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
     verts, faces, normals, values = measure.marching_cubes(maskForShape3M, level=0.5, spacing=voxel_siz)
     shapeS['surfArea'] = trimeshSurfaceArea(verts,faces)
 
-    distSurfM = distance.cdist(verts, verts, 'euclidean')
-    shapeS['max3dDiameter'] = np.max(distSurfM)
+    #distSurfM = distance.cdist(verts, verts, 'euclidean')
+
+    shapeS['max3dDiameter'] = calcMaxDistBetweenPts(verts, 'euclidean')
 
     shapeS['volume'] = volume
     shapeS['filledVolume'] = filled_volume

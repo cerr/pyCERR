@@ -2,17 +2,11 @@
 #
 # APA, 11/13/2023
 
-import SimpleITK as sitk
-import os
 from datetime import datetime
 import numpy as np
-from pydicom import dcmread
 from pydicom.uid import generate_uid
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
-from pydicom.uid import ImplicitVRLittleEndian
-import scipy.io as sio
-import argparse
 from random import randint
 from cerr.dcm_export import iod_helper
 from cerr.dataclasses import scan as scn

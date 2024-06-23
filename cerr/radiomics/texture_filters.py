@@ -3,6 +3,7 @@
  Supported filters include: "mean", "sobel", "LoG", "gabor", "gabor3d", "laws", "lawsEnergy"
  "rotationInvariantLaws", "rotationInvariantLawsEnergy"
 """
+
 #import pywt
 import numpy as np
 from scipy.signal import convolve2d
