@@ -1,6 +1,7 @@
 """
-Function required to build/deploy IA models via pyCERR.
+This module defines routines useful to build and deploy AI models
 """
+
 import os
 import random
 import numpy as np

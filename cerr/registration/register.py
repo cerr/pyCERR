@@ -1,6 +1,7 @@
 """register module.
 
 The register module defines routines for registering and deforming scans, structures and does distributions.
+It also provies routines for calculating vector field and Jacobian from deformation transformation.
 
 """
 
@@ -17,6 +18,7 @@ from cerr.utils.mask import getSurfacePoints, compute_boundingbox
 from cerr.utils.interp import finterp3
 from cerr.radiomics import preprocess
 import numpy as np
+
 
 def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
                    deforAlgorithm='bsplines', registrationTool='plastimatch',
@@ -35,7 +37,7 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
         movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
 
     Returns:
-        cerr.plan_container.PlanC: plan container object basePlanC with an element added to the deform attribute
+        cerr.plan_container.PlanC: plan container object basePlanC with an element added to planC.deform attribute
 
     """
 
@@ -103,6 +105,19 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
 
 
 def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
+    """Routine to deform moving scan to fixed scan based on input transformation
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
+        baseScanIndex (int): index of fixed scan in planC.scan
+        movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
+        movScanIndex (int): index of moving scan in planC.scan
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+
+    Returns:
+        cerr.plan_container.PlanC: plan container object basePlanC with the deformed scan added to planC.scan attribute
+    """
+
     dirpath = tempfile.mkdtemp()
     fixed_img_nii = os.path.join(dirpath, 'ref.nii.gz')
     moving_img_nii = os.path.join(dirpath, 'ctmoving.nii.gz')
@@ -132,10 +147,37 @@ def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     return basePlanC
 
 
-def warp_dose():
+def warp_dose(basePlanC, baseScanIndex, movPlanC, movDoseIndex, deformS):
+    """Routine to deform moving dose to fixed scan based on input transformation
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
+        baseScanIndex (int): index of fixed scan in planC.scan
+        movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
+        movDoseIndex (int): index of moving dose in planC.dose
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+
+    Returns:
+        cerr.plan_container.PlanC: plan container object basePlanC with the deformed dose added to planC.dose attribute
+    """
+
     pass
 
+
 def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
+    """Routine to deform moving structures to fixed scan based on input transformation
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
+        baseScanIndex (int): index of fixed scan in planC.scan
+        movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
+        movStrNumV (int): list of indices of moving structures in planC.structure
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+
+    Returns:
+        cerr.plan_container.PlanC: plan container object basePlanC with the deformed structures added to planC.structure attribute
+    """
+
     # dirpath = tempfile.mkdtemp()
     # rtst_warped_path = os.path.join(dirpath, 'struct.nii.gz')
     dirpath = tempfile.mkdtemp()
@@ -166,7 +208,20 @@ def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
 
     return basePlanC
 
+
 def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
+    """Routine to generate a vector field file from input pyCERR transformation object
+
+    Args:
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+        planC (cerr.plan_container.PlanC): pyCERR's plan container
+        baseScanNum (int): index of fixed scan from planC.scan
+        transformSaveDir (str): path to directory for storing the vector field file
+
+    Returns:
+        cerr.plan_container.PlanC: plan container object basePlanC with the deformed structures added to planC.structure attribute
+
+    """
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -227,7 +282,18 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
 
     return planC
 
+
 def calc_jacobian(deformS, planC, tool='plastimatch'):
+    """Routine to compute Jacobian of vector field
+
+    Args:
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+        planC (cerr.plan_container.PlanC): pyCERR's plan container
+        tool (str): optional. tool to use for Jacobian calculation, defaults to 'plastimatch'
+
+    Returns:
+
+    """
 
     if deformS.deformOutFileType != 'vf':
         return
@@ -254,10 +320,26 @@ def calc_jacobian(deformS, planC, tool='plastimatch'):
     return planC
 
 
-def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0]):
+def get_dvf_vectors(deformS, planC, scanNum, outputResV=[0,0,0], structNum=None, surfFlag=False):
+    """Routine to obtain dvf vectors
 
-    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
-    xValsV, yValsV, zValsV = planC.scan[assocScanNum].getScanXYZVals()
+    Args:
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+        planC (cerr.plan_container.PlanC): pyCERR's plan container
+        scanNum (int): index for scan in planC.scan
+        outputResV (ist): optional, grid resolution for output vectors. Used only when surfFlag is False.
+        structNum (int): optional, index of planC.structure to restrict the vector calculation
+        surfFlag (bool): optional, flag to calculate vectors on the surface of structNum
+
+    Returns:
+        (numpy.ndarray): (n x 2 x 3) vectors where 1st element in the 2nd dimension represents the start coordinates in
+            pyCERR r,c,s units and 2nd element in the 2nd dimension represents deformation y,x,z in cm in pyCERR virtual
+            coordinates.
+
+    """
+
+    #assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+    xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
     zStart = zValsV[0]
 
     if structNum is not None and surfFlag:
@@ -275,17 +357,19 @@ def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0
         zSurfV = zValsV[sSurfV.astype(int)]
 
     elif not surfFlag:
-        if structNum is not None:
+        if structNum is not None and isinstance(structNum,(int,float)):
             mask3M = rs.getStrMask(structNum, planC)
             rmin,rmax,cmin,cmax,smin,smax,_ = compute_boundingbox(mask3M)
             xValsV = xValsV[cmin:cmax+1]
             yValsV = yValsV[rmin:rmax+1]
             zValsV = zValsV[smin:smax+1]
 
-        pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
-        pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
-        pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
-        origRes = [pixelSpacingX, pixelSpacingY, pixelSpacingZ]
+        # = np.absolute(np.median(np.diff(xValsV)))
+        #pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
+        #pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
+        #origRes = [pixelSpacingX, pixelSpacingY, pixelSpacingZ]
+        origRes = planC.scan[scanNum].getScanSpacing()
+        pixelSpacingZ = origRes[2]
 
         outputResV = [outputResV[i] if outputResV[i] > 0 else origRes[i] for i,_ in enumerate(outputResV)]
 
@@ -297,16 +381,16 @@ def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0
         ySurfV = yM.flatten()
         zSurfV = zM.flatten()
 
-        scaleX = planC.scan[assocScanNum].scanInfo[0].grid2Units
-        scaleY = planC.scan[assocScanNum].scanInfo[0].grid1Units
-        imageSizeV = [planC.scan[assocScanNum].scanInfo[0].sizeOfDimension1,
-                      planC.scan[assocScanNum].scanInfo[0].sizeOfDimension2]
+        scaleX = planC.scan[scanNum].scanInfo[0].grid2Units
+        scaleY = planC.scan[scanNum].scanInfo[0].grid1Units
+        imageSizeV = [planC.scan[scanNum].scanInfo[0].sizeOfDimension1,
+                      planC.scan[scanNum].scanInfo[0].sizeOfDimension2]
 
         # Get any offset of CT scans to apply (neg) to structures
-        xCTOffset = planC.scan[assocScanNum].scanInfo[0].xOffset \
-            if planC.scan[assocScanNum].scanInfo[0].xOffset else 0
-        yCTOffset = planC.scan[assocScanNum].scanInfo[0].yOffset \
-            if planC.scan[assocScanNum].scanInfo[0].yOffset else 0
+        xCTOffset = planC.scan[scanNum].scanInfo[0].xOffset \
+            if planC.scan[scanNum].scanInfo[0].xOffset else 0
+        yCTOffset = planC.scan[scanNum].scanInfo[0].yOffset \
+            if planC.scan[scanNum].scanInfo[0].yOffset else 0
 
         rSurfV, cSurfV = rs.aapmtom(xSurfV/scaleX, ySurfV/scaleY, xCTOffset / scaleX,
                              yCTOffset / scaleY, imageSizeV)
@@ -328,18 +412,18 @@ def get_dvf_vectors(deformS, planC, structNum, surfFlag=False, outputResV=[0,0,0
     xDeformV = finterp3(xSurfV,ySurfV,zSurfV,xDeformM,xFieldV,yFieldV,zFieldV)
     yDeformV = finterp3(xSurfV,ySurfV,zSurfV,yDeformM,xFieldV,yFieldV,zFieldV)
     zDeformV = finterp3(xSurfV,ySurfV,zSurfV,zDeformM,xFieldV,yFieldV,zFieldV)
-    # Convert x,y,zDeformV to CERR virtual coordinates
+    # Convert xDeformV,yDeformV,zDeformV to CERR virtual coordinates
     onesV = np.ones_like(xDeformV)
     zeroV = np.zeros_like(xDeformV)
     dcmXyzM = np.vstack((xDeformV,yDeformV,zDeformV, onesV))
     dcmZeroM = np.vstack((zeroV,zeroV,zeroV, onesV))
-    deformPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmXyzM)[:3]
-    zeroPos = np.matmul(np.linalg.inv(planC.scan[assocScanNum].cerrToDcmTransM), dcmZeroM)[:3]
+    deformPos = np.matmul(np.linalg.inv(planC.scan[scanNum].cerrToDcmTransM), dcmXyzM)[:3]
+    zeroPos = np.matmul(np.linalg.inv(planC.scan[scanNum].cerrToDcmTransM), dcmZeroM)[:3]
     cerrXYZM = deformPos - zeroPos
     # DVF in mm (Note that CERR coordinate system is in cm.)
-    xDeformV = cerrXYZM[0,:] * 10
-    yDeformV = cerrXYZM[1,:] * 10
-    zDeformV = cerrXYZM[2,:] * 10
+    xDeformV = cerrXYZM[0,:]
+    yDeformV = cerrXYZM[1,:]
+    zDeformV = cerrXYZM[2,:]
     numPts = len(yDeformV)
     vectors = np.empty((numPts,2,3), dtype=np.float32)
     rcsFlag = True # an input argument?
