@@ -12,6 +12,7 @@ Subpackages
    cerr.datasets
    cerr.dcm_export
    cerr.radiomics
+   cerr.registration
    cerr.roe
    cerr.utils
 

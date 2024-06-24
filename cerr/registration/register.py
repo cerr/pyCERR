@@ -1,6 +1,4 @@
-"""register module.
-
-The register module defines routines for registering and deforming scans, structures and does distributions.
+"""The register module defines routines for registering and deforming scans, structures and does distributions.
 It also provies routines for calculating vector field and Jacobian from deformation transformation.
 
 """

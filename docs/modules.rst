@@ -1,8 +1,9 @@
-pyCERR documentation
-=========================================
+pyCERR
+======
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 4
 
-    modules
+   cerr
+   setup
+   tests

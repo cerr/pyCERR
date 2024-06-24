@@ -76,18 +76,18 @@ cerr.radiomics.size\_zone module
    :undoc-members:
    :show-inheritance:
 
-cerr.radiomics.textureFilters module
-------------------------------------
+cerr.radiomics.texture\_filters module
+--------------------------------------
 
-.. automodule:: cerr.radiomics.textureFilters
+.. automodule:: cerr.radiomics.texture_filters
    :members:
    :undoc-members:
    :show-inheritance:
 
-cerr.radiomics.textureUtils module
-----------------------------------
+cerr.radiomics.texture\_utils module
+------------------------------------
 
-.. automodule:: cerr.radiomics.textureUtils
+.. automodule:: cerr.radiomics.texture_utils
    :members:
    :undoc-members:
    :show-inheritance:

@@ -25,47 +25,50 @@ def get_empty_np_array():
 @dataclass
 class Dose:
     """This class defines data object for RTDose. The metadata is populated from DICOM.
-    patientName (str): Patient's name
-    doseType (str): Type of dose as per (3004,0004). Values can be PHYSICAL, EFFECTIVE or ERROR
-    doseSummationType (str): Type of dose summation as per (3004,000A)
-    refBeamNumber (int): Referenced beam number from ReferencedRTPlanSequence
-    refFractionGroupNumber (int): Referenced Fraction Group number from ReferencedRTPlanSequence
-    numberMultiFrameImages (int): Number of image frames
-    doseUnits (str): Units used to describe dose. GY or RELATIVE
-    doseScale (float): Scaling factor that when multiplied by the dose grid data found in Pixel Data (7FE0,0010) Attribute
-        of the Image Pixel Module, yields grid doses in the dose units as specified by Dose Units (3004,0002).
-    fractionGroupID (str): Fraction Group ID from Referenced RTPLAN
-    imagePositionPatient (np.array): x,y,z coordinate of the top left voxel of the dose volume.
-    imageOrientationPatient (np.array): Direction cosine of dose row and column with patient coordinate system.
-    sizeOfDimension1 (int): Number of columns of doseArray
-    sizeOfDimension2 (int): Number of rows of doseArray
-    sizeOfDimension3 (int): Number of slices of doseArray
-    coord1OFFirstPoint (float): x-coordinate of dose in CERR virtual coordinates
-    coord2OFFirstPoint (float): y-coordinate of dose in CERR virtual coordinates
-    horizontalGridInterval (float): delta x of dose in CERR virtual coordinates
-    verticalGridInterval (float): delta y of dose in CERR virtual coordinates
-    writer (str): Equipment Manufacturer for RTDOSE delivery.
-    dateWritten (str): Study Date.
-    studyInstanceUID (str): Study Instance UID of dose.
-    xcoordOfNormaliznPoint (float): x-ccordinate of normalization point
-    ycoordOfNormaliznPoint (float): y-ccordinate of normalization point
-    zcoordOfNormaliznPoint (float): z-ccordinate of normalization point
-    doseAtNormaliznPoint (float): dose at normalization point
-    coord3OfFirstPoint (float): z-coordinate of dose in CERR virtual coordinates
-    doseArray (np.array): 3D volume for RTODSE in doseUnits
-    zValues (np.array): z-coordinates of doseArray in CERR virtual coordinate system.
-    delivered (str): whether the dose was delivered.
-    transM (np.array): transformation matrix to transform dose.
-    doseUID (str): unique identifier of dose.
-    assocScanUID (str): associated scan's unique identifier
-    assocBeamUID (str): associated RTPLAN's unique identifier
-    frameOfReferenceUID (str): Frame of Reference UID
-    refRTPlanSopInstanceUID (str): SOP Instance UID of associated RTPLAN
-    refStructSetSopInstanceUID (str): SOP Instance UID of referenced RTSTRUCT
-    prescriptionDose (float): Prescription dose
-    doseOffset (float): offset value to add to doseArray
-    Image2PhysicalTransM (np.ndarray): Transformation matrix to convert pyCERR's dose row,col,slc to DICOM physical coordinates.
-    cerrDcmSliceDirMatch (bool): Flag whether pyCERR slice order matches DICOM.
+
+    Attributes:
+        patientName (str): Patient's name
+        doseType (str): Type of dose as per (3004,0004). Values can be PHYSICAL, EFFECTIVE or ERROR
+        doseSummationType (str): Type of dose summation as per (3004,000A)
+        refBeamNumber (int): Referenced beam number from ReferencedRTPlanSequence
+        refFractionGroupNumber (int): Referenced Fraction Group number from ReferencedRTPlanSequence
+        numberMultiFrameImages (int): Number of image frames
+        doseUnits (str): Units used to describe dose. GY or RELATIVE
+        doseScale (float): Scaling factor that when multiplied by the dose grid data found in Pixel Data (7FE0,0010) Attribute
+            of the Image Pixel Module, yields grid doses in the dose units as specified by Dose Units (3004,0002).
+        fractionGroupID (str): Fraction Group ID from Referenced RTPLAN
+        imagePositionPatient (np.array): x,y,z coordinate of the top left voxel of the dose volume.
+        imageOrientationPatient (np.array): Direction cosine of dose row and column with patient coordinate system.
+        sizeOfDimension1 (int): Number of columns of doseArray
+        sizeOfDimension2 (int): Number of rows of doseArray
+        sizeOfDimension3 (int): Number of slices of doseArray
+        coord1OFFirstPoint (float): x-coordinate of dose in CERR virtual coordinates
+        coord2OFFirstPoint (float): y-coordinate of dose in CERR virtual coordinates
+        horizontalGridInterval (float): delta x of dose in CERR virtual coordinates
+        verticalGridInterval (float): delta y of dose in CERR virtual coordinates
+        writer (str): Equipment Manufacturer for RTDOSE delivery.
+        dateWritten (str): Study Date.
+        studyInstanceUID (str): Study Instance UID of dose.
+        xcoordOfNormaliznPoint (float): x-ccordinate of normalization point
+        ycoordOfNormaliznPoint (float): y-ccordinate of normalization point
+        zcoordOfNormaliznPoint (float): z-ccordinate of normalization point
+        doseAtNormaliznPoint (float): dose at normalization point
+        coord3OfFirstPoint (float): z-coordinate of dose in CERR virtual coordinates
+        doseArray (np.array): 3D volume for RTODSE in doseUnits
+        zValues (np.array): z-coordinates of doseArray in CERR virtual coordinate system.
+        delivered (str): whether the dose was delivered.
+        transM (np.array): transformation matrix to transform dose.
+        doseUID (str): unique identifier of dose.
+        assocScanUID (str): associated scan's unique identifier
+        assocBeamUID (str): associated RTPLAN's unique identifier
+        frameOfReferenceUID (str): Frame of Reference UID
+        refRTPlanSopInstanceUID (str): SOP Instance UID of associated RTPLAN
+        refStructSetSopInstanceUID (str): SOP Instance UID of referenced RTSTRUCT
+        prescriptionDose (float): Prescription dose
+        doseOffset (float): offset value to add to doseArray
+        Image2PhysicalTransM (np.ndarray): Transformation matrix to convert pyCERR's dose row,col,slc to DICOM physical coordinates.
+        cerrDcmSliceDirMatch (bool): Flag whether pyCERR slice order matches DICOM.
+
     """
 
     caseNumber: int = 0

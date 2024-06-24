@@ -4,18 +4,18 @@ cerr.utils package
 Submodules
 ----------
 
-cerr.utils.aiPipeline module
-----------------------------
+cerr.utils.ai\_pipeline module
+------------------------------
 
-.. automodule:: cerr.utils.aiPipeline
+.. automodule:: cerr.utils.ai_pipeline
    :members:
    :undoc-members:
    :show-inheritance:
 
-cerr.utils.imageProc module
----------------------------
+cerr.utils.image\_proc module
+-----------------------------
 
-.. automodule:: cerr.utils.imageProc
+.. automodule:: cerr.utils.image_proc
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,18 +36,10 @@ cerr.utils.mask module
    :undoc-members:
    :show-inheritance:
 
-cerr.utils.mirrorScope module
------------------------------
+cerr.utils.statistics module
+----------------------------
 
-.. automodule:: cerr.utils.mirrorScope
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-cerr.utils.statisticsUtils module
----------------------------------
-
-.. automodule:: cerr.utils.statisticsUtils
+.. automodule:: cerr.utils.statistics
    :members:
    :undoc-members:
    :show-inheritance:

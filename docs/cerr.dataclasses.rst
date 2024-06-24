@@ -9,7 +9,7 @@ cerr.dataclasses.beams module
 
 .. automodule:: cerr.dataclasses.beams
    :members:
-   :undoc-members:
+   :exclude-members: json_serialize
    :show-inheritance:
 
 cerr.dataclasses.deform module
@@ -25,6 +25,7 @@ cerr.dataclasses.dose module
 
 .. automodule:: cerr.dataclasses.dose
    :members:
+   :exclude-members: json_serialize
    :show-inheritance:
 
 cerr.dataclasses.header module
