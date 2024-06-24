@@ -99,8 +99,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
 
     # Shape  features
     if 'shape' in paramS['featureClass'] and paramS['featureClass']['shape']["featureList"] != {}:
-        from cerr.radiomics.shape import compute_shape_features
-        featDict['shape'] = compute_shape_features(morphMask3M,gridS['xValsV'],gridS['yValsV'],gridS['zValsV'])
+        from cerr.radiomics.shape import calcShapeFeatures
+        featDict['shape'] = calcShapeFeatures(morphMask3M, gridS['xValsV'], gridS['yValsV'], gridS['zValsV'])
 
     # Assign nan values outside the mask, so that min/max within the mask are used for quantization
     volToEval[~maskBoundingBox3M] = np.nan
@@ -108,8 +108,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     # Texture-based scalar features
     if 'texture' in paramS['settings']:
         # Quantization
-        quantized3M = preprocess.imquantize_cerr(volToEval, num_level=textureBinNum,\
-                                                 xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
+        quantized3M = preprocess.imquantize(volToEval, num_level=textureBinNum, \
+                                            xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
         nL = quantized3M.max()
 
         if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
@@ -122,8 +122,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
         voxelVol = np.prod(gridS["PixelSpacingV"]) * 1000 # units of mm
         scanV = volToEval[maskBoundingBox3M]
-        featDict['firstOrder'] = first_order.radiomics_first_order_stats(scanV, voxelVol,
-                                        firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum)
+        featDict['firstOrder'] = first_order.stats(scanV, voxelVol,
+                                                   firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum)
 
     # GLCM
     if 'glcm' in paramS['featureClass'] and paramS['featureClass']['glcm']["featureList"] != {}:

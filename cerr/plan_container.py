@@ -32,7 +32,8 @@ def get_empty_list():
 class PlanC:
     """Plan Container for imaging metadata. Each Attribute of this class holds metadata for a particular type
     of imaging object. Additional attributes can be added to this class without breaking the functionality
-    fom other attributes.
+    from other attributes.
+
     Attributes:
         header (cerr.dataclasses.header.Header): Header storing information about date of creation, version etc.
         scan (List[cerr.dataclasses.scan.Scan]): List of pyCERR's scan objects for modalities such as CT, MR, PT or derived types.

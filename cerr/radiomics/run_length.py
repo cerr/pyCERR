@@ -1,5 +1,5 @@
 """
-This module contains routines for claculation of Run Length texture features
+This module contains routines for calculation of Run Length texture features
 """
 
 import numpy as np
@@ -91,89 +91,6 @@ def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
                 numConverged = (~convergedV[newConvergedV]).sum()
                 convergedV[newConvergedV] = True
                 rlmM[level - 1, count-1] += numConverged
-
-        if rlmType == 2:
-            #rlmOut.append(rlmM)
-            rlmOut[off] = rlmM
-
-    if rlmType == 1:
-        rlmOut = rlmM
-
-    return rlmOut
-
-
-##### ======= Matlab implementation that uses np.roll (circshift)
-def calcRLM_old(quantizedM, offsetsM, nL, rlmType=1):
-    if rlmType != 1:
-        rlmOut = []
-
-    pad_width = [(1, 1)] * quantizedM.ndim
-    quantizedM = np.pad(quantizedM, pad_width, mode='constant', constant_values=0)
-
-    numRowsPad, numColsPad, numSlcsPad = 1, 1, 1
-    q = np.pad(quantizedM, ((numRowsPad, numRowsPad), (numColsPad, numColsPad), (numSlcsPad, numSlcsPad)),
-               mode='constant', constant_values=0)
-    q[np.isnan(q)] = 0
-    q = q.astype(np.uint16)
-
-    numOffsets = offsetsM.shape[0]
-    maxRunLen = int(np.ceil(np.max(quantizedM.shape)*2))
-    #maxRunLen = 1000
-    print('Max Run Length = ' + str(maxRunLen))
-
-    rlmM = np.zeros((nL, maxRunLen))
-    if rlmType == 2:
-        rlmOut = [np.zeros((nL, maxRunLen)) for i in range(numOffsets)]
-
-    #lenV = np.zeros(np.prod(q.shape), dtype = np.uint16)
-
-    siz = q.shape
-
-    for off in range(numOffsets):
-        if rlmType == 2:
-            rlmM = rlmOut[off]
-
-        offset = offsetsM[off]
-
-        for level in range(1, nL + 1):
-            #t = time.time()
-            prevM = (q == level).astype(int)
-            #diffM = (q == level).astype(int) - (np.roll(q, offset, axis=(0, 1, 2)) == level).astype(int)
-            diffM = prevM - np.roll(prevM, offset, axis=(0, 1, 2))
-            startM = diffM == 1
-            startIndV = np.where(startM)
-
-            #prevM = (q == level).astype(np.uint16)
-            prevM = prevM.astype(np.uint16)
-            convergedM = ~startM
-
-            #elapsed = time.time() - t
-            #print('Level start = ' + str(level) + '. Time = ' + str(elapsed))
-            #t = time.time()
-
-            #lenV *= 0
-            #start = 0
-            while not np.all(convergedM):
-                nextM = np.roll(prevM, -offset, axis=(0, 1, 2))
-                addM = prevM + nextM
-                newConvergedM = (addM == prevM)
-                toUpdateM = ~convergedM & newConvergedM
-                prevM = nextM
-                prevM[startIndV] = addM[startIndV]
-                lenV = addM[toUpdateM]
-                # if len(lenV) > 0:
-                #     countsV = np.bincount(lenV)
-                #     numCounts = len(countsV) - 1
-                #     rlmM[level - 1, :numCounts] = rlmM[level - 1, :numCounts] + countsV[1:]
-                if len(lenV) > 0:
-                    rlmM[level - 1, :] = rlmM[level - 1, :] + np.bincount(lenV, minlength=maxRunLen+1)[1:]
-                #stop = start + len(addM[toUpdateM])
-                #lenV[start:stop] = addM[toUpdateM]
-                #start = stop
-                convergedM = convergedM | newConvergedM
-            #rlmM[level - 1, :] = np.bincount(lenV[:stop], minlength=maxRunLen+1)[1:]
-            #elapsed = time.time() - t
-            #print('Level end = ' + str(level) + '. Time = ' + str(elapsed))
 
         if rlmType == 2:
             #rlmOut.append(rlmM)

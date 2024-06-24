@@ -1,6 +1,34 @@
 cerr package
 ============
 
+Submodules
+----------
+
+cerr.plan\_container module
+---------------------------
+
+.. automodule:: cerr.plan_container
+   :members:
+   :exclude-members: json_serialize
+   :show-inheritance:
+
+cerr.viewer module
+------------------
+
+.. automodule:: cerr.viewer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+cerr.dvh module
+---------------
+
+.. automodule:: cerr.dvh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Subpackages
 -----------
 
@@ -16,32 +44,6 @@ Subpackages
    cerr.roe
    cerr.utils
 
-Submodules
-----------
-
-cerr.dvh module
----------------
-
-.. automodule:: cerr.dvh
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-cerr.plan\_container module
----------------------------
-
-.. automodule:: cerr.plan_container
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-cerr.viewer module
-------------------
-
-.. automodule:: cerr.viewer
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Module contents
 ---------------

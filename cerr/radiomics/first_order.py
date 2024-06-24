@@ -11,7 +11,7 @@ import cerr.dataclasses.scan as scn
 import cerr.plan_container as pc
 from cerr.utils.statistics import quantile, prctile
 
-def radiomics_first_order_stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
+def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     """
 
     This routine calculates 1st order statistical features from the input image and segmentation based on

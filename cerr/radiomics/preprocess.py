@@ -15,7 +15,7 @@ import SimpleITK as sitk
 # from scipy.ndimage import generate_binary_structure
 # from scipy.interpolate import RegularGridInterpolator
 
-def imquantize_cerr(x, num_level=None, xmin=None, xmax=None, binwidth=None):
+def imquantize(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     """
 
     Function to quantize an image based on the number of bins (num_level) or the bin width (bin_width).

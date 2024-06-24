@@ -33,7 +33,7 @@ def trimeshSurfaceArea(v,f):
 
     return area
 
-def vector_norm3d(v):
+def vectorNorm3d(v):
     return np.linalg.norm(v, axis=1)
 
 def eig(a):
@@ -50,7 +50,7 @@ def calcMaxDistBetweenPts(ptsM, distType):
         distType (str or Callable): Type of distance. E.g. 'euclidean' as supported by scipy.spatial.distance.cdist
 
     Returns:
-        float: Maximim distance between the input points
+        float: Maximum distance between the input points
     """
 
     dmax = 0
@@ -75,7 +75,7 @@ def calcMaxDistBetweenPts(ptsM, distType):
 
     return dmax
 
-def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
+def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     """Routine to calculate shape features for the inout mask and grid
 
     Args:
