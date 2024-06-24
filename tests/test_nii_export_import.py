@@ -4,7 +4,7 @@ from cerr import plan_container as pc
 import numpy as np
 
 phantom_dir = os.path.join(os.path.dirname(datasets.__file__),'radiomics_phantom_dicom')
-pat_names = ['PAT1', 'PAT2', 'PAT3', 'PAT4']
+pat_names = ['pat_1', 'pat_2', 'pat_3', 'pat_4']
 all_pat_dirs = [os.path.join(phantom_dir, pat) for pat in pat_names]
 dcm_dir = all_pat_dirs[0]
 
