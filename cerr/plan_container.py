@@ -183,7 +183,7 @@ def loadFromH5(h5File, initplanC=''):
     return planC
 
 def saveH5Header(headerGrp, planC):
-    # Write header attributes
+    # Routine to write header attributes from planC to H5 group
     headerDict = planC.header.__dict__.copy()
     keys = list(headerDict.keys())
     for key in keys:
@@ -191,6 +191,7 @@ def saveH5Header(headerGrp, planC):
     return headerGrp
 
 def saveH5Scan(scanGrp, scanNumV, planC):
+    # Routine to write scan attributes from planC to H5 group
     scnCount = 0
     for scanNum in scanNumV:
         scnDict = planC.scan[scanNum].getScanDict()
@@ -215,9 +216,11 @@ def saveH5Scan(scanGrp, scanNumV, planC):
 
 
 def saveH5Dose(structGrp, structNumV, planC):
+    # Routine to write dose attributes from planC to H5 group
     pass
 
 def saveH5Deform(deformGrp, deformNumV, planC):
+    # Routine to write deform attributes from planC to H5 group
     deformCount = 0
     for deformNum in deformNumV:
         deformDict = planC.deform[deformNum].getDeformDict()
@@ -230,6 +233,7 @@ def saveH5Deform(deformGrp, deformNumV, planC):
     return deformGrp
 
 def saveH5Structure(structGrp, structNumV, planC):
+    # Routine to write structure attributes from planC to H5 group
     strCount = 0
     for structNum in structNumV:
         structDict = planC.structure[structNum].getStructDict()
@@ -266,6 +270,7 @@ def saveH5Structure(structGrp, structNumV, planC):
     return structGrp
 
 def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
+    # Routine to read object attributes into H5 group
     structFields = list(obj.__dict__.keys())
     for key in excludeKeys:
         structFields.remove(key)

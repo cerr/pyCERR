@@ -1,6 +1,6 @@
 """shape module.
 
-The shape module contains routine for calculation of shape features.
+The shape module contains routines for calculation of shape features.
 
 """
 
@@ -11,6 +11,15 @@ from skimage import measure
 from cerr.utils.mask import compute_boundingbox
 
 def trimeshSurfaceArea(v,f):
+    """Routine to calculate surface area from vertices and faces of triangular mesh
+
+    Args:
+        v (numpy.array): (numPoints x 3) vertices of triangular mesh
+        f (numpy.array): (numFaces x 3) faces of triangular mesh
+
+    Returns:
+        float: Surface area
+    """
 
     v1 = (v[f[:, 1], :] - v[f[:, 0], :])
     v2 = (v[f[:, 2], :] - v[f[:, 0], :])
@@ -34,6 +43,16 @@ def sepsq(a, b):
     return np.sum((a - b)**2, axis=0)
 
 def calcMaxDistBetweenPts(ptsM, distType):
+    """This routine calculates the maximum distance between the input points
+
+    Args:
+        ptsM (numpy.array): (nunPoints x 3) coordinates of points
+        distType (str or Callable): Type of distance. E.g. 'euclidean' as supported by scipy.spatial.distance.cdist
+
+    Returns:
+        float: Maximim distance between the input points
+    """
+
     dmax = 0
     numPts = ptsM.shape[0]
     step = 1000
@@ -57,6 +76,18 @@ def calcMaxDistBetweenPts(ptsM, distType):
     return dmax
 
 def compute_shape_features(mask3M, xValsV, yValsV, zValsV):
+    """Routine to calculate shape features for the inout mask and grid
+
+    Args:
+        mask3M (numpy.nparray): Binary mask where 1s represent the segmentation
+        xValsV (numpy.nparray): x-values i.e. coordinates of columns of input mask
+        yValsV (numpy.nparray): y-values i.e. coordinates of rows of input mask
+        zValsV (numpy.nparray): z-values i.e. coordinates of slices of input mask
+
+    Returns:
+        dict: Dictionary containing shape features
+
+    """
 
     # Convert grid from cm to mm
     xValsV = xValsV * 10

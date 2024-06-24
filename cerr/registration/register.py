@@ -1,6 +1,6 @@
 """register module.
 
-Ths register module defines modules for.
+The register module defines routines for registering and deforming scans, structures and does distributions.
 
 """
 
@@ -18,7 +18,26 @@ from cerr.utils.interp import finterp3
 from cerr.radiomics import preprocess
 import numpy as np
 
-def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir):
+def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
+                   deforAlgorithm='bsplines', registrationTool='plastimatch',
+                   inputCmdFile=None, baseMask3M=None, movMask3M=None):
+    """
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
+        baseScanIndex (int): integer, identifies target scan in basePlanC
+        movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
+        movScanIndex (int): integer, identifies moving scan in movPlanC
+        transformSaveDir (str): Directory to save transformation file
+        registration_tool (str): registration software to use ('PLASTIMATCH','ELASTIX','ANTS')
+        inputCmdFile (str): optional, path to registration command file
+        baseMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in target space
+        movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
+
+    Returns:
+        cerr.plan_container.PlanC: plan container object basePlanC with an element added to the deform attribute
+
+    """
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -29,17 +48,32 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     basePlanC.scan[baseScanIndex].save_nii(fixed_img_nii)
     movPlanC.scan[movScanIndex].save_nii(moving_img_nii)
 
-    plmCmdFile = 'plastimatch_ct_ct_intra_pt.txt'
-    regDir = os.path.dirname(os.path.abspath(__file__))
-    cmdFilePathSrc = os.path.join(regDir,'settings',plmCmdFile)
-    #cmdFilePathDest = os.path.join(dirpath, plmCmdFile)
-    #shutil.copyfile(cmdFilePathSrc, cmdFilePathDest)
+    if inputCmdFile is None or not os.path.exists(inputCmdFile):
+        plmCmdFile = 'plastimatch_ct_ct_intra_pt.txt'
+        regDir = os.path.dirname(os.path.abspath(__file__))
+        inputCmdFile = os.path.join(regDir,'settings',plmCmdFile)
+        #cmdFilePathDest = os.path.join(dirpath, plmCmdFile)
+        #shutil.copyfile(cmdFilePathSrc, cmdFilePathDest)
+
+    # Read xform_out name
+    xform_out = ''
+    cmdFileObj = open(inputCmdFile, 'r')
+    for line in cmdFileObj:
+        if 'xform_out' in line:
+            xform_out = line.rsplit('=')
+            if len(xform_out) == 2:
+                xform_out = xform_out[1].strip()
+            break
+
+    deformOutFileType = '' # plm_bspline_coeffs
 
     # Filename to save bsplines coeffficients
-    bspSourcePath = os.path.join(dirpath, 'bspline_coefficients.txt')
-    bspDestPath = os.path.join(transformSaveDir, 'bspline_coefficients.txt')
+    bspSourcePath = os.path.join(dirpath, xform_out)
+    bspDestPath = os.path.join(transformSaveDir, xform_out)
 
-    plm_reg_cmd = "plastimatch register " + cmdFilePathSrc
+    # Command string to call registration tool
+    if registrationTool.lower() == 'plastimatch':
+        plm_reg_cmd = "plastimatch register " + inputCmdFile
 
     currDir = os.getcwd()
     os.chdir(dirpath)
@@ -54,10 +88,10 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     deform.deformUID = uid.createUID("deform")
     deform.baseScanUID = basePlanC.scan[baseScanIndex].scanUID
     deform.movScanUID = movPlanC.scan[movScanIndex].scanUID
-    deform.deformOutFileType = "plm_bspline_coeffs"
+    deform.deformOutFileType = deformOutFileType
     deform.deformOutFilePath = bspDestPath
-    deform.registrationTool = 'plastimatch'
-    deform.algorithm = 'bsplines'
+    deform.registrationTool = registrationTool
+    deform.algorithm = deforAlgorithm
 
     # Append to base planc
     basePlanC.deform.append(deform)
