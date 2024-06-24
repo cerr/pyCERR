@@ -16,21 +16,22 @@ from cerr.radiomics import ibsi1
 # Paths to data and settings
 currPath = os.path.abspath(__file__)
 cerrPath = os.path.join(os.path.dirname(os.path.dirname(currPath)), 'cerr')
-dataPath = os.path.join(cerrPath, 'datasets', 'IBSIradiomicsDICOM', 'IBSI2Phase2')
-settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings', 'IBSIsettings', 'IBSI2Phase2')
+dataPath = os.path.join(cerrPath, 'datasets', 'ibsi_radiomics_dicom', 'ibsi2_phase_2')
+settingsPath = os.path.join(cerrPath, 'datasets', 'radiomics_settings',\
+                            'ibsi_settings', 'ibsi2_phase_2')
 
 # Read reference values
 #--- For comparison with matlab CERR ----
-#refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
-#                   'IBSIphase2-2_CERR_features.csv')
+#refFile = os.path.join(cerrPath, 'datasets', 'reference_values_for_tests', 'ibsi2_phase_2',
+#                   'ibsi_phase2_2_cerr_features.csv')
 #---- Test to ensure pyCERR calculations are consistent ----
-refFile = os.path.join(cerrPath, 'datasets', 'referenceValuesForTests', 'IBSI2Phase2',
-                       'IBSIphase2-2_pyCERR_features.csv')
+refFile = os.path.join(cerrPath, 'datasets', 'reference_values_for_tests',\
+                       'ibsi2_phase_2','ibsi_phase2_2_pycerr_features.csv')
 refData = pd.read_csv(refFile)
 refColNames = list(refData.head())[4:]
 refFeatNames = list(refData['feature_tag'])
 
-def loadData(niiDir):
+def load_data(niiDir):
     """ Import data to plan container"""
 
     # Import DICOM data
@@ -43,24 +44,26 @@ def loadData(niiDir):
     return planC
 
 # Load data
-planC = loadData(dataPath)
+planC = load_data(dataPath)
 
-def dispDiff(pctDiffFeatV, ibsiFeatList):
+def disp_diff(pctDiffFeatV, ibsiFeatList):
     """ Report on differences in feature values """
     tol = 1
     numFeats = len(pctDiffFeatV)
     if np.max(np.abs(pctDiffFeatV)) < tol:
-        print('Success! ' + str(numFeats) + '/' + str(numFeats) + ' match IBSI reference std.')
+        print('Success! ' + str(numFeats) + '/' + str(numFeats) +\
+              ' match IBSI reference std.')
         print('-------------')
     else:
         checkV = np.abs(pctDiffFeatV) > tol
         idxV = np.where(checkV)[0]
         print('IBSI2 features differ:')
-        diffS = dict(zip([ibsiFeatList[idx] for idx in idxV], [pctDiffFeatV[idx] for idx in idxV]))
+        diffS = dict(zip([ibsiFeatList[idx] for idx in idxV],\
+                         [pctDiffFeatV[idx] for idx in idxV]))
         print(diffS)
         print('-------------')
 
-def getRefFeatureVals(cerrFeatS, refValsV):
+def get_ref_feature_vals(cerrFeatS, refValsV):
     """ Indicate if features match reference, otherwise display differences."""
 
     cerrFeatList = list(cerrFeatS.keys())
@@ -93,7 +96,8 @@ def getRefFeatureVals(cerrFeatS, refValsV):
             matchIdx = refFeatNames.index(matchName)
             refV.append(refValsV[matchIdx])
             cerrV.append(float(cerrFeatS[featName]))
-            diffFeatV.append((cerrV[-1] - refV[-1])*100/(refV[-1] + sys.float_info.epsilon))  # pct diff
+            diffFeatV.append((cerrV[-1] - refV[-1])*100/(refV[-1] +\
+                             sys.float_info.epsilon))  # pct diff
             #diffFeatV.append(cerrV[-1] - refV[-1]) # abs diff
             ibsiFeatList.append(matchName)
 
@@ -107,14 +111,14 @@ def run_config(config):
     print('Testing config '+config)
     scanNum = 0
     structNum = 0
-    settingsFile = os.path.join(settingsPath, 'IBSIPhase2-2ID' + config + '.json')
+    settingsFile = os.path.join(settingsPath, 'ibsi_phase2_2_id_' + config + '.json')
     assertTol = 0.0001
 
     calcFeatS, diagS = ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
     cerrFeatS = {**diagS, **calcFeatS}
     refValsV = np.array(refData[config])
-    refV, cerrV, pctDiffFeatV, ibsiFeatList = getRefFeatureVals(cerrFeatS, refValsV)
-    dispDiff(pctDiffFeatV,ibsiFeatList)
+    refV, cerrV, pctDiffFeatV, ibsiFeatList = get_ref_feature_vals(cerrFeatS, refValsV)
+    disp_diff(pctDiffFeatV,ibsiFeatList)
     for i in range(len(refV)):
         np.testing.assert_allclose(refV[i], cerrV[i], atol=assertTol)
         #np.testing.assert_allclose(refV[i], cerrV[i], rtol=0.01) #For comparison with Matlab CERR
