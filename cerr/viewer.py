@@ -20,7 +20,8 @@ import cerr.plan_container as pc
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
 import ipywidgets as widgets
-from ipywidgets import interact
+from ipywidgets import interact, interactive_output
+from IPython.display import display
 from typing import Annotated, Literal
 import importlib
 if importlib.util.find_spec('napari') is not None:
@@ -997,6 +998,17 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
             min=1,max=imgSize[2],value=int(imgSize[2]/2),
             step=1, description="slcNum")
 
+        sliders = widgets.HBox([viewSelect,sliceSliderAxial, doseAlphaSlider])
+
+        sliceAlphaList = []
+        if not isinstance(scanNumV, (int, float)):
+            for scanNum in scanNumV:
+                sliceAlphaList.append(widgets.FloatSlider(
+                min=0,max=1,value=0.5,
+                step=.02, description=f"scan_{scanNum}_Alpha",
+                visible= doseVisFlag))
+            sliders = widgets.VBox([sliders,widgets.HBox(sliceAlphaList)])
+
         # viewSelect.observe(updateView, names='value')
         # sliceSliderAxial.observe(updateSliceAxial, names='value')
 
@@ -1017,15 +1029,15 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         #
         # return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
 
-        return sliceSliderAxial, viewSelect, doseAlphaSlider
+        return sliceSliderAxial, viewSelect, doseAlphaSlider, sliders
 
 
     # Extract scan and mask
     scan3M = planC.scan[scan_nums].getScanArray()
     xVals, yVals, zVals = planC.scan[scan_nums].getScanXYZVals()
-    extentTrans = np.min(xVals), np.max(xVals), np.min(yVals), np.max(yVals)
-    extentSag = np.min(yVals), np.max(yVals), np.min(zVals), np.max(zVals)
-    extentCor = np.min(xVals), np.max(xVals), np.min(zVals), np.max(zVals)
+    extentTrans = xVals[0], xVals[-1], yVals[-1], yVals[0]
+    extentSag = yVals[0], yVals[-1], zVals[-1], zVals[0]
+    extentCor = xVals[0], xVals[-1], zVals[-1], zVals[0]
     imgSiz = np.shape(scan3M)
 
     if isinstance(dose_nums,(int,float)):
@@ -1033,9 +1045,9 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         maxDose = dose3M.max()
         minDose = dose3M.min()
         xDoseVals, yDoseVals, zDoseVals = planC.dose[dose_nums].getDoseXYZVals()
-        extentDoseTrans = np.min(xDoseVals), np.max(xDoseVals), np.min(yDoseVals), np.max(yDoseVals)
-        extentDoseSag = np.min(yDoseVals), np.max(yDoseVals), np.min(zDoseVals), np.max(zDoseVals)
-        extentDoseCor = np.min(xDoseVals), np.max(xDoseVals), np.min(zDoseVals), np.max(zDoseVals)
+        extentDoseTrans = xDoseVals[0], xDoseVals[-1], yDoseVals[-1], yDoseVals[0]
+        extentDoseSag = yDoseVals[0], yDoseVals[-1], zDoseVals[-1], zDoseVals[0]
+        extentDoseCor = xDoseVals[0], xDoseVals[-1], zDoseVals[-1], zDoseVals[0]
     else:
         dose_nums = None
 
@@ -1051,7 +1063,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
     # Create slider widgets
     imgSize = np.shape(scan3M)
     #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
-    sliceSliderAxial, viewSelect, doseAlphaSlider = createWidgets(imgSize, scan_nums, dose_nums)
+    sliceSliderAxial, viewSelect, doseAlphaSlider, sliders = createWidgets(imgSize, scan_nums, dose_nums)
 
     def update_numSlcs(*args):
         if viewSelect.value == 'Axial':
@@ -1178,8 +1190,10 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
     showSlice.ax = None
 
     if doseAlphaSlider == None:
-        interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, continuous_update=False)
+        out = interactive_output(showSlice, {'view':viewSelect, 'slcNum':sliceSliderAxial})
     else:
-        interact(showSlice, view=viewSelect, slcNum=sliceSliderAxial, doseAlpha=doseAlphaSlider, continuous_update=False)
+        out = interactive_output(showSlice, {'view':viewSelect, 'slcNum':sliceSliderAxial, 'doseAlpha':doseAlphaSlider})
+
+    display(sliders, out)
 
     return
