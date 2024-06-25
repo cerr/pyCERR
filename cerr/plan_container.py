@@ -142,7 +142,15 @@ def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
     else:
         raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
 
+    maskOut = np.moveaxis(maskOut,[0,1],[1,0])
+
     assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+
+    # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+    if scn.flipSliceOrderFlag(planC.scan[assocScan]): # np.all(np.sign(zDiff) < 0):
+        #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+        maskOut = np.flip(maskOut,axis=2)
+
     affine3M = planC.scan[assocScan].getNiiAffine()
     strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
     nib.save(strImg, niiFileName)
@@ -390,11 +398,11 @@ def loadH5Strucutre(structGrp, planC):
     return planC
 
 
-def loadDcmDir(dcm_dir, opts={}, initplanC=''):
+def loadDcmDir(dcmDir, opts={}, initplanC=''):
     """This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
 
     Args:
-        dcm_dir (str): absolute path to directory containing dicom files
+        dcmDir (str): absolute path to directory containing dicom files
         opts (dict): dictionary of import options. Currently supported options are:
                      'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
                     e.g.  opts = {'suvType': 'LBM'}
@@ -406,11 +414,11 @@ def loadDcmDir(dcm_dir, opts={}, initplanC=''):
     """
 
     import os
-    if not os.path.isdir(dcm_dir):
-        raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
+    if not os.path.isdir(dcmDir):
+        raise FileNotFoundError(dcmDir + 'is not a valid directory path')
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
-    df_img = parseDcmHeader(dcm_dir)
+    df_img = parseDcmHeader(dcmDir)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
     if not isinstance(initplanC, PlanC):
