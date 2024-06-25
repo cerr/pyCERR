@@ -139,7 +139,7 @@ def morphologicalClosing(binaryMask, structuringElement):
     closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
     return closedMask
 
-def compute_boundingbox(binaryMaskM, is2DFlag=False, maskFlag=0):
+def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
     """
     Function for finding extents of bounding box given a binary mask
 

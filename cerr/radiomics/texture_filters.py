@@ -10,7 +10,7 @@ from scipy.signal import convolve2d
 from scipy.signal import convolve
 from scipy.ndimage import rotate
 from cerr.radiomics.preprocess import padScan
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
@@ -710,7 +710,7 @@ def energyFilter(tex3M, mask3M, texPadFlag, texPadSizeV, texPadMethod,\
     if not texPadFlag:
         valOrigPadV = [0,0,0,0,0,0]
     elif texPadMethod.lower=='expand':
-        minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
+        minr, maxr, minc, maxc, mins, maxs, __ = computeBoundingBox(mask3M)
         valOrigPadV = [np.min(texPadSizeV[0], minr), np.min(texPadSizeV[0], origSizeV[0]-maxr),\
                    np.min(texPadSizeV[1], minc), np.min(texPadSizeV[1], origSizeV[1]-maxc),\
                    np.min(texPadSizeV[2], mins), np.min(texPadSizeV[2], origSizeV[2]-maxs)]

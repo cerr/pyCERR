@@ -22,7 +22,7 @@ def load_data(datasetDir):
     """ Load DICOM data to CERR archive"""
 
     # Import DICOM data
-    planC = plan_container.load_dcm_dir(datasetDir)
+    planC = plan_container.loadDcmDir(datasetDir)
 
     return planC
 

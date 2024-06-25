@@ -27,7 +27,7 @@ def load_data(synthDataset):
     datasetDir = os.path.join(dataPath,synthDataset)
 
     # Import DICOM data
-    planC = plan_container.load_dcm_dir(datasetDir)
+    planC = plan_container.loadDcmDir(datasetDir)
 
     # Extract scan
     scan3M = planC.scan[0].scanArray - planC.scan[0].scanInfo[0].CTOffset

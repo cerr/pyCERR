@@ -13,7 +13,7 @@ from cerr.dataclasses import scan as scn
 
 org_root = '1.3.6.1.4.1.9590.100.1.2.'
 
-def get_dcm_tag_vals(structNumV, planC, seriesOpts = {}):
+def getDcmTagVals(structNumV, planC, seriesOpts = {}):
 
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNumV[0]].assocScanUID,planC)
     pat_tags = {"PatientName": planC.scan[assocScanNum].scanInfo[0].patientName,
@@ -69,7 +69,7 @@ def get_dcm_tag_vals(structNumV, planC, seriesOpts = {}):
 
     return pat_tags, study_tags, series_tags, equiqmt_tags, content_tags, struct_set_tags
 
-def get_ref_FOR_seq(structNumV, planC):
+def getRefFORSeq(structNumV, planC):
     # 3006,0010 Referenced Frame of Reference Sequence
         # 0020,0052  Frame of Reference UID
         # 3006,0012  RT Referenced Study Sequence
@@ -104,7 +104,7 @@ def get_ref_FOR_seq(structNumV, planC):
     return refFORSeq
 
 
-def get_struct_set_roi_seq(structNumV, planC):
+def getStructSetROISeq(structNumV, planC):
     # 3006,0020 Structure Set ROI Sequence
         # 3006,0022  ROI Number
         # 3006,0024  Referenced Frame of Reference UID
@@ -132,7 +132,7 @@ def get_struct_set_roi_seq(structNumV, planC):
 def convertCerrToDcmCoords(pointsM,planC):
     return pointsM
 
-def get_roi_contour_seq(structNumV, planC):
+def getROIContourSeq(structNumV, planC):
     # 3006, 0039   ROI Contour Sequence
         #3006,0084   Referenced ROI Number
         #3006,002A   ROI Display Color
@@ -190,7 +190,7 @@ def get_roi_contour_seq(structNumV, planC):
 
     return roiContourSeq
 
-def get_roi_observ_seq(structNumV, planC):
+def getROIObservSeq(structNumV, planC):
     #3006,0080 RT Observation Sequence
         # 3006,0082  Observation Number
         # 3006,0084  Referenced ROI Number
@@ -235,36 +235,36 @@ def create(structNumV, filePath, planC, seriesOpts = {}):
 
     # Get related UIDs for structNumV
     pat_tags, study_tags, series_tags, equiqmt_tags, content_tags, struct_set_tags = \
-        get_dcm_tag_vals(structNumV, planC, seriesOpts)
+        getDcmTagVals(structNumV, planC, seriesOpts)
 
     # Initialize RTSTRUCT series
     # ds = create_reg_dataset(base_series_data, filePath)
-    file_meta = iod_helper.get_file_meta('RTSTRUCT')
+    file_meta = iod_helper.getFileMeta('RTSTRUCT')
     ds = FileDataset(filePath, {}, file_meta=file_meta, preamble=b"\0" * 128)
 
-    ds = iod_helper.add_sop_common_tags(ds)
+    ds = iod_helper.addSOPCommonTags(ds)
 
     # Add Patient tags
-    ds = iod_helper.add_patient_tags(ds, pat_tags)
+    ds = iod_helper.addPatientTags(ds, pat_tags)
 
     # Add Study tags
-    ds = iod_helper.add_study_tags(ds, study_tags)
+    ds = iod_helper.addStudyTags(ds, study_tags)
 
     # Add Series tags
-    ds = iod_helper.add_series_tags(ds, series_tags)
+    ds = iod_helper.addSeriesTags(ds, series_tags)
 
     # Add Equipment tags
-    ds = iod_helper.add_equipment_tags(ds, equiqmt_tags)
+    ds = iod_helper.addEquipmentTags(ds, equiqmt_tags)
 
     # Add Content tags
-    ds = iod_helper.add_content_tags(ds, content_tags)
+    ds = iod_helper.addContentTags(ds, content_tags)
 
     # Add Structure Set tags
-    ds = iod_helper.add_structure_set_tags(ds, struct_set_tags)
-    ds.ReferencedFrameOfReferenceSequence = get_ref_FOR_seq(structNumV, planC)
-    ds.StructureSetROISequence = get_struct_set_roi_seq(structNumV, planC)
-    ds.ROIContourSequence = get_roi_contour_seq(structNumV, planC)
-    ds.RTROIObservationsSequence = get_roi_observ_seq(structNumV, planC)
+    ds = iod_helper.addStructureSetTags(ds, struct_set_tags)
+    ds.ReferencedFrameOfReferenceSequence = getRefFORSeq(structNumV, planC)
+    ds.StructureSetROISequence = getStructSetROISeq(structNumV, planC)
+    ds.ROIContourSequence = getROIContourSeq(structNumV, planC)
+    ds.RTROIObservationsSequence = getROIObservSeq(structNumV, planC)
 
     print("Writing RTSTRUCT file ...", filePath)
     ds.save_as(filePath)

@@ -5,7 +5,7 @@ This module contains routines for IBSI1 compatible radiomics calculation
 import numpy as np
 from cerr.radiomics import first_order, gray_level_cooccurence, run_length,\
     size_zone, neighbor_gray_level_dependence, neighbor_gray_tone
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 from cerr.radiomics import preprocess, texture_utils
 import json
 
@@ -166,7 +166,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
     # Pre-process Image
     (processedScan3M, processedMask3M, morphMask3M, gridS, radiomicsSettingS, diagS) = \
        preprocess.preProcessForRadiomics(scanNum, structNum, radiomicsSettingS, planC)
-    minr,maxr,minc,maxc,mins,maxs,__ = compute_boundingbox(processedMask3M)
+    minr,maxr,minc,maxc,mins,maxs,__ = computeBoundingBox(processedMask3M)
     voxSizeV = gridS["PixelSpacingV"]
 
     ############################################

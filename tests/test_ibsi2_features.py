@@ -38,8 +38,8 @@ def load_data(niiDir):
     scanFile = os.path.join(niiDir, 'phantom.nii')
     maskFile = os.path.join(niiDir, 'mask.nii')
     scanNum = 0
-    planC = plan_container.load_nii_scan(scanFile, "CT SCAN")
-    planC = plan_container.load_nii_structure(maskFile, scanNum, planC)
+    planC = plan_container.loadNiiScan(scanFile, "CT SCAN")
+    planC = plan_container.loadNiiStructure(maskFile, scanNum, planC)
 
     return planC
 

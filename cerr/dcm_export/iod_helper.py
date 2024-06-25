@@ -16,7 +16,7 @@ import argparse
 from random import randint
 
 
-def get_file_meta(dataType) -> FileMetaDataset:
+def getFileMeta(dataType) -> FileMetaDataset:
     file_meta = FileMetaDataset()
     file_meta.FileMetaInformationGroupLength = 202
     file_meta.FileMetaInformationVersion = b"\x00\x01"
@@ -42,7 +42,7 @@ def get_file_meta(dataType) -> FileMetaDataset:
     return file_meta
 
 
-def add_equipment_tags(ds: FileDataset, equipDict):
+def addEquipmentTags(ds: FileDataset, equipDict):
     dt = datetime.now()
     ds.Manufacturer = "pyCERR"
     ds.ManufacturerModelName = "pyCERR"
@@ -53,7 +53,7 @@ def add_equipment_tags(ds: FileDataset, equipDict):
 
     return ds
 
-def add_study_tags(ds: FileDataset, studyDict):
+def addStudyTags(ds: FileDataset, studyDict):
     dt = datetime.now()
     ds.StudyDate = studyDict["StudyDate"]
     ds.StudyTime = studyDict["StudyTime"]
@@ -63,7 +63,7 @@ def add_study_tags(ds: FileDataset, studyDict):
 
     return ds
 
-def add_series_tags(ds: FileDataset, seriesDict):
+def addSeriesTags(ds: FileDataset, seriesDict):
     dt = datetime.now()
     ds.Modality = seriesDict['Modality']
     ds.SeriesDate = dt.strftime("%Y%m%d")
@@ -74,7 +74,7 @@ def add_series_tags(ds: FileDataset, seriesDict):
 
     return ds
 
-def add_patient_tags(ds: FileDataset, patDict):
+def addPatientTags(ds: FileDataset, patDict):
     ds.PatientName = patDict["PatientName"]
     ds.PatientID = patDict["PatientID"]
     ds.PatientBirthDate = patDict["PatientBirthDate"]
@@ -84,7 +84,7 @@ def add_patient_tags(ds: FileDataset, patDict):
     ds.PatientWeight = patDict["PatientWeight"]
     return ds
 
-def add_content_tags(ds: FileDataset, contentDict):
+def addContentTags(ds: FileDataset, contentDict):
     dt = datetime.now()
     ds.ContentCreatorName = ''
     ds.ContentDate = dt.strftime("%Y%m%d")
@@ -95,7 +95,7 @@ def add_content_tags(ds: FileDataset, contentDict):
     return ds
 
 
-def add_sop_common_tags(ds: FileDataset):
+def addSOPCommonTags(ds: FileDataset):
     dt = datetime.now()
     ds.SpecificCharacterSet = "ISO_IR 192"  # "ISO_IR 100"
     ds.InstanceCreationDate = dt.strftime("%Y%m%d")
@@ -110,11 +110,11 @@ def add_sop_common_tags(ds: FileDataset):
     return ds
 
 
-def add_general_image_tags(ds: FileDataset):
+def addGeneralImageTags(ds: FileDataset):
     # ds.InstanceNumber # 0020,0013
     pass
 
-def add_image_plane_tags(ds: FileDataset):
+def addImagePlaneTags(ds: FileDataset):
     # ds.PixelSpacing # 0028,0030 (mm)
     # ds.ImageOrientation
     # ds.ImagePosition
@@ -123,17 +123,17 @@ def add_image_plane_tags(ds: FileDataset):
     # ds.SliceThickness # optional, for scan
     pass
 
-def add_image_pixel_tags(ds: FileDataset):
+def addImagePixelTags(ds: FileDataset):
     pass
 
 
-def add_ref_FOR_tags(ds_refFOR: Sequence):
+def addRefFORTags(ds_refFOR: Sequence):
     #ds_refFOR.FrameOfReference
     #s_refFOR.RTReferencedStudySequence = Sequence()
     pass
 
 
-def add_structure_set_tags(ds: FileDataset, structureDict):
+def addStructureSetTags(ds: FileDataset, structureDict):
     # https://dicom.nema.org/dicom/2013/output/chtml/part03/sect_A.19.html
     dt = datetime.now()
     ds.StructureSetLabel = structureDict['StructureSetLabel'] # 3006,0002 Structure Set Label

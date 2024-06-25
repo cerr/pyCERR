@@ -6,7 +6,7 @@ import cerr.contour.rasterseg as rs
 from cerr import plan_container as pc
 from cerr.radiomics import texture_filters
 from cerr.radiomics.preprocess import preProcessForRadiomics
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 
 def loadSettingsFromFile(settingsFile, scanNum=None, planC=None):
     """
@@ -205,7 +205,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
 
     # Apply preprocessing
     procScan3M, procMask3M, morphmask3M, gridS, __, __ = preProcessForRadiomics(scanNum, strNum, paramS, planC)
-    minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(procMask3M)
+    minr, maxr, minc, maxc, mins, maxs, __ = computeBoundingBox(procMask3M)
 
     # Extract settings to reverse preprocessing transformations
     padFlag = False
@@ -272,7 +272,7 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
                 xV = xV[validPadSizeV[2]:texSizeV[1] - validPadSizeV[3]]
                 zV = zV[validPadSizeV[4]:texSizeV[2] - validPadSizeV[5]]
 
-                planC = pc.import_scan_array(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
+                planC = pc.importScanArray(filtScan3M, xV, yV, zV, filterType, scanNum, planC)
                 #assocScanNum = len(planC.scan)-1
                 #assocStrName = 'processed_' + strName
                 #strNum = None

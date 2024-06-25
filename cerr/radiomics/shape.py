@@ -8,7 +8,7 @@ import numpy as np
 from cerr.utils.mask import getSurfacePoints
 from scipy.spatial import distance
 from skimage import measure
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 
 def trimeshSurfaceArea(v,f):
     """Routine to calculate surface area from vertices and faces of triangular mesh
@@ -101,7 +101,7 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     volume = voxel_volume * np.sum(maskForShape3M)
 
     # Fill holes
-    rmin,rmax,cmin,cmax,smin,smax,_ = compute_boundingbox(maskForShape3M, 0, 1)
+    rmin,rmax,cmin,cmax,smin,smax,_ = computeBoundingBox(maskForShape3M, 0, 1)
     #struct3D = np.ones((3,3,3))
     #maskForShape3M = ndimage.binary_fill_holes(maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1])
     maskForShape3M = maskForShape3M[rmin:rmax+1,cmin:cmax+1,smin:smax+1]

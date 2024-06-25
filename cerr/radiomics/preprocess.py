@@ -6,7 +6,7 @@ This module contains routines for processing image and segmentation mask for rad
 
 import numpy as np
 import cerr.contour.rasterseg as rs
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 import SimpleITK as sitk
 
 # from scipy.interpolate import interpn
@@ -313,7 +313,7 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
     mask3M = mask3M.copy()
 
     if cropFlag:
-        minr, maxr, minc, maxc, mins, maxs, __ = compute_boundingbox(mask3M)
+        minr, maxr, minc, maxc, mins, maxs, __ = computeBoundingBox(mask3M)
         croppedScan3M = scan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
         croppedMask3M = mask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
         minr = minr - marginV[0]

@@ -390,7 +390,7 @@ def loadH5Strucutre(structGrp, planC):
     return planC
 
 
-def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
+def loadDcmDir(dcm_dir, opts={}, initplanC=''):
     """This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
 
     Args:
@@ -410,7 +410,7 @@ def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
         raise FileNotFoundError(dcm_dir + 'is not a valid directory path')
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
-    df_img = parse_dcm_dir(dcm_dir)
+    df_img = parseDcmHeader(dcm_dir)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
     if not isinstance(initplanC, PlanC):
@@ -431,19 +431,19 @@ def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
         modality = group_content.iloc[0,4]
         if modality in ["CT","PT", "MR"]:
             # populate scan attributes
-            scan_meta = populate_planC_field('scan', files, opts)
+            scan_meta = populatePlanCField('scan', files, opts)
             planC.scan.extend(scan_meta)
         elif modality in ["RTSTRUCT", "SEG"]:
             # populate structure attributes
-            struct_meta = populate_planC_field('structure', files)
+            struct_meta = populatePlanCField('structure', files)
             planC.structure.extend(struct_meta)
         elif modality == "RTPLAN":
             # populate beams attributes
-            beams_meta = populate_planC_field('beams', files)
+            beams_meta = populatePlanCField('beams', files)
             planC.beams.extend(beams_meta)
         elif modality == "RTDOSE":
             # populate dose attributes
-            dose_meta = populate_planC_field('dose', files)
+            dose_meta = populatePlanCField('dose', files)
             planC.dose.extend(dose_meta)
         else:
             print(d["Modality"][0]+ " not supported")
@@ -468,7 +468,7 @@ def load_dcm_dir(dcm_dir, opts={}, initplanC=''):
     #with open(save_file, 'wb') as pickle_file:
     #    pickle.dump(planC, pickle_file)
 
-def populate_planC_field(field_name, file_list, opts={}):
+def populatePlanCField(field_name, file_list, opts={}):
     if field_name == "scan":
         scan_meta = []
         scan_meta.append(scn.load_sorted_scan_info(file_list))
@@ -495,7 +495,7 @@ def populate_planC_field(field_name, file_list, opts={}):
         beams_meta = bms.load_beams(file_list)
         return beams_meta
 
-def load_planC_from_pkl(file_name=""):
+def loadPlanCFromPkl(file_name=""):
     file_name = r"C:\Users\aptea\PycharmProjects\pycerr\src\pycerr\tcga-ba-4074.mat"
     # Load planC from file
     #planC = sio.loadmat(file_name)
@@ -503,10 +503,7 @@ def load_planC_from_pkl(file_name=""):
         planC = pickle.load(pickle_file)
     return planC
 
-def save_scan_to_nii(scan_num, nii_file_name, planC):
-    pass
-
-def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=''):
+def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC=''):
     if not isinstance(initplanC, PlanC):
         planC = PlanC(header=headr.Header())
     else:
@@ -605,7 +602,7 @@ def load_nii_scan(nii_file_name, imageType = "CT SCAN", direction='', initplanC=
     return planC
 
 
-def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
+def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
     planC = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
     # struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
     # numOrigStructs = len(planC.structure)
@@ -618,10 +615,10 @@ def load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict = {}):
     return planC
 
 
-def load_nii_dose(nii_file_name, planC):
+def loadNiiDose(nii_file_name, planC):
     pass
 
-def load_nii_vf(dvf_file, baseScanNum, planC):
+def loadNiiVf(dvf_file, baseScanNum, planC):
 
     # Get image direction of the baseScanNum
     scanOrientV = planC.scan[baseScanNum].scanInfo[0].imageOrientationPatient
@@ -690,7 +687,7 @@ def load_nii_vf(dvf_file, baseScanNum, planC):
     return planC
 
 
-def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
+def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     org_root = '1.3.6.1.4.1.9590.100.1.2.' # to create seriesInstanceUID
     seriesInstanceUID = generate_uid(prefix=org_root)
     scan = scn.Scan()
@@ -749,12 +746,12 @@ def import_scan_array(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     planC.scan.append(scan)
     return planC
 
-def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
+def importStructureMask(mask3M, assocScanNum, structName, structNum, planC):
     planC = structr.import_structure_mask(mask3M, assocScanNum, structName, structNum, planC)
     return planC
 
 
-def parse_dcm_dir(dcm_dir):
+def parseDcmHeader(dcm_dir):
     from pydicom.misc import is_dicom
     from pydicom import dcmread
     import os

@@ -12,15 +12,15 @@ from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure as cerrStr
 import cerr.plan_container as pc
 from cerr.contour import rasterseg as rs
-from cerr.utils.mask import getSurfacePoints, compute_boundingbox
+from cerr.utils.mask import getSurfacePoints, computeBoundingBox
 from cerr.utils.interp import finterp3
 from cerr.radiomics import preprocess
 import numpy as np
 
 
-def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
-                   deforAlgorithm='bsplines', registrationTool='plastimatch',
-                   inputCmdFile=None, baseMask3M=None, movMask3M=None):
+def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
+                  deforAlgorithm='bsplines', registrationTool='plastimatch',
+                  inputCmdFile=None, baseMask3M=None, movMask3M=None):
     """
 
     Args:
@@ -102,7 +102,7 @@ def register_scans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSa
     return basePlanC
 
 
-def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
+def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     """Routine to deform moving scan to fixed scan based on input transformation
 
     Args:
@@ -137,7 +137,7 @@ def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
 
     imageType = movPlanC.scan[movScanIndex].scanInfo[0].imageType
     direction = ''
-    basePlanC = pc.load_nii_scan(warped_img_nii, imageType, direction, basePlanC)
+    basePlanC = pc.loadNiiScan(warped_img_nii, imageType, direction, basePlanC)
 
     # Remove temporary directory
     shutil.rmtree(dirpath)
@@ -145,7 +145,7 @@ def warp_scan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     return basePlanC
 
 
-def warp_dose(basePlanC, baseScanIndex, movPlanC, movDoseIndex, deformS):
+def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndex, deformS):
     """Routine to deform moving dose to fixed scan based on input transformation
 
     Args:
@@ -162,7 +162,7 @@ def warp_dose(basePlanC, baseScanIndex, movPlanC, movDoseIndex, deformS):
     pass
 
 
-def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
+def warpStructures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
     """Routine to deform moving structures to fixed scan based on input transformation
 
     Args:
@@ -196,7 +196,7 @@ def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
                       " --fixed " + fixed_img_nii + \
                       " --interpolation nn"
         os.system(plm_warp_str_cmd)
-        basePlanC = pc.load_nii_structure(warped_str_nii, baseScanIndex, basePlanC, {1: structName})
+        basePlanC = pc.loadNiiStructure(warped_str_nii, baseScanIndex, basePlanC, {1: structName})
 
     os.chdir(currDir)
 
@@ -207,7 +207,7 @@ def warp_structures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
     return basePlanC
 
 
-def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
+def calcVectorField(deformS, planC, baseScanNum, transformSaveDir):
     """Routine to generate a vector field file from input pyCERR transformation object
 
     Args:
@@ -281,7 +281,7 @@ def calc_vector_field(deformS, planC, baseScanNum, transformSaveDir):
     return planC
 
 
-def calc_jacobian(deformS, planC, tool='plastimatch'):
+def calcJacobian(deformS, planC, tool='plastimatch'):
     """Routine to compute Jacobian of vector field
 
     Args:
@@ -310,7 +310,7 @@ def calc_jacobian(deformS, planC, tool='plastimatch'):
 
         # Add Jacobian to planC scan
         direction = ''
-        planC = pc.load_nii_scan(jacobian_nii, "Jacobian", direction, planC)
+        planC = pc.loadNiiScan(jacobian_nii, "Jacobian", direction, planC)
 
         # Remove temporary directory
         shutil.rmtree(dirpath)
@@ -318,7 +318,7 @@ def calc_jacobian(deformS, planC, tool='plastimatch'):
     return planC
 
 
-def get_dvf_vectors(deformS, planC, scanNum, outputResV=[0,0,0], structNum=None, surfFlag=False):
+def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None, surfFlag=False):
     """Routine to obtain dvf vectors
 
     Args:
@@ -357,7 +357,7 @@ def get_dvf_vectors(deformS, planC, scanNum, outputResV=[0,0,0], structNum=None,
     elif not surfFlag:
         if structNum is not None and isinstance(structNum,(int,float)):
             mask3M = rs.getStrMask(structNum, planC)
-            rmin,rmax,cmin,cmax,smin,smax,_ = compute_boundingbox(mask3M)
+            rmin,rmax,cmin,cmax,smin,smax,_ = computeBoundingBox(mask3M)
             xValsV = xValsV[cmin:cmax+1]
             yValsV = yValsV[rmin:rmax+1]
             zValsV = zValsV[smin:smax+1]
