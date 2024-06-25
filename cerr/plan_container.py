@@ -143,7 +143,7 @@ def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
         raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
 
     assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
-    affine3M = planC.scan[assocScan].get_nii_affine()
+    affine3M = planC.scan[assocScan].getNiiAffine()
     strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
     nib.save(strImg, niiFileName)
 
@@ -455,7 +455,7 @@ def loadDcmDir(dcm_dir, opts={}, initplanC=''):
     for str_num in range(numOrigStructs,numStructs):
         planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
         #planC.structure[str_num].generate_rastersegs(planC) # this calls polyFill
-        planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
+        planC.structure[str_num].rasterSegments = rs.generateRastersegs(planC.structure[str_num], planC)
 
     # Convert dose coordinates to CERR's virtual coordinates
     for dose_num in range(numOrigDoses,numDoses):
@@ -471,7 +471,7 @@ def loadDcmDir(dcm_dir, opts={}, initplanC=''):
 def populatePlanCField(field_name, file_list, opts={}):
     if field_name == "scan":
         scan_meta = []
-        scan_meta.append(scn.load_sorted_scan_info(file_list))
+        scan_meta.append(scn.loadSortedScanInfo(file_list))
         scan_meta[0].convertDcmToCerrVirtualCoords()
         scan_meta[0].convertDcmToRealWorldUnits(opts)
         if scan_meta[0].scanInfo[0].imageType == "PT SCAN":
@@ -480,15 +480,15 @@ def populatePlanCField(field_name, file_list, opts={}):
                 suvType = opts['suvType']
             elif scan_meta[0].scanInfo[0].suvType:
                 suvType = scan_meta[0].scanInfo[0].suvType
-            scan_meta[0].convert_to_suv(suvType)
+            scan_meta[0].convertToSUV(suvType)
         return scan_meta
 
     elif field_name == "structure":
-        struct_meta = structr.load_structure(file_list)
+        struct_meta = structr.loadStructure(file_list)
         return struct_meta
 
     elif field_name == "dose":
-        dose_meta = rtds.load_dose(file_list)
+        dose_meta = rtds.loadDose(file_list)
         return dose_meta
 
     elif field_name == "beams":
@@ -504,6 +504,18 @@ def loadPlanCFromPkl(file_name=""):
     return planC
 
 def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC=''):
+    """This routine imports scan from NifTi file into planC
+
+    Args:
+        nii_file_name (str): path of NifTi file containing the scan
+        imageType (str): typte of scan. e.g. 'CT SCAN', 'MR SCAN', 'PT SCAN'
+        direction (str): optional, the desired orientation of scan. e.g. HFS
+        initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan[-1]
+
+    """
     if not isinstance(initplanC, PlanC):
         planC = PlanC(header=headr.Header())
     else:
@@ -603,7 +615,20 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
 
 
 def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
-    planC = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
+    """This routine imports segmentation from NifTi file into planC
+
+    Args:
+        nii_file_name (str): path of NifTi file containing the structure/s
+        assocScanNum (int): index of scan from planC.scan associated with segmentation
+        planC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append structure/s
+        labels_dict (dict): optional, dictionary mapping labels to structure name. e.g. {1:'GTV', 2:'Lung_total'}
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
+
+    """
+
+    planC = structr.importNii(nii_file_name, assocScanNum, planC, labels_dict)
     # struct_meta = structr.import_nii(nii_file_name,assocScanNum,planC,labels_dict)
     # numOrigStructs = len(planC.structure)
     # planC.structure.extend(struct_meta)
@@ -619,6 +644,17 @@ def loadNiiDose(nii_file_name, planC):
     pass
 
 def loadNiiVf(dvf_file, baseScanNum, planC):
+    """This routine loads deformation vector field from file into planC
+
+    Args:
+        dvf_file (str): path to file containing the DFV
+        baseScanNum (int): index of scan from planC.scan
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to append vector field
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with vector field imported to planC.deform
+
+    """
 
     # Get image direction of the baseScanNum
     scanOrientV = planC.scan[baseScanNum].scanInfo[0].imageOrientationPatient
@@ -688,6 +724,23 @@ def loadNiiVf(dvf_file, baseScanNum, planC):
 
 
 def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
+    """This routine imports a scan from numpy array into planC
+
+    Args:
+        scan3M (numpy.ndarray):
+        xV (numpy.ndarray):
+        yV (numpy.ndarray):
+        zV (numpy.ndarray):
+        modality (str):
+        assocScanNum (int):
+        planC (cerr.plan_container.PlanC):
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+
+    """
+
+
     org_root = '1.3.6.1.4.1.9590.100.1.2.' # to create seriesInstanceUID
     seriesInstanceUID = generate_uid(prefix=org_root)
     scan = scn.Scan()
@@ -746,12 +799,38 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     planC.scan.append(scan)
     return planC
 
-def importStructureMask(mask3M, assocScanNum, structName, structNum, planC):
-    planC = structr.import_structure_mask(mask3M, assocScanNum, structName, structNum, planC)
+def importStructureMask(mask3M, assocScanNum, structName, planC, structNum):
+    """
+
+    Args:
+        mask3M (numpy.ndarray): binary mask containing segmentation
+        assocScanNum (int): index of scan from planC.scan associated with segmentation
+        structName (str): name of structure
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        structNum (int or None): optional, index of structure object within planC.structure to replace
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with structure imported to planC.structure
+
+    """
+
+    planC = structr.importStructureMask(mask3M, assocScanNum, structName, planC, structNum)
     return planC
 
 
 def parseDcmHeader(dcm_dir):
+    """This routine parses header from DICOM files in the input directory
+
+    Args:
+        dcm_dir (str): path to directory containing DICOM files
+
+    Returns:
+        pandas.DataFrame: Data frame containing header values of DICOM files. The header attributes consist of
+        "PatientName","PatientID","StudyInstanceUID","SeriesInstanceUID","Modality",
+        "bValue","TemporalPosition","TriggerTime","NumSlices","FilePath"
+
+    """
+
     from pydicom.misc import is_dicom
     from pydicom import dcmread
     import os

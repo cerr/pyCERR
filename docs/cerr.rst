@@ -17,7 +17,10 @@ cerr.viewer module
 
 .. automodule:: cerr.viewer
    :members:
-   :undoc-members:
+   :exclude-members: initialize_image_window_widget, initialize_struct_save_widget,
+        initialize_struct_add_widget, getRCSwithinScanExtents, updateMirror,
+        mirror_scope_callback, initialize_reg_qa_widget, initialize_dose_select_widget,
+        initialize_dose_colorbar_widget, initialize_dvf_colorbar_widget
    :show-inheritance:
 
 cerr.dvh module

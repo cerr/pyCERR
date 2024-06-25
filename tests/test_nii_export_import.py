@@ -12,7 +12,7 @@ def test_scan_export_import():
     planC = pc.loadDcmDir(dcm_dir)
     scanNiiFile = 'scan_from_cerr.nii.gz'
     scanNum = 0
-    planC.scan[scanNum].save_nii(scanNiiFile)
+    planC.scan[scanNum].saveNii(scanNiiFile)
     imageType = 'CT SCAN'
     scanOrientation = ''
     planC = pc.loadNiiScan(scanNiiFile, imageType, scanOrientation, planC)

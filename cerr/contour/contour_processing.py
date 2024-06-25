@@ -13,19 +13,19 @@ Description: Get structure object from planC/container. Apply 2D smoothing. Opti
 Returns: updated planC
 '''
 
-def smooth_structure(planC, struct_idx, replace_original = True, name_suffix = "", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
+def smoothStructure(planC, struct_idx, replace_original = True, name_suffix ="", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
     struct_obj = copy.deepcopy(planC.structure[struct_idx])
     for contour_orig in struct_obj.contour:
         if contour_orig != []:
             for seg in contour_orig.segments:
                 C = seg.points
                 z_coord = C[0][2]
-                X, tr = smooth_2D_contour(C, tol, taubin_mu, taubin_factor,catmull_alpha)
+                X, tr = smooth2DContour(C, tol, taubin_mu, taubin_factor, catmull_alpha)
                 if X.shape[1] == 2:
                     Z = z_coord * np.ones((X.shape[0],1))
                     seg.points = np.hstack((X,Z))
     struct_obj.strUID = uid.createUID("structure")
-    struct_obj.rasterSegments = rs.generate_rastersegs(struct_obj,planC)
+    struct_obj.rasterSegments = rs.generateRastersegs(struct_obj, planC)
     struct_obj.structureName = struct_obj.structureName + name_suffix
     if not replace_original:
         planC.structure.append(struct_obj)
@@ -41,7 +41,7 @@ Description: Function will piecewise-smooth a closed contour C.
 Returns: Smoothed Contour X, range indices of jagged regions in original contour, taubin_range
 '''
 
-def smooth_2D_contour(C, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
+def smooth2DContour(C, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
     if C.shape[1] == 3:
         Cxy = np.delete(C,2,1)
     elif C.shape[2] == 2:

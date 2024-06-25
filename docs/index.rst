@@ -3,12 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to pyCERR's documentation!
-==================================
+pyCERR documentation
+==================
+* consistent data structure for radiological imaging metadata and their associations
+* utilities to extract, transform, organize metadata
+* visualization of scan, segmentation, radiotherapy dose, deformation vector field
+* radiomics, texture and radiotherapy dose volume histogram features
+* utilities for AI model training and inference.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: cerr and its sub-packages
 
    cerr
    cerr.dataclasses

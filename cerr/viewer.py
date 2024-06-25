@@ -114,7 +114,7 @@ def initialize_struct_save_widget() -> FunctionGui:
             colr = np.array(planC.structure[-1].structureColor) / 255
         else:
             colr = label.color[1]
-        planC = pc.importStructureMask(mask3M, assocScanNum, structName, structNum, planC)
+        planC = pc.importStructureMask(mask3M, assocScanNum, structName, planC, structNum)
         if structNum is None:
             # Assign the index of added structure
             structNum = len(planC.structure) - 1

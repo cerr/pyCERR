@@ -100,7 +100,7 @@ class Structure:
     def __setitem__(self, key, value):
         return setattr(self, key, value)
 
-    def save_nii(self,niiFileName,planC):
+    def saveNii(self, niiFileName, planC):
         """ Routine to save pyCERR Structure object to NifTi file
 
         Args:
@@ -113,7 +113,7 @@ class Structure:
 
         str_num = getStructNumFromUID(self.strUID, planC)
         scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
-        affine3M = planC.scan[scan_num].get_nii_affine()
+        affine3M = planC.scan[scan_num].getNiiAffine()
         mask3M = rs.getStrMask(str_num,planC)
         mask3M = np.moveaxis(mask3M,[0,1],[1,0])
         # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
@@ -434,12 +434,12 @@ def importJson(planC, strList=None, jsonFileName=None):
             contour_list[ctr_num] = ctrObj
         strObj.contour = contour_list
         planC.structure.append(strObj)
-        planC.structure[-1].rasterSegments = rs.generate_rastersegs(planC.structure[-1],planC)
+        planC.structure[-1].rasterSegments = rs.generateRastersegs(planC.structure[-1], planC)
 
     return planC
 
 
-def parse_contours(contour_seq):
+def parseContours(contour_seq):
     """This routine parses the ContourSequence metadata from DICOM and returns a list of pyCERR Contour objects.
 
     Args:
@@ -473,7 +473,7 @@ def parse_contours(contour_seq):
     return contour_list
 
 
-def load_structure(file_list):
+def loadStructure(file_list):
     """This routine parses a list of DICOM files and imports metadata from RTSTRUCT and SEG modalities
     to a list of pyCERR's Structure objects
     .
@@ -519,7 +519,7 @@ def load_structure(file_list):
 
                 if not hasattr(roi_contour,"ContourSequence"):
                     continue
-                struct_meta.contour = parse_contours(roi_contour.ContourSequence)
+                struct_meta.contour = parseContours(roi_contour.ContourSequence)
                 struct_meta.numberOfScans = len(roi_contour.ContourSequence) # number of scan slices
                 if hasattr(roi_contour, "ROIDisplayColor"):
                     colorTriplet = roi_contour.ROIDisplayColor
@@ -614,7 +614,7 @@ def load_structure(file_list):
 
     return struct_list
 
-def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
+def importNii(file_list, assocScanNum, planC, labels_dict = {}):
     """This routine imports segmentation from a list of nii files into planC.
 
     Args:
@@ -656,20 +656,20 @@ def import_nii(file_list, assocScanNum, planC, labels_dict = {}):
                 labels_dict[label] = "Label " + str(label)
 
         for label in labels_dict.keys():
-            planC = import_structure_mask(maskOnScan3M == label, assocScanNum, labels_dict[label], None, planC)
+            planC = importStructureMask(maskOnScan3M == label, assocScanNum, labels_dict[label], planC, None)
 
     return planC
 
 
-def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
+def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
     """
 
     Args:
         mask3M (np.ndarray): binary mask for segmentation which is of the same shape as the associated scan
         assocScanNum (int): index of scan object within planC.scan to associate the structure
         structName (str): Name of the structure
-        structNum (int or None): None to add new structure or index of structure object within planC.structure to replace
         planC (cerr.plan_container.PlanC): pyCERR's container object
+        structNum (int or None): optional, index of structure object within planC.structure to replace
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's container object with updated planC.structure attribute
@@ -734,7 +734,7 @@ def import_structure_mask(mask3M, assocScanNum, structName, structNum, planC):
         planC.structure.append(struct_meta)
     #str_num = len(planC.structure) - 1
     planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
-    planC.structure[structNum].rasterSegments = rs.generate_rastersegs(planC.structure[structNum],planC)
+    planC.structure[structNum].rasterSegments = rs.generateRastersegs(planC.structure[structNum], planC)
     return planC
 
 
@@ -806,7 +806,7 @@ def copyToScan(structNum, scanNum, planC):
     newMask3M = imgResample3D(mask3M.astype(float), xOrigV, yOrigV, zOrigV, xNewV, yNewV, zNewV, 'sitkLinear',extrapVal) >= 0.5
     structName = planC.structure[structNum].structureName
     structNum = None
-    planC = import_structure_mask(newMask3M, scanNum, structName, structNum, planC)
+    planC = importStructureMask(newMask3M, scanNum, structName, planC, structNum)
     return planC
 
 
@@ -974,7 +974,7 @@ def getClosedMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
             #del planC.structure[structNum]
             newStructNum = structNum
         #pc.import_structure_mask(filledMask3M, assocScanNum, procSructName, planC)
-        planC = import_structure_mask(filledMask3M, assocScanNum, procSructName, newStructNum, planC)
+        planC = importStructureMask(filledMask3M, assocScanNum, procSructName, planC, newStructNum)
 
 
     return filledMask3M, planC
@@ -1044,7 +1044,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
             # Delete structNum
             #del planC.structure[structNum]
             newStructNum = structNum
-        planC = import_structure_mask(maskOut3M, assocScanNum, procSructName, newStructNum, planC)
+        planC = importStructureMask(maskOut3M, assocScanNum, procSructName, planC, newStructNum)
 
     return maskOut3M, planC
 

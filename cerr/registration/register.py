@@ -45,8 +45,8 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
     # Write nii files for base and moving scans in dirpath
     moving_img_nii = os.path.join(dirpath, 'ctmoving.nii.gz')
     fixed_img_nii = os.path.join(dirpath, 'ctfixed.nii.gz')
-    basePlanC.scan[baseScanIndex].save_nii(fixed_img_nii)
-    movPlanC.scan[movScanIndex].save_nii(moving_img_nii)
+    basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
+    movPlanC.scan[movScanIndex].saveNii(moving_img_nii)
 
     if inputCmdFile is None or not os.path.exists(inputCmdFile):
         plmCmdFile = 'plastimatch_ct_ct_intra_pt.txt'
@@ -121,8 +121,8 @@ def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     moving_img_nii = os.path.join(dirpath, 'ctmoving.nii.gz')
     warped_img_nii = os.path.join(dirpath, 'warped.nii.gz')
     bsplines_coeff_file = deformS.deformOutFilePath
-    basePlanC.scan[baseScanIndex].save_nii(fixed_img_nii)
-    movPlanC.scan[movScanIndex].save_nii(moving_img_nii)
+    basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
+    movPlanC.scan[movScanIndex].saveNii(moving_img_nii)
 
 
     plm_warp_str_cmd = "plastimatch warp --input " + moving_img_nii + \
@@ -183,13 +183,13 @@ def warpStructures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
     moving_str_nii = os.path.join(dirpath, 'structure.nii.gz')
     warped_str_nii = os.path.join(dirpath, 'warped.nii.gz')
     bsplines_coeff_file = deformS.deformOutFilePath
-    basePlanC.scan[baseScanIndex].save_nii(fixed_img_nii)
+    basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
     currDir = os.getcwd()
     os.chdir(dirpath)
     for strNum in movStrNumV:
         #movScanNum = scn.getScanNumFromUID(movPlanC.structure[strNum].assocScanUID, movPlanC)
         structName = movPlanC.structure[strNum].structureName
-        movPlanC.structure[strNum].save_nii(moving_str_nii, movPlanC)
+        movPlanC.structure[strNum].saveNii(moving_str_nii, movPlanC)
         plm_warp_str_cmd = "plastimatch warp --input " + moving_str_nii + \
                       " --output-img " + warped_str_nii + \
                       " --xf " + bsplines_coeff_file + \

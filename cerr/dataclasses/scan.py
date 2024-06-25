@@ -79,7 +79,7 @@ class Scan:
         scan3M = self.scanArray - self.scanInfo[0].CTOffset
         return scan3M
 
-    def get_nii_affine(self):
+    def getNiiAffine(self):
         """ Routine for affine transformation of pyCERR scan object for storing in NifTi format
 
         Returns:
@@ -92,7 +92,7 @@ class Scan:
         affine3M[2,:] = affine3M[2,:] * 10 # cm to mm
         return affine3M
 
-    def save_nii(self, niiFileName):
+    def saveNii(self, niiFileName):
         """ Routine to save pyCERR Scan object to NifTi file
 
         Args:
@@ -102,7 +102,7 @@ class Scan:
             int: 0 when NifTi file is written successfully.
         """
 
-        affine3M = self.get_nii_affine()
+        affine3M = self.getNiiAffine()
         scan3M = self.getScanArray()
         scan3M = np.moveaxis(scan3M,[0,1],[1,0])
         #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
@@ -395,7 +395,7 @@ class Scan:
                 scaleSlope = self.scanInfo[0].scaleSlope
                 self.scanArray = self.scanArray.astype(float) / (rescaleSlope * scaleSlope)
 
-    def convert_to_suv(self,suvType="BW"):
+    def convertToSUV(self, suvType="BW"):
         """ Routine to convert pixel array for PET scan from DICOM storage to SUV
 
         Args:
@@ -619,7 +619,7 @@ def dcm_to_np_date(dateStr):
 def get_slice_position(scan_info_item):
     return scan_info_item[1].zValue
 
-def populate_scan_info_fields(s_info, ds):
+def populateScanInfoFields(s_info, ds):
     """
 
     Args:
@@ -679,7 +679,7 @@ def populate_scan_info_fields(s_info, ds):
 
     return s_info
 
-def populate_real_world_fields(s_info, perFrameSeq):
+def populateRealWorldFields(s_info, perFrameSeq):
     """
 
     Args:
@@ -707,7 +707,7 @@ def populate_real_world_fields(s_info, perFrameSeq):
                 s_info.realWorldMeasurCodeMeaning = RealWorldValueMappingSeq["0040","08EA"][0]["0008","0104"].value
     return s_info
 
-def populate_radiopharma_fields(s_info, seq):
+def populateRadiopharmaFields(s_info, seq):
     """
 
     Args:
@@ -732,7 +732,7 @@ def populate_radiopharma_fields(s_info, seq):
         if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
     return s_info
 
-def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
+def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
     """
 
     Args:
@@ -748,14 +748,14 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
     #s_info.seriesDescription = ds.SeriesDescription
     if not multiFrameFlg: #numberOfFrames == 1:
         scan_info = scn_info.ScanInfo()
-        scan_info = populate_scan_info_fields(scan_info, ds)
+        scan_info = populateScanInfoFields(scan_info, ds)
         if hasattr(ds,'RescaleSlope'): scan_info.rescaleSlope = ds.RescaleSlope
         if hasattr(ds,'RescaleIntercept'): scan_info.rescaleIntercept = ds.RescaleIntercept
         if hasattr(ds,'RescaleType'): scan_info.rescaleType = ds.RescaleType
         if ("2005","100E") in ds: scan_info.scaleSlope = ds["2005","100E"].value
         if ("2005","100D") in ds: scan_info.scaleIntercept = ds["2005","100D"].value
 
-        scan_info = populate_real_world_fields(scan_info, ds)
+        scan_info = populateRealWorldFields(scan_info, ds)
 
         scan_info.grid1Units = ds.PixelSpacing[1] / 10
         scan_info.grid2Units = ds.PixelSpacing[0] / 10
@@ -766,16 +766,16 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
                        - scan_info.imageOrientationPatient[[2,0,1]] * scan_info.imageOrientationPatient[[4,5,3]]
         scan_info.zValue = - np.sum(slice_normal * scan_info.imagePositionPatient) / 10
 
-        scan_info = populate_radiopharma_fields(scan_info, ds)
+        scan_info = populateRadiopharmaFields(scan_info, ds)
 
     else:
         numberOfFrames = ds.NumberOfFrames.real
         scan_info = np.empty(numberOfFrames, dtype=scn_info.ScanInfo)
         for iFrame in range(numberOfFrames):
             s_info = scn_info.ScanInfo()
-            s_info = populate_scan_info_fields(s_info, ds)
+            s_info = populateScanInfoFields(s_info, ds)
             perFrameSeq = ds.PerFrameFunctionalGroupsSequence[iFrame]
-            s_info = populate_real_world_fields(s_info, perFrameSeq)
+            s_info = populateRealWorldFields(s_info, perFrameSeq)
 
             PixelSpacing = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
             s_info.grid1Units = PixelSpacing[1] / 10
@@ -799,13 +799,13 @@ def parse_scan_info_fields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Datas
                 s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
                 s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
 
-            s_info = populate_radiopharma_fields(s_info, ds)
+            s_info = populateRadiopharmaFields(s_info, ds)
 
             scan_info[iFrame] = s_info
 
     return (scan_info, ds.pixel_array, ds.SeriesInstanceUID)
 
-def load_sorted_scan_info(file_list):
+def loadSortedScanInfo(file_list):
     """
 
     Args:
@@ -827,12 +827,12 @@ def load_sorted_scan_info(file_list):
         if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
             if len(file_list) == 1 and 'NumberOfFrames' in ds:
                 multiFrameFlag = True
-                si_pixel_data = parse_scan_info_fields(ds, multiFrameFlag)
+                si_pixel_data = parseScanInfoFields(ds, multiFrameFlag)
                 scan_array = np.transpose(si_pixel_data[1], (1,2,0))
                 scan_info = si_pixel_data[0]
                 count = len(scan_info)
             else:
-                si_pixel_data = parse_scan_info_fields(ds)
+                si_pixel_data = parseScanInfoFields(ds)
                 #scan_info.append(si_pixel_data[0])
                 #scan_array.append(si_pixel_data[1])
                 scan_info[count] = si_pixel_data[0]

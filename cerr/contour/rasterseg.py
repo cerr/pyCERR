@@ -9,7 +9,7 @@ import numpy as np
 from cerr.dataclasses import scan as scn
 
 
-def poly_fill(rowV, colV, xSize, ySize):
+def polyFill(rowV, colV, xSize, ySize):
     # Initialize the result matrix with zeros
     result = np.zeros((xSize, ySize))
 
@@ -261,7 +261,7 @@ def raster_to_mask(rasterSegments, scanNum, planC):
 # Usage:
 # dataSet, uniqueSlices = rasterToMask(rasterSegments, scanNum, planC)
 
-def generate_rastersegs(strObj, planC):
+def generateRastersegs(strObj, planC):
     scan_num = scn.getScanNumFromUID(strObj.assocScanUID,planC)
     num_rows, num_cols, num_slcs = planC.scan[scan_num].getScanSize()
     seg_opts = {"ROIxVoxelWidth": planC.scan[scan_num].scanInfo[0].grid2Units,
@@ -286,7 +286,7 @@ def generate_rastersegs(strObj, planC):
             colV[colV >= num_cols] = num_cols - 1
             colV[colV < 0] = 0
             zValue = ptsM[0, 2]
-            maskM = poly_fill(rowV,colV,num_rows,num_cols)
+            maskM = polyFill(rowV, colV, num_rows, num_cols)
             if (ptsM.shape[0] == 1) or \
                 (ptsM.shape[0] == 2 and np.all(np.equal(ptsM[0,:], ptsM[1,:]))):
                 maskM[int(np.round(rowV[0])), int(np.round(colV[0]))] = 1

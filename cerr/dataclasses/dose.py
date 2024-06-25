@@ -140,7 +140,7 @@ class Dose:
             return "" #json.JSONEncoder.default(self, obj)
 
 
-    def get_nii_affine(self):
+    def getNiiAffine(self):
         """ Routine for affine transformation of pyCERR dose object for storing in NifTi format
 
         Returns:
@@ -154,7 +154,7 @@ class Dose:
         doseAffine3M[2,2] = doseAffine3M[2,2] * 10
         return doseAffine3M
 
-    def save_nii(self,niiFileName):
+    def saveNii(self, niiFileName):
         """ Routine to save pyCERR Dose object to NifTi file
 
         Args:
@@ -170,7 +170,7 @@ class Dose:
         #doseArray = np.flip(doseArray,axis=[0,1])
         if not self.cerrDcmSliceDirMatch:
             doseArray = np.flip(doseArray,2)
-        doseAffine3M = self.get_nii_affine()
+        doseAffine3M = self.getNiiAffine()
         dose_img = nib.Nifti1Image(doseArray, doseAffine3M)
         nib.save(dose_img, niiFileName)
 
@@ -282,7 +282,7 @@ class Dose:
         doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
         return doseV
 
-def load_dose(file_list):
+def loadDose(file_list):
     """
 
     Args:
