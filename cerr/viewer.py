@@ -462,11 +462,11 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     """
 
-    if isinstance(scan_nums, (int, float)):
+    if isinstance(scan_nums, (np.number, int, float)):
         scan_nums = [scan_nums]
-    if isinstance(struct_nums, (int, float)):
+    if isinstance(struct_nums, (np.number, int, float)):
         struct_nums = [struct_nums]
-    if isinstance(dose_nums, (int, float)):
+    if isinstance(dose_nums, (np.number, int, float)):
         dose_nums = [dose_nums]
 
     # Get Scan affines
@@ -724,7 +724,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             # Set active layer to scan
             viewer.layers.selection.active = scan_layers[0]
             return
-        if viewer.dims.ndisplay == 2 and isinstance(label.metadata['isocenter'][0], (int, float)):
+        if viewer.dims.ndisplay == 2 and isinstance(label.metadata['isocenter'][0], (np.number, int, float)):
             set_center_slice(label)
         return
 
@@ -737,7 +737,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         imgType = layer.metadata['dataclass'] if 'dataclass' in layer.metadata else ''
         if 'structNum' in layer.metadata and viewer.dims.ndisplay == 2:
             struct_save_widget[0].value = layer
-            if isinstance(layer.metadata['isocenter'][0], (int, float)):
+            if isinstance(layer.metadata['isocenter'][0], (np.number, int, float)):
                 set_center_slice(layer)
         elif imgType in ['scan', 'dose']:
             #update_colorbar(layer)
@@ -1001,7 +1001,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         sliders = widgets.HBox([viewSelect,sliceSliderAxial, doseAlphaSlider])
 
         sliceAlphaList = []
-        if not isinstance(scanNumV, (int, float)):
+        if not isinstance(scanNumV, (np.number, int, float)):
             for scanNum in scanNumV:
                 sliceAlphaList.append(widgets.FloatSlider(
                 min=0,max=1,value=0.5,
@@ -1040,7 +1040,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
     extentCor = xVals[0], xVals[-1], zVals[-1], zVals[0]
     imgSiz = np.shape(scan3M)
 
-    if isinstance(dose_nums,(int,float)):
+    if isinstance(dose_nums,(np.number,int,float)):
         dose3M = planC.dose[dose_nums].doseArray
         maxDose = dose3M.max()
         minDose = dose3M.min()
