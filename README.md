@@ -38,37 +38,37 @@ Run python from the above Anaconda environment and try out the following code sa
     from cerr import viewer as vwr
 
 ### Read DICOM directory contents to planC
-    dcm_dir = r"\\path\to\Data\dicom\directory"
-    planC = pc.load_dcm_dir(dcm_dir)
+    dcmDir = r"\\path\to\Data\dicom\directory"
+    planC = pc.loadDcmDir(dcmDir)
     
 ### Read NifTi scan to planC
     scanNiiFileName = r"\\path\to\Data\scan.nii.gz"
-    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN")
+    planC = pc.loadNiiScan(scanNiiFileName, imageType = "CT SCAN")
 
-### Read NifTi scan to planC by specifying the orientation
-    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN", direction='HFS')
+### Read NifTi scan in a specified orientation to planC
+    planC = pc.loadNiiScan(scanNiiFileName, imageType = "CT SCAN", direction='HFS')
 
-### Read NifTi scan to planC by appending to an existing planC
-    planC = pc.load_nii_scan(scanNiiFileName, imageType = "CT SCAN", direction='HFS', planC)
+### Read NifTi scan and append to an existing planC
+    planC = pc.loadNiiScan(scanNiiFileName, imageType = "CT SCAN", direction='HFS', planC)
     
 ### Read NifTi segmentation to planC
     structNiiFileName = r"\\path\to\Data\structure.nii.gz"
     assocScanNum = 0
-    labels_dict = {1: 'GTV_P', 2: 'GTV_N'}
-    planC = pc.load_nii_structure(nii_file_name, assocScanNum, planC, labels_dict)
+    labelDict = {1: 'GTV_P', 2: 'GTV_N'}
+    planC = pc.loadNiiStructure(niiFileName, assocScanNum, planC, labelDict)
 
 ### Export Scan, Structure and Dose to NifTi
     scanNiiFileName = r"\\path\to\Data\scan.nii.gz"
     scanNum = 0
-    planC.scan[scanNum].save_nii(scanNiiFileName)
+    planC.scan[scanNum].saveNii(scanNiiFileName)
     
     structNiiFileName = r"\\path\to\Data\structure.nii.gz"
     structNum = 0
-    planC.structure[structNum].save_nii(structNiiFileName, planC)    
+    planC.structure[structNum].saveNii(structNiiFileName, planC)    
     
     doseNiiFileName = r"\\path\to\Data\dose.nii.gz"
     doseNum = 0
-    planC.dose[doseNum].save_nii(doseNiiFileName)
+    planC.dose[doseNum].saveNii(doseNiiFileName)
     
 
 ### visualize scan, dose and segmentation    
@@ -78,9 +78,9 @@ Run python from the above Anaconda environment and try out the following code sa
     strNumList = np.arange(numStructs)
     displayMode = '2d' # '2d' or '3d'
     vectDict = {}
-    viewer, scan_layer, dose_layer, struct_layer, dvf_layer = \
-            vwr.showNapari(scanNumList, strNumList, doseNumList, vectDict, planC, displayMode)
-            
+    showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
+    	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d'):
+        
 
 ### Compute DVH-based metrics
     from cerr import dvh
