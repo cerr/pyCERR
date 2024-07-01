@@ -282,6 +282,23 @@ class Dose:
         doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
         return doseV
 
+    def getAssociatedBeamNum(self, planC):
+        """Routine to obtain index of planC.beams that generated this RTDOSE
+
+        Args:
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            int: index of planC.beams
+
+        """
+
+        beamsUidList = [b.SOPInstanceUID for b in planC.beams]
+        if self.refRTPlanSopInstanceUID in beamsUidList:
+            return beamsUidList.index(self.refRTPlanSopInstanceUID)
+        else:
+            return None
+
 def loadDose(file_list):
     """
 

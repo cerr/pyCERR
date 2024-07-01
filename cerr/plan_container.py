@@ -468,6 +468,10 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     # Convert dose coordinates to CERR's virtual coordinates
     for dose_num in range(numOrigDoses,numDoses):
         planC.dose[dose_num].convertDcmToCerrVirtualCoords(planC)
+        # Assign fraction group ID from the referenced RTPLAN
+        beamNum = planC.dose[dose_num].getAssociatedBeamNum(planC)
+        if beamNum is not None:
+            planC.dose[dose_num].fractionGroupID = planC.beams[beamNum].RTPlanLabel
 
     return planC
 
@@ -807,7 +811,7 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     planC.scan.append(scan)
     return planC
 
-def importStructureMask(mask3M, assocScanNum, structName, planC, structNum):
+def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
     """
 
     Args:
