@@ -19,11 +19,10 @@
 
 "settings": {		   
 
-                   "padding": {
-                                "method": "expand",  
-                                "size": [2,2,2]
-			       }
-                              
-	    }
+		"cropToMask": {
+					"method": "expand",
+                    "size": [6,6,6]
+		}
+}
 
 }
