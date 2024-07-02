@@ -1,0 +1,21 @@
+{
+
+"structures": ["GTV"],
+
+"imageType": {
+  		  "LoG": {
+  		   		"Sigma_mm": [1.5,1.5,1.5],
+		                "CutOff_mm":[4.5,4.5,4.5]
+			  }
+	    },
+
+"settings": {		   
+
+                   "padding": {
+                                "method": "expand",  
+                                "size": [5,5,5]
+			       }
+                              
+	    }
+
+}

@@ -1,0 +1,20 @@
+{
+
+"structures": ["GTV"],
+
+"imageType": {
+  		  "Mean": {
+			    "KernelSize": [5,5,5]
+			  }
+	    },
+
+"settings": {		   
+
+                   "padding": {
+                                "method": "expand",  
+                                "size": [2,2,2]
+			       }
+                              
+	    }
+
+}

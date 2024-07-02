@@ -1,0 +1,29 @@
+{
+
+"structures": ["wholeScan"],
+
+"imageType": {
+  		  "RotationInvariantLawsEnergy": {
+			    	    "Direction": "3d",
+				    "Type": "S5S5S5",
+				    "Normalize": "yes",  
+				    "EnergyKernelSize": [5,5,5],
+				    "EnergyPadMethod": "expand",
+               	   		    "EnergyPadSize" : [2,2,2],
+                       		    "RotationInvariance": {
+				       						"Dim": "3D",
+				       						"AggregationMethod": "max"
+				       			  	      }
+			 	     }
+	    },
+
+"settings": {		   
+
+                   "padding": {
+                                "method": "expand",  
+                                "size": [2,2,2]
+			       }
+                              
+	    }
+
+}
