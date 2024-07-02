@@ -43,10 +43,22 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
     dirpath = tempfile.mkdtemp()
 
     # Write nii files for base and moving scans in dirpath
-    moving_img_nii = os.path.join(dirpath, 'ctmoving.nii.gz')
-    fixed_img_nii = os.path.join(dirpath, 'ctfixed.nii.gz')
+    moving_img_nii = os.path.join(dirpath, 'moving.nii.gz')
+    fixed_img_nii = os.path.join(dirpath, 'fixed.nii.gz')
+    moving_mask_nii = os.path.join(dirpath, 'moving_mask.nii.gz')
+    fixed_mask_nii = os.path.join(dirpath, 'fixed_mask.nii.gz')
     basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
     movPlanC.scan[movScanIndex].saveNii(moving_img_nii)
+    if baseMask3M is not None:
+        basePlanC = pc.importStructureMask(baseMask3M, baseScanIndex, 'mask', basePlanC)
+        maskStrNum = len(basePlanC.structure) - 1
+        pc.saveNiiStructure(fixed_mask_nii, maskStrNum, basePlanC)
+        del basePlanC.structure[-1]
+    if movMask3M is not None:
+        movPlanC = pc.importStructureMask(movMask3M, movScanIndex, 'mask', movPlanC)
+        maskStrNum = len(movPlanC.structure) - 1
+        pc.saveNiiStructure(moving_mask_nii, maskStrNum, movPlanC)
+        del movPlanC.structure[-1]
 
     if inputCmdFile is None or not os.path.exists(inputCmdFile):
         plmCmdFile = 'plastimatch_ct_ct_intra_pt.txt'

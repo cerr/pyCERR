@@ -1,8 +1,8 @@
 # Settings for inter-patient CT-CT registration
 
 [GLOBAL]
-fixed=ctfixed.nii.gz
-moving=ctmoving.nii.gz
+fixed=fixed.nii.gz
+moving=moving.nii.gz
 img_out=warped_moving.nii.gz
 xform_out=bspline_coefficients.txt
 
