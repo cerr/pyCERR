@@ -16,11 +16,12 @@ from cerr.utils.mask import getSurfacePoints, computeBoundingBox
 from cerr.utils.interp import finterp3
 from cerr.radiomics import preprocess
 import numpy as np
+import subprocess
 
 
 def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
                   deforAlgorithm='bsplines', registrationTool='plastimatch',
-                  inputCmdFile=None, baseMask3M=None, movMask3M=None):
+                  baseMask3M=None, movMask3M=None, inputCmdFile=None):
     """
 
     Args:
@@ -30,9 +31,9 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
         movScanIndex (int): integer, identifies moving scan in movPlanC
         transformSaveDir (str): Directory to save transformation file
         registration_tool (str): registration software to use ('PLASTIMATCH','ELASTIX','ANTS')
-        inputCmdFile (str): optional, path to registration command file
         baseMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in target space
         movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
+        inputCmdFile (str): optional, path to registration command file
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with an element added to planC.deform attribute
@@ -47,6 +48,7 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
     fixed_img_nii = os.path.join(dirpath, 'fixed.nii.gz')
     moving_mask_nii = os.path.join(dirpath, 'moving_mask.nii.gz')
     fixed_mask_nii = os.path.join(dirpath, 'fixed_mask.nii.gz')
+    warped_img_nii = os.path.join(dirpath, 'warped_moving.nii.gz')
     basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
     movPlanC.scan[movScanIndex].saveNii(moving_img_nii)
     if baseMask3M is not None:
@@ -61,7 +63,17 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
         del movPlanC.structure[-1]
 
     if inputCmdFile is None or not os.path.exists(inputCmdFile):
-        plmCmdFile = 'plastimatch_ct_ct_intra_pt.txt'
+        if baseMask3M is not None and movMask3M is not None:
+            if deforAlgorithm == 'affine':
+                plmCmdFile = 'plastimatch_ct_ct_intra_pt_w_masks_affine.txt'
+            elif deforAlgorithm == 'bsplines':
+                plmCmdFile = 'plastimatch_ct_ct_intra_pt_w_masks_bsplines.txt'
+        else:
+            if deforAlgorithm == 'affine':
+                plmCmdFile = 'plastimatch_ct_ct_intra_pt_affine.txt'
+            elif deforAlgorithm == 'bsplines':
+                plmCmdFile = 'plastimatch_ct_ct_intra_pt_bsplines.txt'
+
         regDir = os.path.dirname(os.path.abspath(__file__))
         inputCmdFile = os.path.join(regDir,'settings',plmCmdFile)
         #cmdFilePathDest = os.path.join(dirpath, plmCmdFile)
@@ -89,8 +101,14 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
 
     currDir = os.getcwd()
     os.chdir(dirpath)
-    os.system(plm_reg_cmd)
+    #os.system(plm_reg_cmd)
+    sts = subprocess.Popen(plm_reg_cmd, shell=True).wait()
     os.chdir(currDir)
+
+    # Add warped scan to planC
+    imageType = movPlanC.scan[movScanIndex].scanInfo[0].imageType
+    direction = ''
+    basePlanC = pc.loadNiiScan(warped_img_nii, imageType, direction, basePlanC)
 
     # Copy output to the user-specified directory
     shutil.copyfile(bspSourcePath, bspDestPath)
@@ -140,7 +158,7 @@ def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     plm_warp_str_cmd = "plastimatch warp --input " + moving_img_nii + \
                   " --output-img " + warped_img_nii + \
                   " --xf " + bsplines_coeff_file + \
-                  " --referenced-ct " + fixed_img_nii
+                  " --fixed " + fixed_img_nii
 
     currDir = os.getcwd()
     os.chdir(dirpath)
@@ -422,6 +440,7 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     xDeformV = finterp3(xSurfV,ySurfV,zSurfV,xDeformM,xFieldV,yFieldV,zFieldV)
     yDeformV = finterp3(xSurfV,ySurfV,zSurfV,yDeformM,xFieldV,yFieldV,zFieldV)
     zDeformV = finterp3(xSurfV,ySurfV,zSurfV,zDeformM,xFieldV,yFieldV,zFieldV)
+
     # Convert xDeformV,yDeformV,zDeformV to CERR virtual coordinates
     onesV = np.ones_like(xDeformV)
     zeroV = np.zeros_like(xDeformV)
@@ -438,9 +457,9 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     vectors = np.empty((numPts,2,3), dtype=np.float32)
     rcsFlag = True # an input argument?
     if rcsFlag: # (r,c,s) image coordinates
-        dx = np.abs(np.median(np.diff(xValsV)))
-        dy = np.abs(np.median(np.diff(yValsV)))
-        dz = np.abs(np.median(np.diff(zValsV)))
+        #dx = np.abs(np.median(np.diff(xValsV)))
+        #dy = np.abs(np.median(np.diff(yValsV)))
+        #dz = np.abs(np.median(np.diff(zValsV)))
         # Convert CERR virtual coords to DICOM Image coords
         for i in range(numPts):
             vectors[i,0,:] = [rSurfV[i], cSurfV[i], sSurfV[i]]

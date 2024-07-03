@@ -3,8 +3,11 @@
 [GLOBAL]
 fixed=fixed.nii.gz
 moving=moving.nii.gz
+fixed_roi=fixed_mask.nii.gz
+moving_roi=moving_mask.nii.gz
 img_out=warped_moving.nii.gz
 xform_out=bspline_coefficients.txt
+resample_when_linear=true
 
 [STAGE]
 xform=align_center
@@ -14,7 +17,7 @@ metric=mi
 xform=translation
 optim=rsg
 max_its=2000
-res=4 4 2
+res=2 2 1
 metric=mi
 
 [STAGE]
@@ -33,3 +36,13 @@ regularization_lambda=0.1
 grid_spac=50 50 50
 res=2 2 1
 metric=mse
+
+#[STAGE]
+#xform=bspline
+#impl=plastimatch
+#threading=openmp
+#max_its=20
+#regularization_lambda=0.05
+#grid_spac=30 30 30
+#res=1 1 1
+#metric=mse

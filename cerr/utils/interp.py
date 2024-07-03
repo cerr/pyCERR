@@ -39,51 +39,57 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
     #slcs = slcs - 1
 
     # Find indices out of bounds.
-    colNaN = (cols > siz[1]-1) | (cols < 0)
-    colLast = (cols - siz[1]-1) ** 2 < 1e-3
-    yInterpColLastV = yInterpV[colLast]
-    zInterpColLastV = zInterpV[colLast]
+    colNaN = (cols > (siz[1]-1)) | (cols < 0)
+    # colLast = (cols - (siz[1]-1)) ** 2 < 1e-3
+    # yInterpColLastV = yInterpV[colLast]
+    # zInterpColLastV = zInterpV[colLast]
 
-    rowNaN = (rows > siz[0]-1) | (rows < 0)
-    rowLast = (rows - siz[0]-1) ** 2 < 1e-3
-    xInterpRowLastV = xInterpV[rowLast]
-    zInterpRowLastV = zInterpV[rowLast]
+    rowNaN = (rows > (siz[0]-1)) | (rows < 0)
+    # rowLast = (rows - (siz[0]-1)) ** 2 < 1e-3
+    # xInterpRowLastV = xInterpV[rowLast]
+    # zInterpRowLastV = zInterpV[rowLast]
 
-    slcNaN = np.isnan(slcs) | (slcs < 0) | (slcs > siz[2]-1)
-    slcLast = (slcs - siz[2]-1) ** 2 < 1e-3
-    xInterpLastV = xInterpV[slcLast]
-    yInterpLastV = yInterpV[slcLast]
+    slcNaN = np.isnan(slcs) | (slcs < 0) | (slcs > (siz[2]-1))
+    # slcLast = (slcs - (siz[2]-1)) ** 2 < 1e-3
+    # xInterpLastV = xInterpV[slcLast]
+    # yInterpLastV = yInterpV[slcLast]
 
-    # Set those to a proxy 1.
+    # Set those to a proxy 0.
     rows[rowNaN] = 0
     cols[colNaN] = 0
     slcs[slcNaN] = 0
 
     colFloor = np.floor(cols)
+    colCeil = np.ceil(cols)
     colMod = cols - colFloor
     oneMinusColMod = (1 - colMod)
 
     rowFloor = np.floor(rows)
+    rowCeil = np.ceil(rows)
     rowMod = rows - rowFloor
     oneMinusRowMod = (1 - rowMod)
 
     slcFloor = np.floor(slcs)
+    slcCeil = np.ceil(slcs)
     slcMod = slcs - slcFloor
     oneMinusSlcMod = (1 - slcMod)
 
     rowFloor = np.asarray(rowFloor,dtype=int)
     colFloor = np.asarray(colFloor,dtype=int)
     slcFloor = np.asarray(slcFloor,dtype=int)
+    rowCeil = np.asarray(rowCeil,dtype=int)
+    colCeil = np.asarray(colCeil,dtype=int)
+    slcCeil = np.asarray(slcCeil,dtype=int)
 
     # Accumulate contribution from each voxel surrounding x,y,z point.
     interpV = field3M[rowFloor,colFloor,slcFloor] * oneMinusRowMod * oneMinusColMod * oneMinusSlcMod
-    interpV += field3M[rowFloor+1,colFloor,slcFloor] * rowMod * oneMinusColMod * oneMinusSlcMod
-    interpV += field3M[rowFloor,colFloor+1,slcFloor] * oneMinusRowMod * colMod * oneMinusSlcMod
-    interpV += field3M[rowFloor+1,colFloor+1,slcFloor] * rowMod * colMod * oneMinusSlcMod
-    interpV += field3M[rowFloor,colFloor,slcFloor+1] * oneMinusRowMod * oneMinusColMod * slcMod
-    interpV += field3M[rowFloor+1,colFloor,slcFloor+1] * rowMod * oneMinusColMod * slcMod
-    interpV += field3M[rowFloor,colFloor+1,slcFloor+1] * oneMinusRowMod * colMod * slcMod
-    interpV += field3M[rowFloor+1,colFloor+1,slcFloor+1] * rowMod * colMod * slcMod
+    interpV += field3M[rowCeil,colFloor,slcFloor] * rowMod * oneMinusColMod * oneMinusSlcMod
+    interpV += field3M[rowFloor,colCeil,slcFloor] * oneMinusRowMod * colMod * oneMinusSlcMod
+    interpV += field3M[rowCeil,colCeil,slcFloor] * rowMod * colMod * oneMinusSlcMod
+    interpV += field3M[rowFloor,colFloor,slcCeil] * oneMinusRowMod * oneMinusColMod * slcMod
+    interpV += field3M[rowCeil,colFloor,slcCeil] * rowMod * oneMinusColMod * slcMod
+    interpV += field3M[rowFloor,colCeil,slcCeil] * oneMinusRowMod * colMod * slcMod
+    interpV += field3M[rowCeil,colCeil,slcCeil] * rowMod * colMod * slcMod
 
 
     # # Linear indices of lower bound contributing points.
@@ -107,17 +113,17 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
     # Replace proxy 1s with out of bounds vals.
     interpV[rowNaN | colNaN | slcNaN] = OOBV
 
-    # 2D interpolate last slice
-    if any(slcLast):
-        interpV[slcLast] = interp2d(xFieldV, yFieldV, field3M[:, :, -1])(xInterpLastV, yInterpLastV)
-
-    if any(colLast):
-        if len(zFieldV) > 1:
-            interpV[colLast] = interp2d(yFieldV, zFieldV, np.squeeze(field3M[:, -1, :].T))(yInterpColLastV, zInterpColLastV)
-
-    if any(rowLast):
-        if len(zFieldV) > 1:
-            interpV[rowLast] = interp2d(xFieldV, zFieldV, np.squeeze(field3M[-1, :, :].T))(xInterpRowLastV, zInterpRowLastV)
+    # # 2D interpolate last slice
+    # if any(slcLast):
+    #     interpV[slcLast] = interp2d(xFieldV, yFieldV, field3M[:, :, -1])(xInterpLastV, yInterpLastV)
+    #
+    # if any(colLast):
+    #     if len(zFieldV) > 1:
+    #         interpV[colLast] = interp2d(yFieldV, zFieldV, np.squeeze(field3M[:, -1, :].T))(yInterpColLastV, zInterpColLastV)
+    #
+    # if any(rowLast):
+    #     if len(zFieldV) > 1:
+    #         interpV[rowLast] = interp2d(xFieldV, zFieldV, np.squeeze(field3M[-1, :, :].T))(xInterpRowLastV, zInterpRowLastV)
 
     return interpV
 

@@ -1,0 +1,38 @@
+# Settings for inter-patient CT-CT registration
+
+[GLOBAL]
+fixed=fixed.nii.gz
+moving=moving.nii.gz
+fixed_roi=fixed_mask.nii.gz
+moving_roi=moving_mask.nii.gz
+img_out=warped_moving.nii.gz
+xform_out=bspline_coefficients.txt
+resample_when_linear=true
+
+[STAGE]
+xform=align_center
+metric=mi
+ 
+[STAGE]
+xform=translation
+optim=rsg
+max_its=2000
+res=2 2 1
+metric=mi
+
+[STAGE]
+xform=affine
+optim=rsg
+max_its=1000
+res=2 2 1
+metric=mi
+
+#[STAGE]
+#xform=bspline
+#impl=plastimatch
+#threading=openmp
+#max_its=30
+#regularization_lambda=0.1
+#grid_spac=50 50 50
+#res=2 2 1
+#metric=mse
