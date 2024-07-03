@@ -1120,12 +1120,13 @@ def getMaskList(strNumV, planC, labelDict=None):
         scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID, planC)
         mask3M = rs.getStrMask(strNumV[idx], planC)
         strName = planC.structure[strNumV[idx]].structureName
-        strLabel = [label for label in allLabels if labelDict[label] == strName][0]
-        if isinstance(strLabel, str):
-            strLabel = int(strLabel)
+        matchLabels = [label for label in allLabels if labelDict[label] == strName]
+        strLabel = matchLabels[0] if len(matchLabels)>0 else None
         mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
         if scn.flipSliceOrderFlag(planC.scan[scanNum]):
             mask3M = np.flip(mask3M, axis=2)
+        if isinstance(strLabel, str):
+                strLabel = int(strLabel)
         maskList.insert(strLabel-1, mask3M)
 
     return maskList
