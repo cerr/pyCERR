@@ -370,23 +370,33 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
     zStart = zValsV[0]
 
-    if structNum is not None and surfFlag:
-        # Get surface points from structure contours
-        rcsSurfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
-        rcsSurfPoints = np.array(rcsSurfPolygons[0])
-        for poly in rcsSurfPolygons[1:]:
-            rcsSurfPoints = np.append(rcsSurfPoints, poly, axis=0)
-        rSurfV = rcsSurfPoints[:, 0]
-        cSurfV = rcsSurfPoints[:, 1]
-        sSurfV = rcsSurfPoints[:, 2]
+    mask3M = rs.getStrMask(structNum, planC)
 
-        xSurfV = xValsV[cSurfV.astype(int)]
-        ySurfV = yValsV[rSurfV.astype(int)]
-        zSurfV = zValsV[sSurfV.astype(int)]
+    origRes = planC.scan[scanNum].getScanSpacing()
+    pixelSpacingZ = origRes[2]
+
+    if structNum is not None and surfFlag:
+        # # Get surface points from structure contours
+        # rcsSurfPolygons =  cerrStr.getContourPolygons(structNum, planC, True)
+        # rcsSurfPoints = np.array(rcsSurfPolygons[0])
+        # for poly in rcsSurfPolygons[1:]:
+        #     rcsSurfPoints = np.append(rcsSurfPoints, poly, axis=0)
+        # rSurfV = rcsSurfPoints[:, 0]
+        # cSurfV = rcsSurfPoints[:, 1]
+        # sSurfV = rcsSurfPoints[:, 2]
+        #
+        # xSurfV = xValsV[cSurfV.astype(int)]
+        # ySurfV = yValsV[rSurfV.astype(int)]
+        # zSurfV = zValsV[sSurfV.astype(int)]
+
+        rowV, colV, slcV = getSurfacePoints(mask3M)
+        xSurfV = xValsV[colV]
+        ySurfV = yValsV[rowV]
+        zSurfV = zValsV[slcV]
 
     elif not surfFlag:
         if structNum is not None and isinstance(structNum,(int,float)):
-            mask3M = rs.getStrMask(structNum, planC)
+            # mask3M = rs.getStrMask(structNum, planC)
             rmin,rmax,cmin,cmax,smin,smax,_ = computeBoundingBox(mask3M)
             xValsV = xValsV[cmin:cmax+1]
             yValsV = yValsV[rmin:rmax+1]
@@ -396,8 +406,9 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
         #pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
         #pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
         #origRes = [pixelSpacingX, pixelSpacingY, pixelSpacingZ]
-        origRes = planC.scan[scanNum].getScanSpacing()
-        pixelSpacingZ = origRes[2]
+
+        # origRes = planC.scan[scanNum].getScanSpacing()
+        # pixelSpacingZ = origRes[2]
 
         outputResV = [outputResV[i] if outputResV[i] > 0 else origRes[i] for i,_ in enumerate(outputResV)]
 
@@ -409,21 +420,21 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
         ySurfV = yM.flatten()
         zSurfV = zM.flatten()
 
-        scaleX = planC.scan[scanNum].scanInfo[0].grid2Units
-        scaleY = planC.scan[scanNum].scanInfo[0].grid1Units
-        imageSizeV = [planC.scan[scanNum].scanInfo[0].sizeOfDimension1,
-                      planC.scan[scanNum].scanInfo[0].sizeOfDimension2]
+    scaleX = planC.scan[scanNum].scanInfo[0].grid2Units
+    scaleY = planC.scan[scanNum].scanInfo[0].grid1Units
+    imageSizeV = [planC.scan[scanNum].scanInfo[0].sizeOfDimension1,
+                  planC.scan[scanNum].scanInfo[0].sizeOfDimension2]
 
-        # Get any offset of CT scans to apply (neg) to structures
-        xCTOffset = planC.scan[scanNum].scanInfo[0].xOffset \
-            if planC.scan[scanNum].scanInfo[0].xOffset else 0
-        yCTOffset = planC.scan[scanNum].scanInfo[0].yOffset \
-            if planC.scan[scanNum].scanInfo[0].yOffset else 0
+    # Get any offset of CT scans to apply (neg) to structures
+    xCTOffset = planC.scan[scanNum].scanInfo[0].xOffset \
+        if planC.scan[scanNum].scanInfo[0].xOffset else 0
+    yCTOffset = planC.scan[scanNum].scanInfo[0].yOffset \
+        if planC.scan[scanNum].scanInfo[0].yOffset else 0
 
-        rSurfV, cSurfV = rs.aapmtom(xSurfV/scaleX, ySurfV/scaleY, xCTOffset / scaleX,
-                             yCTOffset / scaleY, imageSizeV)
+    rSurfV, cSurfV = rs.aapmtom(xSurfV/scaleX, ySurfV/scaleY, xCTOffset / scaleX,
+                         yCTOffset / scaleY, imageSizeV)
 
-        sSurfV = (zSurfV - zStart) / pixelSpacingZ
+    sSurfV = (zSurfV - zStart) / pixelSpacingZ
 
 
     # Get x,y,z deformations at selected points
@@ -465,8 +476,8 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
             vectors[i,0,:] = [rSurfV[i], cSurfV[i], sSurfV[i]]
             #vectors[i,1,:] = [yDeformV[i]/dy, xDeformV[i]/dx, zDeformV[i]/dz]
             vectors[i,1,:] = [yDeformV[i], xDeformV[i], zDeformV[i]]
-        deformMedian = np.median(vectors, axis = 0)[1,:]
-        vectors[:,1,:] -= deformMedian
+        # deformMedian = np.median(vectors, axis = 0)[1,:]
+        # vectors[:,1,:] -= deformMedian
     else: # (x,y,z) physical coordinates
         if cerrDeform.flipSliceOrderFlag(deformS):
             zDeformV = - zDeformV

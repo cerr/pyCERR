@@ -39,6 +39,17 @@ def getDown3Mask(mask3M, sampleTrans, sampleAxis):
 
 
 def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
+    """Routine to obtain sruface coordinates of the input mask
+
+    Args:
+        mask3M (numpy.ndarray): binary mask representing segmentation
+        sampleTrans (int): optional, sample rate in transverse plane
+        sampleAxis 9int): optional, sample rate along slices
+
+    Returns:
+        tuple: r,c,s coordinates of surface voxels
+    """
+
     surfPoints = []
 
     r, c, s = np.where(mask3M)
@@ -84,9 +95,10 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
     c += minC
     s += minS
 
-    surfPoints = np.column_stack((r, c, s))
+    #surfPoints = np.column_stack((r, c, s))
 
-    return surfPoints
+    return r,c,s
+
 
 def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
     """

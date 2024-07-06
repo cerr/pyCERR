@@ -129,7 +129,7 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     shapeS['elongation'] = np.sqrt(eig_valV[1] / eig_valV[2])
 
     # Get the surface points for the structure mask
-    surf_points = getSurfacePoints(maskForShape3M)
+    rowV, colV, slcV = getSurfacePoints(maskForShape3M)
 
     # Downsample surface points
     # sample_rate = 1
@@ -142,9 +142,9 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     #     else:
     #         surf_points = getSurfacePoints(maskForShape3M, sample_rate, 1)
 
-    xSurfV = xValsV[surf_points[:, 1]]
-    ySurfV = yValsV[surf_points[:, 0]]
-    zSurfV = zValsV[surf_points[:, 2]]
+    xSurfV = xValsV[colV]
+    ySurfV = yValsV[rowV]
+    zSurfV = zValsV[slcV]
     #distM = sepsq(np.column_stack((xSurfV, ySurfV, zSurfV)), np.column_stack((xSurfV, ySurfV, zSurfV)))
     ptsM = np.column_stack((xSurfV, ySurfV, zSurfV))
     #distM = distance.cdist(ptsM, ptsM, 'euclidean')
@@ -154,28 +154,28 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     dmaxCor = 0
     dmaxSag = 0
 
-    rowV = np.unique(surf_points[:, 0])
-    colV = np.unique(surf_points[:, 1])
-    slcV = np.unique(surf_points[:, 2])
+    uniqRowV = np.unique(rowV)
+    uniqColV = np.unique(colV)
+    uniqSlcV = np.unique(slcV)
 
     # Max diameter along slices
-    for i in range(len(slcV)):
-        slc = slcV[i]
-        indV = surf_points[:, 2] == slc
+    for i in range(len(uniqSlcV)):
+        slc = uniqSlcV[i]
+        indV = slcV == slc
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
         dmaxAxial = max(dmaxAxial, np.max(distM))
 
     # Max diameter along cols
-    for i in range(len(colV)):
-        col = colV[i]
-        indV = surf_points[:, 1] == col
+    for i in range(len(uniqColV)):
+        col = uniqColV[i]
+        indV = colV == col
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
         dmaxSag = max(dmaxSag, np.max(distM))
 
     # Max diameter along rows
-    for i in range(len(rowV)):
-        row = rowV[i]
-        indV = surf_points[:, 0] == row
+    for i in range(len(uniqRowV)):
+        row = uniqRowV[i]
+        indV = rowV == row
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
         dmaxCor = max(dmaxCor, np.max(distM))
 
