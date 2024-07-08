@@ -404,15 +404,16 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
     return yCouch, selectedLines
 
 
-def getPatientOutline(scan3M, outThreshold, slicesV=None,
+def getPatientOutline(scan3M, outThreshold=-400, slicesV=None,
                       minMaskSize=1500, normFlag=False):
     """
     Function to extract binary mask of patient outline on input scan.
 
     Args:
         scan3M (np.ndarray): 3D scan.
-        outThreshold (float): Intensity level representing air.
-                              Recommended:-400 HU for CT scans.
+        outThreshold (float): [optional, default=-400] Intensity level representing air.
+                              -400 HU is for CT scans. Users should input appropriate threshold
+                              for other modalities.
         slicesV (np.array): [optional, default=None] Range of slices for
                             outline extraction. All slices are analyzed if set to None.
         minMaskSize (int): [optional, default=1500] Minimum acceptable size of mask
