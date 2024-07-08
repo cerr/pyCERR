@@ -78,8 +78,9 @@ Run python from the above Anaconda environment and try out the following code sa
     strNumList = np.arange(numStructs)
     displayMode = '2d' # '2d' or '3d'
     vectDict = {}
-    showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
-    	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d'):
+    viewer, scan_layer, struct_layer, dose_lyer, dvf_layer = \ 
+                   showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
+    	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d')
         
 
 ### Compute DVH-based metrics

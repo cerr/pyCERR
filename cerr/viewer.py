@@ -455,10 +455,10 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     Returns:
         napari.Viewer: Napari Viewer object
-        scan_layers[napari.layers.Image]: List of scan layers corresponding to input scan_nums
-        struct_layer[napari.layers.Labels]: List of structure layers corresponding to input struct_nums
-        dose_layers[napari.layers.Image]: List of dose layers corresponding to input dose_nums
-        dvf_layer[napari.layers.Vectors]: List containing DVF layer corresponding to input vector_dict
+        List[napari.layers.Image]: List of scan layers corresponding to input scan_nums
+        List[napari.layers.Labels]: List of structure layers corresponding to input struct_nums
+        List[napari.layers.Image]: List of dose layers corresponding to input dose_nums
+        List[napari.layers.Vectors]: List containing DVF layer corresponding to input vector_dict
 
     """
 
