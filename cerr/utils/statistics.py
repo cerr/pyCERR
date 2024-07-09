@@ -18,3 +18,14 @@ def prctile(x,p):
     """MATLAB prctile.m equivalent function to compute percentile"""
     y = x[~np.isnan(x)]
     return(quantile(y,np.array(p)/100))
+
+
+def round(x):
+    """
+    Substitute for numpy.round(), which uses a fast but inexact algorithm.
+    This function avoids documented issues of numpy.round() e.g. rounding of inputs
+    exactly halfway between rounded decimal values to the nearest even value.
+    See: https://numpy.org/doc/stable/reference/generated/numpy.round.html
+    """
+    y = np.array(x+0.5, dtype=int)
+    return y
