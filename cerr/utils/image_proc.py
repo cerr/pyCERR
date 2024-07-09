@@ -50,8 +50,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
     xV = gridS[0]
     yV = gridS[1]
     zV = gridS[2]
-    if voxSizeV is None:
-        voxSizeV = [np.median(np.diff(xV)),
+    voxSizeV = [np.median(np.diff(xV)),
                     np.median(np.diff(yV)),
                     np.median(np.diff(zV))]
 
