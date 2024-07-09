@@ -5,7 +5,6 @@ import math
 import numpy as np
 from skimage.transform import resize
 
-
 def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                       limitsM=None, preserveAspectFlag=False):
     """
@@ -82,7 +81,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
 
         scanOut3M, maskOut4M, gridOutS = resizeScanAndMask(scan3M, mask4M, gridS, \
-                                                           outputImgSizeV, resizeMethod, limitsM=None, \
+                                                           outputImgSizeV, resizeMethod,\
+                                                           limitsM=None, \
                                                            preserveAspectFlag=False)
 
     elif methodLower == 'pad3d':
@@ -154,8 +154,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             scanOut3M = np.array([])
         else:
             minScanVal = np.min(scan3M)
-            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1], origSizeV[2]] \
-                                , minScanVal, dtype=scan3M.dtype)
+            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1],\
+                                 origSizeV[2]], minScanVal, dtype=scan3M.dtype)
 
         if mask4M is None:
             maskOut4M = None
@@ -220,8 +220,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             scanOut3M = np.array([])
         else:
             minScanVal = np.min(scan3M)
-            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1], origSizeV[2]] \
-                                , minScanVal, dtype=scan3M.dtype)
+            scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1],\
+                                 origSizeV[2]], minScanVal, dtype=scan3M.dtype)
 
         if mask4M.size == 0:
             maskOut4M = np.array([])
@@ -269,9 +269,11 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             outCmax = cMax - cMin + 1
 
             if scan3M.size != 0:
-                scanOut3M[rMin:rMax, cMin:cMax, slcNum] = scan3M[outRmin:outRmax, outCmin:outCmax, slcNum]
+                scanOut3M[rMin:rMax, cMin:cMax, slcNum] = scan3M[outRmin:outRmax,\
+                                                          outCmin:outCmax, slcNum]
             if mask4M.size != 0:
-                maskOut4M[rMin:rMax, cMin:cMax, slcNum, :] = mask4M[outRmin:outRmax, outCmin:outCmax, slcNum, :]
+                maskOut4M[rMin:rMax, cMin:cMax, slcNum, :] = mask4M[outRmin:outRmax,\
+                                                             outCmin:outCmax, slcNum, :]
 
             xOutM[:,slcNum] = np.arange(xV[cMin], xV[cMax], voxSizeV[0])
             yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax], voxSizeV[1])
@@ -302,7 +304,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
                 for nSlc in range(padded3M.shape[2]):
                     scanOut3M[:, :, nSlc] = resize(padded3M[:, :, nSlc],
-                                                   (outputImgSizeV[0], outputImgSizeV[1]),
+                                                   (outputImgSizeV[0],\
+                                                   outputImgSizeV[1]),
                                                    anti_aliasing=True,
                                                    order=orderDict[methodLower])
 
