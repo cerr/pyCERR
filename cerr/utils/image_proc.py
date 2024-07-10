@@ -154,7 +154,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         # Pad ROI by varying amounts across slices for identical output dimensions.
 
         # Initialize resized scan and mask
-        if scan3M.size == 0:
+        if scan3M is None:
             scanOut3M = np.array([])
         else:
             minScanVal = np.min(scan3M)
@@ -220,7 +220,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
     elif methodLower=='unpad2d':
         # Initialize resized scan and mask
-        if scan3M.size == 0:
+        if scan3M is None:
             scanOut3M = np.array([])
         else:
             minScanVal = np.min(scan3M)
