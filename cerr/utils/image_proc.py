@@ -133,7 +133,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         xPad = - int(np.floor((outputImgSizeV[0] - origSizeV[0]) / 2))
         yPad = - int(np.floor((outputImgSizeV[1] - origSizeV[1]) / 2))
 
-        if scan3M.size == 0:
+        if scan3M is None:
             scanOut3M = []
         else:
             scanOut3M = scan3M[xPad:xPad + outputImgSizeV[0],
@@ -206,7 +206,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             outRmax = rMax - rMin
             outCmax = cMax - cMin
 
-            if scan3M.size > 0:
+            if scan3M is not None:
                 scanOut3M[outRmin:outRmax+1, outCmin:outCmax+1, slcNum] = \
                     scan3M[rMin:rMax+1, cMin:cMax+1, slcNum]
 
@@ -227,7 +227,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             scanOut3M = np.full([outputImgSizeV[0], outputImgSizeV[1],\
                                  origSizeV[2]], minScanVal, dtype=scan3M.dtype)
 
-        if mask4M.size == 0:
+        if mask4M is None:
             maskOut4M = np.array([])
         else:
             maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1],\
@@ -272,10 +272,10 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             outRmax = rMax - rMin + 1
             outCmax = cMax - cMin + 1
 
-            if scan3M.size != 0:
+            if scan3M is not None:
                 scanOut3M[rMin:rMax, cMin:cMax, slcNum] = scan3M[outRmin:outRmax,\
                                                           outCmin:outCmax, slcNum]
-            if mask4M.size != 0:
+            if mask4M is not None:
                 maskOut4M[rMin:rMax, cMin:cMax, slcNum, :] = mask4M[outRmin:outRmax,\
                                                              outCmin:outCmax, slcNum, :]
 
