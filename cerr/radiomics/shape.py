@@ -57,12 +57,16 @@ def calcMaxDistBetweenPts(ptsM, distType):
     numPts = ptsM.shape[0]
     step = 1000
     numSteps = numPts // step
-    remPts = numPts % step
-    startV = np.arange(numSteps) * step
-    stopV = startV + step
-    if remPts > 0:
-        startV = np.append(startV,stopV[-1])
-        stopV = np.append(stopV,numPts)
+    if numSteps > 0:
+        remPts = numPts % step
+        startV = np.arange(numSteps) * step
+        stopV = startV + step
+        if remPts > 0:
+            startV = np.append(startV,stopV[-1])
+            stopV = np.append(stopV,numPts)
+    else:
+        startV = np.arange(1)
+        stopV = startV + numPts
 
     for i in range(len(startV)):
         iStart = startV[i]
