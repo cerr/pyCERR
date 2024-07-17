@@ -105,13 +105,13 @@ class Dose:
     studyNumberOfOrigin: int = 0
     studyInstanceUID: str = ""
     versionNumberOfProgram: str = ""
-    xcoordOfNormaliznPoint: float = np.NaN
-    ycoordOfNormaliznPoint: float = np.NaN
-    zcoordOfNormaliznPoint: float = np.NaN
-    doseAtNormaliznPoint: float = np.NaN
-    doseError: float = np.NaN
-    coord3OfFirstPoint: float = np.NaN
-    depthGridInterval: float = np.NaN
+    xcoordOfNormaliznPoint: float = np.nan
+    ycoordOfNormaliznPoint: float = np.nan
+    zcoordOfNormaliznPoint: float = np.nan
+    doseAtNormaliznPoint: float = np.nan
+    doseError: float = np.nan
+    coord3OfFirstPoint: float = np.nan
+    depthGridInterval: float = np.nan
     planIDOfOrigin: str = ""
     doseArray: np.array = field(default_factory=get_empty_np_array)
     zValues: np.array = field(default_factory=get_empty_np_array)
@@ -120,7 +120,7 @@ class Dose:
     cachedTime: str = ""
     numCachedSlices: int = 0
     transferProtocol: str = ""
-    associatedScan: int = np.NAN
+    associatedScan: int = np.nan
     transM: np.array = field(default_factory=get_empty_np_array)
     doseUID: str = ""
     assocScanUID: str = ""
