@@ -166,6 +166,10 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
     # Pre-process Image
     (processedScan3M, processedMask3M, morphMask3M, gridS, radiomicsSettingS, diagS) = \
        preprocess.preProcessForRadiomics(scanNum, structNum, radiomicsSettingS, planC)
+
+    if np.sum(processedMask3M) == 0:
+        return {},{}
+
     minr,maxr,minc,maxc,mins,maxs,__ = computeBoundingBox(processedMask3M)
     voxSizeV = gridS["PixelSpacingV"]
 

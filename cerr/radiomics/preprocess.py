@@ -8,6 +8,7 @@ import numpy as np
 import cerr.contour.rasterseg as rs
 from cerr.utils.mask import computeBoundingBox
 import SimpleITK as sitk
+import warnings
 
 # from scipy.interpolate import interpn
 # from scipy.ndimage import zoom
@@ -423,6 +424,10 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
         #Input is structure mask
         mask3M = structNum
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
+
+    if np.sum(mask3M) == 0:
+        warnings.warn('Empty mask. Cannot calculate radiomics features.')
+        return [],[],[],{},{},{}
 
     # Get pixelSpacing of the new grid
     if 'resample' in paramS["settings"] and len(paramS["settings"]['resample']) > 0:
