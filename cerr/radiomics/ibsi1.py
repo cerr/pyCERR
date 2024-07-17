@@ -416,7 +416,7 @@ def createFieldNameFromParameters(imageType, settingS):
         fieldName = f"{imageType}_{settingsStr}"
     elif imageType == 'gabor':
         voxelSize_mm = ' '.join(map(str, settingS['VoxelSize_mm']))
-        settingsStr = f"voxSz{voxelSize_mm}mm_Sigma{settingS['Sigma_mm']}mm_AR" \
+        settingsStr = f"mm_Sigma{settingS['Sigma_mm']}mm_AR" \
                   f"{settingS['SpatialAspectRatio']}_wavLen{settingS['Wavlength_mm']}mm"
         thetaV = ' '.join(map(str, settingS['Orientation']))
         if len(settingS['Orientation']) == 1:
