@@ -176,20 +176,20 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
 
         iV, jV = np.where(binaryMaskM)
         kV = []
-        minr = np.min(iV)
-        maxr = np.max(iV)
-        minc = np.min(jV)
-        maxc = np.max(jV)
+        minr = np.min(iV).astype(int)
+        maxr = np.max(iV).astype(int)
+        minc = np.min(jV).astype(int)
+        maxc = np.max(jV).astype(int)
         mins = []
         maxs = []
     else:
         iV, jV, kV = np.where(binaryMaskM)
-        minr = np.min(iV)
-        maxr = np.max(iV)
-        minc = np.min(jV)
-        maxc = np.max(jV)
-        mins = np.min(kV)
-        maxs = np.max(kV)
+        minr = np.min(iV).astype(int)
+        maxr = np.max(iV).astype(int)
+        minc = np.min(jV).astype(int)
+        maxc = np.max(jV).astype(int)
+        mins = np.min(kV).astype(int)
+        maxs = np.max(kV).astype(int)
 
     bboxmask = None
 
@@ -201,13 +201,13 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
             minr -= maskFlag
             maxr += maskFlag
             if maxr >= siz[0]:
-                maxr = siz[0] - 1
+                maxr = (siz[0] - 1).astype(int)
             if minr < 0:
                 minr = 0
             minc -= maskFlag
             maxc += maskFlag
             if maxc >= siz[1]:
-                maxc = siz[1] - 1
+                maxc = (siz[1] - 1).astype(int)
             if minc < 0:
                 minc = 0
 
@@ -215,7 +215,7 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
                 mins -= maskFlag
                 maxs += maskFlag
                 if maxs >= siz[2]:
-                    maxs = siz[2] - 1
+                    maxs = (siz[2] - 1).astype(int)
                 if mins < 0:
                     mins = 0
 
