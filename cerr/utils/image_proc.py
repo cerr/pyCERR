@@ -18,7 +18,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         scan3M (np.ndarray): 3D input scan.
         mask4M (np.ndarray): 4D input mask of dimension [nRows x nCols x nSlices x nStructures]
                             (stack of binary masks representing various structures).
-        gridS (tuple): (xV, yV, zV) for coordinates of input scan/mask.
+        gridS (tuple): Vectors (xV, yV, zV) for coordinates of input scan/mask (3D methods)
+                       OR  matrices of slices-wise coordinates (xM, yM, zM) of input scan/mask (2D methods).
         outputImgSizeV (np.array): Output image dimensions [nRows, nCols, nSlices].
         method (string): Resizing method for input scan. Supported options include
                 'padorcrop3d', 'pad3d', 'unpad3d', 'pad2d', 'unpad2d', 'padslices'
@@ -32,7 +33,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
     Returns:
           scanOut3M (np.ndarray): 3D resized scan.
           maskOut4M (np.ndarray): 4D resized mask.
-          gridOutS (tuple): (xV, yV, zV) for coordinates of output scan/mask.
+          gridOutS (tuple): Vectors (xV, yV, zV) for coordinates of output scan/mask (3D methods)
+                            OR  matrices of slices-wise coordinates (xM, yM, zM) of input scan/mask (2D methods).
     """
     # Get input image size
     if scan3M is not None:
@@ -50,8 +52,15 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
     xV = gridS[0]
     yV = gridS[1]
     zV = gridS[2]
-    voxSizeV = [np.median(np.diff(xV)),
+    
+    if xV.ndim == 1:
+        voxSizeV = [np.median(np.diff(xV)),
                     np.median(np.diff(yV)),
+                    np.median(np.diff(zV))]
+    elif xV.ndim == 2:
+        #2D methods
+        voxSizeV = [np.median(np.diff(xV[:,0])),
+                    np.median(np.diff(yV[:,0])),
                     np.median(np.diff(zV))]
 
     # Resize image using selected method
@@ -165,10 +174,10 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             maskOut4M = None
         else:
             maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1],\
-                                  numLabels), dtype=np.uint32)
+                                  origSizeV[2], numLabels), dtype=np.uint32)
 
-        xOutM = np.zeros((outputImgSizeV[1],origSizeV[2]))
-        yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
+        xOutM = np.zeros((outputImgSizeV[1], origSizeV[2]))
+        yOutM = np.zeros((outputImgSizeV[0], origSizeV[2]))
 
         # Min/max row and col limits for each slice
         for slcNum in range(origSizeV[2]):
@@ -177,8 +186,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             minc = limitsM[slcNum, 2]
             maxc = limitsM[slcNum, 3]
 
-            rowCenter = round(minr + maxr) / 2
-            colCenter = round(minc + maxc) / 2
+            rowCenter = round((minr + maxr) / 2)
+            colCenter = round((minc + maxc) / 2)
 
             rMin = rowCenter - outputImgSizeV[0] // 2
             cMin = colCenter - outputImgSizeV[1] // 2
@@ -219,6 +228,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower=='unpad2d':
+
         # Initialize resized scan and mask
         if scan3M is None:
             scanOut3M = np.array([])
@@ -231,10 +241,10 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             maskOut4M = np.array([])
         else:
             maskOut4M = np.zeros((outputImgSizeV[0], outputImgSizeV[1],\
-                                  numLabels), dtype=np.uint32)
+                                  origSizeV[2], numLabels), dtype=np.uint32)
 
-        xOutM = np.zeros((outputImgSizeV[1],origSizeV[2]))
-        yOutM = np.zeros((outputImgSizeV[0],origSizeV[2]))
+        xOutM = np.zeros((origSizeV[0], origSizeV[2]))
+        yOutM = np.zeros((origSizeV[1], origSizeV[2]))
 
         # Min/max row and col limits for each slice
         for slcNum in range(origSizeV[2]):
@@ -243,8 +253,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             minc = limitsM[slcNum, 2]
             maxc = limitsM[slcNum, 3]
 
-            rowCenter = round(minr + maxr) / 2
-            colCenter = round(minc + maxc) / 2
+            rowCenter = round((minr + maxr) / 2)
+            colCenter = round((minc + maxc) / 2)
 
             rMin = rowCenter - origSizeV[0] // 2
             cMin = colCenter - origSizeV[1] // 2
@@ -254,8 +264,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             if cMin < 0:
                 cMin = 0
 
-            rMax = rMin + origSizeV[0]
-            cMax = cMin + origSizeV[1]
+            rMax = rMin + origSizeV[0] - 1
+            cMax = cMin + origSizeV[1] - 1
 
             rMin = rMin.astype(int)
             cMin = cMin.astype(int)
@@ -269,19 +279,23 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
             outRmin = 0
             outCmin = 0
-            outRmax = rMax - rMin + 1
-            outCmax = cMax - cMin + 1
+            outRmax = rMax - rMin
+            outCmax = cMax - cMin
 
             if scan3M is not None:
-                scanOut3M[rMin:rMax, cMin:cMax, slcNum] = scan3M[outRmin:outRmax,\
-                                                          outCmin:outCmax, slcNum]
+                scanOut3M[rMin:rMax+1, cMin:cMax+1, slcNum] = scan3M[outRmin:outRmax+1,\
+                                                              outCmin:outCmax+1, slcNum]
             if mask4M is not None:
-                maskOut4M[rMin:rMax, cMin:cMax, slcNum, :] = mask4M[outRmin:outRmax,\
-                                                             outCmin:outCmax, slcNum, :]
+                maskOut4M[rMin:rMax+1, cMin:cMax+1, slcNum, :] = mask4M[outRmin:outRmax+1,\
+                                                                 outCmin:outCmax+1, slcNum, :]
 
-            xOutM[:,slcNum] = np.arange(xV[cMin], xV[cMax] + voxSizeV[0], voxSizeV[0] + EPS)
-            yOutM[:,slcNum] = np.arange(yV[rMin], yV[rMax] + voxSizeV[1], voxSizeV[1] - EPS)
-            gridOutS = (xOutM, yOutM, zV)
+            # Return co-ordinates of cropped region
+            xOutM[:, slcNum] = np.arange(xV[outCmin, slcNum],
+                                         xV[outCmax, slcNum] + voxSizeV[0], voxSizeV[0] + EPS)
+            yOutM[:, slcNum] = np.arange(yV[outRmin, slcNum],
+                                         yV[outRmax, slcNum] + voxSizeV[1], voxSizeV[1] - EPS)
+
+        gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower in ['bilinear','bicubic','nearest']:
         #3D resizing. TBD: 2D
@@ -328,7 +342,6 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                                                          padding,
                                                          order = 0,  # 'nearest' interpolation
                                                          anti_aliasing = False)
-
                 idx11 = 1 + round((padding[0] - cropDim[0]) / 2)
                 idx12 = idx11 + cropDim[0] - 1
                 idx21 = 1 + round((padding[1] - cropDim[1]) / 2)
