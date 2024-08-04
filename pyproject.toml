@@ -33,7 +33,7 @@ dependencies = [
     'scikit-image',
     'PyWavelets',
     'shapelysmooth',
-    'matplotlib',
+    'matplotlib <= 3.9.0',
     'ipywidgets'
 ]
 
