@@ -32,6 +32,7 @@ if importlib.util.find_spec('napari') is not None:
     from magicgui import magicgui
     from magicgui.widgets import FunctionGui
     import vispy.color
+    from napari.utils import DirectLabelColormap
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -122,10 +123,11 @@ def initialize_struct_save_widget() -> FunctionGui:
         scanNum = label.metadata['assocScanNum']
         scan_affine = label.affine
         isocenter = cerrStr.calcIsocenter(structNum, planC)
+        cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
         labelDict = {'name': structName, 'affine': scan_affine,
                      'blending': 'translucent',
                      'opacity': 1,
-                     'color': {1: colr, 0: np.array([0,0,0,0]), None: np.array([0,0,0,0])},
+                     'colormap': cmap,
                       'metadata': {'planC': planC,
                                    'structNum': structNum,
                                    'assocScanNum': scanNum,
@@ -147,10 +149,11 @@ def initialize_struct_add_widget() -> FunctionGui:
         strNum = len(planC.structure)
         colr = np.array(cerrStr.getColorForStructNum(strNum)) / 255
         scanNum = image.metadata['scanNum']
+        cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
         shp = Labels(mask3M, name=structure_name, affine=scan_affine,
                                 blending='translucent',
                                 opacity = 1,
-                                color = {1: colr, 0: np.array([0,0,0,0])},
+                                colormap = cmap,
                                 metadata = {'planC': planC,
                                             'structNum': None,
                                             'assocScanNum': scanNum,
@@ -595,17 +598,17 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             mask3M = rs.getStrMask(str_num,planC)
             isocenter = cerrStr.calcIsocenter(str_num, planC)
             mask3M[mask3M] = 1 #int(str_num + 1)
+            # From napari 0.4.19 onwards
+            # from napari.utils import DirectLabelColormap
+            cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
                                     blending='translucent',
-                                    color = {1: colr, 0: np.array([0,0,0,0])},
+                                    colormap = cmap,
                                     opacity = 1,
                                     metadata = {'planC': planC,
                                                 'structNum': str_num,
                                                 'assocScanNum': scan_num,
                                                 'isocenter': isocenter})
-            # From napari 0.4.19 onwards
-            # from napari.utils import DirectLabelColormap
-            # cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
             # shp.colormap = cmap
             shp.contour = 2
             struct_layer.append(shp)
