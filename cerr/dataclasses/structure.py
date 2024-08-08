@@ -698,6 +698,33 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     for slc in range(dim[2]):
         if not np.any(paddedMask3M[:,:,slc]):
             continue
+        # if upsamplingRate > 1:
+        #     img = sitk.GetImageFromArray(paddedMask3M[:,:,slc].astype(float))
+        #     resample = sitk.ResampleImageFilter()
+        #     # resample.SetOutputDirection(output_direction)
+        #     # resample.SetOutputOrigin(output_origin)
+        #     # resample.SetOutputSpacing(output_spacing)
+        #     origSiz = paddedMask3M[:,:,slc].shape
+        #     outputSize = [siz * upsamplingRate for siz in origSiz]
+        #     outputSpacing = [siz/upsamplingRate for siz in img.GetSpacing()]
+        #     resample.SetReferenceImage(img)
+        #     resample.SetSize(outputSize)
+        #     resample.SetOutputSpacing(outputSpacing)
+        #     resample.SetOutputOrigin(img.GetOrigin())
+        #     resample.SetDefaultPixelValue(0)
+        #     resample.SetInterpolator(getattr(sitk,upsamplingMethod))
+        #     sitkResampImg = resample.Execute(img)
+        #     upsampled2M = sitk.GetArrayFromImage(sitkResampImg)
+        #     gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
+        #     gaussian.SetSigma(outputSpacing[0])
+        #     blurImage = gaussian.Execute(sitkResampImg)
+        #     blurMask2M = sitk.GetArrayFromImage(blurImage)
+        #     contours = measure.find_contours(blurMask2M, 0.5)
+        #     origRowV = np.linspace(0,origSiz[0])
+        #     origColV = np.linspace(0,origSiz[1])
+        #     upsampRowV = np.linspace(0,outputSize[0])
+        #     upsampColV = np.linspace(0,outputSize[1])
+        # else:
         contours = measure.find_contours(paddedMask3M[:,:,slc] == 1, 0.5)
         if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
             slcNum = numSlcs - slc - 1
@@ -716,6 +743,10 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
         for iContour, contour in enumerate(contours):
             contObj = Contour()
             segment = np.empty((contour.shape[0],3))
+            # if upsamplingRate > 1:
+            #     colV = np.interp(contour[:, 1] , upsampColV, origColV, 0, 0) - 1
+            #     rowV = np.interp(contour[:, 0] , upsampRowV, origRowV, 0, 0) - 1
+            # else:
             colV = contour[:, 1] - 1 # - 1 to account for padding
             rowV = contour[:, 0] - 1 # - 1 to account for padding
             slcV = np.ones_like(rowV) * slcNum
@@ -1047,6 +1078,53 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
         planC = importStructureMask(maskOut3M, assocScanNum, procSructName, planC, newStructNum)
 
     return maskOut3M, planC
+
+def getGaussianBlurredMask(structNum, sigmaVoxel, planC, saveFlag=False,\
+              replaceFlag=None, procSructName=None):
+    """
+    Function for Gaussian blurring of binary masks
+
+    Args:
+        structNum (int): int for index of structure in planC.
+        sigmaVoxel (float): sigma used in Gaussian in units of number of voxels.
+         corresponding to each image dimension.
+        planC: pyCERR plan container object.
+        saveFlag: [optional, default=False] bool flag for saving processed mask to planC.
+        replaceFlag: [optional, default=False] bool flag for replacing input mask with
+                    processed mask in planC.
+        procSructName: [optional, default=None] string for output structure name.
+                      Original structure name is used if None.
+    Returns:
+        filledMask3M: np.ndarray(dtype=bool) for filled mask.
+        planC: pyCERR plan container object.
+    """
+
+    # Get binary mask of structure
+    mask3M = rs.getStrMask(structNum,planC)
+
+    # Get mask resolution
+    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
+                                              planC)
+    #inputResV = planC.scan[assocScanNum].getScanSpacing() * sigmaVoxel
+
+    blurredMask3M = maskUtils.gaussianBlurring(mask3M,sigmaVoxel)
+
+    # Save to planC
+    if saveFlag:
+        if procSructName is None:
+            procSructName = planC.structure[structNum].structureName
+
+        assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID,\
+                                                  planC)
+        newStructNum = None
+        if replaceFlag:
+            # Delete structNum
+            #del planC.structure[structNum]
+            newStructNum = structNum
+        planC = importStructureMask(blurredMask3M >= 0.5, assocScanNum, procSructName, planC, newStructNum)
+
+
+    return blurredMask3M, planC
 
 
 def getLabelMap(strNumV, planC, labelDict=None, dim=3):

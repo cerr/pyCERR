@@ -9,6 +9,7 @@ from scipy.ndimage import label, binary_opening, binary_fill_holes, uniform_filt
 from skimage import exposure, filters, morphology, transform
 from skimage.morphology import square, octagon
 import cerr.utils.statistics as statUtil
+import SimpleITK as sitk
 
 
 def getDown2Mask(inM, sample):
@@ -146,10 +147,38 @@ def morphologicalClosing(binaryMask, structuringElement):
         structuringElement (np.array): Flat morphological structuring element.
 
     Returns:
-        closedMask (np.ndarray(dtype=bool)) Closed mask using input structuring element.
+        numpy.ndarray(dtype=bool): Closed mask using input structuring element.
     """
+
     closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
     return closedMask
+
+
+def gaussianBlurring(binaryMask, sigmaVox):
+    """
+    Function for Gaussian blurring of input binary mask
+
+    Args:
+        binaryMask (numpy.array): Binary mask to blur.
+        sigmaVox (float): Sigma for Gaussian in units of voxels.
+
+    Returns:
+        numpy.ndarray(dtype=bool): Blurred mask using Gaussian blur with input sigma.
+    """
+
+    gaussian = sitk.SmoothingRecursiveGaussianImageFilter()
+    gaussian.SetSigma(sigmaVox)
+    dim = binaryMask.shape
+    blurredMask3M = np.empty_like(binaryMask, dtype=float)
+    for slc in range(dim[2]):
+        if not np.any(binaryMask[:,:,slc]):
+            blurredMask3M[:,:,slc] = binaryMask[:,:,slc]
+            continue
+        img = sitk.GetImageFromArray(binaryMask[:,:,slc].astype(float))
+        blurImage = gaussian.Execute(img)
+        blurredMask3M[:,:,slc] = sitk.GetArrayFromImage(blurImage)
+    return blurredMask3M
+
 
 def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
     """
