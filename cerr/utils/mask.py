@@ -115,8 +115,8 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3):
         structuringElement (np.ndarray): Structuring element.
     """
 
-    sizeCmV =  np.repeat(sizeCm, dimensions)
-    sizePixels = np.ceil(np.divide(sizeCmV, resolutionCmV))
+    sizeCmV = np.repeat(sizeCm, dimensions)
+    sizePixels = np.ceil(np.divide(sizeCmV, np.abs(resolutionCmV)))
     evenIdxV = sizePixels % 2 == 0
     if any(evenIdxV):
         sizePixels[evenIdxV] += 1  # Ensure odd size for symmetric structuring element
