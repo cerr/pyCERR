@@ -288,14 +288,13 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
             if mask4M is not None:
                 maskOut4M[rMin:rMax+1, cMin:cMax+1, slcNum, :] = mask4M[outRmin:outRmax+1,\
                                                                  outCmin:outCmax+1, slcNum, :]
-
             # Return co-ordinates of cropped region
             xOutM[:, slcNum] = np.arange(xV[outCmin, slcNum],
                                          xV[outCmax, slcNum] + voxSizeV[0], voxSizeV[0] + EPS)
             yOutM[:, slcNum] = np.arange(yV[outRmin, slcNum],
                                          yV[outRmax, slcNum] + voxSizeV[1], voxSizeV[1] - EPS)
 
-        gridOutS = (xOutM, yOutM, zV)
+        gridOutS = (xOutM, yOutM, zV)                           
 
     elif methodLower in ['bilinear','bicubic','nearest']:
         #3D resizing. TBD: 2D
@@ -368,7 +367,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 scanOut3M = np.empty((outputImgSizeV[0], outputImgSizeV[1], scan3M.shape[2]))
                 for nSlc in range(scan3M.shape[2]):
                     scanOut3M[:, :, nSlc] = resize(scan3M[:, :, nSlc],
-                                               (outputImgSizeV[:-1]),
+                                               (outputImgSizeV[0],\
+                                               outputImgSizeV[1]),
                                                anti_aliasing=True,
                                                order=orderDict[methodLower])
             # Resize mask
@@ -376,7 +376,8 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 maskOut4M = np.zeros((*outputImgSizeV[0:2], mask4M.shape[2], mask4M.shape[3]))
                 for nSlc in range(mask4M.shape[2]):
                     maskOut4M[:, :, nSlc, :] = resize(np.squeeze(mask4M[:, :, nSlc, :]),
-                                                      outputImgSizeV[:-1],
+                                                      (outputImgSizeV[0], \
+                                                      outputImgSizeV[1]),
                                                       order=0,  # 'nearest' interpolation
                                                       anti_aliasing=False)
 
@@ -421,3 +422,32 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
         gridOutS = (xV, yV, zOutV)
 
     return scanOut3M, maskOut4M, gridOutS
+
+def transformScan(scan3M, mask4M, gridS, orientation):
+    
+    outMask4M = None
+    outGridS = None
+    if orientation == 'coronal':
+            outScan3M = np.transpose(scan3M, (2, 1, 0))
+            if mask4M is not None:
+                outMask4M = np.transpose(mask4M, (2, 1, 0, 3))
+            if gridS is not None:
+                outGridS = (gridS[2], gridS[1], gridS[0])
+
+    elif orientation == 'sagittal':
+            outScan3M = np.transpose(scan3M, (2, 0, 1))
+            if mask4M is not None:
+                outMask4M = np.transpose(mask4M, (2, 0, 1, 3))
+            if gridS is not None:
+                outGridS = (gridS[2], gridS[0], gridS[1])
+
+    elif orientation == 'axial':
+            # Do nothing
+            outScan3M = scan3M
+            outMask4M = mask4M
+            if gridS is not None:
+                outGridS = gridS
+    else:
+        raise ValueError(f'Transformation to view {orientation} is not supported')
+
+    return outScan3M, outMask4M, outGridS
