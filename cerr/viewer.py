@@ -589,18 +589,19 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                               colormap=cmap)
             struct_layer.append(labl)
         elif displayMode.lower() == '2d':
-            # polygons = getContourPolygons(str_num, scan_num, planC)
+            cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
+            #polygons = getContourPolygons(str_num, scan_num, planC)
             # polygons =cerrStr.getContourPolygons(str_num, planC, rcsFlag=True)
-            #
             # shp = viewer.add_shapes(polygons, shape_type='polygon', edge_width=2,
             #                   edge_color=colr, face_color=[0]*4,
             #                   affine=scan_affine, name=str_name)
+
+            # show as labels
             mask3M = rs.getStrMask(str_num,planC)
             isocenter = cerrStr.calcIsocenter(str_num, planC)
             mask3M[mask3M] = 1 #int(str_num + 1)
             # From napari 0.4.19 onwards
             # from napari.utils import DirectLabelColormap
-            cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
             shp = viewer.add_labels(mask3M, name=str_name, affine=scan_affine,
                                     blending='translucent',
                                     colormap = cmap,
@@ -609,8 +610,8 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                                 'structNum': str_num,
                                                 'assocScanNum': scan_num,
                                                 'isocenter': isocenter})
-            # shp.colormap = cmap
             shp.contour = 2
+
             struct_layer.append(shp)
 
     dvf_layer = []

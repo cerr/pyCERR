@@ -25,6 +25,7 @@ import json
 from cerr.radiomics.preprocess import imgResample3D
 import cerr.utils.mask as maskUtils
 import warnings
+from scipy.interpolate import splprep, splev
 
 
 def get_empty_list():
@@ -1125,6 +1126,85 @@ def getGaussianBlurredMask(structNum, sigmaVoxel, planC, saveFlag=False,\
 
 
     return blurredMask3M, planC
+
+
+def getBsplineSmoothing(structNum, smootingFactor, planC, \
+              replaceFlag=None, procSructName=None):
+    """
+
+    Args:
+        structNum:
+        smootingFactor:
+        planC:
+        saveFlag:
+        replaceFlag:
+        procSructName:
+
+    Returns:
+
+    """
+
+    assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
+    numSlcs = len(planC.structure[structNum].contour)
+
+    if replaceFlag is None or replaceFlag == False:
+        struct_meta = Structure()
+        struct_meta.structureColor = getColorForStructNum(structNum)
+        struct_meta.strUID = uid.createUID("structure")
+        struct_meta.structSetSopInstanceUID = generate_uid()
+        struct_meta.assocScanUID = planC.structure[structNum].assocScanUID
+        struct_meta.structureFileFormat = planC.structure[structNum].structureFileFormat
+        struct_meta.structureName = planC.structure[structNum].structureName
+        struct_meta.dateWritten = planC.structure[structNum].dateWritten
+        struct_meta.roiNumber = planC.structure[structNum].roiNumber
+
+    contour_list = [[] for slc in range(numSlcs)]
+
+    for slc in range(numSlcs):
+        if planC.structure[structNum].contour[slc]:
+            sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
+            sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
+            segments_list = []
+            if replaceFlag is None or replaceFlag == False:
+                contObj = Contour()
+            else:
+                contObj = planC.structure[structNum].contour[slc]
+            for seg in planC.structure[structNum].contour[slc].segments:
+                seg.points[:,0], seg.points[:,1]
+                numPts = len(seg.points[:,0])
+                if numPts > 3:
+                    tck, _ = splprep([seg.points[:,0], seg.points[:,1]], s = smootingFactor, per = True)
+                    smoothX, smoothY = splev(np.linspace(0, 1, numPts*2), tck, der = 0)
+                    zVals = np.full(len(smoothX), seg.points[0,2])
+                    ptsM = np.asarray((smoothX, smoothY, zVals)).T
+                else:
+                    ptsM = seg.points
+
+                if replaceFlag is None or replaceFlag == False:
+                    segment = Segment()
+                    segment.points = ptsM
+                else:
+                    segment = seg
+                    segment.points = ptsM
+                segments_list.append(segment)
+
+            contObj.segments = segments_list
+            contObj.referencedSopInstanceUID = sopInstanceUID
+            contObj.referencedSopClassUID = sopClassUID
+            contour_list[slc] = contObj
+
+
+    if replaceFlag is None or replaceFlag == False:
+        struct_meta.contour = contour_list
+        planC.structure.append(struct_meta)
+        structNum = len(planC.structure) - 1
+    else:
+        planC.structure[structNum].contour = contour_list
+
+    planC.structure[structNum].rasterSegments = rs.generateRastersegs(planC.structure[structNum], planC)
+
+    return planC
+
 
 
 def getLabelMap(strNumV, planC, labelDict=None, dim=3):
