@@ -1128,20 +1128,25 @@ def getGaussianBlurredMask(structNum, sigmaVoxel, planC, saveFlag=False,\
     return blurredMask3M, planC
 
 
-def getBsplineSmoothing(structNum, smootingFactor, planC, \
+def getBsplineSmoothing(structNum, resolutionFactor, smootingFactor, planC, \
               replaceFlag=None, procSructName=None):
     """
 
     Args:
-        structNum:
-        smootingFactor:
-        planC:
-        saveFlag:
-        replaceFlag:
-        procSructName:
+        structNum (int): Index of structure in planC.structure
+        resolutionFactor (float): Factor to control the number of points in the
+            output contours relative to the original. For example,
+            resolutionFactor of 1.2 would add 20% points to the original contours.
+        smootingFactor (float): Factor to control smoothing of the contours. It can be 0, meaning
+            no smoothing is applied. Value of 0.1-0.15 is reasonable.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        replaceFlag (bool): when True, contours of the originl structure are replaced by
+         smooth contours. If False, a new structure is added to planC.
+        procSructName (str), optional: Name of structure. When not specifid, the original
+         structure name is retained.
 
     Returns:
-
+        cerr.plan_container.PlanC: pyCERR's plan container object.
     """
 
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
@@ -1173,8 +1178,9 @@ def getBsplineSmoothing(structNum, smootingFactor, planC, \
                 seg.points[:,0], seg.points[:,1]
                 numPts = len(seg.points[:,0])
                 if numPts > 3:
-                    tck, _ = splprep([seg.points[:,0], seg.points[:,1]], s = smootingFactor, per = True)
-                    smoothX, smoothY = splev(np.linspace(0, 1, numPts*2), tck, der = 0)
+                    tck, u = splprep([seg.points[:,0], seg.points[:,1]], s = smootingFactor, per = True)
+                    smoothX, smoothY = splev(np.linspace(0, 1, round(numPts*resolutionFactor)), tck, der = 0)
+                    #smoothX, smoothY = splev(u, tck)
                     zVals = np.full(len(smoothX), seg.points[0,2])
                     ptsM = np.asarray((smoothX, smoothY, zVals)).T
                 else:
@@ -1200,6 +1206,9 @@ def getBsplineSmoothing(structNum, smootingFactor, planC, \
         structNum = len(planC.structure) - 1
     else:
         planC.structure[structNum].contour = contour_list
+
+    if procSructName is not None:
+        planC.structure[structNum].structureName = procSructName
 
     planC.structure[structNum].rasterSegments = rs.generateRastersegs(planC.structure[structNum], planC)
 

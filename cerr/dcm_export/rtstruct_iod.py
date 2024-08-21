@@ -62,9 +62,14 @@ def getDcmTagVals(structNumV, planC, seriesOpts = {}):
     content_tags = {"ContentDescription": "",
         "ContentLabel": ""}
 
+    if "StructureSetLabel" in seriesOpts:
+        StructureSetLabel = seriesOpts['StructureSetLabel']
+    else:
+        StructureSetLabel = "RTStruct"
+
     struct_set_tags = {"InstanceNumber": "",
                      "StructureSetDescription": "",
-                     "StructureSetLabel": ""
+                     "StructureSetLabel": StructureSetLabel
                        }
 
     return pat_tags, study_tags, series_tags, equiqmt_tags, content_tags, struct_set_tags
@@ -183,7 +188,9 @@ def getROIContourSeq(structNumV, planC):
                 #tempPtsM = np.matmul(np.linalg.inv(Image2VirtualPhysicalTransM), tempPtsM.T)
                 #tempPtsM = np.matmult(Image2PhysicalTransM,tempPtsM)
                 tempPtsM = np.matmul(transM, tempPtsM.T)
-                dsContour.ContourData = tempPtsM[:3,:].flatten(order = "F").tolist()
+                contourData = tempPtsM[:3,:].flatten(order = "F").tolist()
+                contourData = [round(val,10) for val in contourData]
+                dsContour.ContourData = contourData
                 contourSeq.append(dsContour)
         dsROIContour.ContourSequence = contourSeq
         roiContourSeq.append(dsROIContour)
