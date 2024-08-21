@@ -34,7 +34,8 @@ dependencies = [
     'PyWavelets',
     'shapelysmooth',
     'matplotlib <= 3.9.0',
-    'ipywidgets'
+    'ipywidgets',
+    'surface-distance-based-measures @ git+https://github.com/google-deepmind/surface-distance'
 ]
 
 [project.urls]
