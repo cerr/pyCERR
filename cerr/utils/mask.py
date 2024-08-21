@@ -230,13 +230,13 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
             minr -= maskFlag
             maxr += maskFlag
             if maxr >= siz[0]:
-                maxr = (siz[0] - 1).astype(int)
+                maxr = int(siz[0] - 1)
             if minr < 0:
                 minr = 0
             minc -= maskFlag
             maxc += maskFlag
             if maxc >= siz[1]:
-                maxc = (siz[1] - 1).astype(int)
+                maxc = int(siz[1] - 1)
             if minc < 0:
                 minc = 0
 
@@ -244,7 +244,7 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
                 mins -= maskFlag
                 maxs += maskFlag
                 if maxs >= siz[2]:
-                    maxs = (siz[2] - 1).astype(int)
+                    maxs = int(siz[2] - 1)
                 if mins < 0:
                     mins = 0
 
