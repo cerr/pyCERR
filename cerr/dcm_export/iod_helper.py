@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 import numpy as np
 from pydicom import dcmread
-from pydicom.uid import generate_uid
+from pydicom.uid import generate_uid, PYDICOM_IMPLEMENTATION_UID
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
 from pydicom.uid import ImplicitVRLittleEndian
@@ -38,6 +38,7 @@ def getFileMeta(dataType) -> FileMetaDataset:
 
     file_meta.MediaStorageSOPClassUID = dataClassUID
     file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.ImplementationClassUID = PYDICOM_IMPLEMENTATION_UID
     #file_meta.ImplementationClassUID = "1.2.246.352.70.2.1.160.3"
     return file_meta
 

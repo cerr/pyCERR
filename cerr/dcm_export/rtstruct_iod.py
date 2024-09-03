@@ -177,7 +177,7 @@ def getROIContourSeq(structNumV, planC):
                 dsImg.ReferencedSOPClassUID = planC.scan[assocScanNum].scanInfo[slcNum].sopClassUID
                 dsImg.ReferencedSOPInstanceUID = planC.scan[assocScanNum].scanInfo[slcNum].sopInstanceUID
                 contourImgSeq.append(dsImg)
-                dsImg.ContourImageSequence = contourImgSeq
+                dsContour.ContourImageSequence = contourImgSeq
                 geom_type = 'CLOSED_PLANAR'
                 if seg.points.shape[0] == 1:
                     geom_type = 'POINT'
