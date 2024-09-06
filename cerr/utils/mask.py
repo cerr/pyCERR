@@ -128,7 +128,7 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3, shape='flat'):
     elif shape == 'sphere':
         x, y, z = np.meshgrid(np.arange(-sizePixels[0], sizePixels[0] + 1),
                               np.arange(-sizePixels[1], sizePixels[1] + 1),
-                              np.arange(-sizePixels[2], sizePixels[2] + 1))
+                              np.arange(-sizePixels[2], sizePixels[2] + 1),indexing='ij')
         structuringElement = ((x / sizePixels[0]) ** 2 +
                               (y / sizePixels[1]) ** 2 +
                               (z / sizePixels[2]) ** 2) <= 1
@@ -169,8 +169,19 @@ def morphologicalClosing(binaryMask, structuringElement):
     Returns:
         numpy.ndarray(dtype=bool): Closed mask using input structuring element.
     """
+    # Apply padding
+    padding = int(np.floor(structuringElement.shape[0]/2))
+    binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
 
-    closedMask = ndimage.binary_closing(binaryMask, structure=structuringElement)
+    # Closing
+    closedMaskPad = ndimage.binary_closing(binaryMaskPad, structure=structuringElement)
+
+    # Un-pad
+    if structuringElement.ndim==2:
+        closedMask = closedMaskPad[padding:-padding, padding:-padding]
+    elif  structuringElement.ndim == 3:
+        closedMask = closedMaskPad[padding:-padding, padding:-padding, padding:-padding]
+
     return closedMask
 
 
