@@ -454,7 +454,7 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
             dose_meta = populatePlanCField('dose', files)
             planC.dose.extend(dose_meta)
         else:
-            print(d["Modality"][0]+ " not supported")
+            print("Modality " + modality + " not supported")
 
     numStructs = len(planC.structure)
     numDoses = len(planC.dose)
