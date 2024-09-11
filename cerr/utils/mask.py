@@ -191,29 +191,42 @@ def blurring(binaryMask, sigmaVox, filtType='gaussian'):
 
     Args:
         binaryMask (numpy.array): Binary mask to blur.
-        sigmaVox (float): Sigma for Gaussian in units of voxels.
+        sigmaVox (float): Sigma for Gaussian OR filter radius for box filter (in units of voxels).
         filtType (string): [optional, default:'gaussian'] 'gaussian' or 'box' smoothing filter.
 
     Returns:
         numpy.ndarray(dtype=bool): Blurred mask using Gaussian blur with input sigma.
     """
 
+    origSize = binaryMask.shape
+    binaryMaskImg = sitk.GetImageFromArray(binaryMask.astype(int))
+    padded = False
+
     if filtType == 'gaussian':
         filter = sitk.SmoothingRecursiveGaussianImageFilter()
         filter.SetSigma(sigmaVox)
     elif filtType == 'box':
+        padded = True
+        padMaskImg = sitk.MirrorPad(binaryMaskImg, [sigmaVox] * 3, [sigmaVox] * 3)
+        padMaskArr = sitk.GetArrayFromImage(padMaskImg)
         filter = sitk.BoxMeanImageFilter()
         filter.SetRadius(sigmaVox)
 
-    dim = binaryMask.shape
-    blurredMask3M = np.empty_like(binaryMask, dtype=float)
-    for slc in range(dim[2]):
-        if not np.any(binaryMask[:,:,slc]):
-            blurredMask3M[:,:,slc] = binaryMask[:,:,slc]
+    fullSize = padMaskArr.shape
+    blurredMask3M = np.empty_like(padMaskArr, dtype=float)
+    for slc in range(fullSize[2]):
+        if not np.any(binaryMask[:, :, slc]):
+            blurredMask3M[:, :, slc] = padMaskArr[:, :, slc]
             continue
-        img = sitk.GetImageFromArray(binaryMask[:,:,slc].astype(float))
-        blurImage = filter.Execute(img)
-        blurredMask3M[:,:,slc] = sitk.GetArrayFromImage(blurImage)
+        img = sitk.GetImageFromArray(padMaskArr[:, :, slc].astype(float))
+        blurImageFull = filter.Execute(img)
+        if padded:
+            startIdx = [(f - o) // 2 for f, o in zip(fullSize, origSize)]
+            blurImage = sitk.Crop(blurImageFull, startIdx)
+        else:
+            blurImage = blurImageFull
+
+        blurredMask3M[:, :, slc] = sitk.GetArrayFromImage(blurImage)
     return blurredMask3M
 
 
