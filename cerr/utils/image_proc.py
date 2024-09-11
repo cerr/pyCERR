@@ -128,7 +128,7 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
         xOutV = np.arange(xV[0] - (xPad/2)*voxSizeV[0],
                           xV[-1]+(xPad/2)*voxSizeV[0], voxSizeV[0])
-        yOutV = np.arange(yV[0] - (yPad/2)*voxSizeV[1], \
+        yOutV = np.arange(yV[0] - (yPad/2)*voxSizeV[1],
                           yV[-1]+(yPad/2)*voxSizeV[1], voxSizeV[1])
         zOutV = zV
 
@@ -289,12 +289,9 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 maskOut4M[rMin:rMax+1, cMin:cMax+1, slcNum, :] = mask4M[outRmin:outRmax+1,\
                                                                  outCmin:outCmax+1, slcNum, :]
             # Return co-ordinates of cropped region
-            xOutM[:, slcNum] = np.arange(xV[outCmin, slcNum],
-                                         xV[outCmax, slcNum] + voxSizeV[0], voxSizeV[0] + EPS)
-            yOutM[:, slcNum] = np.arange(yV[outRmin, slcNum],
-                                         yV[outRmax, slcNum] + voxSizeV[1], voxSizeV[1] - EPS)
-
-        gridOutS = (xOutM, yOutM, zV)                           
+            xOutM[:, slcNum] = np.arange(xV[outCmin], xV[outCmax] + voxSizeV[0], voxSizeV[0] + EPS)
+            yOutM[:, slcNum] = np.arange(yV[outRmin], yV[outRmax] + voxSizeV[1], voxSizeV[1] - EPS)
+            gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower in ['bilinear','bicubic','nearest']:
         #3D resizing. TBD: 2D
