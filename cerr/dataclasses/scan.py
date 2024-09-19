@@ -766,6 +766,18 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
                        - scan_info.imageOrientationPatient[[2,0,1]] * scan_info.imageOrientationPatient[[4,5,3]]
         scan_info.zValue = - np.sum(slice_normal * scan_info.imagePositionPatient) / 10
 
+        bVal1 = ("0043", "1039") # GE
+        bVal2 = ("0018", "9087") # Philips
+        bVal3 = ("0019", "100C") # Siemens
+        temporalPos = ("0020", "0100")
+        triggerTime = ("0018", "1060")
+        if bVal1 in ds: scan_info.bValue = ds["0043", "1039"].value
+        if bVal2 in ds: scan_info.bValue = ds["0018", "9087"].value
+        if bVal3 in ds: scan_info.bValue = ds["0019", "100C"].value
+        if temporalPos in ds: scan_info.temporalPositionIndex = ds["0020", "0100"].value
+        if triggerTime in ds: scan_info.triggerTime = ds["0018", "1060"].value
+
+
         scan_info = populateRadiopharmaFields(scan_info, ds)
 
     else:

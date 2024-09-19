@@ -93,6 +93,7 @@ class ScanInfo:
         windowCenter (float): Window center used for visualization
         windowWidth (float): Window width used for visualization
         temporalPositionIndex (float): Temporal position in the dynamic sequence from the FrameContentSequence.
+        triggerTime (float): Time, in msec, between peak of the R wave and the peak of the echo produced.
         frameAcquisitionDuration (float): Duration of Frame acquisition from the FrameContentSequence.
         frameReferenceDateTime (str): FrameReferenceDateTime from the FrameContentSequence
 
@@ -189,6 +190,7 @@ class ScanInfo:
     windowCenter: float = '' #np.NAN
     windowWidth: float = '' #np.NAN
     temporalPositionIndex: float = '' #np.NAN
+    triggerTime: float = ''
     frameAcquisitionDuration: float = '' #np.NAN
     frameReferenceDateTime: str = ''
 
