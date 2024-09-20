@@ -7,15 +7,19 @@ accessing the Dose metadata in CERR coordinate system.
 
 """
 
+import json
 from dataclasses import dataclass, field
+from math import sqrt
+
+import nibabel as nib
 import numpy as np
 from pydicom import dcmread
+
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure
 from cerr.utils import uid
 from cerr.utils.interp import finterp3
-import nibabel as nib
-import json
+
 
 def get_empty_list():
     return []
@@ -409,3 +413,35 @@ def getDoseNumFromUID(assocDoseUID,planC) -> int:
         return uid_list.index(assocDoseUID)
     else:
         return None
+
+def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = None):
+    """
+        Function to convert input dose to equivalent in specified fraction size.
+
+        Args:
+                       dose (np.ndarray): Dose array  OR
+                                   (int): Index to dose in planC
+                        stdFrxSize (int): Desired output fraction size
+                        abRatio (float) : Radiosensitivity in Gy
+            planC (plan_container.planC): [optional, default=None] pyCERR's plan container object.
+                                          Required when dose index specified via `dose` input.
+                      inputFrxSize (int): [optional, default=None] Input fraction size.
+                                          Required when dose array directly specified via `dose` input.
+
+        Returns:
+            correctedDose: Equivalent dose in specified fraction size.
+
+        """
+    if isinstance(dose, int):
+        beamSOPInstances = [planC.beams[beamNum].SOPInstanceUID for beamNum in planC.beams]
+        ReferencedSOPInstanceUID = planC.dose[dose].refRTPlanSopInstanceUID
+        planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
+        numFractions = planC.beams(planIdx).FractionGroupSequence.NumberOfFractionsPlanned
+        doseArray = planC.dose[dose].doseArray
+        inputFrxSize = doseArray/numFractions
+    else:
+        doseArray = dose
+
+    correctedDose = doseArray * (inputFrxSize + abRatio)/(stdFrxSize + abRatio)
+
+    return correctedDose
