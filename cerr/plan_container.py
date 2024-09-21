@@ -625,6 +625,9 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
         planC.scan.append(scan)
     return planC
 
+def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose"):
+    planC = rtds.importNii(nii_file_name, assocScanNum, planC)
+    return planC
 
 def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
     """This routine imports segmentation from NifTi file into planC
@@ -651,9 +654,6 @@ def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
     #     planC.structure[str_num].rasterSegments = rs.generate_rastersegs(planC.structure[str_num],planC)
     return planC
 
-
-def loadNiiDose(nii_file_name, planC):
-    pass
 
 def loadNiiVf(dvf_file, baseScanNum, planC):
     """This routine loads deformation vector field from file into planC

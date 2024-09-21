@@ -16,6 +16,9 @@ from cerr.utils import uid
 from cerr.utils.interp import finterp3
 import nibabel as nib
 import json
+import os
+import SimpleITK as sitk
+
 
 def get_empty_list():
     return []
@@ -149,9 +152,9 @@ class Dose:
 
         doseAffine3M = self.Image2PhysicalTransM.copy()
         # nii row and col are reverse of dicom, convert cm to mm
-        doseAffine3M[0,:] = -doseAffine3M[0,:] * 10
-        doseAffine3M[1,:] = -doseAffine3M[1,:] * 10
-        doseAffine3M[2,2] = doseAffine3M[2,2] * 10
+        doseAffine3M[0,:] = -doseAffine3M[0,:] * 10 # nii row is reverse of dicom, cm to mm
+        doseAffine3M[1,:] = -doseAffine3M[1,:] * 10 # nii col is reverse of dicom, cm to mm
+        doseAffine3M[2,:] = doseAffine3M[2,:] * 10 # cm to mm
         return doseAffine3M
 
     def saveNii(self, niiFileName):
@@ -201,17 +204,20 @@ class Dose:
                     self.refStructSetSopInstanceUID = plan.ReferencedStructureSetSequence[0].ReferencedSOPInstanceUID
                     assoc_str_num = structure.getStructNumFromSOPInstanceUID(self.refStructSetSopInstanceUID,planC)
                     break
-        if assoc_str_num != None:
+        if self.assocScanUID == "" and assoc_str_num != None:
             assocScanUID = planC.structure[assoc_str_num].assocScanUID
             assoc_scan_num = scn.getScanNumFromUID(assocScanUID,planC)
             if planC.scan[assoc_scan_num].scanInfo[0].frameOfReferenceUID == self.frameOfReferenceUID:
                 self.assocScanUID = assocScanUID
-        else: # associate based on frame of reference UID
+        elif self.assocScanUID == "": # associate based on frame of reference UID
             for scan_num, scan in enumerate(planC.scan):
                 if scan.scanInfo[0].frameOfReferenceUID == self.frameOfReferenceUID:
                     assoc_scan_num = scan_num
                     self.assocScanUID = scan.scanUID
                     break
+        else:
+            assoc_scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
+
 
         im_to_phys_transM = planC.scan[assoc_scan_num].Image2PhysicalTransM
         im_to_virtual_phys_transM = planC.scan[assoc_scan_num].Image2VirtualPhysicalTransM
@@ -391,6 +397,103 @@ def loadDose(file_list):
             dose_list.append(dose_meta)
 
     return dose_list
+
+
+def importNii(file_list, assocScanNum, planC):
+    """This routine imports RT dose distributions from a list of nii files into planC.
+
+    Args:
+        file_list (List or str): List of nii file paths or a string containing path for a single file.
+        assocScanNum (int): index of scan in planC to associate the segmentation.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object
+    """
+
+    if isinstance(file_list,str) and os.path.exists(file_list):
+        file_list = [file_list]
+    for file in file_list:
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(file)
+        reader.LoadPrivateTagsOn()
+        reader.ReadImageInformation()
+        image = reader.Execute()
+
+        # Assign direction
+        direction = planC.scan[assocScanNum].getScanOrientation()
+        dirFlipDict = {'L': 'R',
+                       'R': 'L',
+                       'S': 'I',
+                       'I': 'S',
+                       'P': 'A',
+                       'A': 'P'
+                        }
+        if scn.flipSliceOrderFlag(planC.scan[0]):
+            direction = direction[:2] + dirFlipDict[direction[2]]
+        image = sitk.DICOMOrient(image,direction)
+        numAxes = len(image.GetSize())
+        if numAxes == 4:
+            Exception('4-D dose not supported')
+        # Get numpy array for scan
+        axisOff = numAxes - 3
+        doseArray3M = sitk.GetArrayFromImage(image)
+        doseArray3M = np.moveaxis(doseArray3M,[axisOff+0,axisOff+1,axisOff+2],[axisOff+2,axisOff+0,axisOff+1])
+        siz = doseArray3M.shape
+
+        #Construct position matrix from ITK Image
+        #pos1V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,0))) / 10
+        #pos2V = np.asarray(image.TransformIndexToPhysicalPoint((0,0,1))) / 10
+        #deltaPosV = pos2V - pos1V
+        pixelSpacing = np.asarray(image.GetSpacing()[:2]) / 10
+        img_ori = np.array(image.GetDirection())
+        dir_cosine_mat = img_ori.reshape(numAxes, numAxes,order="C")
+        dir_cosine_mat = dir_cosine_mat[:3,:3]
+        #pixelSiz = image.GetSpacing()
+        dcmImgOri = dir_cosine_mat.reshape(9,order='F')[:6]
+        #original_orient_str = sitk.DICOMOrientImageFilter_GetOrientationFromDirectionCosines(img_ori)
+        slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+                       - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        slice_normal = slice_normal[:,None]
+
+        doseZValuesV = []
+        for slc in range(siz[axisOff+2]):
+            if numAxes == 3:
+                imgPatPos = np.asarray(image.TransformIndexToPhysicalPoint((0,0,slc)))
+            doseZValuesV.append(- np.sum(slice_normal * imgPatPos) / 10)
+
+        ipp = np.asarray(image.TransformIndexToPhysicalPoint((0,0,0))) / 10
+        vec3 = - slice_normal * (doseZValuesV[1]-doseZValuesV[0]) # -ve since doseZValuesV have been negated above
+        position_matrix_dose = np.hstack((np.matmul(dcmImgOri.reshape(3, 2, order="F"), np.diag(pixelSpacing)),
+                                       np.array([[vec3[0,0], ipp[0]],[vec3[1,0], ipp[1]], [vec3[2,0], ipp[2]]])))
+        position_matrix_dose = np.vstack((position_matrix_dose, np.array([0, 0, 0, 1])))
+
+        dose_meta = Dose()
+
+        dose_meta.Image2PhysicalTransM = position_matrix_dose
+
+        dose_meta.verticalGridInterval = -pixelSpacing[0]
+        dose_meta.horizontalGridInterval = pixelSpacing[1]
+
+        dose_meta.sizeOfDimension1 = siz[1]
+        dose_meta.sizeOfDimension2 = siz[0]
+        dose_meta.sizeOfDimension3 = siz[2]
+
+        # to do - get refStructSetSopInstanceUID based on RTPLAN when available
+
+        dose_meta.doseArray = doseArray3M
+
+        # #dose_meta.refStructSetSopInstanceUID
+        dose_meta.doseUID = uid.createUID("dose")
+
+        dose_meta.assocScanUID = planC.scan[assocScanNum].scanUID
+
+        dose_meta.convertDcmToCerrVirtualCoords(planC)
+
+        planC.dose.append(dose_meta)
+
+    return planC
+
 
 
 def getDoseNumFromUID(assocDoseUID,planC) -> int:
