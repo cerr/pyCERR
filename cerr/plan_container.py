@@ -474,11 +474,11 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         if len(ids) > 1:
             ctrList = planC.structure[structNum].contour
             sopInstanceUIDList = [c.referencedSopInstanceUID for c in ctrList if not isinstance(c,list)]
-        for id in ids:
-            scanSopInstanceUIDList = [s.sopInstanceUID for s in planC.scan[id].scanInfo]
-            if np.sum([s in scanSopInstanceUIDList for s in sopInstanceUIDList]) >= len(sopInstanceUIDList)/2:
-                planC.structure[structNum].assocScanUID = planC.scan[id].scanUID
-                break
+            for id in ids:
+                scanSopInstanceUIDList = [s.sopInstanceUID for s in planC.scan[id].scanInfo]
+                if np.sum([s in scanSopInstanceUIDList for s in sopInstanceUIDList]) >= len(sopInstanceUIDList)/2:
+                    planC.structure[structNum].assocScanUID = planC.scan[id].scanUID
+                    break
 
     # Fix assocScanUID for doses
     assocScanUIDList = [s.assocScanUID for s in planC.dose]
