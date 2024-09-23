@@ -175,21 +175,47 @@ def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     return basePlanC
 
 
-def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndex, deformS):
+def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS):
     """Routine to deform moving dose to fixed scan based on input transformation
 
     Args:
         basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
         baseScanIndex (int): index of fixed scan in planC.scan
         movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
-        movDoseIndex (int): index of moving dose in planC.dose
+        movDoseIndexV (int): index of moving dose in planC.dose
         deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with the deformed dose added to planC.dose attribute
     """
 
-    pass
+    if not isinstance(movDoseIndexV, (list, np.ndarray)):
+        movDoseIndexV = [movDoseIndexV]
+
+    dirpath = tempfile.mkdtemp()
+    fixed_img_nii = os.path.join(dirpath, 'ref.nii.gz')
+    moving_dose_nii = os.path.join(dirpath, 'dose.nii.gz')
+    warped_dose_nii = os.path.join(dirpath, 'warped.nii.gz')
+    bsplines_coeff_file = deformS.deformOutFilePath
+    basePlanC.scan[baseScanIndex].saveNii(fixed_img_nii)
+    currDir = os.getcwd()
+    os.chdir(dirpath)
+    for movDoseIndex in movDoseIndexV:
+        doseName = movPlanC.dose[movDoseIndex].fractionGroupID
+        doseUnits = movPlanC.dose[movDoseIndex].doseUnits
+        movPlanC.dose[movDoseIndex].saveNii(moving_dose_nii)
+        plm_warp_str_cmd = "plastimatch warp --input " + moving_dose_nii + \
+                      " --output-img " + warped_dose_nii + \
+                      " --xf " + bsplines_coeff_file + \
+                      " --fixed " + fixed_img_nii + \
+                      " --interpolation linear"
+        os.system(plm_warp_str_cmd)
+        basePlanC = pc.loadNiiDose(warped_dose_nii, baseScanIndex, basePlanC, doseName)
+        basePlanC.dose[-1].doseUnits = doseUnits
+
+    os.chdir(currDir)
+
+    return basePlanC
 
 
 def warpStructures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
