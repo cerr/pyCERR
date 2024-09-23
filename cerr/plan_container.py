@@ -850,13 +850,13 @@ def parseDcmHeader(dcm_dir):
     from pydicom import dataelem
 
     # Patient Name, Ptient ID, StudyInstanceUID, SeriesInstanceUID,
-    # Modality, b-value * 3, temporalIndex, trigger, numSlices
+    # Modality, b-value * 3, temporalIndex, trigger, numSlices, EchoTime
     tag_list = [Tag(0x0010,0x0010), Tag(0x0010,0x0010), Tag(0x0020,0x000D), Tag(0x0020,0x000E),
         Tag(0x0008, 0x0060), Tag(0x0043,0x1039), Tag(0x0018,0x9087), Tag(0x0019,0x100C),
-        Tag(0x0020,0x0100), Tag(0x0018,0x1060), Tag(0x0021,0x104F)]
+        Tag(0x0020,0x0100), Tag(0x0018,0x1060), Tag(0x0021,0x104F), Tag(0x0018,0x0081)]
     tag_heading = ["PatientName","PatientID","StudyInstanceUID","SeriesInstanceUID",
                    "Modality","bValue1","bValue2","bValue3","TemporalPosition",
-                   "TriggerTime","NumSlices","FilePath"]
+                   "TriggerTime","NumSlices","EchoTime","FilePath"]
     img_meta = []
     for root, _, files in os.walk(dcm_dir):
         for i,file in enumerate(files):

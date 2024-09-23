@@ -286,7 +286,7 @@ class Scan:
 
         position_matrix = np.vstack((position_matrix, np.array([0, 0, 0, 1])))
 
-        positionMatrixInv = np.linalg.inv(position_matrix)
+        #positionMatrixInv = np.linalg.inv(position_matrix)
         self.Image2PhysicalTransM = position_matrix
 
         # Get DICOM x,y,z coordinates of the center voxel.
