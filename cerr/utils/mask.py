@@ -213,20 +213,20 @@ def blurring(binaryMask, sigmaVox, filtType='gaussian'):
         filter.SetRadius(sigmaVox)
 
     fullSize = padMaskArr.shape
-    blurredMask3M = np.empty_like(padMaskArr, dtype=float)
+    blurredMaskPad3M = np.zeros((binaryMask.shape[0], binaryMask.shape[1], fullSize[2]), dtype=float)
     for slc in range(fullSize[2]):
-        if not np.any(binaryMask[:, :, slc]):
-            blurredMask3M[:, :, slc] = padMaskArr[:, :, slc]
-            continue
         img = sitk.GetImageFromArray(padMaskArr[:, :, slc].astype(float))
         blurImageFull = filter.Execute(img)
         if padded:
             startIdx = [(f - o) // 2 for f, o in zip(fullSize, origSize)]
-            blurImage = sitk.Crop(blurImageFull, startIdx)
+            blurImage = sitk.Crop(blurImageFull, startIdx, startIdx)
         else:
             blurImage = blurImageFull
-
-        blurredMask3M[:, :, slc] = sitk.GetArrayFromImage(blurImage)
+        blurredMaskPad3M[:, :, slc] = sitk.GetArrayFromImage(blurImage)
+    if padded and sigmaVox > 0:
+        blurredMask3M = blurredMaskPad3M[:, :, sigmaVox:-sigmaVox]
+    else:
+        blurredMask3M = blurredMaskPad3M
     return blurredMask3M
 
 
