@@ -456,6 +456,38 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         else:
             print("Modality " + modality + " not supported")
 
+    # Fix duplicate scanUID in case of multiple volumes belong to the same series
+    scanUIDList = np.asarray([s.scanUID for s in planC.scan])
+    uniqScanUIDList = np.unique(scanUIDList)
+    for uid in uniqScanUIDList:
+        ids = np.where(scanUIDList == uid)[0]
+        if len(ids) > 1:
+            cnt = 1
+            for id in ids:
+                planC.scan[id].scanUID = planC.scan[id].scanUID + '.' + str(cnt)
+                cnt += 1
+
+    # Fix assocScanUID for structures
+    assocScanUIDList = [s.assocScanUID for s in planC.structure]
+    for structNum, uid in enumerate(assocScanUIDList):
+        ids = np.where(scanUIDList == uid)[0]
+        if len(ids) > 1:
+            ctrList = planC.structure[structNum].contour
+            sopInstanceUIDList = [c.referencedSopInstanceUID for c in ctrList if not isinstance(c,list)]
+        for id in ids:
+            scanSopInstanceUIDList = [s.sopInstanceUID for s in planC.scan[id].scanInfo]
+            if np.sum([s in scanSopInstanceUIDList for s in sopInstanceUIDList]) >= len(sopInstanceUIDList)/2:
+                planC.structure[structNum].assocScanUID = planC.scan[id].scanUID
+                break
+
+    # Fix assocScanUID for doses
+    assocScanUIDList = [s.assocScanUID for s in planC.dose]
+    for doseNum, uid in enumerate(assocScanUIDList):
+        ids = np.where(scanUIDList == uid)[0]
+        if len(ids) > 1:
+            planC.dose[doseNum].assocScanUID = planC.scan[id[0]].scanUID
+
+
     numStructs = len(planC.structure)
     numDoses = len(planC.dose)
 
