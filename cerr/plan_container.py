@@ -659,6 +659,7 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
 
 def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose"):
     planC = rtds.importNii(nii_file_name, assocScanNum, planC)
+    planC.dose[-1].fractionGroupID = fractionGroupID
     return planC
 
 def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
@@ -842,6 +843,27 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     #scan.convertDcmToRealWorldUnits()
     planC.scan.append(scan)
     return planC
+
+
+def importDoseArray(dose3M, xV, yV, zV, assocDoseNum, planC, fractionGroupID):
+    """This routine imports rt dose from numpy array into planC
+
+    Args:
+        dose3M (numpy.ndarray):
+        xV (numpy.ndarray):
+        yV (numpy.ndarray):
+        zV (numpy.ndarray):
+        assocDoseNum (int):
+        planC (cerr.plan_container.PlanC):
+        fractionGroupID (str):
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+
+    """
+
+    pass
+
 
 def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
     """

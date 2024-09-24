@@ -20,6 +20,7 @@ import nibabel as nib
 import json
 import os
 import SimpleITK as sitk
+from cerr.radiomics.preprocess import imgResample3D
 
 
 def get_empty_list():
@@ -583,3 +584,26 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
     correctedDose = (-b + sqrt(b ^ 2 - 4 * a * c)) / (2 * a)
 
     return correctedDose
+
+
+def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
+
+    #correctionType = fxCorrectDict['correctionType']
+    #stdFrxSize = fxCorrectDict['stdFrxSize']
+    #abRatio = fxCorrectDict['abRatio']
+
+    xRefV, yRefV, zRefV = planC.dose[refDoseInd].getDoseXYZVals()
+
+    summedDose3M = planC.dose[refDoseInd].doseArray
+    for doseNum in doseIndV:
+        if doseNum == refDoseInd:
+            continue
+        xV, yV, zV = planC.dose[doseNum].getDoseXYZVals()
+        doseArray = planC.dose[doseNum].doseArray
+        #doseArray = fractionation corretion based on fxCorrectDict
+        summedDose3M += imgResample3D(doseArray, xV, yV, zV,\
+                                xRefV, yRefV, zRefV, 'sitkLinear', 0)
+
+
+
+    return summedDose3M # will be the same size as refDoseInd.
