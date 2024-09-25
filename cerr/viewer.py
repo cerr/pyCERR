@@ -906,6 +906,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     if len(dvf_layer) > 0:
         update_colorbar(dvf_layer[0])
 
+    viewer.show(block=False)
     napari.run()
 
     # Set Image colorbar active
