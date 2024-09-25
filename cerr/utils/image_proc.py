@@ -286,12 +286,11 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
                 scanOut3M[rMin:rMax+1, cMin:cMax+1, slcNum] = scan3M[outRmin:outRmax+1,\
                                                               outCmin:outCmax+1, slcNum]
             if mask4M is not None:
-                print('Not none')
                 maskOut4M[rMin:rMax+1, cMin:cMax+1, slcNum, :] = mask4M[outRmin:outRmax+1,\
                                                                  outCmin:outCmax+1, slcNum, :]
             # Return co-ordinates of cropped region
-            xOutM[:, slcNum] = np.arange(xV[outCmin], xV[outCmax] + voxSizeV[0], voxSizeV[0] + EPS)
-            yOutM[:, slcNum] = np.arange(yV[outRmin], yV[outRmax] + voxSizeV[1], voxSizeV[1] - EPS)
+            xOutM[:, slcNum] = np.arange(xV[outCmin,slcNum], xV[outCmax,slcNum] + voxSizeV[0], voxSizeV[0] + EPS)
+            yOutM[:, slcNum] = np.arange(yV[outRmin,slcNum], yV[outRmax,slcNum] + voxSizeV[1], voxSizeV[1] - EPS)
             gridOutS = (xOutM, yOutM, zV)
 
     elif methodLower in ['bilinear','bicubic','nearest']:
