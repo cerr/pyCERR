@@ -119,7 +119,7 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3, shape='flat'):
 
     if np.ndim(sizeCm) == 0:
         sizeCmV = np.repeat(sizeCm, dimensions)
-    elif np.ndim(sizeCm) == 1 and len(sizeCm)==3:
+    elif np.ndim(sizeCm) == 1 and len(sizeCm)==len(resolutionCmV):
         sizeCmV = sizeCm
     else:
         raise ValueError('Invalid input sizeCm. Must be scalar or list [size_x_cm, size_y_cm, size_z_cm]. ')
