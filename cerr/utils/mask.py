@@ -179,7 +179,13 @@ def morphologicalClosing(binaryMask, structuringElement):
     binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
 
     # Closing
-    closedMaskPad = ndimage.binary_closing(binaryMaskPad, structure=structuringElement)
+    if binaryMask.ndim == 3 and  structuringElement.ndim == 2:
+        closedMaskPad = np.zeros(binaryMaskPad.shape)
+        for slc in range(binaryMaskPad.shape[2]):
+            closedMaskPad[:,:,slc] = ndimage.binary_closing(binaryMaskPad[:,:,slc], structure=structuringElement)
+    elif binaryMask.ndim == 3 and structuringElement.ndim == 3:
+        binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
+        closedMaskPad = ndimage.binary_closing(binaryMaskPad, structure=structuringElement)
 
     # Un-pad
     if structuringElement.ndim==2:
