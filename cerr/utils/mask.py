@@ -117,7 +117,12 @@ def createStructuringElement(sizeCm, resolutionCmV, dimensions=3, shape='flat'):
         structuringElement (np.ndarray): Structuring element.
     """
 
-    sizeCmV = np.repeat(sizeCm, dimensions)
+    if np.ndim(sizeCm) == 0:
+        sizeCmV = np.repeat(sizeCm, dimensions)
+    elif np.ndim(sizeCm) == 1 and len(sizeCm)==3:
+        sizeCmV = sizeCm
+    else:
+        raise ValueError('Invalid input sizeCm. Must be scalar or list [size_x_cm, size_y_cm, size_z_cm]. ')
     sizePixels = np.ceil(np.divide(sizeCmV, np.abs(resolutionCmV)))
     evenIdxV = sizePixels % 2 == 0
     if any(evenIdxV):
@@ -305,7 +310,7 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
 
     return minr, maxr, minc, maxc, mins, maxs, bboxmask
 
-def closeMask(mask3M, inputResV, structuringElementSizeCm):
+def closeMask(mask3M, inputResV, structuringElementSizeCm, shape='flat'):
 
     """
     Function for morphological closing and hole-filling for binary masks
@@ -314,14 +319,13 @@ def closeMask(mask3M, inputResV, structuringElementSizeCm):
         mask3M (np.ndarray): Binary mask to close and hole-fill.
         inputResV (np.array): Physical Resolution of the mask in cm.
         structuringElementSizeCm( float): Size of structuring element for closing in cm
-
+        shape (str): Shape of structuring element. May be 'flat', 'disk', or 'sphere'.
     Returns:
         filledMask3M (np.ndarray(dtype=bool)): Filled mask.
     """
-
     # Create structuring element
     structuringElement = createStructuringElement(structuringElementSizeCm,\
-                                                  inputResV, dimensions=3)
+                                                  inputResV, dimensions=3, shape=shape)
 
     # Apply morphological closing
     closedMask3M = morphologicalClosing(mask3M, structuringElement)
@@ -358,6 +362,7 @@ def largestConnComps(mask3M, numConnComponents, minSize=0, dim=3):
 
         # Sort by size
         ccSiz = np.array([len(labeledArray[labeledArray == i]) for i in range(1, numFeatures + 1)])
+
         # Filter min acceptable
         ccSiz[ccSiz < minSize] = 0
         rankV = np.argsort(ccSiz)[::-1]
