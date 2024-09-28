@@ -137,6 +137,8 @@ class Structure:
 
         assocScanUID = self.assocScanUID
         scan_num = scn.getScanNumFromUID(assocScanUID,planC)
+        if scan_num == None:
+            return self
         im_to_virtual_phys_transM = planC.scan[scan_num].Image2VirtualPhysicalTransM
         im_to_phys_transM = planC.scan[scan_num].Image2PhysicalTransM
         position_matrix_inv = np.linalg.inv(im_to_phys_transM)

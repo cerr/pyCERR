@@ -491,11 +491,20 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     numStructs = len(planC.structure)
     numDoses = len(planC.dose)
 
+    # Remove structures not associated with any scan
+    scanUIDs = [s.scanUID for s in planC.scan]
+
     # Convert structure coordinates to CERR's virtual coordinates
+    structsToRemove = []
     for str_num in range(numOrigStructs,numStructs):
+        if planC.structure[str_num].assocScanUID not in scanUIDs:
+            structsToRemove.append(str_num)
+            continue
         planC.structure[str_num].convertDcmToCerrVirtualCoords(planC)
         #planC.structure[str_num].generate_rastersegs(planC) # this calls polyFill
         planC.structure[str_num].rasterSegments = rs.generateRastersegs(planC.structure[str_num], planC)
+    for str_num in range(len(structsToRemove)-1,-1,-1):
+        del(planC.structure[str_num])
 
     # Convert dose coordinates to CERR's virtual coordinates
     for dose_num in range(numOrigDoses,numDoses):
