@@ -504,7 +504,7 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         #planC.structure[str_num].generate_rastersegs(planC) # this calls polyFill
         planC.structure[str_num].rasterSegments = rs.generateRastersegs(planC.structure[str_num], planC)
     for str_num in range(len(structsToRemove)-1,-1,-1):
-        del(planC.structure[str_num])
+        del(planC.structure[structsToRemove[str_num]])
 
     # Convert dose coordinates to CERR's virtual coordinates
     for dose_num in range(numOrigDoses,numDoses):
@@ -931,10 +931,12 @@ def parseDcmHeader(dcm_dir):
                 for t in tag_list:
                     if t in ds:
                         val = ds[t].value
-                    if isinstance(val, dataelem.MultiValue):
-                        val = tuple(val)
-                    else: #isinstance(val, pydicom.valuerep.PersonName):
-                        val = str(val)
+                        if isinstance(val, dataelem.MultiValue):
+                            val = tuple(val)
+                        else: #isinstance(val, pydicom.valuerep.PersonName):
+                            val = str(val)
+                    else:
+                        val = ''
                     tag_vals.append(val)
                 tag_vals.append(ds.filename)
                 img_meta.append(tag_vals)
