@@ -907,7 +907,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         update_colorbar(dvf_layer[0])
 
     viewer.show(block=False)
-    napari.run()
+    #napari.run()
 
     # Set Image colorbar active
     colorbars_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
