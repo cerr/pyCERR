@@ -179,18 +179,22 @@ def morphologicalClosing(binaryMask, structuringElement):
     binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
 
     # Closing
-    if binaryMask.ndim == 3 and  structuringElement.ndim == 2:
+    if binaryMask.ndim == 3 and structuringElement.ndim == 2:
         closedMaskPad = np.zeros(binaryMaskPad.shape)
         for slc in range(binaryMaskPad.shape[2]):
-            closedMaskPad[:,:,slc] = ndimage.binary_closing(binaryMaskPad[:,:,slc], structure=structuringElement)
+            closedMaskPad[:, :, slc] = ndimage.binary_closing(binaryMaskPad[:, :, slc], structure=structuringElement)
     elif binaryMask.ndim == 3 and structuringElement.ndim == 3:
         binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
         closedMaskPad = ndimage.binary_closing(binaryMaskPad, structure=structuringElement)
+    elif binaryMask.ndim == 2 and structuringElement.ndim == 2:
+        binaryMaskPad = np.pad(binaryMask, padding, mode='constant', constant_values=0)
+        closedMaskPad = ndimage.binary_closing(binaryMaskPad, structure=structuringElement)
+
 
     # Un-pad
-    if structuringElement.ndim==2:
+    if structuringElement.ndim == 2:
         closedMask = closedMaskPad[padding:-padding, padding:-padding]
-    elif  structuringElement.ndim == 3:
+    elif structuringElement.ndim == 3:
         closedMask = closedMaskPad[padding:-padding, padding:-padding, padding:-padding]
 
     return closedMask
@@ -573,11 +577,11 @@ def getPatientOutline(scan3M, outThreshold=-400, slicesV=None,
                 thresh2M = binary_fill_holes(thresh2M)
 
                 # Remove small islands
-                labeled_array, num_features = ndimage.label(thresh2M)
-                component_sizes = np.bincount(labeled_array.ravel())
-                too_small = component_sizes < discardSize
-                too_small_mask = too_small[labeled_array]
-                thresh2M[too_small_mask] = 0
+                labeledArray, numFeatures = ndimage.label(thresh2M)
+                componentSizes = np.bincount(labeledArray.ravel())
+                tooSmall = componentSizes < discardSize
+                tooSmallMask = tooSmall[labeledArray]
+                thresh2M[tooSmallMask] = 0
 
                 thresh2M = morphologicalClosing(thresh2M,square(5))
                 smoothedLabelM = uniform_filter(thresh2M.astype(float), size=5)
