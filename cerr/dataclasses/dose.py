@@ -160,6 +160,30 @@ class Dose:
         doseAffine3M[2,:] = doseAffine3M[2,:] * 10 # cm to mm
         return doseAffine3M
 
+    def getSitkImage(self):
+
+        sitkArray = np.transpose(self.doseArray, (2, 0, 1)) # z,y,x order
+        if not self.cerrDcmSliceDirMatch:
+            sitkArray = np.flip(sitkArray, axis = 0)
+
+        originXyz = list(np.matmul(self.Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
+        xV, yV, zV = self.getDoseXYZVals()
+        dx = np.abs(xV[1] - xV[0]) * 10
+        dy = np.abs(yV[1] - yV[0]) * 10
+        dz = np.abs(zV[1] - zV[0]) * 10
+        spacing = [dx, dy, dz]
+        img_ori = self.imageOrientationPatient
+        slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+                       - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+        # Get row-major directions for ITK
+        dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
+        direction = dir_cosine_mat.reshape(9,order='C')
+        img = sitk.GetImageFromArray(sitkArray)
+        img.SetOrigin(originXyz)
+        img.SetSpacing(spacing)
+        img.SetDirection(direction)
+        return img
+
     def saveNii(self, niiFileName):
         """ Routine to save pyCERR Dose object to NifTi file
 
@@ -170,15 +194,19 @@ class Dose:
             int: 0 when NifTi file is written successfully.
         """
 
-        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
-        doseArray = self.doseArray
-        doseArray = np.moveaxis(doseArray,[0,1],[1,0])
-        #doseArray = np.flip(doseArray,axis=[0,1])
-        if not self.cerrDcmSliceDirMatch:
-            doseArray = np.flip(doseArray,2)
-        doseAffine3M = self.getNiiAffine()
-        dose_img = nib.Nifti1Image(doseArray, doseAffine3M)
-        nib.save(dose_img, niiFileName)
+        img = self.getSitkImage()
+        sitk.WriteImage(img, niiFileName)
+
+        # # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+        # doseArray = self.doseArray
+        # doseArray = np.moveaxis(doseArray,[0,1],[1,0])
+        # #doseArray = np.flip(doseArray,axis=[0,1])
+        # if not self.cerrDcmSliceDirMatch:
+        #     doseArray = np.flip(doseArray,2)
+        # doseAffine3M = self.getNiiAffine()
+        # dose_img = nib.Nifti1Image(doseArray, doseAffine3M)
+        # nib.save(dose_img, niiFileName)
+
 
     def convertDcmToCerrVirtualCoords(self, planC):
         """Routine to get scan from DICOM to pyCERR virtual coordinates. More information

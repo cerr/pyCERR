@@ -102,22 +102,27 @@ class Scan:
             int: 0 when NifTi file is written successfully.
         """
 
-        affine3M = self.getNiiAffine()
-        scan3M = self.getScanArray()
-        scan3M = np.moveaxis(scan3M,[0,1],[1,0])
-        #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
-        # Determine whether CERR slice order matches DICOM
-        # dcmImgOri = self.scanInfo[0].imageOrientationPatient
-        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
-        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-        # slice_normal = slice_normal.reshape((1,3))
-        # zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
-        # ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
-        if flipSliceOrderFlag(self): #np.all(np.sign(zDiff) < 0):
-            scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
-        img = nib.Nifti1Image(scan3M, affine3M)
-        success = nib.save(img, niiFileName)
-        return success
+        img = self.getSitkImage()
+        sitk.WriteImage(img, niiFileName)
+
+        return 0
+
+        # affine3M = self.getNiiAffine()
+        # scan3M = self.getScanArray()
+        # scan3M = np.moveaxis(scan3M,[0,1],[1,0])
+        # #scan3M = np.flip(scan3M,axis=[0,1]) # negated affineM to take care of reverse row/col compared to dicom
+        # # Determine whether CERR slice order matches DICOM
+        # # dcmImgOri = self.scanInfo[0].imageOrientationPatient
+        # # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+        # #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        # # slice_normal = slice_normal.reshape((1,3))
+        # # zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
+        # # ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
+        # if flipSliceOrderFlag(self): #np.all(np.sign(zDiff) < 0):
+        #     scan3M = np.flip(scan3M,axis=2) # CERR slice ordering is opposite of DICOM
+        # img = nib.Nifti1Image(scan3M, affine3M)
+        # success = nib.save(img, niiFileName)
+        # return success
 
     def getSitkImage(self):
         """ Routine to convert pyCERR Scan object to SimpleITK Image object

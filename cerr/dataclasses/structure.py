@@ -112,23 +112,28 @@ class Structure:
             int: 0 when NifTi file is written successfully.
         """
 
-        str_num = getStructNumFromUID(self.strUID, planC)
-        scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
-        affine3M = planC.scan[scan_num].getNiiAffine()
-        mask3M = rs.getStrMask(str_num,planC)
-        mask3M = np.moveaxis(mask3M,[0,1],[1,0])
-        # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
-        # dcmImgOri = planC.scan[scan_num].scanInfo[0].imageOrientationPatient
-        # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
-        #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
-        # zDiff = np.matmul(slice_normal, planC.scan[scan_num].scanInfo[1].imagePositionPatient) \
-        #         - np.matmul(slice_normal, planC.scan[scan_num].scanInfo[0].imagePositionPatient)
-        # ippDiffV = planC.scan[scan_num].scanInfo[1].imagePositionPatient - planC.scan[scan_num].scanInfo[0].imagePositionPatient
-        if scn.flipSliceOrderFlag(planC.scan[scan_num]): # np.all(np.sign(zDiff) < 0):
-            #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
-            mask3M = np.flip(mask3M,axis=2)
-        str_img = nib.Nifti1Image(mask3M.astype('uint16'), affine3M)
-        nib.save(str_img, niiFileName)
+        img = self.getSitkImage(planC)
+        sitk.WriteImage(img, niiFileName)
+
+        return 0
+
+        # str_num = getStructNumFromUID(self.strUID, planC)
+        # scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
+        # affine3M = planC.scan[scan_num].getNiiAffine()
+        # mask3M = rs.getStrMask(str_num,planC)
+        # mask3M = np.moveaxis(mask3M,[0,1],[1,0])
+        # # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+        # # dcmImgOri = planC.scan[scan_num].scanInfo[0].imageOrientationPatient
+        # # slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
+        # #        - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]
+        # # zDiff = np.matmul(slice_normal, planC.scan[scan_num].scanInfo[1].imagePositionPatient) \
+        # #         - np.matmul(slice_normal, planC.scan[scan_num].scanInfo[0].imagePositionPatient)
+        # # ippDiffV = planC.scan[scan_num].scanInfo[1].imagePositionPatient - planC.scan[scan_num].scanInfo[0].imagePositionPatient
+        # if scn.flipSliceOrderFlag(planC.scan[scan_num]): # np.all(np.sign(zDiff) < 0):
+        #     #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+        #     mask3M = np.flip(mask3M,axis=2)
+        # str_img = nib.Nifti1Image(mask3M.astype('uint16'), affine3M)
+        # nib.save(str_img, niiFileName)
 
     def convertDcmToCerrVirtualCoords(self,planC):
         """Routine to convert x,y,z coordinates of segmentation from DICOM to pyCERR virtual coordinates. More information
