@@ -544,6 +544,25 @@ def getDoseNumFromUID(assocDoseUID,planC) -> int:
     else:
         return None
 
+def getFrxSize(doseIdx, planC):
+    """
+
+        Args:
+            doseIdx (int): Index of dose in planC
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            float: Fraction size of delivered dose
+        """
+    beamSOPInstances = [beam.SOPInstanceUID for beam in planC.beams]
+    ReferencedSOPInstanceUID = planC.dose[doseIdx].refRTPlanSopInstanceUID
+    planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
+    numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
+    RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
+    inputFrxSize = RxDose / numFractions
+    return inputFrxSize
+
+
 def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = None):
     """
         Function to convert input dose to equivalent in specified fraction size.
@@ -615,10 +634,10 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
 
 def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
-
-    #correctionType = fxCorrectDict['correctionType']
-    #stdFrxSize = fxCorrectDict['stdFrxSize']
-    #abRatio = fxCorrectDict['abRatio']
+    
+    # correctionType = fxCorrectDict['correctionType']
+    # stdFrxSize = fxCorrectDict['stdFrxSize']
+    # abRatio = fxCorrectDict['abRatio']
 
     xRefV, yRefV, zRefV = planC.dose[refDoseInd].getDoseXYZVals()
 
@@ -628,10 +647,8 @@ def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
             continue
         xV, yV, zV = planC.dose[doseNum].getDoseXYZVals()
         doseArray = planC.dose[doseNum].doseArray
-        #doseArray = fractionation corretion based on fxCorrectDict
-        summedDose3M += imgResample3D(doseArray, xV, yV, zV,\
-                                xRefV, yRefV, zRefV, 'sitkLinear', 0)
+        # doseArray = fractionation corretion based on fxCorrectDict
+        summedDose3M += imgResample3D(doseArray, xV, yV, zV, \
+                                      xRefV, yRefV, zRefV, 'sitkLinear', 0)
 
-
-
-    return summedDose3M # will be the same size as refDoseInd.
+    return summedDose3M  # will be the same size as refDoseInd.
