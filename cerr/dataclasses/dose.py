@@ -544,6 +544,25 @@ def getDoseNumFromUID(assocDoseUID,planC) -> int:
     else:
         return None
 
+def getFrxSize(doseIdx, planC):
+    """
+
+        Args:
+            doseIdx (int): Index of dose in planC
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            float: Fraction size of delivered dose
+        """
+    beamSOPInstances = [beam.SOPInstanceUID for beam in planC.beams]
+    ReferencedSOPInstanceUID = planC.dose[doseIdx].refRTPlanSopInstanceUID
+    planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
+    numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
+    RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
+    inputFrxSize = RxDose / numFractions
+    return inputFrxSize
+
+
 def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = None):
     """
         Function to convert input dose to equivalent in specified fraction size.
@@ -613,25 +632,53 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
     return correctedDose
 
-
 def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
+    """
 
-    #correctionType = fxCorrectDict['correctionType']
-    #stdFrxSize = fxCorrectDict['stdFrxSize']
-    #abRatio = fxCorrectDict['abRatio']
+    Args:
+                      doseIndV (list) : Indices of doses to be summed
+                      refDoseInd (int): Index of dose used for reference grid
+          planC (plan_container.planC): pyCERR's plan container object.
+                  fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
 
+    Returns:
+                  sumDose (np.ndarray): Summed dose
+                       refGrid (list) : Coordinates of ref. dose grid [xRefV, yRefV, zRefV]
+
+    """
+
+    frxCorrectFlag = False
+    if len(fxCorrectDict) > 0:
+        frxCorrectFlag = True
+        # Identify fractionation correction method
+        methodDict = {"fractionNum": fractionNumCorrect,
+                  "fractionSize": fractionSizeCorrect}
+        correctionType = fxCorrectDict.pop('correctionType')
+        fnHandle = methodDict[correctionType]
+
+    # Get reference dose grid coordinates
     xRefV, yRefV, zRefV = planC.dose[refDoseInd].getDoseXYZVals()
+    refGrid = [xRefV, yRefV, zRefV]
 
+    # Sum doses
     summedDose3M = planC.dose[refDoseInd].doseArray
     for doseNum in doseIndV:
         if doseNum == refDoseInd:
             continue
+
+        # Get component dose grid coordinates
         xV, yV, zV = planC.dose[doseNum].getDoseXYZVals()
         doseArray = planC.dose[doseNum].doseArray
-        #doseArray = fractionation corretion based on fxCorrectDict
-        summedDose3M += imgResample3D(doseArray, xV, yV, zV,\
-                                xRefV, yRefV, zRefV, 'sitkLinear', 0)
 
+        if frxCorrectFlag:
+            # Get fraction size
+            frxSize = getFrxSize(doseNum, planC)
+            # Fractionation correction
+            fxCorrectDict['inputFrxSize'] = frxSize
+            doseArray = fnHandle(doseArray, **fxCorrectDict)
 
+        # Sum dose values on reference grid
+        summedDose3M += imgResample3D(doseArray, xV, yV, zV, \
+                                      xRefV, yRefV, zRefV, 'sitkLinear', 0)
 
-    return summedDose3M # will be the same size as refDoseInd.
+    return summedDose3M, refGrid
