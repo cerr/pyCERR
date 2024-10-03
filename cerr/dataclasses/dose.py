@@ -632,23 +632,53 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
     return correctedDose
 
-
 def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
-    
-    # correctionType = fxCorrectDict['correctionType']
-    # stdFrxSize = fxCorrectDict['stdFrxSize']
-    # abRatio = fxCorrectDict['abRatio']
+    """
 
+    Args:
+                      doseIndV (list) : Indices of doses to be summed
+                      refDoseInd (int): Index of dose used for reference grid
+          planC (plan_container.planC): pyCERR's plan container object.
+                  fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
+
+    Returns:
+                  sumDose (np.ndarray): Summed dose
+                       refGrid (list) : Coordinates of ref. dose grid [xRefV, yRefV, zRefV]
+
+    """
+
+    frxCorrectFlag = False
+    if len(fxCorrectDict) > 0:
+        frxCorrectFlag = True
+        # Identify fractionation correction method
+        methodDict = {"fractionNum": fractionNumCorrect,
+                  "fractionSize": fractionSizeCorrect}
+        correctionType = fxCorrectDict.pop('correctionType')
+        fnHandle = methodDict[correctionType]
+
+    # Get reference dose grid coordinates
     xRefV, yRefV, zRefV = planC.dose[refDoseInd].getDoseXYZVals()
+    refGrid = [xRefV, yRefV, zRefV]
 
+    # Sum doses
     summedDose3M = planC.dose[refDoseInd].doseArray
     for doseNum in doseIndV:
         if doseNum == refDoseInd:
             continue
+
+        # Get component dose grid coordinates
         xV, yV, zV = planC.dose[doseNum].getDoseXYZVals()
         doseArray = planC.dose[doseNum].doseArray
-        # doseArray = fractionation corretion based on fxCorrectDict
+
+        if frxCorrectFlag:
+            # Get fraction size
+            frxSize = getFrxSize(doseNum, planC)
+            # Fractionation correction
+            fxCorrectDict['inputFrxSize'] = frxSize
+            doseArray = fnHandle(doseArray, **fxCorrectDict)
+
+        # Sum dose values on reference grid
         summedDose3M += imgResample3D(doseArray, xV, yV, zV, \
                                       xRefV, yRefV, zRefV, 'sitkLinear', 0)
 
-    return summedDose3M  # will be the same size as refDoseInd.
+    return summedDose3M, refGrid
