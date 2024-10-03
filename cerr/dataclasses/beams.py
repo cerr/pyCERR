@@ -101,6 +101,17 @@ class PatientSetupSeq:
     PatientSetupNumber: int = 0
     PatientPosition: str = ""
 
+class DoseReferenceSeq:
+    """This class defines sequence of dose references.
+    Attributes:
+        ReferencedSOPClassUID (str): Referenced SOP class UID
+        ReferencedSOPInstanceUID (str): Referenced SOP instance UID
+
+    """
+    DoseReferenceType: str = ""
+    DoseReferenceUID: str = ""
+    DeliveryMaximumDose: float = 0
+
 @dataclass
 class BeamLimitingDevicePositionSeq:
     """This class defines data model for Sequence of beam limiting device (collimator) jaw or leaf (element) positions.
@@ -278,6 +289,14 @@ def load_beams(file_list):
                 patientSetupSeq.PatientSetupNumber = ds.PatientSetupSequence[0].PatientSetupNumber
                 ref_dose_seq_list = np.append(patient_setup_seq_list,patientSetupSeq)
                 beams_meta.PatientSetupSequence = patient_setup_seq_list
+            if hasattr(ds,"DoseReferenceSequence"):
+                dose_ref_seq_list = np.array([], dtype=DoseReferenceSeq)
+                doseRefSeq = DoseReferenceSeq()
+                doseRefSeq.DoseReferenceType = ds.DoseReferenceSequence[0].DoseReferenceType
+                doseRefSeq.DoseReferenceUID = ds.DoseReferenceSequence[0].DoseReferenceUID
+                doseRefSeq.DeliveryMaximumDose = ds.DoseReferenceSequence[0].DeliveryMaximumDose
+                dose_ref_seq_list = np.append(dose_ref_seq_list, doseRefSeq)
+                beams_meta.DoseReferenceSequence = dose_ref_seq_list
             if hasattr(ds,"FractionGroupSequence"):
                 fx_grp_list = np.array([])
                 for fx_grp in ds.FractionGroupSequence:
