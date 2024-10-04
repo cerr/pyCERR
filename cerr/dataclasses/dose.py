@@ -544,6 +544,27 @@ def getDoseNumFromUID(assocDoseUID,planC) -> int:
     else:
         return None
 
+def getPrescriptionDose(doseIdx, planC):
+    """
+
+            Args:
+                doseIdx (int): Index of dose in planC
+                planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+            Returns:
+                float: Prescribed dose (Gy)
+    """
+    planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
+    doseRefSeq = planC.beams[planIdx].DoseReferenceSequence[0]
+    if getattr(doseRefSeq,'DoseReferenceType')=='TARGET' and hasattr(doseRefSeq,'TargetPrescriptionDose'):
+        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].TargetPrescriptionDose
+    elif hasattr(doseRefSeq,'DeliveryMaximumDose'):
+        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
+    else:
+        raise AttributeError("TargetPrescriptionDose not found.")
+    return RxDose
+
+
 def getFrxSize(doseIdx, planC):
     """
 
@@ -556,20 +577,13 @@ def getFrxSize(doseIdx, planC):
         """
 
     # Read no. fractions
-    beamSOPInstances = [beam.SOPInstanceUID for beam in planC.beams]
-    ReferencedSOPInstanceUID = planC.dose[doseIdx].refRTPlanSopInstanceUID
-    planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
+    planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
     numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
 
     # Read target prescription
-    doseRefSeq = planC.beams[planIdx].DoseReferenceSequence[0]
-    if getattr(doseRefSeq,'DoseReferenceType')=='TARGET' and  hasattr(doseRefSeq,'TargetPrescriptionDose'):
-        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].TargetPrescriptionDose
-    elif hasattr(doseRefSeq,'DeliveryMaximumDose'):
-        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
-    else:
-        raise AttributeError("TargetPrescriptionDose not found.")
+    RxDose = getPrescriptionDose(doseIdx, planC)
 
+    #Calc. fraction size
     inputFrxSize = RxDose / numFractions
 
     return inputFrxSize
