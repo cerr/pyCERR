@@ -104,13 +104,19 @@ class PatientSetupSeq:
 class DoseReferenceSeq:
     """This class defines sequence of dose references.
     Attributes:
-        ReferencedSOPClassUID (str): Referenced SOP class UID
-        ReferencedSOPInstanceUID (str): Referenced SOP instance UID
+        DoseReferenceType (str): Type of dose reference (TARGET, ORGAN_AT_RISK)
+        DoseReferenceUID (str): Unique identifier for dose reference
+        ReferencedROINumber (str): Unique identifier for associated ROI
+        DeliveryMaximumDose (float): Max dose (Gy) that can be delivered to the dose reference
+        TargetPrescriptionDose (float): Prescribed dose (Gy) to dose reference if DoseReferenceType is TARGET.
 
     """
     DoseReferenceType: str = ""
     DoseReferenceUID: str = ""
-    DeliveryMaximumDose: float = 0
+    ReferencedROINumber: str = ""
+    DeliveryMaximumDose: float = float('nan')
+    TargetPrescriptionDose: float = float('nan')
+
 
 @dataclass
 class BeamLimitingDevicePositionSeq:
@@ -177,6 +183,7 @@ class RefBeamSeq:
     """
     ReferencedBeamNumber: int = 0
     BeamMeterset: float = 0
+
 
 @dataclass
 class FractionGroupSeq:
@@ -294,7 +301,11 @@ def load_beams(file_list):
                 doseRefSeq = DoseReferenceSeq()
                 doseRefSeq.DoseReferenceType = ds.DoseReferenceSequence[0].DoseReferenceType
                 doseRefSeq.DoseReferenceUID = ds.DoseReferenceSequence[0].DoseReferenceUID
-                doseRefSeq.DeliveryMaximumDose = ds.DoseReferenceSequence[0].DeliveryMaximumDose
+                # Optional tags
+                optTags = ['ReferencedROINumber','DeliveryMaximumDose','TargetPrescriptionDose']
+                for tag in optTags:
+                    if hasattr(ds.DoseReferenceSequence[0],tag):
+                        setattr(doseRefSeq, tag, getattr(ds.DoseReferenceSequence[0], tag))#Type 1C
                 dose_ref_seq_list = np.append(dose_ref_seq_list, doseRefSeq)
                 beams_meta.DoseReferenceSequence = dose_ref_seq_list
             if hasattr(ds,"FractionGroupSequence"):
