@@ -554,12 +554,24 @@ def getFrxSize(doseIdx, planC):
         Returns:
             float: Fraction size of delivered dose
         """
+
+    # Read no. fractions
     beamSOPInstances = [beam.SOPInstanceUID for beam in planC.beams]
     ReferencedSOPInstanceUID = planC.dose[doseIdx].refRTPlanSopInstanceUID
     planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
     numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
-    RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
+
+    # Read target prescription
+    doseRefSeq = planC.beams[planIdx].DoseReferenceSequence[0]
+    if getattr(doseRefSeq,'DoseReferenceType')=='TARGET' and  hasattr(doseRefSeq,'TargetPrescriptionDose'):
+        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].TargetPrescriptionDose
+    elif hasattr(doseRefSeq,'DeliveryMaximumDose'):
+        RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
+    else:
+        raise AttributeError("TargetPrescriptionDose not found.")
+
     inputFrxSize = RxDose / numFractions
+
     return inputFrxSize
 
 
