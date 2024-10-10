@@ -45,6 +45,7 @@ dependencies = [
 [project.optional-dependencies]
 napari = [
     "napari[all]",
+    "napari-animation"
 ]
 
 [tool.setuptools_scm]
