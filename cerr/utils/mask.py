@@ -366,6 +366,8 @@ def largestConnComps(mask3M, numConnComponents, minSize=0, dim=3):
     elif dim == 3:
         structure = np.ones((3, 3, 3))
 
+    maskOut3M = np.zeros_like(mask3M, dtype=bool)
+
     if np.sum(mask3M) > 1:
         #Extract connected components
         labeledArray, numFeatures = label(mask3M, structure)
@@ -375,19 +377,17 @@ def largestConnComps(mask3M, numConnComponents, minSize=0, dim=3):
 
         # Filter min acceptable
         ccSiz[ccSiz < minSize] = 0
-        rankV = np.argsort(ccSiz)[::-1]
-        if len(rankV) > numConnComponents:
-            selV = rankV[:numConnComponents]
-        else:
-            selV = rankV[:]
+        if np.any(ccSiz):
+            rankV = np.argsort(ccSiz)[::-1]
+            if len(rankV) > numConnComponents:
+                selV = rankV[:numConnComponents]
+            else:
+                selV = rankV[:]
 
-        # Return N largest
-        maskOut3M = np.zeros_like(mask3M, dtype=bool)
-        for n in selV:
-            idxV = labeledArray == n + 1
-            maskOut3M[idxV] = True
-    else:
-        maskOut3M = mask3M
+            # Return N largest
+            for n in selV:
+                idxV = labeledArray == n + 1
+                maskOut3M[idxV] = True
 
     return maskOut3M
 
