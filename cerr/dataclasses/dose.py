@@ -658,44 +658,58 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
     return correctedDose
 
-def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
+def sum(doseIndV, planC, fxCorrectDict={}):
     """
 
     Args:
                       doseIndV (list) : Indices of doses to be summed
-                      refDoseInd (int): Index of dose used for reference grid
           planC (plan_container.planC): pyCERR's plan container object.
                   fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
 
     Returns:
                   sumDose (np.ndarray): Summed dose
-                       refGrid (list) : Coordinates of ref. dose grid [xRefV, yRefV, zRefV]
+                  refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
 
     """
 
     frxCorrectFlag = False
+    fnHandle = None
     if len(fxCorrectDict) > 0:
         frxCorrectFlag = True
         # Identify fractionation correction method
         methodDict = {"fractionNum": fractionNumCorrect,
-                  "fractionSize": fractionSizeCorrect}
+                      "fractionSize": fractionSizeCorrect}
         correctionType = fxCorrectDict.pop('correctionType')
         fnHandle = methodDict[correctionType]
 
-    # Get reference dose grid coordinates
-    xRefV, yRefV, zRefV = planC.dose[refDoseInd].getDoseXYZVals()
-    refGrid = [xRefV, yRefV, zRefV]
+    # Create shared grid from max extents of all dose grids
+    numDose = len(doseIndV)
+    origGridList = []
+    extentsM = np.zeros((numDose, 6))
+    resM = np.zeros((numDose, 3),dtype=int)
+    for doseNum in range(numDose):
+        xV, yV, zV = planC.dose[doseIndV[doseNum]].getDoseXYZVals()
+        origGridList.append((xV, yV, zV))
+        extentsM[doseNum, :] = np.array([min(xV), max(xV), min(yV), max(yV), min(zV), max(zV)])
+        resM[doseNum, :] = np.array([len(xV), len(yV), len(zV)])
+    outExtentsV = np.min(extentsM, axis=0)
+    outResV = np.max(resM, axis=0)
+    xOutV = np.linspace(outExtentsV[0], outExtentsV[1], num=outResV[0], endpoint=True)
+    yOutV = np.linspace(outExtentsV[2], outExtentsV[3], num=outResV[1], endpoint=True)
+    zOutV = np.linspace(outExtentsV[4], outExtentsV[5], num=outResV[2], endpoint=True)
 
     # Sum doses
-    summedDose3M = planC.dose[refDoseInd].doseArray
+    summedDose3M = np.zeros((outResV[1], outResV[0], outResV[2]))
     for doseNum in doseIndV:
-        if doseNum == refDoseInd:
-            continue
 
-        # Get component dose grid coordinates
-        xV, yV, zV = planC.dose[doseNum].getDoseXYZVals()
+        # Get dose array and grid extents
         doseArray = planC.dose[doseNum].doseArray
+        doseGrid = origGridList[doseNum]
+        gridMatchFlag = ((doseGrid[0] == xOutV).all() and
+                         (doseGrid[1] == yOutV).all() and
+                         (doseGrid[2] == zOutV).all())
 
+        # Fraction correct
         if frxCorrectFlag:
             # Get fraction size
             frxSize = getFrxSize(doseNum, planC)
@@ -703,8 +717,11 @@ def sum(doseIndV, refDoseInd, planC, fxCorrectDict={}):
             fxCorrectDict['inputFrxSize'] = frxSize
             doseArray = fnHandle(doseArray, **fxCorrectDict)
 
-        # Sum dose values on reference grid
-        summedDose3M += imgResample3D(doseArray, xV, yV, zV, \
-                                      xRefV, yRefV, zRefV, 'sitkLinear', 0)
+        # Resample to shared grid
+        if gridMatchFlag:
+            summedDose3M += doseArray
+        else:
+            summedDose3M += imgResample3D(doseArray, doseGrid[0], doseGrid[1], doseGrid[2],
+                                          xOutV, yOutV, zOutV, 'sitkLinear', 0)
 
-    return summedDose3M, refGrid
+    return summedDose3M, (xOutV, yOutV, zOutV)
