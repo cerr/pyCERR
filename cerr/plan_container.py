@@ -854,24 +854,65 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     return planC
 
 
-def importDoseArray(dose3M, xV, yV, zV, assocDoseNum, planC, fractionGroupID):
+def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum=None, doseInfo=None):
     """This routine imports rt dose from numpy array into planC
 
     Args:
-        dose3M (numpy.ndarray):
-        xV (numpy.ndarray):
-        yV (numpy.ndarray):
-        zV (numpy.ndarray):
-        assocDoseNum (int):
-        planC (cerr.plan_container.PlanC):
-        fractionGroupID (str):
+        dose3M (numpy.ndarray): 3D dose array
+        xV (numpy.ndarray): x-coordinates of dose grid
+        yV (numpy.ndarray): y-coordinates of dose grid
+        zV (numpy.ndarray): z-coordinates of dose grid
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+        assocScanNum [optional (int), default=None]:
+        doseInfo [Optional (dict), default:None]: Dictionary specifying 'fractionGroupID', and 'units'.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
 
     """
 
-    pass
+    #Initialize dose info
+    dose_meta = rtds.Dose()
+    currentDate = date.today().strftime('%Y%m%d')
+    opt_info = ['units', 'fractionGroupID']
+
+    # Get assoc. scan UID
+    assocScanUID = ""
+    if assocScanNum is not None:
+        assocScanUID = planC.scan[assocScanNum].scanUID
+
+    # Get grid spacing
+    if yV[0] > yV[1]:
+        yV = np.flip(yV)
+    dx = abs(np.median(np.diff(xV)))
+    dy = abs(np.median(np.diff(yV)))
+    size = dose3M.shape
+
+    # Populate dose metadata
+    dose_meta.imageType = 'DOSE'
+    dose_meta.dateWritten =  currentDate
+    #dose_meta.frameOfReferenceUID =  ?
+    dose_meta.doseArray = dose3M
+    dose_meta.zValues = zV
+    dose_meta.verticalGridInterval = -dy
+    dose_meta.horizontalGridInterval = dx
+    dose_meta.sizeOfDimension1 = size[1]
+    dose_meta.sizeOfDimension2 = size[0]
+    dose_meta.sizeOfDimension3 = size[2]
+
+    if isinstance(doseInfo, dict):
+        input_keys = doseInfo.keys()
+        for input_key in input_keys:
+            if input_key in opt_info:
+                setattr(dose_meta, input_key, doseInfo[input_key])
+
+    # Populate UIDs
+    dose_meta.doseUID = uid.createUID("dose")
+    dose_meta.assocScanUID = assocScanUID
+
+    planC.dose.append(dose_meta)
+
+    return planC
 
 
 def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
