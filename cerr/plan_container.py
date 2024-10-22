@@ -891,7 +891,7 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum=None, doseInfo=None)
     # Populate dose metadata
     dose_meta.imageType = 'DOSE'
     dose_meta.dateWritten =  currentDate
-    dose_meta.frameOfReferenceUID =  #?
+    #dose_meta.frameOfReferenceUID =  ?
     dose_meta.doseArray = dose3M
     dose_meta.zValues = zV
     dose_meta.verticalGridInterval = -dy
