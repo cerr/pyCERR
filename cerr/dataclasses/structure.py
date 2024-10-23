@@ -367,7 +367,7 @@ class jsonSerializeStruct(json.JSONEncoder):
             raise TypeError("Unexpected type {0}".format(type_name))
 
 def getJsonList(structNumV, planC):
-    if isinstance(structNumV, (int, float)):
+    if isinstance(structNumV, (int, float, np.integer, np.floating)):
         structNumV = [structNumV]
     strList = []
     for strNum in structNumV:
@@ -687,7 +687,7 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     paddedMask3M = mask3M.astype(int)
     paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
     dt = datetime.now()
-    if isinstance(structNum,(int,float)):
+    if isinstance(structNum,(int, float, np.integer, np.floating)):
         struct_meta = planC.structure[structNum]
     else:
         struct_meta = Structure()
