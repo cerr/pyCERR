@@ -854,7 +854,7 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     return planC
 
 
-def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum=None, doseInfo=None):
+def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
     """This routine imports rt dose from numpy array into planC
 
     Args:
@@ -863,7 +863,7 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum=None, doseInfo=None)
         yV (numpy.ndarray): y-coordinates of dose grid
         zV (numpy.ndarray): z-coordinates of dose grid
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
-        assocScanNum [optional (int), default=None]:
+        assocScanNum (int): Index of scan associated with dose
         doseInfo [Optional (dict), default:None]: Dictionary specifying 'fractionGroupID', and 'units'.
 
     Returns:
@@ -874,41 +874,44 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum=None, doseInfo=None)
     #Initialize dose info
     dose_meta = rtds.Dose()
     currentDate = date.today().strftime('%Y%m%d')
-    opt_info = ['units', 'fractionGroupID']
+    opt_info = dose_meta.__dict__.keys()
 
-    # Get assoc. scan UID
+    # Populate assoc. scan UID
     assocScanUID = ""
     if assocScanNum is not None:
         assocScanUID = planC.scan[assocScanNum].scanUID
+    dose_meta.doseUID = uid.createUID("dose")
+    dose_meta.assocScanUID = assocScanUID
 
     # Get grid spacing
-    if yV[0] > yV[1]:
-        yV = np.flip(yV)
     dx = abs(np.median(np.diff(xV)))
-    dy = abs(np.median(np.diff(yV)))
+    dy = -abs(np.median(np.diff(yV)))
     size = dose3M.shape
 
     # Populate dose metadata
     dose_meta.imageType = 'DOSE'
-    dose_meta.dateWritten =  currentDate
+    dose_meta.dateWritten = currentDate
     #dose_meta.frameOfReferenceUID =  ?
     dose_meta.doseArray = dose3M
     dose_meta.zValues = zV
-    dose_meta.verticalGridInterval = -dy
+    dose_meta.verticalGridInterval = dy
     dose_meta.horizontalGridInterval = dx
     dose_meta.sizeOfDimension1 = size[1]
     dose_meta.sizeOfDimension2 = size[0]
     dose_meta.sizeOfDimension3 = size[2]
+    cerrDosePatPos = [xV[0], yV[0], zV[-1], 1]
+    dcmDosePtPos = np.matmul(planC.scan[assocScanNum].cerrToDcmTransM, cerrDosePatPos)[:3]
+    dose_meta.imageOrientationPatient = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+    dose_meta.imagePositionPatient = dcmDosePtPos
+    dose_meta.Image2PhysicalTransM = dose_meta.getImage2PhysicalTransM(assocScanNum, planC)
+    dose_meta.convertDcmToCerrVirtualCoords(planC)
+
 
     if isinstance(doseInfo, dict):
         input_keys = doseInfo.keys()
         for input_key in input_keys:
             if input_key in opt_info:
                 setattr(dose_meta, input_key, doseInfo[input_key])
-
-    # Populate UIDs
-    dose_meta.doseUID = uid.createUID("dose")
-    dose_meta.assocScanUID = assocScanUID
 
     planC.dose.append(dose_meta)
 
