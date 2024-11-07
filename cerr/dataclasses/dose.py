@@ -207,6 +207,25 @@ class Dose:
         # dose_img = nib.Nifti1Image(doseArray, doseAffine3M)
         # nib.save(dose_img, niiFileName)
 
+    def getImage2PhysicalTransM(self, assocScanNum, planC):
+
+        imgOrientation = self.imageOrientationPatient
+        imagePositionPatient = self.imagePositionPatient / 10
+        spacing = [-self.verticalGridInterval, self.horizontalGridInterval]
+
+        zV = self.zValues
+        deltaDosePos = [0, 0, (zV[0] - zV[1])/10, 1]
+        dcmDosePtPos = np.matmul(planC.scan[assocScanNum].cerrToDcmTransM, deltaDosePos)[:3]
+
+        dcmImgOrientation = imgOrientation.reshape(6,1)
+        image2PhysicalTransM = np.hstack((np.matmul(dcmImgOrientation.reshape(3, 2, order="F"), np.diag(spacing)),
+                                          np.array([[dcmDosePtPos[0], imagePositionPatient[0]],
+                                                    [dcmDosePtPos[1], imagePositionPatient[1]],
+                                                    [dcmDosePtPos[2], imagePositionPatient[2]]])))
+        image2PhysicalTransM = np.vstack((image2PhysicalTransM, np.array([0, 0, 0, 1])))
+
+        return image2PhysicalTransM
+
 
     def convertDcmToCerrVirtualCoords(self, planC):
         """Routine to get scan from DICOM to pyCERR virtual coordinates. More information
@@ -478,7 +497,7 @@ def importNii(file_list, assocScanNum, planC):
         #deltaPosV = pos2V - pos1V
         pixelSpacing = np.asarray(image.GetSpacing()[:2]) / 10
         img_ori = np.array(image.GetDirection())
-        dir_cosine_mat = img_ori.reshape(numAxes, numAxes,order="C")
+        dir_cosine_mat = img_ori.reshape(numAxes, numAxes, order="C")
         dir_cosine_mat = dir_cosine_mat[:3,:3]
         #pixelSiz = image.GetSpacing()
         dcmImgOri = dir_cosine_mat.reshape(9,order='F')[:6]
@@ -685,21 +704,30 @@ def sum(doseIndV, planC, fxCorrectDict={}):
     # Create shared grid from max extents of all dose grids
     numDose = len(doseIndV)
     origGridList = []
-    extentsM = np.zeros((numDose, 6))
-    resM = np.zeros((numDose, 3),dtype=int)
+    minExtentsM = np.zeros((numDose, 3))
+    maxExtentsM = np.zeros((numDose, 3))
+    resM = np.zeros((numDose, 3))
     for doseNum in range(numDose):
         xV, yV, zV = planC.dose[doseIndV[doseNum]].getDoseXYZVals()
         origGridList.append((xV, yV, zV))
-        extentsM[doseNum, :] = np.array([min(xV), max(xV), min(yV), max(yV), min(zV), max(zV)])
-        resM[doseNum, :] = np.array([len(xV), len(yV), len(zV)])
-    outExtentsV = np.min(extentsM, axis=0)
-    outResV = np.max(resM, axis=0)
-    xOutV = np.linspace(outExtentsV[0], outExtentsV[1], num=outResV[0], endpoint=True)
-    yOutV = np.linspace(outExtentsV[2], outExtentsV[3], num=outResV[1], endpoint=True)
-    zOutV = np.linspace(outExtentsV[4], outExtentsV[5], num=outResV[2], endpoint=True)
+        minExtentsM[doseNum, :] = np.array([xV[0], yV[0], zV[0]])
+        maxExtentsM[doseNum, :] = np.array([xV[-1], yV[-1], zV[-1]])
+        dx = abs(np.median(np.diff(xV)))
+        dy = -abs(np.median(np.diff(yV)))
+        dz = abs(np.median(np.diff(zV)))
+        resM[doseNum, :] = np.array([dx, dy, dz])    #Replace with dx, dy, dz
+    minExtentsV = np.array([np.min(minExtentsM[:, 0]), np.max(minExtentsM[:, 1]),
+                            np.min(minExtentsM[:, 2])])
+    maxExtentsV = np.array([np.max(maxExtentsM[:, 0]), np.min(maxExtentsM[:, 1]),
+                            np.max(maxExtentsM[:, 2])])
+    outResV = np.min(resM, axis=0)
+    numPoints = ((maxExtentsV - minExtentsV)/outResV).astype(int) + 1
+    xOutV = np.linspace(minExtentsV[0], maxExtentsV[0], num=numPoints[0], endpoint=True)
+    yOutV = np.linspace(minExtentsV[1], maxExtentsV[1], num=numPoints[1], endpoint=True)
+    zOutV = np.linspace(minExtentsV[2], maxExtentsV[2], num=numPoints[2], endpoint=True)
 
     # Sum doses
-    summedDose3M = np.zeros((outResV[1], outResV[0], outResV[2]))
+    summedDose3M = np.zeros((numPoints[1], numPoints[0], numPoints[2]))
     for doseNum in doseIndV:
 
         # Get dose array and grid extents
