@@ -694,11 +694,12 @@ def sum(doseIndV, planC, fxCorrectDict={}):
     frxCorrectFlag = False
     fnHandle = None
     if len(fxCorrectDict) > 0:
+        dictCpy = fxCorrectDict.copy()
         frxCorrectFlag = True
         # Identify fractionation correction method
         methodDict = {"fractionNum": fractionNumCorrect,
                       "fractionSize": fractionSizeCorrect}
-        correctionType = fxCorrectDict.pop('correctionType')
+        correctionType = dictCpy.pop('correctionType')
         fnHandle = methodDict[correctionType]
 
     # Create shared grid from max extents of all dose grids
@@ -733,17 +734,17 @@ def sum(doseIndV, planC, fxCorrectDict={}):
         # Get dose array and grid extents
         doseArray = planC.dose[doseNum].doseArray
         doseGrid = origGridList[doseNum]
-        gridMatchFlag = ((doseGrid[0] == xOutV).all() and
-                         (doseGrid[1] == yOutV).all() and
-                         (doseGrid[2] == zOutV).all())
+        gridMatchFlag = (np.array_equal(doseGrid[0], xOutV) and
+                         np.array_equal(doseGrid[1], yOutV) and
+                         np.array_equal(doseGrid[2], zOutV))
 
         # Fraction correct
         if frxCorrectFlag:
             # Get fraction size
             frxSize = getFrxSize(doseNum, planC)
             # Fractionation correction
-            fxCorrectDict['inputFrxSize'] = frxSize
-            doseArray = fnHandle(doseArray, **fxCorrectDict)
+            dictCpy['inputFrxSize'] = frxSize
+            doseArray = fnHandle(doseArray, **dictCpy)
 
         # Resample to shared grid
         if gridMatchFlag:
