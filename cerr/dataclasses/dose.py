@@ -347,7 +347,7 @@ class Dose:
                                      [yV[idx] + 10, yV[idx], yV[idx] - 10],
                                      [zV[idx] - 10, zV[idx], zV[idx] + 10],
                                      'sitkLinear', 0)
-            doseV.append(doseInterp3M[1, 1, git a1])
+            doseV.append(doseInterp3M[1, 1, 1])
         return doseV
 
     def getAssociatedBeamNum(self, planC):
