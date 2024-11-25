@@ -897,6 +897,9 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
     dose_meta.zValues = zV
     dose_meta.verticalGridInterval = dy
     dose_meta.horizontalGridInterval = dx
+    dose_meta.coord1OFFirstPoint = xV[0]
+    dose_meta.coord2OFFirstPoint = yV[0]
+    dose_meta.coord3OfFirstPoint = zV[0]
     dose_meta.sizeOfDimension1 = size[1]
     dose_meta.sizeOfDimension2 = size[0]
     dose_meta.sizeOfDimension3 = size[2]
@@ -905,7 +908,7 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
     dose_meta.imageOrientationPatient = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
     dose_meta.imagePositionPatient = dcmDosePtPos
     dose_meta.Image2PhysicalTransM = dose_meta.getImage2PhysicalTransM(assocScanNum, planC)
-    dose_meta.convertDcmToCerrVirtualCoords(planC)
+    #dose_meta.convertDcmToCerrVirtualCoords(planC)
 
 
     if isinstance(doseInfo, dict):
