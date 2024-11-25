@@ -730,7 +730,7 @@ def sum(doseIndV, planC, fxCorrectDict={}):
                             np.min(minExtentsM[:, 2])])
     maxExtentsV = np.array([np.max(maxExtentsM[:, 0]), np.min(maxExtentsM[:, 1]),
                             np.max(maxExtentsM[:, 2])])
-    outResV = np.min(resM, axis=0)
+    outResV = np.array([np.min(resM[:,0]), np.max(resM[:,1]), np.min(resM[:,2])])
     numPoints = ((maxExtentsV - minExtentsV)/outResV).astype(int) + 1
     xOutV = np.linspace(minExtentsV[0], maxExtentsV[0], num=numPoints[0], endpoint=True)
     yOutV = np.linspace(minExtentsV[1], maxExtentsV[1], num=numPoints[1], endpoint=True)
@@ -738,11 +738,11 @@ def sum(doseIndV, planC, fxCorrectDict={}):
 
     # Sum doses
     summedDose3M = np.zeros((numPoints[1], numPoints[0], numPoints[2]))
-    for doseNum in doseIndV:
+    for doseNum in range(numDose):
 
         # Get dose array and grid extents
-        doseArray = planC.dose[doseNum].doseArray
-        doseGrid = origGridList[doseNum]
+        doseArray = planC.dose[doseIndV[doseNum]].doseArray
+        doseGrid = origGridList[doseIndV[doseNum]]
         gridMatchFlag = (np.array_equal(doseGrid[0], xOutV) and
                          np.array_equal(doseGrid[1], yOutV) and
                          np.array_equal(doseGrid[2], zOutV))
