@@ -481,12 +481,11 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
                     break
 
     # Fix assocScanUID for doses
-    assocScanUIDList = [s.assocScanUID for s in planC.dose]
-    for doseNum, uid in enumerate(assocScanUIDList):
-        ids = np.where(scanUIDList == uid)[0]
-        if len(ids) > 1:
-            planC.dose[doseNum].assocScanUID = planC.scan[id[0]].scanUID
-
+    # assocScanUIDList = [s.assocScanUID for s in planC.dose]
+    # for doseNum, uid in enumerate(assocScanUIDList):
+    #     ids = np.where(scanUIDList == uid)[0]
+    #     #if len(ids) > 1:
+    #     planC.dose[doseNum].assocScanUID = planC.scan[ids].scanUID
 
     numStructs = len(planC.structure)
     numDoses = len(planC.dose)
@@ -513,6 +512,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         beamNum = planC.dose[dose_num].getAssociatedBeamNum(planC)
         if beamNum is not None:
             planC.dose[dose_num].fractionGroupID = planC.beams[beamNum].RTPlanLabel
+        assocScanNum = scn.getScanNumFromUID(planC.dose[dose_num].assocScanUID, planC)
+        planC.dose[dose_num].cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
 
     return planC
 
