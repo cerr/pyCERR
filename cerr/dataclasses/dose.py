@@ -136,6 +136,7 @@ class Dose:
     refStructSetSopInstanceUID: str = ""
     prescriptionDose: float = 0
     doseOffset: float = 0
+    cerrToDcmTransM: np.array = field(default_factory=get_empty_np_array)
     Image2PhysicalTransM: np.array = field(default_factory=get_empty_np_array)
     cerrDcmSliceDirMatch: bool = False
 
@@ -268,7 +269,6 @@ class Dose:
         else:
             assoc_scan_num = scn.getScanNumFromUID(self.assocScanUID,planC)
 
-
         im_to_phys_transM = planC.scan[assoc_scan_num].Image2PhysicalTransM
         im_to_virtual_phys_transM = planC.scan[assoc_scan_num].Image2VirtualPhysicalTransM
         position_matrix_inv = np.linalg.inv(im_to_phys_transM)
@@ -327,15 +327,27 @@ class Dose:
             tuple (np.array): An array of dose values.
 
         """
+        if not isinstance(xV, np.ndarray):
+            xV = np.array([xV])
+            yV = np.array([yV])
+            zV = np.array([zV])
 
         xVD, yVD, zVD = self.getDoseXYZVals()
         delta = 1e-8
         zVD[0] = zVD[0] - 1e-3
         zVD[-1] = zVD[-1] + 1e-3
-        xFieldV = np.asarray([xVD[0] - delta, xVD[1] - xVD[0], xVD[-1] + delta])
-        yFieldV = np.asarray([yVD[0] + delta, yVD[1] - yVD[0], yVD[-1] - delta])
-        zFieldV = np.asarray(zVD)
-        doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
+        # xFieldV = np.asarray([xVD[0] - delta, xVD[1] - xVD[0], xVD[-1] + delta])
+        # yFieldV = np.asarray([yVD[0] + delta, yVD[1] - yVD[0], yVD[-1] - delta])
+        # zFieldV = np.asarray(zVD)
+        #doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
+        doseV = []
+        for idx in range(len(xV)):
+            doseInterp3M = imgResample3D(self.doseArray, xVD, yVD, zVD,
+                                     [xV[idx] - 10, xV[idx], xV[idx] + 10],
+                                     [yV[idx] + 10, yV[idx], yV[idx] - 10],
+                                     [zV[idx] - 10, zV[idx], zV[idx] + 10],
+                                     'sitkLinear', 0)
+            doseV.append(doseInterp3M[1, 1, git a1])
         return doseV
 
     def getAssociatedBeamNum(self, planC):
@@ -403,11 +415,14 @@ def loadDose(file_list):
             img_ori = np.array(ds.ImageOrientationPatient)
             img_ori = img_ori.reshape(6,1)
             ipp = np.array(ds.ImagePositionPatient)
+            dose_meta.imageOrientationPatient = img_ori
+            dose_meta.imagePositionPatient = ipp
+
             slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
                            - img_ori[[2,0,1]] * img_ori[[4,5,3]]
-            slice_normal = slice_normal.reshape((1,3))
+            slice_normal_reshape = slice_normal.reshape((1,3))
             if gridFrameOffVec[0] == 0:
-                doseZstart = np.matmul(slice_normal, ipp)
+                doseZstart = np.matmul(slice_normal_reshape, ipp)
                 doseZValuesV = (doseZstart + gridFrameOffVec)
             else:
                 doseZValuesV = gridFrameOffVec # as per DICOM documentation, this case is valid only for HFS [1,0,0,0,1,0]
@@ -415,17 +430,11 @@ def loadDose(file_list):
             dose_meta.zValues = -doseZValuesV
 
             # build image to physical units transformation matrix for dose
-
-            # Compute slice normal
-            img_ori = np.array(ds.ImageOrientationPatient)
-            img_ori = img_ori.reshape(6,1)
-            ipp = np.array(ds.ImagePositionPatient) / 10
-            slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
-                           - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+            ipp_cm = np.array(ipp) / 10
             vec3 = slice_normal * (doseZValuesV[1]-doseZValuesV[0])
             pixelSpacing = [ds.PixelSpacing[0]/10, ds.PixelSpacing[1]/10]
             position_matrix_dose = np.hstack((np.matmul(img_ori.reshape(3, 2, order="F"), np.diag(pixelSpacing)),
-                                           np.array([[vec3[0,0], ipp[0]],[vec3[1,0], ipp[1]], [vec3[2,0], ipp[2]]])))
+                                           np.array([[vec3[0,0], ipp_cm[0]],[vec3[1,0], ipp_cm[1]], [vec3[2,0], ipp_cm[2]]])))
             position_matrix_dose = np.vstack((position_matrix_dose, np.array([0, 0, 0, 1])))
             dose_meta.Image2PhysicalTransM = position_matrix_dose
 
