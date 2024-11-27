@@ -15,6 +15,7 @@ from pydicom import dcmread
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure
 from cerr.utils import uid
+from cerr.utils.statistics import round
 from cerr.utils.interp import finterp3
 import nibabel as nib
 import json
@@ -731,7 +732,7 @@ def sum(doseIndV, planC, fxCorrectDict={}):
     maxExtentsV = np.array([np.max(maxExtentsM[:, 0]), np.min(maxExtentsM[:, 1]),
                             np.max(maxExtentsM[:, 2])])
     outResV = np.array([np.min(resM[:,0]), np.max(resM[:,1]), np.min(resM[:,2])])
-    numPoints = ((maxExtentsV - minExtentsV)/outResV).astype(int) + 1
+    numPoints = round((maxExtentsV - minExtentsV)/outResV) + 1
     xOutV = np.linspace(minExtentsV[0], maxExtentsV[0], num=numPoints[0], endpoint=True)
     yOutV = np.linspace(minExtentsV[1], maxExtentsV[1], num=numPoints[1], endpoint=True)
     zOutV = np.linspace(minExtentsV[2], maxExtentsV[2], num=numPoints[2], endpoint=True)
