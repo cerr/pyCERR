@@ -293,6 +293,10 @@ def mirror_scope_callback(layer, event):
     # mirrorLine.visible = True
     dragged = False
     clicked = True
+    if layer is None:
+        return
+    print('here...')
+    print(layer.name)
     mirrorLine = layer.metadata['mirrorline']
     mirrorSize = layer.metadata['mirrorSize']
     viewer = layer.metadata['viewer']
@@ -303,6 +307,10 @@ def mirror_scope_callback(layer, event):
     mrrScpLayerBase.visible = True
     mrrScpLayerMov.visible = True
     mirrorLine.visible = True
+    mrrScpLayerBase.mouse_pan = False
+    mrrScpLayerMov.mouse_pan = False
+    mrrScpLayerBase.interactive = False
+    mrrScpLayerMov.interactive = False
     # Get the center of grid
     # planC = baseLayer.metadata['planC']
     # scanNum = baseLayer.metadata['scanNum']
@@ -360,13 +368,15 @@ def initialize_reg_qa_widget() -> FunctionGui:
                                     opacity=1, colormap=baseImage.colormap,
                                     affine=mirror_affine,
                                     blending="opaque",interpolation2d="linear",
-                                    interpolation3d="linear"
+                                    interpolation3d="linear",
+                                    visible=False
                                     )
         mrrScpLayerMov = viewer.add_image(mrrScp,name='Mirror-Scope-mov',
                                     opacity=1, colormap=baseImage.colormap,
                                     affine=mirror_affine,
                                     blending="opaque",interpolation2d="linear",
-                                    interpolation3d="linear"
+                                    interpolation3d="linear",
+                                    visible=False
                                     )
         mirrorLine = viewer.add_shapes([[0,0,0], [0,0,0]], name = 'Mirror-line',
                                        face_color = "red", edge_color = "red", edge_width = 0.5,
@@ -402,6 +412,8 @@ def initialize_reg_qa_widget() -> FunctionGui:
                          'opacity':1, 'blending':"opaque",
                          'affine':baseImage.affine.affine_matrix,
                          'shape_type':'line'}
+        mrrScpLayerBase.metadata = mrrMeta
+        mrrScpLayerMov.metadata = mrrMeta
         viewer.layers.selection.active = mrrScpLayerBase
         mrrScpLayerBase.mouse_drag_callbacks.append(mirror_scope_callback)
         mrrScpLayerMov.mouse_drag_callbacks.append(mirror_scope_callback)
