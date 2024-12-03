@@ -211,6 +211,7 @@ def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS):
                       " --interpolation linear"
         os.system(plm_warp_str_cmd)
         basePlanC = pc.loadNiiDose(warped_dose_nii, baseScanIndex, basePlanC, doseName)
+        basePlanC.dose[-1].imageOrientationPatient = basePlanC.scan[baseScanIndex].scanInfo[0].imageOrientationPatient
         basePlanC.dose[-1].doseUnits = doseUnits
 
     os.chdir(currDir)

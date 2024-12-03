@@ -550,7 +550,6 @@ def populatePlanCField(field_name, file_list, opts={}):
         return beams_meta
 
 def loadPlanCFromPkl(file_name=""):
-    file_name = r"C:\Users\aptea\PycharmProjects\pycerr\src\pycerr\tcga-ba-4074.mat"
     # Load planC from file
     #planC = sio.loadmat(file_name)
     with open(file_name, 'rb') as pickle_file:
