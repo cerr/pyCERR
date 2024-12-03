@@ -743,7 +743,7 @@ def sum(doseIndV, planC, fxCorrectDict={}):
 
         # Get dose array and grid extents
         doseArray = planC.dose[doseIndV[doseNum]].doseArray
-        doseGrid = origGridList[doseIndV[doseNum]]
+        doseGrid = origGridList[doseNum]
         gridMatchFlag = (np.array_equal(doseGrid[0], xOutV) and
                          np.array_equal(doseGrid[1], yOutV) and
                          np.array_equal(doseGrid[2], zOutV))
