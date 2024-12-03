@@ -300,9 +300,8 @@ def load_beams(file_list):
                 dose_ref_seq_list = np.array([], dtype=DoseReferenceSeq)
                 doseRefSeq = DoseReferenceSeq()
                 doseRefSeq.DoseReferenceType = ds.DoseReferenceSequence[0].DoseReferenceType
-                doseRefSeq.DoseReferenceUID = ds.DoseReferenceSequence[0].DoseReferenceUID
                 # Optional tags
-                optTags = ['ReferencedROINumber','DeliveryMaximumDose','TargetPrescriptionDose']
+                optTags = ['DoseReferenceUID', 'ReferencedROINumber','DeliveryMaximumDose','TargetPrescriptionDose']
                 for tag in optTags:
                     if hasattr(ds.DoseReferenceSequence[0],tag):
                         setattr(doseRefSeq, tag, getattr(ds.DoseReferenceSequence[0], tag))#Type 1C
