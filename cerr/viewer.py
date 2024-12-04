@@ -295,8 +295,6 @@ def mirror_scope_callback(layer, event):
     clicked = True
     if layer is None:
         return
-    print('here...')
-    print(layer.name)
     mirrorLine = layer.metadata['mirrorline']
     mirrorSize = layer.metadata['mirrorSize']
     viewer = layer.metadata['viewer']
@@ -337,7 +335,7 @@ def mirror_scope_callback(layer, event):
         pass
 
 def initialize_reg_qa_widget() -> FunctionGui:
-    @magicgui(call_button="Mirror-Scope")
+    @magicgui(call_button="Toggle Mirror-Scope")
     def mirror_scope(viewer: 'napari.viewer.Viewer',
                      baseImage: Image,
                      movImage: Image,
@@ -353,6 +351,15 @@ def initialize_reg_qa_widget() -> FunctionGui:
         # Check whether mirror-scope exists
         layerNames = [lyr.name for lyr in viewer.layers]
         if 'Mirror-Scope-base' in layerNames:
+            # Delete mirror layers
+            baseMirrInd = layerNames.index('Mirror-Scope-base')
+            del viewer.layers[baseMirrInd]
+            layerNames = [lyr.name for lyr in viewer.layers]
+            movMirrInd = layerNames.index('Mirror-Scope-mov')
+            del viewer.layers[movMirrInd]
+            layerNames = [lyr.name for lyr in viewer.layers]
+            mirrLineInd = layerNames.index('Mirror-line')
+            del viewer.layers[mirrLineInd]
             return
         #mrrSiz = float(mirror_size)
         # Create mirror layers and shape layer
