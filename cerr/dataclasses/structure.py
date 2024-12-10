@@ -263,6 +263,7 @@ class Structure:
         dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
         direction = dir_cosine_mat.reshape(9,order='C')
         img = sitk.GetImageFromArray(sitkArray)
+        img = sitk.Cast(img, sitk.sitkUInt8)
         img.SetOrigin(originXyz)
         img.SetSpacing(spacing)
         img.SetDirection(direction)
