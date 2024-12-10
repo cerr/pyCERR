@@ -21,7 +21,7 @@ import subprocess
 
 def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
                   deforAlgorithm='bsplines', registrationTool='plastimatch',
-                  baseMask3M=None, movMask3M=None, inputCmdFile=None):
+                  baseMask3M=None, movMask3M=None, inputCmdFile=None, outputFilePrefix=None):
     """
 
     Args:
@@ -34,6 +34,7 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
         baseMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in target space
         movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
         inputCmdFile (str): optional, path to registration command file
+        outputFilePrefix (str): optional, prefix to output bsplines coeff file name
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with an element added to planC.deform attribute
@@ -93,7 +94,10 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
 
     # Filename to save bsplines coeffficients
     bspSourcePath = os.path.join(dirpath, xform_out)
-    bspDestPath = os.path.join(transformSaveDir, xform_out)
+    if outputFilePrefix is not None:
+        bspDestPath = os.path.join(transformSaveDir, outputFilePrefix + '_' + xform_out)
+    else:
+        bspDestPath = os.path.join(transformSaveDir, xform_out)
 
     # Command string to call registration tool
     if registrationTool.lower() == 'plastimatch':
