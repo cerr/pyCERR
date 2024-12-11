@@ -67,8 +67,8 @@ def addStudyTags(ds: FileDataset, studyDict):
 def addSeriesTags(ds: FileDataset, seriesDict):
     dt = datetime.now()
     ds.Modality = seriesDict['Modality']
-    ds.SeriesDate = dt.strftime("%Y%m%d")
-    ds.SeriesTime = dt.strftime("%H%M%S.%f")
+    ds.SeriesDate = seriesDict['SeriesDate'] # dt.strftime("%Y%m%d")
+    ds.SeriesTime = seriesDict['SeriesTime'] # dt.strftime("%H%M%S.%f")
     ds.SeriesDescription = seriesDict["SeriesDescription"]
     ds.SeriesInstanceUID = generate_uid()
     ds.SeriesNumber = seriesDict["SeriesNumber"] #str(randint(9010, 9900))
