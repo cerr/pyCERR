@@ -79,7 +79,7 @@ def calcMaxDistBetweenPts(ptsM, distType):
 
     return dmax
 
-def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
+def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV, rowColSlcOri):
     """Routine to calculate shape features for the inout mask and grid
 
     Args:
@@ -87,6 +87,7 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
         xValsV (numpy.nparray): x-values i.e. coordinates of columns of input mask
         yValsV (numpy.nparray): y-values i.e. coordinates of rows of input mask
         zValsV (numpy.nparray): z-values i.e. coordinates of slices of input mask
+        rowColSlcOri (str): string specifying the direction of row, column and slice of mask3M
 
     Returns:
         dict: Dictionary containing shape features
@@ -154,9 +155,9 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
     #distM = distance.cdist(ptsM, ptsM, 'euclidean')
     #shapeS['max3dDiameter'] = np.max(distM)
 
-    dmaxAxial = 0
-    dmaxCor = 0
-    dmaxSag = 0
+    dmaxSlices = 0 #dmaxAxial = 0
+    dmaxRows = 0 #dmaxCor = 0
+    dmaxCols = 0 #dmaxSag = 0
 
     uniqRowV = np.unique(rowV)
     uniqColV = np.unique(colV)
@@ -167,25 +168,51 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV):
         slc = uniqSlcV[i]
         indV = slcV == slc
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxAxial = max(dmaxAxial, np.max(distM))
+        dmaxSlices = max(dmaxSlices, np.max(distM))
 
     # Max diameter along cols
     for i in range(len(uniqColV)):
         col = uniqColV[i]
         indV = colV == col
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxSag = max(dmaxSag, np.max(distM))
+        dmaxCols = max(dmaxCols, np.max(distM))
 
     # Max diameter along rows
     for i in range(len(uniqRowV)):
         row = uniqRowV[i]
         indV = rowV == row
         distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxCor = max(dmaxCor, np.max(distM))
+        dmaxRows = max(dmaxRows, np.max(distM))
 
-    shapeS['max2dDiameterAxialPlane'] = dmaxAxial
-    shapeS['max2dDiameterSagittalPlane'] = dmaxSag
-    shapeS['max2dDiameterCoronalPlane'] = dmaxCor
+    axialIndex = rowColSlcOri.index('S') if 'S' in rowColSlcOri else rowColSlcOri.index('I')
+    sagIndex = rowColSlcOri.index('A') if 'A' in rowColSlcOri else rowColSlcOri.index('P')
+    corIndex = rowColSlcOri.index('L') if 'L' in rowColSlcOri else rowColSlcOri.index('R')
+    if axialIndex == 2:
+        shapeS['max2dDiameterAxialPlane'] = dmaxSlices
+    elif axialIndex == 0:
+        shapeS['max2dDiameterAxialPlane'] = dmaxRows
+    elif axialIndex == 1:
+        shapeS['max2dDiameterAxialPlane'] = dmaxCols
+
+    if sagIndex == 1:
+        shapeS['max2dDiameterSagittalPlane'] = dmaxCols
+    elif sagIndex == 0:
+        shapeS['max2dDiameterSagittalPlane'] = dmaxRows
+    elif sagIndex == 2:
+        shapeS['max2dDiameterSagittalPlane'] = dmaxSlices
+
+    if corIndex == 0:
+        shapeS['max2dDiameterCoronalPlane'] = dmaxRows
+    elif corIndex == 1:
+        shapeS['max2dDiameterCoronalPlane'] = dmaxCols
+    elif corIndex == 2:
+        shapeS['max2dDiameterCoronalPlane'] = dmaxSlices
+
+
+    # shapeS['max2dDiameterAxialPlane'] = dmaxSlices
+    # shapeS['max2dDiameterSagittalPlane'] = dmaxCols
+    # shapeS['max2dDiameterCoronalPlane'] = dmaxRows
+
 
     # Surface Area
     # Pad mask to account for contribution from edge slices

@@ -38,7 +38,7 @@ def getDirectionOffsets(direction):
     return offsetsM
 
 
-def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS):
+def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS, rowColSlcOri='LPS'):
 
     featDict = {}
 
@@ -100,7 +100,7 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     # Shape  features
     if 'shape' in paramS['featureClass'] and paramS['featureClass']['shape']["featureList"] != {}:
         from cerr.radiomics.shape import calcShapeFeatures
-        featDict['shape'] = calcShapeFeatures(morphMask3M, gridS['xValsV'], gridS['yValsV'], gridS['zValsV'])
+        featDict['shape'] = calcShapeFeatures(morphMask3M, gridS['xValsV'], gridS['yValsV'], gridS['zValsV'], rowColSlcOri)
 
     # Assign nan values outside the mask, so that min/max within the mask are used for quantization
     volToEval[~maskBoundingBox3M] = np.nan
@@ -200,6 +200,10 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             'directionality' in radiomicsSettingS['settings']['texture']:
         directionality = radiomicsSettingS['settings']['texture']['directionality']
 
+
+    # Get orientation of row, col, slc to calculate shape features
+    rowColSlcOri = planC.scan[0].getScanOrientation()
+
     # Loop over image filters
     featDictAllTypes = diagS
     for imgType in imgTypes:
@@ -208,7 +212,8 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             # Calc. radiomic features
             maskBoundingBox3M = processedMask3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
             croppedScan3M = processedScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
-            featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+            featDict = calcRadiomicsForImgType(croppedScan3M, maskBoundingBox3M, morphMask3M, gridS,
+                                               radiomicsSettingS, rowColSlcOri)
             featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
         else:
             # Extract filter & padding parameters
@@ -237,7 +242,8 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
                 filteredScan3M = filteredPadScan3M[minr:maxr+1, minc:maxc+1, mins:maxs+1]
                 filteredScan3M[~maskBoundingBox3M] = np.nan
                 # Calc. radiomic features
-                featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, morphMask3M, gridS, radiomicsSettingS)
+                featDict = calcRadiomicsForImgType(filteredScan3M, maskBoundingBox3M, morphMask3M, gridS,
+                                                   radiomicsSettingS, rowColSlcOri)
 
                 # Aggregate features
                 imgFeatName = createFieldNameFromParameters(imgType, filterParamS)
