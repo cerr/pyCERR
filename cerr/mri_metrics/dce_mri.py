@@ -184,7 +184,7 @@ def calcSemiQuantFeatures(planC, structNum, basePts=None, temporalSmoothDict=Non
 
         # Pre-process
         #procSlcSigM, procTimeV = smoothResample(normSlcSigM, selTimePtsV,
-                                                temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
+        #                                        temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
         #featureDict = computeFeatures(procSlcSigM, procTimeV)
         #featureList.append(featureDict)
 
