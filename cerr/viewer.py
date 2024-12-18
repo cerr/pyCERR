@@ -215,14 +215,31 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
     #movLyrInd = getLayerIndex(scanNum,'scan',scan_layer)
     rb,cb,sb = np.round(baseLayer.world_to_data(currPt))
     numRows, numCols, numSlcs = baseLayer.data.shape #planC.scan[baseInd].getScanSize()
+
+    planC = baseLayer.metadata['planC']
+    baseScanNum = baseLayer.metadata['scanNum']
+    movScanNum = movLayer.metadata['scanNum']
+
+    # Convert mirror size from physical units to number of voxels
+    baseSpacing = planC.scan[baseScanNum].getScanSpacing()
+    movSpacing = planC.scan[movScanNum].getScanSpacing()
+
     axNum = 1
+    colsOffset = int(mirrorSize / (baseSpacing[0]*10))
+    rowsOffset = int(mirrorSize / (baseSpacing[1]*10))
+    slcsOffset = int(mirrorSize / (baseSpacing[2]*10))
+    mirrorSizeBase = colsOffset
     rMinB, rMaxB, cMinB, cMaxB, sMinB, sMaxB = getRCSwithinScanExtents(rb,cb,sb,numRows, numCols, numSlcs,
-                                                              mirrorSize, axNum)
+                                                              mirrorSizeBase, axNum)
     rm,cm,sm = np.round(movLayer.world_to_data(currPt))
     numRows, numCols, numSlcs = movLayer.data.shape #planC.scan[movInd].getScanSize()
     axNum = 1
+    colsOffset = int(mirrorSize / (movSpacing[0]*10))
+    rowsOffset = int(mirrorSize / (movSpacing[1]*10))
+    slcsOffset = int(mirrorSize / (movSpacing[2]*10))
+    mirrorSizeMov = colsOffset
     rMinM, rMaxM, cMinM, cMaxM, sMinM, sMaxM = getRCSwithinScanExtents(rm,cm,sm,numRows, numCols, numSlcs,
-                                                              mirrorSize, axNum)
+                                                              mirrorSizeMov, axNum)
     if rMinB == rMaxB == 0:
         rMaxB = 1
     elif rMinB == rMaxB:
@@ -240,9 +257,9 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
         cMaxM = 1
     elif cMinM == cMaxM:
         cMinM = cMinM-1
-    planC = baseLayer.metadata['planC']
-    baseScanNum = baseLayer.metadata['scanNum']
-    movScanNum = movLayer.metadata['scanNum']
+    # planC = baseLayer.metadata['planC']
+    # baseScanNum = baseLayer.metadata['scanNum']
+    # movScanNum = movLayer.metadata['scanNum']
     xb,yb,zb = planC.scan[baseScanNum].getScanXYZVals()
     yb = -yb
     dxB,dyB,dzB = planC.scan[baseScanNum].getScanSpacing()
@@ -252,6 +269,8 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
 
     deltaXmov = dxM * (cMaxM - cMinM)
     deltaYmov = dyM * (rMaxM - rMinM)
+    #croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
+    #croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
     croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
     croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
     croppedScanMov = np.flip(croppedScanMov,axis=1)
@@ -276,7 +295,9 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
     mrrScpLayerMov.contrast_limits = movLayer.contrast_limits
     mrrScpLayerMov.contrast_limits_range = movLayer.contrast_limits_range
 
-    data = [[[rMinB,cb,sb], [rMaxB,cb,sb]]]
+    #data = [[[rMinB,cb,sb], [rMaxB,cb,sb]]]
+    data = [[[rMinB-(rMaxB-rMinB)*0.1,cb,sb], [rMinB,cb,sb]]]
+    data.append([[rMaxB,cb,sb], [rMaxB+(rMaxB-rMinB)*0.1,cb,sb]])
     data.append([[rMinB,2*cMinB-cMaxB,sb], [rMinB,cMaxB,sb]])
     data.append([[rMinB,2*cMinB-cMaxB,sb], [rMaxB,2*cMinB-cMaxB,sb]])
     data.append([[rMaxB,2*cMinB-cMaxB,sb], [rMaxB,cMaxB,sb]])
