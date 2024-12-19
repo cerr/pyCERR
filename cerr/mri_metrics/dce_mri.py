@@ -143,24 +143,97 @@ def locatePeak(sigM):
     """
 
     nVox = sigM.shape[0]
-    sigMax = 0.8 * np.max(sigM, axis=0)
+    nTime = sigM.shape[1]
+    sigMax = 0.8 * np.max(sigM, axis=1)
 
     diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(sigM, 1, 1)), axis=1)
     diffPrevM = np.concatenate((-np.diff(sigM, 1, 1), np.zeros((nVox, 1))), axis=1)
-    localMaxIdxM = diffNextM >= 0 and diffPrevM >= 0
-    highSigIdxM = sigM > sigMax
+    localMaxIdxM = np.logical_and(diffNextM >= 0, diffPrevM >= 0)
+    highSigIdxM = sigM > np.tile(sigMax,(nTime, 1)).transpose()
 
-    allPeaksM = localMaxIdxM and highSigIdxM
-    peakIdxV = np.argmax(allPeaksM, axis=1)
+    allPeaksM = np.logical_and(localMaxIdxM, highSigIdxM)
+    skipVoxV = ~np.any(allPeaksM, axis=1)
+    peakIdxV = np.argmax(allPeaksM, axis=1).astype(float)
+    peakIdxV[skipVoxV] = np.nan
+
     return peakIdxV
 
 def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
-    #TBD
-    return 0
+    """smoothResample
+    Function to process uptake curve prior to feature extraction
+
+    Args:
+        sigM (np.ndarray, 2D)      : Uptake curves (nVox x nUptakeTime)
+        timeV (np.array, 1D)       : Acquisition times (1 x nUptakeTime)
+        temporalSmoothDict (dict)  : [optional, default:None] Dictionary specifying whether to
+                                     smooth curves follg. peak & associated filter parameters.
+                                     Keys:  'smoothFlag', 'kernelSize', 'sigma'
+        resampFlag (bool)          : [optional, default:False] Resample uptake curves to 0.1 min
+                                     resolution if True.
+
+    Returns:
+        resampSigM  (np.ndarray, 2D)  : Processed uptake curves (nVox x nResampUptakeTime)
+        timeOutV    (np.array, 1D)    : Resampled time pts (min) (1 x nResampUptakeTime)
+
+    """
+
+    # Smoothing filter settings
+    if temporalSmoothDict is None:
+        smoothFlag = False
+    else:
+        smoothSettings = temporalSmoothDict.keys()
+        smoothFlag = temporalSmoothDict['smooth']
+        sigma = 1
+        radius = 2
+        if 'sigma' in smoothSettings:
+            sigma = temporalSmoothDict['sigma']
+        if 'radius' in smoothSettings:
+            radius = temporalSmoothDict['radius']
+
+    # Resampling settings
+    nPad = 100
+    ts = 0.01
+    tdiff = timeV[1] - timeV[0]
+
+    # Pad signal
+    padSigM = np.hstack((np.tile(sigM[:, 0], (nPad, 1)).transpose(), sigM,
+               np.tile(sigM[:, -1], (nPad, 1)).transpose()))
+    padTimeV = np.hstack((np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
+                          np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
+
+    if not (resampFlag or smoothFlag):
+        return sigM, timeV
+    else:
+        if smoothFlag:
+            # Locate first peak
+            peakIdxV = locatePeak(sigM)
+            # Smooth signal following first peak
+            keepIdxV = np.nansum(padSigM, axis=1) != 0
+            selPadSigM = padSigM[keepIdxV, :]
+            peakIdxV = peakIdxV[keepIdxV]
+            for vox in range(selPadSigM.shape[0]):
+                padSigM[:, int(nPad + peakIdxV[vox] + 1):] = gaussian_filter1d(selPadSigM[vox, int(nPad + peakIdxV[vox] + 1):],
+                                                                          sigma=sigma,radius=radius, axis=0)
+        if resampFlag:
+            skipIdxV = np.isnan(np.nansum(padSigM, axis=1))
+            padSubSigM = padSigM[~skipIdxV, :]
+            numPts = int(padSubSigM.shape[1] * tdiff /ts)
+            resampPadSigM = np.full((sigM.shape[0], numPts), np.nan)
+            resampPadSigM[~skipIdxV, :], __ = resample(padSubSigM, numPts, t=padTimeV, axis=1)
+        else:
+            resampPadSigM = padSigM
+            ts = tdiff
+        # Un-pad
+        tSkip = round(nPad * tdiff / ts)
+        resampSigM = resampPadSigM[:, tSkip:-tSkip]
+        timeOutV = np.linspace(0, (resampSigM.shape[1] - 1) * ts, num=resampSigM.shape[1] - 1)
+
+        return resampSigM, timeOutV
 
 
 def computeFeatures(procSlcSigM, procTimeV):
-    # TBD
+
+    #TBD
     return 0
 
 
@@ -183,9 +256,15 @@ def calcSemiQuantFeatures(planC, structNum, basePts=None, temporalSmoothDict=Non
         normSlcSigM = normSlc3M.reshape(-1, normSlc3M.shape[2], order='F')  # column major
 
         # Pre-process
-        #procSlcSigM, procTimeV = smoothResample(normSlcSigM, selTimePtsV,
-        #                                        temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
-        #featureDict = computeFeatures(procSlcSigM, procTimeV)
-        #featureList.append(featureDict)
+        ## Retain voxels in ROI
+        skipIdxV = np.isnan(np.nansum(normSlcSigM, axis=1))
+        normROISlcSigM = normSlcSigM[~skipIdxV, :]
+        ## Smoothing + resampling
+        procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
+                                                temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
+        #
+        # # Compute features
+        # featureDict = computeFeatures(procSlcSigM, procTimeV)
+        # featureList.append(featureDict)
 
     return featureList
