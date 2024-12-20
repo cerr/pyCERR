@@ -114,30 +114,30 @@ def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=
         deformGrp = saveH5Deform(deformGrp, deformNumV, planC)
     return 0
 
-def saveNiiStructure(niiFileName, strNumV, planC, labelDict=None, dim=3):
+def saveNiiStructure(niiFileName, labelDict, planC, strNumV=None, dim=3):
     """
     Function to export a pyCERR's structure objects to NIfTi format mask/label map.
 
     Args:
         niiFileName: string specifying path to output NIfTI file.
-        strNumV: list of structure indices to be exported.
+        labelDict: dictionary mapping indices with structure names
         planC: pyCERR plan_container object.
-        labelDict: [optional, default=None] dictionary mapping indices with structure names
-        dim: [optional, default=3]. 3: writes a 3D array to nii, 4: writes 4D array to nii.
+        strNumV: [optional, default=None] list of structure indices to be exported.
+        dim: [optional, default=3]: writes a 3D array to nii, 4: writes 4D array to nii.
 
     Returns:
         0 on successful export.
     """
-    if not isinstance(strNumV, list):
+    if isinstance(strNumV, (int, float, np.number)):
         strNumV = [strNumV]
 
     if dim == 3:
         # Export label map
-        maskOut = getLabelMap(strNumV, planC, labelDict)
+        maskOut, strNumV = getLabelMap(planC, labelDict, strNumV)
     elif dim == 4:
         # Export stack of binary masks
         # Required for overlapping structures
-        maskList = getMaskList(strNumV, planC, labelDict=None)
+        maskList, strNumV = getMaskList(planC, labelDict, strNumV)
         maskOut = np.array(maskList)
     else:
         raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
