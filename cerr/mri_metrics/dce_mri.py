@@ -348,3 +348,33 @@ def calcSemiQuantFeatures(planC, structNum, basePts=None, temporalSmoothDict=Non
         featureList.append(featureDict)
 
     return featureList
+
+def createFeatureMaps(featureList, strNum, planC, importFlag=False):
+
+    # Get mask, associated scan and grid
+    mask3M = getStrMask(strNum, planC)
+    validSlcV = np.sum(np.sum(mask3M, axis=0), axis=0) > 0
+    mask3M = mask3M[:, :, validSlcV]
+
+    if importFlag:
+        assocScan = planC.structure[strNum].getStructureAssociatedScan(planC)
+        xV, yV, zV = planC.scan[assocScan].getScanXYZVals()
+        zV = zV[validSlcV]
+
+    # Extract list of available features
+    feats = featureList[0].keys()
+    numFeats = len(feats)
+    numRow, numCol, numSlc = mask3M.shape
+
+    mapDict = {f"{key}": np.zeros_like(mask3M, dtype=float) for key in feats}
+
+    # Create 3D maps
+    for key in feats:
+        for s in range(numSlc):
+            maskSlcM = mask3M[:, :, s]
+            mapDict[key][...,s][maskSlcM] = featureList[s][key]
+            # Import as pseudo-scan array
+        if importFlag:
+            planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
+
+    return mapDict, planC
