@@ -363,7 +363,6 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
 
     # Extract list of available features
     feats = featureList[0].keys()
-    numFeats = len(feats)
     numRow, numCol, numSlc = mask3M.shape
 
     mapDict = {f"{key}": np.zeros_like(mask3M, dtype=float) for key in feats}
@@ -372,8 +371,14 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
     for key in feats:
         for s in range(numSlc):
             maskSlcM = mask3M[:, :, s]
-            mapDict[key][...,s][maskSlcM] = featureList[s][key]
-            # Import as pseudo-scan array
+            rowIdxV, colIdxV = np.where(maskSlcM)
+            colFirstIdxV = np.lexsort((rowIdxV, colIdxV))
+
+            # Reorder feature vals in column-first order
+            featValV = featureList[s][key][colFirstIdxV]
+            mapDict[key][...,s][maskSlcM] = featValV
+
+        # Import as pseudo-scan array
         if importFlag:
             planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
 
