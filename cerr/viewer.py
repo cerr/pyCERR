@@ -569,6 +569,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     dose_layers = []
     for dose_num in dose_nums:
         doseArray = planC.dose[dose_num].doseArray
+        dose_name = planC.dose[dose_num].fractionGroupID
         xd,yd,zd = planC.dose[dose_num].getDoseXYZVals()
         yd = -yd # negative since napari viewer y increases from top to bottom
         dx = xd[1] - xd[0]
@@ -582,7 +583,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         doseWindow = {"name": "--- Select ---",
                       "center": centerDose,
                       "width": widthDose}
-        dose_lyr = viewer.add_image(doseArray,name='dose',affine=dose_affine,
+        dose_lyr = viewer.add_image(doseArray,name=dose_name, affine=dose_affine,
                                   opacity=0.5,colormap="turbo",
                                   blending="additive",interpolation2d="linear",
                                   interpolation3d="linear",
@@ -956,14 +957,16 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     return viewer, scan_layers, struct_layer, dose_layers, dvf_layer
 
 
-def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=None, windowCenter=0, windowWidth=300):
+def showMplNb(planC, scanNum=0, structNums=[], doseNum=None,
+              windowPreset=None, windowCenter=0, windowWidth=300,
+              doseColorMap=plt.cm.jet, doseCenter=None, doseWidth=None):
     """Routine to display interactive plot using matplotlib in a jupyter notebook
 
     Args:
         planC (cerr.plan_container.PlanC):
-        scan_nums (list or int): scan indices to display from planC.scan
-        struct_nums (list or int): structure indices to display from planC.structure
-        dose_nums (list or int): dose indices to display from planC.dose
+        scanNum (int): scan index to display from planC.scan
+        structNums (list or int): structure indices to display from planC.structure
+        doseNum (int): dose index to display from planC.dose (default:None)
         windowPreset (str): optional, string representing preset window.
             'Abd/Med': (-10, 330),
             'Head': (45, 125),
@@ -974,6 +977,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
             'PET SUV': (5, 10)
         windowCenter (float): optional, defaults to 0 when windowPreset is not specified.
         windowWidth (float): optional, defaults to 300 when windowPreset is not specified.
+        doseColorMap (cmap): Dose colormap. Default: plt.cm.jet
 
     Returns:
         None
@@ -1021,7 +1025,7 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
     #     with outputSlcCoronal:
     #         showSlice(change['new'], 'coronal')
 
-    def createWidgets(imgSize, scanNumV, doseNum=None):
+    def createWidgets(imgSize, scanNum, doseNum=None):
 
         viewSelect = widgets.Dropdown(
             options=['Axial', 'Sagittal', 'Coronal'],
@@ -1047,8 +1051,8 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         sliders = widgets.HBox([viewSelect,sliceSliderAxial, doseAlphaSlider])
 
         sliceAlphaList = []
-        if not isinstance(scanNumV, (np.number, int, float)):
-            for scanNum in scanNumV:
+        if not isinstance(scanNum, (np.number, int, float)):
+            for scanNum in scanNum:
                 sliceAlphaList.append(widgets.FloatSlider(
                 min=0,max=1,value=0.5,
                 step=.02, description=f"scan_{scanNum}_Alpha",
@@ -1079,37 +1083,43 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
 
 
     # Extract scan and mask
-    scan3M = planC.scan[scan_nums].getScanArray()
-    xVals, yVals, zVals = planC.scan[scan_nums].getScanXYZVals()
+    scan3M = planC.scan[scanNum].getScanArray()
+    xVals, yVals, zVals = planC.scan[scanNum].getScanXYZVals()
     extentTrans = xVals[0], xVals[-1], yVals[-1], yVals[0]
     extentSag = yVals[0], yVals[-1], zVals[-1], zVals[0]
     extentCor = xVals[0], xVals[-1], zVals[-1], zVals[0]
     imgSiz = np.shape(scan3M)
 
-    if isinstance(dose_nums,(np.number,int,float)):
-        dose3M = planC.dose[dose_nums].doseArray
-        maxDose = dose3M.max()
-        minDose = dose3M.min()
-        xDoseVals, yDoseVals, zDoseVals = planC.dose[dose_nums].getDoseXYZVals()
+    if isinstance(doseNum,(np.number,int,float)):
+        dose3M = planC.dose[doseNum].doseArray
+        if doseCenter is not None and doseWidth is not None:
+            minDose = doseCenter - doseWidth // 2
+            maxDose = doseCenter + doseWidth // 2
+        else:
+            maxDose = dose3M.max()
+            minDose = dose3M.min()
+        xDoseVals, yDoseVals, zDoseVals = planC.dose[doseNum].getDoseXYZVals()
         extentDoseTrans = xDoseVals[0], xDoseVals[-1], yDoseVals[-1], yDoseVals[0]
         extentDoseSag = yDoseVals[0], yDoseVals[-1], zDoseVals[-1], zDoseVals[0]
         extentDoseCor = xDoseVals[0], xDoseVals[-1], zDoseVals[-1], zDoseVals[0]
     else:
-        dose_nums = None
+        doseNum = None
+        maxDose = None
+        minDose = None
 
     masks = list()
     strNameList = list()
     strColorList = list()
-    for nStr in range (len(struct_nums)):
-        mask3M = rs.getStrMask(struct_nums[nStr],planC)
+    for nStr in range (len(structNums)):
+        mask3M = rs.getStrMask(structNums[nStr],planC)
         masks.append(mask3M)
-        strNameList.append(planC.structure[struct_nums[nStr]].structureName)
-        strColorList.append(np.array(planC.structure[struct_nums[nStr]].structureColor)/255)
+        strNameList.append(planC.structure[structNums[nStr]].structureName)
+        strColorList.append(np.array(planC.structure[structNums[nStr]].structureColor)/255)
 
     # Create slider widgets
     imgSize = np.shape(scan3M)
     #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
-    sliceSliderAxial, viewSelect, doseAlphaSlider, sliders = createWidgets(imgSize, scan_nums, dose_nums)
+    sliceSliderAxial, viewSelect, doseAlphaSlider, sliders = createWidgets(imgSize, scanNum, doseNum)
 
     def update_numSlcs(*args):
         if viewSelect.value == 'Axial':
@@ -1145,21 +1155,21 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         if view.lower() == 'axial':
             windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
             extent = extentTrans
-            if dose_nums is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
+            if doseNum is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
                 doseSlcNum = np.argmin((zVals[slcNum-1] - zDoseVals)**2)
                 doseImage = dose3M[:,:,doseSlcNum]
                 extentDose = extentDoseTrans
         elif view.lower() == 'sagittal':
             windowedImage = rotateImage(windowImage(scan3M[:, slcNum - 1, :], windowCenter, windowWidth))
             extent = extentSag
-            if dose_nums is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
+            if doseNum is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
                 doseSlcNum = np.argmin((xVals[slcNum-1] - xDoseVals)**2)
                 doseImage = rotateImage(dose3M[:,doseSlcNum,:])
                 extentDose = extentDoseSag
         elif view.lower() == 'coronal':
             windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
             extent = extentCor
-            if dose_nums is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
+            if doseNum is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
                 doseSlcNum = np.argmin((yVals[slcNum-1] - yDoseVals)**2)
                 doseImage = rotateImage(dose3M[doseSlcNum,:,:])
                 extentDose = extentDoseCor
@@ -1169,8 +1179,8 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         # Display scan
         im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
                     interpolation='nearest', extent=extent)
-        if dose_nums is not None and doseImage is not None:
-            imDose = ax.imshow(doseImage, cmap=plt.cm.jet, alpha=doseAlpha,
+        if doseNum is not None and doseImage is not None:
+            imDose = ax.imshow(doseImage, cmap=doseColorMap, alpha=doseAlpha,
                         interpolation='nearest', extent=extentDose,
                         vmin=minDose, vmax=maxDose)
 
@@ -1228,7 +1238,9 @@ def showMplNb(planC, scan_nums=0, struct_nums=[], dose_nums=None, windowPreset=N
         ax.set_yticklabels([])
         ax.legend(strNameList, fontsize=12)
         if doseImage is not None:
-            plt.colorbar(imDose, location='left', shrink=0.6)
+            cbar = plt.colorbar(imDose, location='left', shrink=0.6)
+            doseName = planC.dose[doseNum].fractionGroupID
+            cbar.set_label(doseName)
         plt.rcParams["figure.figsize"] = (6, 6)
         plt.legend(proxy, strNameList, loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
