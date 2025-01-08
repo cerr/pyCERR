@@ -10,13 +10,15 @@ from cerr.contour.rasterseg import getStrMask
 from cerr.utils.statistics import round
 
 EPS = np.finfo(float).eps
-def loadTimeSeq(planC, structNum):
+def loadTimeSeq(planC, structNum, userInputTime=[]):
     """loadTimeSeq
     Function to extract 4D DCE scan array associated with input structure from planC
 
     Args:
         planC (plan_container.planC): pyCERR's plan container object
         structNum (int): Index of structure in planC
+        userInputTime (np.array, float): [optional. default=[], read acquisitionTime]
+                                         Set to True for user-input acquisition times
 
     Returns:
         scanArr4M (np.ndarray, 4D)  : DCE array (nRows x nCols x nROISlc x nTime)
@@ -26,19 +28,28 @@ def loadTimeSeq(planC, structNum):
     """
     numTimePts = len(planC.scan)
     mask3M = getStrMask(structNum, planC)
-    maskSlcV = sum(sum(mask3M)) > 0
-    maskSlc3M = mask3M[:, :, maskSlcV]
-    numSlc = maskSlcV.sum()
+    maskSlcIdxV = np.sum(np.sum(mask3M, axis=0), axis=0) > 0
+    maskSlcV = np.array(np.where(maskSlcIdxV)[0])
+    maskSlc3M = mask3M[:, :, maskSlcIdxV]
+    numSlc = len(maskSlcV)
 
+    # Extract uptake curves for voxels in ROI
     scanSizeV = planC.scan[0].getScanSize()
     scanArr4M = np.zeros((scanSizeV[0], scanSizeV[1], numSlc, numTimePts))
-    timePtsV = np.array([planC.scan[scn].scanInfo[0].triggerTime for scn in range(len(planC.scan))])
+    for slc in range(numSlc):
+        scanSlc3M = np.array([scn.getScanArray()[:, :, maskSlcV[slc]] for scn in planC.scan])
+        scanArr4M[:, :, slc, :] = np.moveaxis(scanSlc3M, 0, -1)
 
-    for slc in range(len(maskSlcV)):
-        scanArr4M[:, :, slc, :] = np.array([planC.scan[scn].getScanArray()[:, :, slc] for scn in range(numTimePts)])
+    timePtsV = userInputTime
+    if len(userInputTime) == 0:
+        timePtsV = np.array([planC.scan[scn].scanInfo[0].acquisitionTime for scn in range(numTimePts)])
+
+    # Sort time pts
+    indSortedV = np.argsort(timePtsV)
+    timePtsV = timePtsV[indSortedV]
+    scanArr4M = scanArr4M[:, :, :, indSortedV]
 
     return scanArr4M, timePtsV, maskSlc3M, maskSlcV
-
 
 def getStartofUptake(slice3M, maskM):
     """getStartofUptake
@@ -111,7 +122,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
 
     normScan4M = np.zeros(scanArr4M.shape)
     for slc in range(numSlc):
-        slcSeq3M = scanArr4M[:, :, slc, :]
+        slcSeq3M = scanArr4M[:, :, slc, :].copy()
         # if smoothFlag:
         # Smoothing
         maskSlc3M = np.repeat(mask3M[:, :, slc, np.newaxis], nTimePts, axis=2)
@@ -150,10 +161,17 @@ def locatePeak(sigM):
     nTime = sigM.shape[1]
     sigMax = 0.8 * np.max(sigM, axis=1)
 
-    diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(sigM, 1, 1)), axis=1)
-    diffPrevM = np.concatenate((-np.diff(sigM, 1, 1), np.zeros((nVox, 1))), axis=1)
+    # Noise filtering
+    sigma = 2
+    filtSigM = np.apply_along_axis(
+                      lambda row: gaussian_filter1d(row, sigma=sigma, mode='nearest'),
+                      axis=1,
+                      arr=sigM)
+
+    diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(filtSigM, 1, 1)), axis=1)
+    diffPrevM = np.concatenate((-np.diff(filtSigM, 1, 1), np.zeros((nVox, 1))), axis=1)
     localMaxIdxM = np.logical_and(diffNextM >= 0, diffPrevM >= 0)
-    highSigIdxM = sigM > np.tile(sigMax,(nTime, 1)).transpose()
+    highSigIdxM = filtSigM > np.tile(sigMax,(nTime, 1)).transpose()
 
     allPeaksM = np.logical_and(localMaxIdxM, highSigIdxM)
     skipVoxV = ~np.any(allPeaksM, axis=1)
@@ -201,7 +219,7 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
 
     # Pad signal
     padSigM = np.hstack((np.tile(sigM[:, 0], (nPad, 1)).transpose(), sigM,
-               np.tile(sigM[:, -1], (nPad, 1)).transpose()))
+                         np.tile(sigM[:, -1], (nPad, 1)).transpose()))
     padTimeV = np.hstack((np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
                           np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
 
@@ -217,7 +235,7 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
             peakIdxV = peakIdxV[keepIdxV]
             for vox in range(selPadSigM.shape[0]):
                 padSigM[:, int(nPad + peakIdxV[vox] + 1):] = gaussian_filter1d(selPadSigM[vox, int(nPad + peakIdxV[vox] + 1):],
-                                                                          sigma=sigma,radius=radius, axis=0)
+                                                                               sigma=sigma,radius=radius, axis=0)
         if resampFlag:
             skipIdxV = np.isnan(np.nansum(padSigM, axis=1))
             padSubSigM = padSigM[~skipIdxV, :]
@@ -235,8 +253,22 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
         return resampSigM, timeOutV
 
 
-def computeFeatures(procSlcSigM, procTimeV):
+def semiQuantFeatures(procSlcSigM, procTimeV):
+    """semiQuantFeatures
+        Compute non-parametric features from pre-processed contrast uptake curve.
+        Ref.: Lee, S.H., et al. (2017) "Correlation Between Tumor Metabolism and Semiquantitative Perfusion
+               MRI Metrics in Non–small Cell Lung Cancer." IJROBP 99.2:S83-S84.
 
+        Args:
+            procSlcSigM (np.ndarray, 2D)   : Processed uptake curves (nVox x nResampleTime)
+            procTimeV (np.array, 1D)       : Acquisition times (1 x nResampleTime) in min.
+
+        Returns:
+            featureDict (dict)             : Dictionary of non-parameteric features.
+
+    """
+
+    # Calc. signal enhancement relative to baseline (assumed to be proportional to contrast agent concentration)
     relEnhancementM = procSlcSigM - 1  # S(t)/S(0) - 1
     nVox = relEnhancementM.shape[0]
 
@@ -248,62 +280,68 @@ def computeFeatures(procSlcSigM, procTimeV):
     # Half-peak
     halfMaxSig = (np.max(procSlcSigM, axis=1) - 1) / 2
     SHPcolIdx = np.argmax(relEnhancementM >= halfMaxSig[:, np.newaxis], axis=1)
-    SHPv = procSlcSigM[np.arange(len(procSlcSigM)), SHPcolIdx] #Signal at half-peak
-    TTHPv = procTimeV[SHPcolIdx]           #Time to half-peak
+    SHPv = procSlcSigM[np.arange(len(procSlcSigM)), SHPcolIdx]          # Signal at half-peak
+    EHPv = relEnhancementM[np.arange(len(relEnhancementM)), SHPcolIdx]  # Relative enhancement at half-peak
+    TTHPv = procTimeV[SHPcolIdx]                                        # Time to half-peak
 
-    # Wash-in / wash-out slopes
+    # Wash-in slope
     WISv = PEv / (TTPv + EPS)              # Wash in slope, WIS = PE / TTP
+
+    #Wash-out slope
+    # WOS = (PE - RSE(Tend)) / (Tend - TTP), if PE does not occur at Tend (0 otherwise).
     Tend = procTimeV[-1]
     RSEendV = relEnhancementM[:, -1]
     peakAtEndIdx = TTPv == Tend
-    WOSv = (PEv - RSEendV)/ (TTPv - Tend)  # WOS = (PE - RSE(Tend)) / (TTP – Tend), if PE does not occur at Tend
+    WOSv = (PEv - RSEendV)/ (Tend - TTPv)
     WOSv[peakAtEndIdx] = 0
 
     # Wash-in/out gradients
-    ## Initial gradient estimated by linear regression of RSE between 20 % and 80 % PE
-    id_20v = np.argmax(relEnhancementM >= .2 * PEv[:, np.newaxis], axis=1)
-    id_80v = np.argmax(relEnhancementM > .8 * PEv[:, np.newaxis], axis=1)
-    id_80v = id_80v - 1
+    ## Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
     IGv = np.full((nVox, ), fill_value=np.nan)
-    igIdxV = np.full(relEnhancementM.shape, fill_value=False)
     for i in range(nVox):
-        idxV = np.arange(id_20v[i], id_80v[i]+1)
-        y = relEnhancementM[i, idxV].T
-        x = np.hstack((np.ones((len(idxV), 1)), procTimeV[idxV].T[:,np.newaxis]))
+        id_10 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] >= .1 * PEv[i])
+        id_70 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] > .7 * PEv[i])
+        if id_70 == 0:
+            id_70 = peakIdxV[i]  # Handle case where no column exceeds 70%
+        initialPts = np.arange(id_10, id_70 + 1)
+        y = relEnhancementM[i, initialPts].T
+        x = np.hstack((np.ones((len(initialPts), 1)), procTimeV[initialPts].T[:,np.newaxis]))
+        #x = np.column_stack((np.ones(len(initialPts)), procTimeV[initialPts].T))  # Create the design matrix
         b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
         IGv[i] = b[1]
-        igIdxV[i, idxV] = True
 
-    ## Wash-out gradient estimated by linear regression of RSE between PE and 1 min post-PE
-    t0 = peakIdxV
-    t1IdxM = procTimeV[:,None] >= (procTimeV[t0] + 1)
-    skipRowV = ~np.any(t1IdxM, axis=0)
-    t1 = np.argmax(t1IdxM, axis=0)
+    # Wash-out gradient estimated by linear regression of RSE between  1 and 2 min elapsed from start of uptake
     WOGv = np.full((nVox, ), fill_value=np.nan)
     for i in range(nVox):
-        if ~skipRowV[i]:
-            x = np.hstack((np.ones((t1[i] - t0[i] + 1, 1)), procTimeV[t0[i]:t1[i]+1][:, np.newaxis]))
-            y = relEnhancementM[i, t0[i]: t1[i]+1].T
+
+        id_1 = np.argmax(procTimeV >= 1)
+        id_2 = np.argmax(procTimeV > 2)
+        if id_1 == 0 or id_2 == 0:
+            WOGv[i] = np.nan
+        else:
+            washOutPts = np.arange(id_1, id_2 + 1)
+            y = relEnhancementM[i, washOutPts].T
+            x = np.hstack((np.ones((len(washOutPts), 1)), procTimeV[washOutPts].T[:, np.newaxis]))
             b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
             WOGv[i] = b[1]
-        else:
-            WOGv[i] = np.nan
 
     #Signal enhancement ratio
-    tse1 = np.argmax(procTimeV >= .5)
-    tse2 = np.argmax(procTimeV >= 2.5)
-    SERv = relEnhancementM[:, tse1] / relEnhancementM[:, tse2]
+    # RSE at 0.5 min divided by RSE at 2.5 min, elapsed from start of uptake
+    tse1 = np.nanargmax(procTimeV >= .5)
+    tse2 = np.nanargmax(procTimeV >= 2.5)
+    SERv = relEnhancementM[:, tse1] / (relEnhancementM[:, tse2] + EPS)
 
     #IAUC
     IAUCv = cumtrapz(y=relEnhancementM.T, x=procTimeV.T, axis=0, initial=0).T
     IAUCtthpV = np.full((nVox,), fill_value=np.nan)
     IAUCttpV = np.full((nVox,), fill_value=np.nan)
     for i in range(nVox):
-        IAUCtthpV[i] = IAUCv[i, np.argmax(procTimeV >= TTHPv[i])]
-        IAUCttpV[i] = IAUCv[i, np.argmax(procTimeV >= TTPv[i])]
+        IAUCtthpV[i] = IAUCv[i, np.nanargmax(procTimeV >= TTHPv[i])]
+        IAUCttpV[i] = IAUCv[i, np.nanargmax(procTimeV >= TTPv[i])]
 
     featureDict = {'PeakEnhancement': PEv,
                    'SignalAtHalfPeak': SHPv,
+                   'RelativeEnhancementAtHalfPeak': EHPv,
                    'TimeToPeak': TTPv,
                    'TimeToHalfPeak': TTHPv,
                    'SignalEnhancementRatio': SERv,
@@ -317,13 +355,36 @@ def computeFeatures(procSlcSigM, procTimeV):
     return featureDict
 
 
-def calcSemiQuantFeatures(planC, structNum, basePts=None, temporalSmoothDict=None,
+def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSmoothDict=None,
                           imgSmoothDict=None, resampFlag=False):
+    """calcROIuptakeFeatures
+        Wrapper to compute non-parametric uptake characteristics for each slice of input ROI.
+
+        Args:
+            planC (plan_container.planC): pyCERR's plan container object
+            structNum (int): Index of structure in planC
+            timeV (np.array, float): [optional, default:None] User-input acquisition times
+            basePts (int): [optional, default:None] Time pt. representing start of uptake.
+                           By default, have user input value.
+            temporalSmoothDict (dict)  : [optional, default:None] Dictionary specifying whether to
+                                     smooth curves follg. peak & associated filter parameters.
+                                     Keys:  'smoothFlag', 'kernelSize', 'sigma'
+            imgSmoothDict (dict): [optional, default:None] Dictionary specifying whether to
+                                  smooth image & associated filter parameters.
+                                  Keys:  'smoothFlag', 'kernelSize', 'sigma'.
+            resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
+                                     resolution if True.
+
+        Returns:
+            featureList: List of dictionaries (one per ROI slice) containing uptake features.
+
+    """
+    userInputTime = []
+    if len(timeV)>0:
+        userInputTime = timeV
 
     # Load DCE series
-    scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum)
-    numTimePts = len(timePtsV)
-    scanSize = planC.scan[0].getScanSize()
+    scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
 
     # Normalize to baseline
     normScan4M, selTimePtsV = normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts, imgSmoothDict=None)
@@ -337,19 +398,32 @@ def calcSemiQuantFeatures(planC, structNum, basePts=None, temporalSmoothDict=Non
 
         # Pre-process
         ## Retain voxels in ROI
-        skipIdxV = np.isnan(np.nansum(normSlcSigM, axis=1))
+        skipIdxV = np.isnan(np.sum(normSlcSigM, axis=1))
         normROISlcSigM = normSlcSigM[~skipIdxV, :]
         ## Smoothing + resampling
         procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
-                                               temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
+                                                temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
 
         # Compute features
-        featureDict = computeFeatures(procSlcSigM, procTimeV)
+        featureDict = semiQuantFeatures(procSlcSigM, procTimeV)
         featureList.append(featureDict)
 
     return featureList
 
 def createFeatureMaps(featureList, strNum, planC, importFlag=False):
+    """createFeatureMaps
+        Function to generate maps of non-parametric features.
+
+        Args:
+            featureList: List of dictionaries (one per ROI slice) containing uptake features.
+            structNum (int): Index of structure in planC.
+            planC (plan_container.planC): pyCERR's plan container object
+            importFlag (bool): [optional, default:False] Import to planC as pseudo-dose.
+
+        Returns:
+            mapDict (dict) : Dictionary of features maps.
+            planC (plan_container.planC): pyCERR's plan container object
+    """
 
     # Get mask, associated scan and grid
     mask3M = getStrMask(strNum, planC)
@@ -378,8 +452,9 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
             featValV = featureList[s][key][colFirstIdxV]
             mapDict[key][...,s][maskSlcM] = featValV
 
-        # Import as pseudo-scan array
+        # Import as pseudo-dose array
         if importFlag:
-            planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
+            #planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
+            planC = pc.importDoseArray(mapDict[key], xV, yV, zV, planC, assocScan, doseInfo={'fractionGroupID':key})
 
     return mapDict, planC
