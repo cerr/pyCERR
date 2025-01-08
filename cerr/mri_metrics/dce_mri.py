@@ -278,8 +278,8 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     TTPv = procTimeV[peakIdxV]             #Time-to-peak
 
     # Half-peak
-    halfMaxSig = (np.max(procSlcSigM, axis=1) - 1) / 2
-    SHPcolIdx = np.argmax(relEnhancementM >= halfMaxSig[:, np.newaxis], axis=1)
+    halfMaxSig = .5 * PEv
+    SHPcolIdx = np.argmin(np.abs(relEnhancementM - halfMaxSig[:, np.newaxis]), axis=1)
     SHPv = procSlcSigM[np.arange(len(procSlcSigM)), SHPcolIdx]          # Signal at half-peak
     EHPv = relEnhancementM[np.arange(len(relEnhancementM)), SHPcolIdx]  # Relative enhancement at half-peak
     TTHPv = procTimeV[SHPcolIdx]                                        # Time to half-peak
@@ -299,8 +299,8 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     ## Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
     IGv = np.full((nVox, ), fill_value=np.nan)
     for i in range(nVox):
-        id_10 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] >= .1 * PEv[i])
-        id_70 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] > .7 * PEv[i])
+        id_10 = np.argmin(np.abs(relEnhancementM[i, :peakIdxV[i] + 1] - .1 * PEv[i]))
+        id_70 = np.argmin(np.abs(relEnhancementM[i, id_10:peakIdxV[i] + 1] - .7 * PEv[i]))
         if id_70 == 0:
             id_70 = peakIdxV[i]  # Handle case where no column exceeds 70%
         initialPts = np.arange(id_10, id_70 + 1)
@@ -319,7 +319,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
         if id_1 == 0 or id_2 == 0:
             WOGv[i] = np.nan
         else:
-            washOutPts = np.arange(id_1, id_2 + 1)
+            washOutPts = np.arange(id_1, id_2)
             y = relEnhancementM[i, washOutPts].T
             x = np.hstack((np.ones((len(washOutPts), 1)), procTimeV[washOutPts].T[:, np.newaxis]))
             b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
