@@ -35,7 +35,7 @@ def loadTimeSeq(planC, structNum, userInputTime=[]):
 
     # Extract uptake curves for voxels in ROI
     scanSizeV = planC.scan[0].getScanSize()
-    scanArr4M = np.zeros((scanSizeV[0], scanSizeV[1], numSlc, numTimePts), dtype=np.float32)
+    scanArr4M = np.zeros((scanSizeV[0], scanSizeV[1], numSlc, numTimePts))
     for slc in range(numSlc):
         scanSlc3M = np.array([scn.getScanArray()[:, :, maskSlcV[slc]] for scn in planC.scan])
         scanArr4M[:, :, slc, :] = np.moveaxis(scanSlc3M, 0, -1)
@@ -44,8 +44,12 @@ def loadTimeSeq(planC, structNum, userInputTime=[]):
     if len(userInputTime) == 0:
         timePtsV = np.array([planC.scan[scn].scanInfo[0].acquisitionTime for scn in range(numTimePts)])
 
-    return scanArr4M, timePtsV, maskSlc3M, maskSlcV
+    # Sort time pts
+    indSortedV = np.argsort(timePtsV)
+    timePtsV = timePtsV[indSortedV]
+    scanArr4M = scanArr4M[:, :, :, indSortedV]
 
+    return scanArr4M, timePtsV, maskSlc3M, maskSlcV
 
 def getStartofUptake(slice3M, maskM):
     """getStartofUptake
@@ -118,7 +122,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
 
     normScan4M = np.zeros(scanArr4M.shape)
     for slc in range(numSlc):
-        slcSeq3M = scanArr4M[:, :, slc, :]
+        slcSeq3M = scanArr4M[:, :, slc, :].copy()
         # if smoothFlag:
         # Smoothing
         maskSlc3M = np.repeat(mask3M[:, :, slc, np.newaxis], nTimePts, axis=2)
@@ -157,10 +161,17 @@ def locatePeak(sigM):
     nTime = sigM.shape[1]
     sigMax = 0.8 * np.max(sigM, axis=1)
 
-    diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(sigM, 1, 1)), axis=1)
-    diffPrevM = np.concatenate((-np.diff(sigM, 1, 1), np.zeros((nVox, 1))), axis=1)
+    # Noise filtering
+    sigma = 2
+    filtSigM = np.apply_along_axis(
+                      lambda row: gaussian_filter1d(row, sigma=sigma, mode='nearest'),
+                      axis=1,
+                      arr=sigM)
+
+    diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(filtSigM, 1, 1)), axis=1)
+    diffPrevM = np.concatenate((-np.diff(filtSigM, 1, 1), np.zeros((nVox, 1))), axis=1)
     localMaxIdxM = np.logical_and(diffNextM >= 0, diffPrevM >= 0)
-    highSigIdxM = sigM > np.tile(sigMax,(nTime, 1)).transpose()
+    highSigIdxM = filtSigM > np.tile(sigMax,(nTime, 1)).transpose()
 
     allPeaksM = np.logical_and(localMaxIdxM, highSigIdxM)
     skipVoxV = ~np.any(allPeaksM, axis=1)
@@ -262,13 +273,13 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     nVox = relEnhancementM.shape[0]
 
     # Peak enhancement
-    PEv = np.nanmax(relEnhancementM, axis=1)
-    peakIdxV = np.nanargmax(relEnhancementM, axis=1)
+    PEv = np.max(relEnhancementM, axis=1)
+    peakIdxV = np.argmax(relEnhancementM, axis=1)
     TTPv = procTimeV[peakIdxV]             #Time-to-peak
 
     # Half-peak
-    halfMaxSig = np.nanmax(relEnhancementM, axis=1) / 2
-    SHPcolIdx = np.nanargmax(relEnhancementM >= halfMaxSig[:, np.newaxis], axis=1)
+    halfMaxSig = (np.max(procSlcSigM, axis=1) - 1) / 2
+    SHPcolIdx = np.argmax(relEnhancementM >= halfMaxSig[:, np.newaxis], axis=1)
     SHPv = procSlcSigM[np.arange(len(procSlcSigM)), SHPcolIdx]          # Signal at half-peak
     EHPv = relEnhancementM[np.arange(len(relEnhancementM)), SHPcolIdx]  # Relative enhancement at half-peak
     TTHPv = procTimeV[SHPcolIdx]                                        # Time to half-peak
@@ -283,13 +294,13 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     peakAtEndIdx = TTPv == Tend
     WOSv = (PEv - RSEendV)/ (Tend - TTPv)
     WOSv[peakAtEndIdx] = 0
-    #
-    # # Wash-in/out gradients
-    # ## Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
+
+    # Wash-in/out gradients
+    ## Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
     IGv = np.full((nVox, ), fill_value=np.nan)
     for i in range(nVox):
-        id_10 = np.nanargmax(relEnhancementM[i, :peakIdxV[i] + 1] >= .1 * PEv[i])
-        id_70 = np.nanargmax(relEnhancementM[i, :peakIdxV[i] + 1] > .7 * PEv[i])
+        id_10 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] >= .1 * PEv[i])
+        id_70 = np.argmax(relEnhancementM[i, :peakIdxV[i] + 1] > .7 * PEv[i])
         if id_70 == 0:
             id_70 = peakIdxV[i]  # Handle case where no column exceeds 70%
         initialPts = np.arange(id_10, id_70 + 1)
@@ -299,19 +310,18 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
         b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
         IGv[i] = b[1]
 
-    ## Wash-out gradient estimated by linear regression of RSE between  1 and 2 min elapsed from start of uptake
+    # Wash-out gradient estimated by linear regression of RSE between  1 and 2 min elapsed from start of uptake
     WOGv = np.full((nVox, ), fill_value=np.nan)
     for i in range(nVox):
 
-        id_1 = np.nanargmax(procTimeV >= 1)
-        id_2 = np.nanargmax(procTimeV > 2)
+        id_1 = np.argmax(procTimeV >= 1)
+        id_2 = np.argmax(procTimeV > 2)
         if id_1 == 0 or id_2 == 0:
             WOGv[i] = np.nan
         else:
             washOutPts = np.arange(id_1, id_2 + 1)
             y = relEnhancementM[i, washOutPts].T
             x = np.hstack((np.ones((len(washOutPts), 1)), procTimeV[washOutPts].T[:, np.newaxis]))
-            #x = np.column_stack((np.ones(len(washOutPts)), procTimeV[washOutPts].T))  # Create the design matrix
             b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
             WOGv[i] = b[1]
 
@@ -376,11 +386,6 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSm
     # Load DCE series
     scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
 
-    # Get acquisition times
-    if len(timeV)>0:
-        indSortedV = np.argsort(timePtsV)
-        scanArr4M = scanArr4M[:, :, :, indSortedV]
-
     # Normalize to baseline
     normScan4M, selTimePtsV = normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts, imgSmoothDict=None)
 
@@ -393,7 +398,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSm
 
         # Pre-process
         ## Retain voxels in ROI
-        skipIdxV = np.isnan(np.nansum(normSlcSigM, axis=1))
+        skipIdxV = np.isnan(np.sum(normSlcSigM, axis=1))
         normROISlcSigM = normSlcSigM[~skipIdxV, :]
         ## Smoothing + resampling
         procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
