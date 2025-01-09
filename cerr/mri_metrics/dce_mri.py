@@ -74,6 +74,9 @@ def getStartofUptake(slice3M, maskM):
     plt.plot(timePtsV, meanSigV, marker='o')
     for i, (x, y) in enumerate(zip(timePtsV, meanSigV)):
         plt.annotate(str(i), (x, y), xytext=(5, 5), textcoords='offset points')
+    plt.xlabel('Time point')
+    plt.ylabel('ROI mean signal intensity')
+    plt.title('Select start of uptake')
     plt.show(block=True)
 
     basePts = input("Enter timepoint representing start of uptake: ")
@@ -292,7 +295,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     Tend = procTimeV[-1]
     RSEendV = relEnhancementM[:, -1]
     peakAtEndIdx = TTPv == Tend
-    WOSv = (PEv - RSEendV)/ (Tend - TTPv)
+    WOSv = (PEv - RSEendV)/ (Tend - TTPv + EPS)
     WOSv[peakAtEndIdx] = 0
 
     # Wash-in/out gradients
