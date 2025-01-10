@@ -55,12 +55,14 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
     if baseMask3M is not None:
         basePlanC = pc.importStructureMask(baseMask3M, baseScanIndex, 'mask', basePlanC)
         maskStrNum = len(basePlanC.structure) - 1
-        pc.saveNiiStructure(fixed_mask_nii, maskStrNum, basePlanC)
+        #pc.saveNiiStructure(fixed_mask_nii, maskStrNum, basePlanC)
+        basePlanC.structure[maskStrNum].saveNii(fixed_mask_nii, basePlanC)
         del basePlanC.structure[-1]
     if movMask3M is not None:
         movPlanC = pc.importStructureMask(movMask3M, movScanIndex, 'mask', movPlanC)
         maskStrNum = len(movPlanC.structure) - 1
-        pc.saveNiiStructure(moving_mask_nii, maskStrNum, movPlanC)
+        #pc.saveNiiStructure(moving_mask_nii, maskStrNum, movPlanC)
+        movPlanC.structure[maskStrNum].saveNii(moving_mask_nii, movPlanC)
         del movPlanC.structure[-1]
 
     if inputCmdFile is None or not os.path.exists(inputCmdFile):
