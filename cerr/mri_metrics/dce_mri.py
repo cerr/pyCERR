@@ -2,7 +2,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from scipy.signal import resample
-from scipy.ndimage import gaussian_filter1d
+from scipy.signal import cspline1d, cspline1d_eval
+from scipy.ndimage import gaussian_filter1d, gaussian_filter
 from scipy.integrate import cumtrapz
 
 from cerr import plan_container as pc
@@ -100,9 +101,9 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
         maskSlc3M (np.ndarray, 3D) : Mask of ROI (nRows x nCols x nROISlc)
         basePts (int): [optional, default:None] Time pt. representing start of uptake.
                        By default, have user input value.
-        imgSmoothDict (dict)       : [optional, default:None] Dictionary specifying whether to
-                                     smooth image & associated filter parameters.
-                                     Keys:  'smoothFlag', 'kernelSize', 'sigma'
+        imgSmoothDict (dict)       : [optional, default:None] Dictionary specifying Gaussian
+                                     smoothing filter parameters. If specified, keys
+                                     'kernelSize' and 'sigma' must be present.
 
     Returns:
         scanArr4M (np.ndarray) : DCE array (nRows x nCols x nROISlc x nTime)
@@ -113,12 +114,9 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
 
     smoothFlag = False
     if imgSmoothDict is not None:
-        params = imgSmoothDict.keys()
-        smoothFlag = imgSmoothDict['smoothFlag']
-        if 'kernelSize' in params:
-            fSize = imgSmoothDict['kernelSize']
-        if 'sigma' in params:
-            fSigma = imgSmoothDict['sigma']
+        smoothFlag = True
+        fSize = imgSmoothDict['kernelSize']
+        fSigma = imgSmoothDict['sigma']
 
     numSlc = scanArr4M.shape[2]
     nTimePts = scanArr4M.shape[3]
@@ -126,7 +124,10 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
     normScan4M = np.zeros(scanArr4M.shape)
     for slc in range(numSlc):
         slcSeq3M = scanArr4M[:, :, slc, :].copy()
-        # if smoothFlag:
+        if smoothFlag:
+            for t in range(slcSeq3M.shape[2]):
+                slcSeq3M[:, :, t] = gaussian_filter(slcSeq3M[:, :, t], sigma=fSigma,
+                                    mode='nearest', truncate=fSize / fSigma)
         # Smoothing
         maskSlc3M = np.repeat(mask3M[:, :, slc, np.newaxis], nTimePts, axis=2)
         slcSeq3M[~maskSlc3M] = np.nan
@@ -164,10 +165,14 @@ def locatePeak(sigM):
     nTime = sigM.shape[1]
     sigMax = 0.8 * np.max(sigM, axis=1)
 
-    # Noise filtering
-    sigma = 2
+    # Noise filtering using cubic splines
+    # sigma = 2
+    # filtSigM = np.apply_along_axis(
+    #                   lambda row: gaussian_filter1d(row, sigma=sigma, mode='nearest'),
+    #                   axis=1,
+    #                   arr=sigM)
     filtSigM = np.apply_along_axis(
-                      lambda row: gaussian_filter1d(row, sigma=sigma, mode='nearest'),
+                      lambda row: cspline1d_eval( cspline1d(row), np.arange(0, len(row))),
                       axis=1,
                       arr=sigM)
 
@@ -183,16 +188,15 @@ def locatePeak(sigM):
 
     return peakIdxV
 
-def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
+def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
     """smoothResample
     Function to process uptake curve prior to feature extraction
 
     Args:
         sigM (np.ndarray, 2D)      : Uptake curves (nVox x nUptakeTime)
         timeV (np.array, 1D)       : Acquisition times (1 x nUptakeTime)
-        temporalSmoothDict (dict)  : [optional, default:None] Dictionary specifying whether to
-                                     smooth curves follg. peak & associated filter parameters.
-                                     Keys:  'smoothFlag', 'kernelSize', 'sigma'
+        temporalSmoothFlag (bool)  : [optional, default:False] Smooth curves follg. peak
+                                     using cubic splines.
         resampFlag (bool)          : [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
 
@@ -202,22 +206,9 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
 
     """
 
-    # Smoothing filter settings
-    if temporalSmoothDict is None:
-        smoothFlag = False
-    else:
-        smoothSettings = temporalSmoothDict.keys()
-        smoothFlag = temporalSmoothDict['smooth']
-        sigma = 1
-        radius = 2
-        if 'sigma' in smoothSettings:
-            sigma = temporalSmoothDict['sigma']
-        if 'radius' in smoothSettings:
-            radius = temporalSmoothDict['radius']
-
     # Resampling settings
     nPad = 100
-    ts = 0.01
+    ts = 0.1
     tdiff = timeV[1] - timeV[0]
 
     # Pad signal
@@ -226,10 +217,10 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
     padTimeV = np.hstack((np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
                           np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
 
-    if not (resampFlag or smoothFlag):
+    if not (resampFlag or temporalSmoothFlag):
         return sigM, timeV
     else:
-        if smoothFlag:
+        if temporalSmoothFlag:
             # Locate first peak
             peakIdxV = locatePeak(sigM)
             # Smooth signal following first peak
@@ -237,8 +228,9 @@ def smoothResample(sigM, timeV, temporalSmoothDict=None, resampFlag=False):
             selPadSigM = padSigM[keepIdxV, :]
             peakIdxV = peakIdxV[keepIdxV]
             for vox in range(selPadSigM.shape[0]):
-                padSigM[:, int(nPad + peakIdxV[vox] + 1):] = gaussian_filter1d(selPadSigM[vox, int(nPad + peakIdxV[vox] + 1):],
-                                                                               sigma=sigma,radius=radius, axis=0)
+                smoothIdxV = np.arange(int(nPad + peakIdxV[vox] + 1), padSigM.shape[1])
+                padSigM[:, smoothIdxV] = cspline1d_eval(cspline1d(selPadSigM[vox, smoothIdxV]), smoothIdxV)
+
         if resampFlag:
             skipIdxV = np.isnan(np.nansum(padSigM, axis=1))
             padSubSigM = padSigM[~skipIdxV, :]
@@ -358,8 +350,8 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     return featureDict
 
 
-def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSmoothDict=None,
-                          imgSmoothDict=None, resampFlag=False):
+def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothDict=None,
+                          temporalSmoothFlag=False, resampFlag=False):
     """calcROIuptakeFeatures
         Wrapper to compute non-parametric uptake characteristics for each slice of input ROI.
 
@@ -369,12 +361,11 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSm
             timeV (np.array, float): [optional, default:None] User-input acquisition times
             basePts (int): [optional, default:None] Time pt. representing start of uptake.
                            By default, have user input value.
-            temporalSmoothDict (dict)  : [optional, default:None] Dictionary specifying whether to
-                                     smooth curves follg. peak & associated filter parameters.
-                                     Keys:  'smoothFlag', 'kernelSize', 'sigma'
             imgSmoothDict (dict): [optional, default:None] Dictionary specifying whether to
                                   smooth image & associated filter parameters.
-                                  Keys:  'smoothFlag', 'kernelSize', 'sigma'.
+                                  Keys: 'kernelSize', 'sigma'.
+            temporalSmoothFlag (bool) : [optional, default:False] Flag specifying whether to
+                                     smooth curves follg. peak using cubic splines.
             resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
 
@@ -390,7 +381,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSm
     scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
 
     # Normalize to baseline
-    normScan4M, selTimePtsV = normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts, imgSmoothDict=None)
+    normScan4M, selTimePtsV = normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts, imgSmoothDict=imgSmoothDict)
 
     # Loop over ROI slices
     featureList = []
@@ -405,7 +396,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, temporalSm
         normROISlcSigM = normSlcSigM[~skipIdxV, :]
         ## Smoothing + resampling
         procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
-                                                temporalSmoothDict=temporalSmoothDict, resampFlag=resampFlag)
+                                                temporalSmoothFlag=temporalSmoothFlag, resampFlag=resampFlag)
 
         # Compute features
         featureDict = semiQuantFeatures(procSlcSigM, procTimeV)
@@ -448,12 +439,18 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
     for key in feats:
         for s in range(numSlc):
             maskSlcM = mask3M[:, :, s]
+            
+            # Get voxel indices in column-first order
             rowIdxV, colIdxV = np.where(maskSlcM)
             colFirstIdxV = np.lexsort((rowIdxV, colIdxV))
+            sortedRowIdxV = rowIdxV[colFirstIdxV]
+            sortedColIdxV = colIdxV[colFirstIdxV]
 
-            # Reorder feature vals in column-first order
-            featValV = featureList[s][key][colFirstIdxV]
-            mapDict[key][...,s][maskSlcM] = featValV
+            # Assign feature vals.
+            featValV = featureList[s][key]
+            sliceMap = mapDict[key][:, :, s]
+            sliceMap[sortedRowIdxV, sortedColIdxV] = featValV
+            mapDict[key][:, :, s] = sliceMap
 
         # Import as pseudo-dose array
         if importFlag:
