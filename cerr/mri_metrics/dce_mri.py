@@ -404,7 +404,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
 
     return featureList
 
-def createFeatureMaps(featureList, strNum, planC, importFlag=False):
+def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan'):
     """createFeatureMaps
         Function to generate maps of non-parametric features.
 
@@ -413,6 +413,7 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
             structNum (int): Index of structure in planC.
             planC (plan_container.planC): pyCERR's plan container object
             importFlag (bool): [optional, default:False] Import to planC as pseudo-dose.
+            type (str): [optional, default:'scan'] Import to planC as pseudo-scan ('scan') or pseudo-dose ('dose').
 
         Returns:
             mapDict (dict) : Dictionary of features maps.
@@ -454,7 +455,10 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False):
 
         # Import as pseudo-dose array
         if importFlag:
-            #planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
-            planC = pc.importDoseArray(mapDict[key], xV, yV, zV, planC, assocScan, doseInfo={'fractionGroupID':key})
+            if type.lower() == 'scan':
+                planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
+            if type.lower() == 'dose':
+                planC = pc.importDoseArray(mapDict[key], xV, yV, zV, planC, assocScan,
+                                           doseInfo={'fractionGroupID':key})
 
     return mapDict, planC
