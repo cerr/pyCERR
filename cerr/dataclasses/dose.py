@@ -337,18 +337,19 @@ class Dose:
         delta = 1e-8
         zVD[0] = zVD[0] - 1e-3
         zVD[-1] = zVD[-1] + 1e-3
-        # xFieldV = np.asarray([xVD[0] - delta, xVD[1] - xVD[0], xVD[-1] + delta])
-        # yFieldV = np.asarray([yVD[0] + delta, yVD[1] - yVD[0], yVD[-1] - delta])
-        # zFieldV = np.asarray(zVD)
-        #doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
-        doseV = []
-        for idx in range(len(xV)):
-            doseInterp3M = imgResample3D(self.doseArray, xVD, yVD, zVD,
-                                     [xV[idx] - 10, xV[idx], xV[idx] + 10],
-                                     [yV[idx] + 10, yV[idx], yV[idx] - 10],
-                                     [zV[idx] - 10, zV[idx], zV[idx] + 10],
-                                     'sitkLinear', 0)
-            doseV.append(doseInterp3M[1, 1, 1])
+        # Need to QA this
+        xFieldV = np.asarray([xVD[0] - delta, xVD[1] - xVD[0], xVD[-1] + delta])
+        yFieldV = np.asarray([yVD[0] + delta, yVD[1] - yVD[0], yVD[-1] - delta])
+        zFieldV = np.asarray(zVD)
+        doseV = finterp3(xV,yV,zV,self.doseArray,xFieldV,yFieldV,zFieldV)
+        # doseV = []
+        # for idx in range(len(xV)):
+        #     doseInterp3M = imgResample3D(self.doseArray, xVD, yVD, zVD,
+        #                              [xV[idx] - 1, xV[idx], xV[idx] + 1],
+        #                              [yV[idx] + 1, yV[idx], yV[idx] - 1],
+        #                              [zV[idx] - 1, zV[idx], zV[idx] + 1],
+        #                              'sitkLinear', 0)
+        #     doseV.append(doseInterp3M[1, 1, 1])
         return doseV
 
     def getAssociatedBeamNum(self, planC):
