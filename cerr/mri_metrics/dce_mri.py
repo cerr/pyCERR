@@ -360,7 +360,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
 
 
 def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothDict=None,
-                          temporalSmoothFlag=False, resampFlag=False):
+                          temporalSmoothFlag=False, resampFlag=False, vis=False):
     """calcROIuptakeFeatures
         Wrapper to compute non-parametric uptake characteristics for each slice of input ROI.
 
@@ -377,6 +377,8 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
                                      smooth curves follg. peak using cubic splines.
             resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
+            vis (bool): [optional, default:False] Display sample plots showing computed features (interactive)
+
 
         Returns:
             featureList: List of dictionaries (one per ROI slice) containing uptake features.
@@ -410,11 +412,122 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
         # Compute features
         featureDict = semiQuantFeatures(procSlcSigM, procTimeV)
 
+        if vis:
+            plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1)
+
         featureList.append(featureDict)
 
     featureList.append({'numVoxels': mask3M.sum()})
 
     return featureList, basePts
+
+
+def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1):
+    """plotSampleFeatures
+    Function to plot sample uptake curves and indicate extracted features.
+
+    Args:
+        procSlcSigM  (np.ndarray, 2D)  : Processed uptake curves (nVox x nResampUptakeTime)
+        procTimeV    (np.array, 1D)    : Resampled time pts (min) (1 x nResampUptakeTime)
+        featureDict (dict): Dictionary of non-parameteric features
+        numPlots (int): [optional, default = 1] No. sample plots to display per ROI slice.
+    """
+
+    relSigM = procSlcSigM - 1
+    voxIdxV = rng.integers(low=0, high=procSlcSigM.shape[0], size=numPlots)
+    for idx in voxIdxV:
+        plt.figure()
+        plt.axis([0, procTimeV[-1], 0, np.max(relSigM[idx, :]) + 0.1])
+        plt.plot(procTimeV, relSigM[idx, :], color='black', linewidth=2)
+        plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
+
+        # TTP
+        ttp = featureDict['TimeToPeak'][idx]
+        match = np.argmin(np.abs(procTimeV - ttp))
+        plt.annotate('TTP', xy=(ttp, min(relSigM[idx, :])))
+        plt.vlines(x=ttp, ymin=min(relSigM[idx, :]), ymax=relSigM[idx, match],
+                   color='purple', linestyles='dashed', linewidth=1.5)
+
+        # TTHP
+        tthp = featureDict['TimeToHalfPeak'][idx]
+        match = np.argmin(np.abs(procTimeV - tthp))
+        # plt.annotate('TTHP', xy=(tthp, min(relSigM[idx,:])) )
+        plt.vlines(x=tthp, ymin=min(relSigM[idx, :]), ymax=relSigM[idx, match],
+                   color='purple', linestyles='dashed', linewidth=1.5)
+
+        # Wash-in slope
+        ctr = np.argmin(np.abs(procTimeV - featureDict['TimeToPeak'][idx]))
+        point_x1 = 0  # procTimeV[0]
+        point_y1 = 0  # relSigM[idx, 0]
+        point_x2 = procTimeV[ctr]
+        point_y2 = relSigM[idx, ctr]
+        midpt = (procTimeV[round(ctr / 2)], point_y2 / 2)
+        slope = featureDict['WashInSlope'][idx]
+        # line_length = 0.5  # Adjust length of the line
+        # dx = line_length / np.sqrt(1 + slope ** 2)
+        # dy = slope * dx
+        # xSlopeLine = [point_x - dx / 2, point_x + dx / 2]
+        # ySlopeLine = [point_y - dy / 2, point_y + dy / 2]
+        plt.plot([point_x1, point_x2], [point_y1, point_y2], '--', color='purple',
+                 label='Wash-in slope', linewidth=1.5)
+        plt.annotate(f'Wash-in slope: {slope:.2f}', xy=midpt, rotation=degrees(atan(slope)),
+                     fontsize=10, ha="center", color="black")
+
+        # Wash-out slope
+        point_x1 = procTimeV[ctr]
+        point_y1 = relSigM[idx, ctr]
+        point_x2 = procTimeV[-1]
+        point_y2 = relSigM[idx, -1]
+        midptIdx = int(ctr + (len(procTimeV) - ctr) / 2)
+        midpt = (procTimeV[midptIdx], relSigM[idx, midptIdx])
+        slope = featureDict['WashOutSlope'][idx]
+        plt.plot([point_x1, point_x2], [point_y1, point_y2], '--', color='purple',
+                 label='Wash-out slope', linewidth=1.5)
+        plt.annotate(f'Wash-out slope: {slope:.2f}', xy=midpt, rotation=degrees(atan(slope)),
+                     fontsize=10, ha="center", color="black")
+
+        # Initial gradient
+        id_10 = np.argmin(np.abs(relSigM[idx, :ctr + 1] - .1 * featureDict['PeakEnhancement'][idx]))
+        id_70 = np.argmin(np.abs(relSigM[idx, id_10:ctr + 1] - .7 * featureDict['PeakEnhancement'][idx]))
+        x_mid = (procTimeV[id_10] + procTimeV[id_70]) / 2
+        y_mid = (relSigM[idx, id_10] + relSigM[idx, id_70]) / 2
+        slope = featureDict['InitialGradient'][idx]
+        length = 1  # Length of the dotted line
+        dx = length / 2 * np.sqrt(1 / (1 + slope ** 2))  # x-component of line length
+        dy = slope * dx  # y-component of line length
+        x_start, x_end = x_mid - dx, x_mid + dx
+        y_start, y_end = y_mid - dy, y_mid + dy
+        plt.plot([x_start, x_end], [y_start, y_end], '--', color='purple', label="Slope Line", linewidth=1.5)
+        plt.text(x_mid, y_mid, f"Initial gradient: {slope:.2f}", rotation=np.degrees(np.arctan(slope)),
+                 ha='center', va='center')
+
+        # Wash-out gradient
+        id_1 = np.argmin(procTimeV >= 1)
+        id_2 = np.argmin(procTimeV > 2)
+        x_mid = (procTimeV[id_1] + procTimeV[id_2]) / 2
+        y_mid = (relSigM[idx, id_1] + relSigM[idx, id_2]) / 2
+        slope = featureDict['WashOutGradient'][idx]
+        length = 1  # Length of the dotted line
+        dx = length / 2 * np.sqrt(1 / (1 + slope ** 2))  # x-component of line length
+        dy = slope * dx  # y-component of line length
+        x_start, x_end = x_mid - dx, x_mid + dx
+        y_start, y_end = y_mid - dy, y_mid + dy
+        plt.plot([x_start, x_end], [y_start, y_end], '--', color='purple', label="Slope Line", linewidth=1.5)
+        plt.text(x_mid, y_mid, f"Wash-out gradient: {slope:.2f}", rotation=np.degrees(np.arctan(slope)),
+                 ha='center', va='center')
+
+        # AUC
+        xFill = procTimeV[procTimeV <= tthp]
+        yFill = relSigM[idx, procTimeV <= tthp]
+        plt.fill_between(xFill, 0, yFill, color='coral', alpha=0.7, label="AUC_{TTHP}")
+
+        xFill = procTimeV[procTimeV <= ttp]
+        yFill = relSigM[idx, procTimeV <= ttp]
+        plt.fill_between(xFill, 0, yFill, color='skyblue', alpha=0.4, label="AUC_{TTP}}")
+
+        plt.show(block=True)
+
+    return 0
 
 def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan'):
     """createFeatureMaps
