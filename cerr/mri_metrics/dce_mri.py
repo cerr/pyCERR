@@ -1,8 +1,9 @@
 import numpy as np
+from math import degrees, atan
 from matplotlib import pyplot as plt
 
 from scipy.signal import resample
-from scipy.signal import cspline1d, cspline1d_eval
+from scipy.interpolate import UnivariateSpline
 from scipy.ndimage import gaussian_filter1d, gaussian_filter
 from scipy.integrate import cumtrapz
 
@@ -11,6 +12,8 @@ from cerr.contour.rasterseg import getStrMask
 from cerr.utils.statistics import round
 
 EPS = np.finfo(float).eps
+rng = np.random.default_rng()
+
 def loadTimeSeq(planC, structNum, userInputTime=[]):
     """loadTimeSeq
     Function to extract 4D DCE scan array associated with input structure from planC
@@ -163,7 +166,7 @@ def locatePeak(sigM):
 
     nVox = sigM.shape[0]
     nTime = sigM.shape[1]
-    sigMax = 0.8 * np.max(sigM, axis=1)
+    sigMax = 0.8*np.max(sigM, axis=1)
 
     # Noise filtering using cubic splines
     # sigma = 2
@@ -171,8 +174,10 @@ def locatePeak(sigM):
     #                   lambda row: gaussian_filter1d(row, sigma=sigma, mode='nearest'),
     #                   axis=1,
     #                   arr=sigM)
+    smoothing_factor = 0.01
+    xV = np.arange(0, sigM.shape[1])
     filtSigM = np.apply_along_axis(
-                      lambda row: cspline1d_eval( cspline1d(row), np.arange(0, len(row))),
+                      lambda row: UnivariateSpline(xV, row, s=smoothing_factor)(xV),
                       axis=1,
                       arr=sigM)
 
@@ -206,6 +211,9 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
 
     """
 
+    # Smoothing settings
+    smoothing = 0.01  # Adjust this for more or less smoothing
+
     # Resampling settings
     nPad = 100
     ts = 0.1
@@ -229,7 +237,8 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
             peakIdxV = peakIdxV[keepIdxV]
             for vox in range(selPadSigM.shape[0]):
                 smoothIdxV = np.arange(int(nPad + peakIdxV[vox] + 1), padSigM.shape[1])
-                padSigM[:, smoothIdxV] = cspline1d_eval(cspline1d(selPadSigM[vox, smoothIdxV]), smoothIdxV)
+                padSigM[vox, smoothIdxV] = UnivariateSpline(smoothIdxV, selPadSigM[vox, smoothIdxV],
+                                                          s=smoothing)(smoothIdxV),
 
         if resampFlag:
             skipIdxV = np.isnan(np.nansum(padSigM, axis=1))
@@ -400,9 +409,12 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
 
         # Compute features
         featureDict = semiQuantFeatures(procSlcSigM, procTimeV)
+
         featureList.append(featureDict)
 
-    return featureList
+    featureList.append({'numVoxels': mask3M.sum()})
+
+    return featureList, basePts
 
 def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan'):
     """createFeatureMaps
