@@ -334,9 +334,12 @@ class Dose:
             zV = np.array([zV])
 
         xVD, yVD, zVD = self.getDoseXYZVals()
+
+        # Offsets required for finterp3 only. Comment out if using imgResample3D.
         delta = 1e-8
         zVD[0] = zVD[0] - 1e-3
         zVD[-1] = zVD[-1] + 1e-3
+        
         # Need to QA this
         xFieldV = np.asarray([xVD[0] - delta, xVD[1] - xVD[0], xVD[-1] + delta])
         yFieldV = np.asarray([yVD[0] + delta, yVD[1] - yVD[0], yVD[-1] - delta])
