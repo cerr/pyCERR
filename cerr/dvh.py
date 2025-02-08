@@ -231,7 +231,7 @@ def minDose(doseBinsV,volsHistV):
     ind = np.where(volsHistV != 0)[0][0]
     return doseBinsV[ind]
 
-def maxDose(doseBinsV,volsHistV,percent):
+def maxDose(doseBinsV,volsHistV):
     ind = np.where(volsHistV != 0)[0][-1]
     return doseBinsV[ind]
 
