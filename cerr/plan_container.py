@@ -748,7 +748,10 @@ def loadNiiVf(dvf_file, baseScanNum, planC):
     res = list(image.GetSpacing())
 
     deform = dfrm.Deform()
-    deform.doseUID = uid.createUID("deform")
+    deform.deformUID = uid.createUID("deform")
+    deform.deformOutFileType = 'vf'
+    deform.deformOutFilePath = dvf_file
+    deform.baseScanUID = planC.scan[baseScanNum].scanUID
 
     dvf_matrix = np.moveaxis(dvf_matrix,[0,1,2,3],[2,0,1,3])
     siz = dvf_matrix.shape
