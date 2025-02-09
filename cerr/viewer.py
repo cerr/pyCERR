@@ -660,7 +660,10 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         vectors = vectors_dict['vectors'].copy()
         vectors[:,1,0] = -vectors[:,1,0]
         feats = vectors_dict['features']
-        scan_affine = scanAffineDict[0]# {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
+        dvfScanNum = 0 # default
+        if 'scanNum' in vectors_dict:
+            dvfScanNum = vectors_dict['scanNum']
+        scan_affine = scanAffineDict[dvfScanNum]# {'length': lengthV,  'dx': vectors[:,1,1], 'dy': vectors[:,1,0], 'dz': vectors[:,1,2]}
         vect_layr = viewer.add_vectors(vectors, edge_width=0.3, opacity=0.8,
                                        length=1, name="Deformation Vector Field",
                                        vector_style="arrow",
