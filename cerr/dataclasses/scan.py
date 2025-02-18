@@ -337,7 +337,7 @@ class Scan:
             importMRPreciseValueFlag = opts['importMRPreciseValueFlag']
 
         # Apply ReScale Intercept and Slope
-        scanArray3M = np.zeros(self.scanArray.shape, dtype=float)
+        scanArray3M = np.zeros(self.scanArray.shape, dtype=np.float32)
         numSlcs = self.scanArray.shape[2]
         rescaleSlopeV = np.ones(numSlcs)
         realWorldImageFlag = False
@@ -398,7 +398,7 @@ class Scan:
                     self.scanInfo[0].scaleSlope is not None and \
                     not realWorldImageFlag:
                 scaleSlope = self.scanInfo[0].scaleSlope
-                self.scanArray = self.scanArray.astype(float) / (rescaleSlope * scaleSlope)
+                self.scanArray = self.scanArray.astype(np.float32) / (rescaleSlope * scaleSlope)
 
     def convertToSUV(self, suvType="BW"):
         """ Routine to convert pixel array for PET scan from DICOM storage to SUV
@@ -737,6 +737,7 @@ def populateRadiopharmaFields(s_info, seq):
         if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
     return s_info
 
+
 def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
     """
 
@@ -776,12 +777,15 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
         bVal3 = ("0019", "100C") # Siemens
         temporalPos = ("0020", "0100")
         triggerTime = ("0018", "1060")
+        TR = ("0018", "0080")
+        FA = ("0018", "1314")
         if bVal1 in ds: scan_info.bValue = ds["0043", "1039"].value
         if bVal2 in ds: scan_info.bValue = ds["0018", "9087"].value
         if bVal3 in ds: scan_info.bValue = ds["0019", "100C"].value
         if temporalPos in ds: scan_info.temporalPositionIndex = ds["0020", "0100"].value
         if triggerTime in ds: scan_info.triggerTime = ds["0018", "1060"].value
-
+        if TR in ds: scan_info.repetitionTime = float(ds["0018", "0080"].value)
+        if FA in ds: scan_info.flipAngle = float(ds["0018", "1314"].value)
 
         scan_info = populateRadiopharmaFields(scan_info, ds)
 
@@ -815,6 +819,12 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
             if 'FrameVOILUTSequence' in perFrameSeq:
                 s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
                 s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
+
+            # MR-specific tags
+            TR = ("0018", "0080")
+            FA = ("0018", "1314")
+            if TR in ds: scan_info.repetitionTime = float(ds["0018", "0080"].value)
+            if FA in ds: scan_info.flipAngle = float(ds["0018", "1314"].value)
 
             s_info = populateRadiopharmaFields(s_info, ds)
 
@@ -856,7 +866,7 @@ def loadSortedScanInfo(file_list):
                 if not isinstance(scan_array, np.ndarray) and not scan_array:
                     imgSiz = list(si_pixel_data[1].shape)
                     imgSiz.append(len(file_list))
-                    scan_array = np.empty(imgSiz)
+                    scan_array = np.empty(imgSiz, dtype=np.float32)
                 scan_array[:,:,count] = si_pixel_data[1]
                 count += 1
 
