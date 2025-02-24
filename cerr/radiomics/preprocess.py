@@ -9,6 +9,9 @@ import cerr.contour.rasterseg as rs
 from cerr.utils.mask import computeBoundingBox
 import SimpleITK as sitk
 import warnings
+from scipy import stats
+from sklearn.feature_extraction.image import extract_patches_2d
+
 
 # from scipy.interpolate import interpn
 # from scipy.ndimage import zoom
@@ -57,6 +60,29 @@ def imquantize(x, num_level=None, xmin=None, xmax=None, binwidth=None):
         q = x
 
     return q
+
+
+def calcRobustZscore(imgM):
+    medianVal = np.median(imgM, axis=None)
+    madVal = stats.median_abs_deviation(imgM, axis=None)
+    robustZscoreM = 0.6745 * (imgM.copy() - medianVal) / madVal
+    return robustZscoreM
+
+def extract_patches_3d_slice_wise(data_3d, patch_size):
+    # # Example usage:
+    # data_3d = np.random.rand(30, 30, 30)
+    # patch_size = (5, 5)
+    # patches_3d = extract_patches_3d_slice_wise(data_3d, patch_size)
+    patchesArray = []
+    for i in range(data_3d.shape[2]):
+        slice_2d = data_3d[:, :, i]
+        patches_2d = extract_patches_2d(slice_2d, patch_size)
+        if isinstance(patchesArray, np.ndarray):
+            patchesArray = np.concatenate([patchesArray,patches_2d[:,:,:,None]],axis=3)
+        else:
+            patchesArray = np.array(patches_2d)
+            patchesArray = patchesArray[:,:,:,None]
+    return patchesArray
 
 
 def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod='center', *args):

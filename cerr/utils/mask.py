@@ -100,6 +100,78 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
 
     return r,c,s
 
+def surfaceExpand(mask3M, deltaRCSv):
+
+    maskExpanded3M = mask3M.copy()
+
+    # Define the edge kernel
+    edge = np.zeros((3, 3, 3))
+    edge[:, :, 0] = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
+    edge[:, :, 1] = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+    edge[:, :, 2] = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
+    edge = edge / 7
+
+    # Get surface points (assuming surfPoints is a list of coordinates)
+    surfPoints = getSurfacePoints(maskExpanded3M)  # You need to implement getSurfacePoints
+
+    # Initialize edge3D as a logical array
+    edge3D = np.zeros_like(maskExpanded3M, dtype=bool)
+
+    # Mark surface points in edge3D
+    for point in surfPoints:
+        edge3D[point[0], point[1], point[2]] = True
+
+    # Optional: Convolution (commented out in MATLAB)
+    # edge3D = convolve(maskDown3D, edge, mode='same')
+    # edge3D = (edge3D < 0.999) & maskDown3D
+
+    # Expand margin using convolution
+    # Create margin ball
+    #c1 = int(np.ceil(margin / delta_xy))
+    #c2 = int(np.ceil(margin / delta_xy))
+    #c3 = int(np.ceil(margin / sliceThickness))
+    c1, c2, c3 = deltaRCSv
+
+    uM, vM, wM = np.meshgrid(np.arange(-c1, c1 + 1), np.arange(-c2, c2 + 1), np.arange(-c3, c3 + 1), indexing='ij')
+
+    #xM = uM * delta_xy
+    #yM = vM * delta_xy
+    #zM = wM * sliceThickness
+
+    rM = uM**2 + vM**2 + wM**2
+    marginSq = c1**2 + c2**2 + c3**3
+    ball = rM <= marginSq
+
+    # Find indices of the ball
+    iBallV, jBallV, kBallV = np.where(ball)
+
+    sR = rM.shape
+    deltaV = (np.array(sR) - 1) / 2 + 1
+
+    onesV = np.ones(len(iBallV), dtype=bool)
+
+    # Find indices of edge3D
+    iV, jV, kV = np.where(edge3D)
+    sV = mask3M.shape
+
+    # Convert subscripts to linear indices
+    ind_surfV = np.ravel_multi_index((iV, jV, kV), sV)
+
+    # Calculate ball offsets
+    ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
+
+    # Clip function to ensure indices are within bounds
+    def clip(indices, lower, upper):
+        return np.clip(indices, lower, upper)
+
+    # Apply the ball to maskDown3D
+    for i in range(len(ind_surfV)):
+        total_indV = ind_surfV[i] + ball_offsetV
+        total_indV = clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
+        maskExpanded3M.flat[total_indV] = onesV
+
+    return
+
 
 def createStructuringElement(sizeCm, resolutionCmV, dimensions=3, shape='flat'):
     """

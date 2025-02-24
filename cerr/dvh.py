@@ -159,7 +159,7 @@ def MOHx(doseBinsV,volsHistV,percent):
     if len(inds) == 0:
         moh = 0
     else:
-        moh = np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds])
+        moh = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
         # To get min dose: result = doseBinsV[inds[0]]
 
     return moh
@@ -174,7 +174,7 @@ def MOCx(doseBinsV,volsHistV,percent):
     if len(inds) == 0:
         moc = 0
     else:
-        moc = np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds])
+        moc = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
         # To get min dose: result = doseBinsV[inds[0]]
     return moc
 
