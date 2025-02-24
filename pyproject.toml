@@ -35,7 +35,7 @@ dependencies = [
     'shapelysmooth',
     'matplotlib <= 3.9.0',
     'ipywidgets',
-    'surface-distance-based-measures @ git+https://github.com/google-deepmind/surface-distance'
+    'surface-distance @ git+https://github.com/google-deepmind/surface-distance.git@ee651c8'
 ]
 
 [project.urls]
@@ -50,3 +50,6 @@ napari = [
 
 [tool.setuptools_scm]
 version_file = "cerr/_version.py"
+
+[tool.ruff.lint]
+select = ["NPY201"]
