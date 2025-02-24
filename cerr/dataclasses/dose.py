@@ -691,13 +691,14 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
     return correctedDose
 
-def sum(doseIndV, planC, fxCorrectDict={}):
+def sum(doseIndV, planC, fxCorrectDict={}, frxSizeV=None):
     """
 
     Args:
                       doseIndV (list) : Indices of doses to be summed
           planC (plan_container.planC): pyCERR's plan container object.
                   fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
+                       frxSize (float): [optional; default: None]
 
     Returns:
                   sumDose (np.ndarray): Summed dose
@@ -755,7 +756,10 @@ def sum(doseIndV, planC, fxCorrectDict={}):
         # Fraction correct
         if frxCorrectFlag:
             # Get fraction size
-            frxSize = getFrxSize(doseNum, planC)
+            if frxSizeV is None:
+                frxSize = getFrxSize(doseNum, planC)
+            else:
+                frxSize = frxSizeV[doseNum]
             # Fractionation correction
             dictCpy['inputFrxSize'] = frxSize
             doseArray = fnHandle(doseArray, **dictCpy)
