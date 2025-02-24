@@ -112,14 +112,13 @@ def surfaceExpand(mask3M, deltaRCSv):
     edge = edge / 7
 
     # Get surface points (assuming surfPoints is a list of coordinates)
-    surfPoints = getSurfacePoints(maskExpanded3M)  # You need to implement getSurfacePoints
+    surfPoints = getSurfacePoints(maskExpanded3M)
 
     # Initialize edge3D as a logical array
     edge3D = np.zeros_like(maskExpanded3M, dtype=bool)
 
     # Mark surface points in edge3D
-    for point in surfPoints:
-        edge3D[point[0], point[1], point[2]] = True
+    edge3D[surfPoints[0],surfPoints[1],surfPoints[2]] = True
 
     # Optional: Convolution (commented out in MATLAB)
     # edge3D = convolve(maskDown3D, edge, mode='same')
