@@ -167,9 +167,9 @@ def surfaceExpand(mask3M, deltaRCSv):
     for i in range(len(ind_surfV)):
         total_indV = ind_surfV[i] + ball_offsetV
         total_indV = clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
-        maskExpanded3M.flat[total_indV] = onesV
+        maskExpanded3M.flat[total_indV.astype(int)] = onesV
 
-    return
+    return maskExpanded3M
 
 
 def createStructuringElement(sizeCm, resolutionCmV, dimensions=3, shape='flat'):
