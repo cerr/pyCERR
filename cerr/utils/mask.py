@@ -138,7 +138,7 @@ def surfaceExpand(mask3M, deltaRCSv):
     #zM = wM * sliceThickness
 
     rM = uM**2 + vM**2 + wM**2
-    marginSq = c1**2 + c2**2 + c3**3
+    marginSq = c1**2 + c2**2 + c3**2
     ball = rM <= marginSq
 
     # Find indices of the ball
@@ -154,20 +154,18 @@ def surfaceExpand(mask3M, deltaRCSv):
     sV = mask3M.shape
 
     # Convert subscripts to linear indices
-    ind_surfV = np.ravel_multi_index((iV, jV, kV), sV)
+    #ind_surfV = np.ravel_multi_index((iV, jV, kV), sV, order = 'F')
+    ind_surfV = iV + jV * sV[0] + kV * sV[0] * sV[1]
 
     # Calculate ball offsets
     ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
 
-    # Clip function to ensure indices are within bounds
-    def clip(indices, lower, upper):
-        return np.clip(indices, lower, upper)
-
     # Apply the ball to maskDown3D
     for i in range(len(ind_surfV)):
         total_indV = ind_surfV[i] + ball_offsetV
-        total_indV = clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
-        maskExpanded3M.flat[total_indV.astype(int)] = onesV
+        total_indV = np.clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
+        #maskExpanded3M[total_indV.astype(int)] = onesV
+        maskExpanded3M[np.unravel_index(total_indV.astype(int), sV, order='F')] = onesV
 
     return maskExpanded3M
 
