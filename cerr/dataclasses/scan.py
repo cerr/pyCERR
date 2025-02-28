@@ -352,10 +352,10 @@ class Scan:
             rescaleType = self.scanInfo[slcNum].rescaleType
             manufacturer = self.scanInfo[slcNum].manufacturer
 
-            if 'philips' in manufacturer.lower() and \
+            if manufacturer.lower() in ['philips'] and \
                     realWorldValueSlope is not None and \
                     not np.isnan(realWorldValueSlope) and \
-                    self.scanInfo[slcNum].imageType.lower() == 'mr scan' and \
+                    self.scanInfo[slcNum].imageType.lower() in ['mr scan'] and \
                     realWorldMeasurCodeMeaning is not None:
                 realWorldImageFlag = True
                 scanArray3M[:, :, slcNum] = \
@@ -410,6 +410,10 @@ class Scan:
 
         """
 
+        # Allow None input for suvType
+        if suvType == None:
+            suvType = ''
+
         scan3M = self.scanArray
         headerS = self.scanInfo
         scanSiz = scan3M.shape
@@ -451,6 +455,7 @@ class Scan:
                 import warnings
                 warnings.warn("'SUV calculation is supported only for imageUnits BQML and CNTS'")
                 return
+
 
             decayCorrection = headerSlcS.decayCorrection
             if decayCorrection == 'START':
@@ -545,6 +550,8 @@ class Scan:
                 imageUnits = 'GML'
             elif suvType == 'IBW':  # ideal body weight
                 imageUnits = 'GML'
+            else:
+                return
 
             suv3M[:, :, slcNum] = suvM
             self.scanInfo[slcNum].imageUnits = imageUnits
