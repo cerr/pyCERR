@@ -1092,13 +1092,19 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
 def getSurfaceExpand(structNum, marginCm, planC, xyDownsampleIndex=1):
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
+    if marginCm < 0:
+        contractFlag = True
+        marginCm = -marginCm
     rowMargin = int(np.ceil(marginCm / dxyz[1]))
     colMargin = int(np.ceil(marginCm / dxyz[0]))
     slcMargin = int(np.ceil(marginCm / dxyz[2]))
     marginV = [rowMargin,colMargin,slcMargin]
     mask3M = rs.getStrMask(structNum, planC)
-    expandedMask3M = maskUtils.surfaceExpand(mask3M, marginV)
-    sructName = planC.structure[structNum].structureName + '_expand_' + str(marginCm) + ' cm'
+    expandedMask3M = maskUtils.surfaceExpand(mask3M, marginV, contractFlag)
+    if contractFlag:
+        sructName = planC.structure[structNum].structureName + '_shrink_' + str(marginCm) + ' cm'
+    else:
+        sructName = planC.structure[structNum].structureName + '_expand_' + str(marginCm) + ' cm'
     planC = importStructureMask(expandedMask3M, assocScanNum, sructName, planC)
     return planC
 

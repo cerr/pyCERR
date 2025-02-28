@@ -100,7 +100,7 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
 
     return r,c,s
 
-def surfaceExpand(mask3M, deltaRCSv):
+def surfaceExpand(mask3M, deltaRCSv, contractFlag=False):
 
     maskExpanded3M = mask3M.copy()
 
@@ -159,6 +159,9 @@ def surfaceExpand(mask3M, deltaRCSv):
 
     # Calculate ball offsets
     ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
+    if contractFlag:
+        ball_offsetV = -ball_offsetV
+        onesV = 0 * onesV
 
     # Apply the ball to maskDown3D
     for i in range(len(ind_surfV)):
