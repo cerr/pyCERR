@@ -163,6 +163,37 @@ def initialize_struct_add_widget() -> FunctionGui:
     return struct_add
 
 
+def checkerboard_indices(shape, tile_size, evenTiles=True):
+    """
+    Generates row and column indices for a checkerboard pattern.
+
+    Args:
+        shape (tuple): Shape of the 2D array (rows, cols).
+        tile_size (int): Size of each square tile.
+
+    Returns:
+        tuple: Two lists, one for row indices and one for column indices.
+               Each list contains tuples of slice objects representing the
+               indices for the checkerboard pattern.
+    """
+    rows, cols = shape
+    row_indices = []
+    col_indices = []
+
+    for i in range(rows // tile_size + 1):
+        for j in range(cols // tile_size + 1):
+            start_row = i * tile_size
+            end_row = min(start_row + tile_size, rows)
+            start_col = j * tile_size
+            end_col = min(start_col + tile_size, cols)
+
+            if (i + j) % 2 == 0:  # Even tiles
+                row_indices.append(slice(start_row, end_row))
+                col_indices.append(slice(start_col, end_col))
+
+    return row_indices, col_indices
+
+
 def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
                    offset, axNum):
     r = int(r)
@@ -173,8 +204,8 @@ def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
     if axNum == 1:
         rMin = r - 2*offset
         rMax = r
-        cMin = c
-        cMax = c + int(offset*1.5)
+        cMin = c - int(offset*1.5)
+        cMax = c
         sMin = s
         sMax = s + 1
     elif axNum == 2:
@@ -208,13 +239,17 @@ def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
 
     return rMin, rMax, cMin, cMax, sMin, sMax
 
-def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize):
+def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
+                 mrrScpLayerMov, mirrorLine, mirrorSize, displayType):
     #currPt = viewer.cursor.position
     currPt = mrrScpLayerBase.metadata['currentPos']
     #baseLyrInd = getLayerIndex(scanNum,'scan',scan_layer)
     #movLyrInd = getLayerIndex(scanNum,'scan',scan_layer)
     rb,cb,sb = np.round(baseLayer.world_to_data(currPt))
     numRows, numCols, numSlcs = baseLayer.data.shape #planC.scan[baseInd].getScanSize()
+    rb = max(min(rb,numRows-1),1)
+    cb = max(min(cb,numCols-1),1)
+    sb = max(min(sb,numSlcs-1),1)
 
     planC = baseLayer.metadata['planC']
     baseScanNum = baseLayer.metadata['scanNum']
@@ -233,6 +268,10 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
                                                               mirrorSizeBase, axNum)
     rm,cm,sm = np.round(movLayer.world_to_data(currPt))
     numRows, numCols, numSlcs = movLayer.data.shape #planC.scan[movInd].getScanSize()
+    rm = max(min(rm,numRows-1),1)
+    cm = max(min(cm,numCols-1),1)
+    sm = max(min(sm,numSlcs-1),1)
+
     axNum = 1
     colsOffset = int(mirrorSize / (movSpacing[0]*10))
     rowsOffset = int(mirrorSize / (movSpacing[1]*10))
@@ -268,42 +307,85 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, m
     dxM,dyM,dzM = planC.scan[movScanNum].getScanSpacing()
 
     deltaXmov = dxM * (cMaxM - cMinM)
+    deltaXbase = dxB * (cMaxB - cMinB)
     deltaYmov = dyM * (rMaxM - rMinM)
     #croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
     #croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
-    croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
-    croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
-    croppedScanMov = np.flip(croppedScanMov,axis=1)
-    if viewer.dims.order[0] == 2:
-        mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
-        mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[cMinM]-deltaXmov], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
-    elif viewer.dims.order[0] == 1:
-        mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-        mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[cMinM]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
-    else:
-        mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-        mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+    if displayType == 'Mirrorscope':
+        croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
+        croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
+        croppedScanMov = np.flip(croppedScanMov,axis=1)
+        if viewer.dims.order[0] == 2:
+            mirrorAffineM = np.array([[dyM, 0, 0, yb[rMinM]], [0, dxM, 0, xm[cMinM]+deltaXmov], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+            mirrorAffineB = np.array([[dyB, 0, 0, ym[rMinB]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+        elif viewer.dims.order[0] == 1:
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[cMinM]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+        else:
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+    elif displayType == 'Sidebyside':
+        croppedScanBase = baseLayer.data[:,:int(cb),int(sb)]
+        croppedScanMov = movLayer.data[:,int(cm):,int(sm)]
+        if viewer.dims.order[0] == 2:
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+        elif viewer.dims.order[0] == 1:
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[cMinM]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+        else:
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+    else: # displayType == 'AlternateGrid':
+        baseShape = baseLayer.data[:,:,int(sb)].shape
+        movShape = movLayer.data[:,:,int(sm)].shape
+        croppedScanBase = np.ones(baseShape) * np.nan
+        croppedScanMov = movLayer.data[:,:,int(sm)].copy()
+        block_size = mirrorSize
+        checkBaseRows, checkBaseCols = checkerboard_indices(baseShape, block_size)
+        checkMovRows, checkMovCols = checkerboard_indices(movShape, block_size)
+        for i in range(len(checkBaseRows)):
+            croppedScanBase[checkBaseRows[i],checkBaseCols[i]] = \
+                baseLayer.data[checkBaseRows[i],checkBaseCols[i],int(sb)]
+        for i in range(len(checkMovRows)):
+            croppedScanMov[checkBaseRows[i],checkBaseCols[i]] = np.nan
+        #croppedScanMov[row_indices2, col_indices2] = np.nan
+        #croppedScanBase = baseLayer.data[:,:,int(sb)]
+        #croppedScanMov = movLayer.data[:,:,int(sm)]
+        mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+        mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+
 
     mrrScpLayerBase.affine.affine_matrix = mirrorAffineB
     mrrScpLayerMov.affine.affine_matrix = mirrorAffineM
     #cropNumRows, cropNumCols, cropNumSlcs = croppedScan.shape
     mrrScpLayerBase.data = croppedScanBase[:,:,None]
     mrrScpLayerMov.data = croppedScanMov[:,:,None]
-    mrrScpLayerBase.refresh()
+    #mrrScpLayerBase.refresh()
     mrrScpLayerBase.contrast_limits = baseLayer.contrast_limits
     mrrScpLayerBase.contrast_limits_range = baseLayer.contrast_limits_range
+    mrrScpLayerBase.colormap = baseLayer.colormap
     mrrScpLayerMov.contrast_limits = movLayer.contrast_limits
     mrrScpLayerMov.contrast_limits_range = movLayer.contrast_limits_range
+    mrrScpLayerMov.colormap = movLayer.colormap
+    mrrScpLayerBase.refresh()
+    mrrScpLayerMov.refresh()
 
-    #data = [[[rMinB,cb,sb], [rMaxB,cb,sb]]]
-    data = [[[rMinB-(rMaxB-rMinB)*0.1,cb,sb], [rMinB,cb,sb]]]
-    data.append([[rMaxB,cb,sb], [rMaxB+(rMaxB-rMinB)*0.1,cb,sb]])
-    data.append([[rMinB,2*cMinB-cMaxB,sb], [rMinB,cMaxB,sb]])
-    data.append([[rMinB,2*cMinB-cMaxB,sb], [rMaxB,2*cMinB-cMaxB,sb]])
-    data.append([[rMaxB,2*cMinB-cMaxB,sb], [rMaxB,cMaxB,sb]])
-    data.append([[rMinB,cMaxB,sb], [rMaxB,cMaxB,sb]])
-    mirrorLine.data = np.asarray(data)
-    mirrorLine.refresh()
+    if displayType == 'Mirrorscope':
+        #data = [[[rMinB,cb,sb], [rMaxB,cb,sb]]]
+        data = [[[rMinB-(rMaxB-rMinB)*0.1,cb,sb], [rMinB,cb,sb]]]
+        data.append([[rMaxB,cb,sb], [rMaxB+(rMaxB-rMinB)*0.1,cb,sb]])
+        data.append([[rMinB,cMinB,sb], [rMinB,2*cMaxB-cMinB,sb]])
+        data.append([[rMinB,cMinB,sb], [rMaxB,cMinB,sb]])
+        data.append([[rMaxB,cMinB,sb], [rMaxB,2*cMaxB-cMinB,sb]])
+        data.append([[rMinB,cMaxB,sb], [rMaxB,cMaxB,sb]])
+        mirrorLine.data = np.asarray(data)
+        mirrorLine.refresh()
+    elif displayType == 'Sidebyside':
+        data = [[[0,cb,sb], [5,cb,sb]]]
+        data.append([[numRows-5,cb,sb], [numRows,cb,sb]])
+        mirrorLine.data = np.asarray(data)
+        mirrorLine.refresh()
     return
 
 def mirror_scope_callback(layer, event):
@@ -317,29 +399,31 @@ def mirror_scope_callback(layer, event):
     if layer is None:
         return
     mirrorLine = layer.metadata['mirrorline']
+    displayType = layer.metadata['displayType']
     mirrorSize = layer.metadata['mirrorSize']
     viewer = layer.metadata['viewer']
     baseLayer = layer.metadata['baseLayer']
     movLayer = layer.metadata['movLayer']
     mrrScpLayerBase = layer.metadata['mrrScpLayerBase']
     mrrScpLayerMov = layer.metadata['mrrScpLayerMov']
-    mrrScpLayerBase.visible = True
-    mrrScpLayerMov.visible = True
-    mirrorLine.visible = True
-    mrrScpLayerBase.mouse_pan = False
-    mrrScpLayerMov.mouse_pan = False
-    mrrScpLayerBase.interactive = False
-    mrrScpLayerMov.interactive = False
+    #mrrScpLayerBase.visible = True
+    #mrrScpLayerMov.visible = True
+    #mirrorLine.visible = True
+    #mrrScpLayerBase.mouse_pan = False
+    #mrrScpLayerMov.mouse_pan = False
+    #mrrScpLayerBase.interactive = True
+    #mrrScpLayerMov.interactive = True
     # Get the center of grid
     # planC = baseLayer.metadata['planC']
     # scanNum = baseLayer.metadata['scanNum']
     # x,y,z = planC.scan[scanNum].getScanXYZVals()
     # y = -y
     currPt = viewer.cursor.position
-    if 'currentPos' not in mrrScpLayerBase.metadata:
-        mrrScpLayerBase.metadata['currentPos'] = currPt #event.pos
-        mrrScpLayerMov.metadata['currentPos'] = currPt #event.pos
-    updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize)
+    #if 'currentPos' not in mrrScpLayerBase.metadata:
+    mrrScpLayerBase.metadata['currentPos'] = currPt #event.pos
+    mrrScpLayerMov.metadata['currentPos'] = currPt #event.pos
+    updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov,
+                 mirrorLine, mirrorSize, displayType)
     yield
 
     # on move
@@ -347,7 +431,8 @@ def mirror_scope_callback(layer, event):
         dragged = True
         mrrScpLayerBase.metadata['currentPos'] = viewer.cursor.position #event.pos
         mrrScpLayerMov.metadata['currentPos'] = viewer.cursor.position #event.pos
-        updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize)
+        updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov,
+                     mirrorLine, mirrorSize, displayType)
         #updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize)
         yield
 
@@ -356,12 +441,13 @@ def mirror_scope_callback(layer, event):
         pass
 
 def initialize_reg_qa_widget() -> FunctionGui:
-    @magicgui(call_button="Toggle Mirror-Scope")
+    @magicgui(call_button=False, auto_call=True)
     def mirror_scope(viewer: 'napari.viewer.Viewer',
                      baseImage: Image,
                      movImage: Image,
-                     mirror_size: Annotated[float, {'widget_type': "Slider", 'min': 0, 'max': 100}] = 10,
-                     toggle_images: Annotated[float, {'widget_type': "Slider", 'min': 0, 'max': 100}] = 50) -> typing.List[LayerDataTuple]:
+                     display_type: Annotated[str, {'widget_type': "ComboBox", 'choices': ['--- OFF ---','Toggle','Mirrorscope','Sidebyside','AlternateGrid']}] = '--- OFF ---',
+                     mirror_size: Annotated[float, {'widget_type': "Slider", 'min': 2, 'max': 100, 'visible': False}] = 40,
+                     toggle_images: Annotated[float, {'widget_type': "Slider", 'min': 0, 'max': 100, 'visible': False}] = 50) -> typing.List[LayerDataTuple]:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
         #currPt = viewer.cursor.position
@@ -371,68 +457,101 @@ def initialize_reg_qa_widget() -> FunctionGui:
             return
         # Check whether mirror-scope exists
         layerNames = [lyr.name for lyr in viewer.layers]
-        if 'Mirror-Scope-base' in layerNames:
-            # Delete mirror layers
-            baseMirrInd = layerNames.index('Mirror-Scope-base')
-            del viewer.layers[baseMirrInd]
-            layerNames = [lyr.name for lyr in viewer.layers]
-            movMirrInd = layerNames.index('Mirror-Scope-mov')
-            del viewer.layers[movMirrInd]
-            layerNames = [lyr.name for lyr in viewer.layers]
-            mirrLineInd = layerNames.index('Mirror-line')
-            del viewer.layers[mirrLineInd]
-            return
+        if display_type == '--- OFF ---' and 'Mirror-Scope-base' in layerNames:
+            # # Delete mirror layers
+            # baseMirrInd = layerNames.index('Mirror-Scope-base')
+            # del viewer.layers[baseMirrInd]
+            # layerNames = [lyr.name for lyr in viewer.layers]
+            # movMirrInd = layerNames.index('Mirror-Scope-mov')
+            # del viewer.layers[movMirrInd]
+            # layerNames = [lyr.name for lyr in viewer.layers]
+            # mirrLineInd = layerNames.index('Mirror-line')
+            # del viewer.layers[mirrLineInd]
+            # # Set scan layer as active
+            # for lyr in viewer.layers:
+            #     if lyr.visible and 'dataclass' in lyr.metadata and lyr.metadata['dataclass'] == 'scan':
+            #         viewer.layers.selection.active = lyr
+            #         break
+            # return
+            pass
+
         #mrrSiz = float(mirror_size)
         # Create mirror layers and shape layer
         #baseMrr, movMrr, mrrLines = mirrScp.initializeMirror()
-        baseInd = baseImage.metadata['scanNum']
-        planC = baseImage.metadata['planC']
-        xb,yb,zb = planC.scan[baseInd].getScanXYZVals()
-        dxB,dyB,dzB = planC.scan[baseInd].getScanSpacing()
-        yb = -yb
-        mirror_affine = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
-        mrrScp = np.zeros((31,31,1))
-        mrrScpLayerBase = viewer.add_image(mrrScp,name='Mirror-Scope-base',
-                                    opacity=1, colormap=baseImage.colormap,
-                                    affine=mirror_affine,
-                                    blending="opaque",interpolation2d="linear",
-                                    interpolation3d="linear",
-                                    visible=False
-                                    )
-        mrrScpLayerMov = viewer.add_image(mrrScp,name='Mirror-Scope-mov',
-                                    opacity=1, colormap=baseImage.colormap,
-                                    affine=mirror_affine,
-                                    blending="opaque",interpolation2d="linear",
-                                    interpolation3d="linear",
-                                    visible=False
-                                    )
-        mirrorLine = viewer.add_shapes([[0,0,0], [0,0,0]], name = 'Mirror-line',
-                                       face_color = "red", edge_color = "red", edge_width = 0.5,
-                                       opacity=1, blending="opaque",
-                                       affine=baseImage.affine.affine_matrix,
-                                       shape_type='line')
+
+        if 'Mirror-Scope-base' not in layerNames:
+            baseInd = baseImage.metadata['scanNum']
+            planC = baseImage.metadata['planC']
+            xb,yb,zb = planC.scan[baseInd].getScanXYZVals()
+            dxB,dyB,dzB = planC.scan[baseInd].getScanSpacing()
+            yb = -yb
+            mirror_affine = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
+            mrrScp = np.zeros((31,31,1))
+            mrrScpLayerBase = viewer.add_image(mrrScp,name='Mirror-Scope-base',
+                                        opacity=1, colormap=baseImage.colormap,
+                                        affine=mirror_affine,
+                                        blending="opaque",interpolation2d="linear",
+                                        interpolation3d="linear",
+                                        visible=False
+                                        )
+            mrrScpLayerMov = viewer.add_image(mrrScp,name='Mirror-Scope-mov',
+                                        opacity=1, colormap=baseImage.colormap,
+                                        affine=mirror_affine,
+                                        blending="opaque",interpolation2d="linear",
+                                        interpolation3d="linear",
+                                        visible=False
+                                        )
+            mirrorLine = viewer.add_shapes([[0,0,0], [0,0,0]], name = 'Mirror-line',
+                                           face_color = "red", edge_color = "red", edge_width = 0.5,
+                                           opacity=1, blending="opaque",
+                                           affine=baseImage.affine.affine_matrix,
+                                           shape_type='line')
+            mrrScpLayerBase.mouse_drag_callbacks.append(mirror_scope_callback)
+            mrrScpLayerMov.mouse_drag_callbacks.append(mirror_scope_callback)
+
+        lyrNames = [lyr.name for lyr in viewer.layers]
+        mrrScpLayerBaseInd = lyrNames.index('Mirror-Scope-base')
+        mrrScpLayerMovInd = lyrNames.index('Mirror-Scope-mov')
+        mirrorLineInd = lyrNames.index('Mirror-line')
+        mrrScpLayerBase = viewer.layers[mrrScpLayerBaseInd]
+        mrrScpLayerMov = viewer.layers[mrrScpLayerMovInd]
+        mirrorLine = viewer.layers[mirrorLineInd]
+        mrrScpBase = mrrScpLayerBase.data
+        mrrScpMov = mrrScpLayerMov.data
+
+        if 'currentPos' in mrrScpLayerBase.metadata:
+            currentPos = mrrScpLayerBase.metadata['currentPos']
+        else:
+            currentPos = [(rng[0] + rng[1])/2 for rng in viewer.dims.range]
+            currentPos[2] = viewer.dims.point[2]
+
         mrrMeta = {'mirrorline': mirrorLine, 'mirrorSize': mirror_size,
-                   'layerType': 'base', 'baseLayer': baseImage,
+                   'displayType': display_type, 'baseLayer': baseImage,
                    'movLayer': movImage, 'viewer': viewer,
                    'mrrScpLayerBase': mrrScpLayerBase,
-                   'mrrScpLayerMov': mrrScpLayerMov}
+                   'mrrScpLayerMov': mrrScpLayerMov,
+                   'currentPos': currentPos}
+        baseMirrorAffine = mrrScpLayerBase.affine.affine_matrix
+        movMirrorAffine = mrrScpLayerMov.affine.affine_matrix
 
         baseMrrDict = {'name':'Mirror-Scope-base',
                         'opacity':1, 'colormap':baseImage.colormap,
-                        'affine':mirror_affine,
+                        'affine':baseMirrorAffine,
                         'blending':"opaque",'interpolation2d':"linear",
                         'interpolation3d':"linear",
                         'interactive': True,
                         'mouse_pan': False,
+                        'mouse_zoom': True,
                         'visible': False,
                        'metadata': mrrMeta}
         movMrrDict = {'name':'Mirror-Scope-base',
                         'opacity':1, 'colormap':baseImage.colormap,
-                        'affine':mirror_affine,
+                        'affine':movMirrorAffine,
                         'blending':"opaque",'interpolation2d':"linear",
                         'interpolation3d':"linear",
                         'interactive': True,
                         'mouse_pan': False,
+                        'mouse_zoom': True,
                         'visible': False,
                         'metadata': mrrMeta}
         mirrLinesDict = {'name': 'Mirror-line',
@@ -443,10 +562,8 @@ def initialize_reg_qa_widget() -> FunctionGui:
         mrrScpLayerBase.metadata = mrrMeta
         mrrScpLayerMov.metadata = mrrMeta
         viewer.layers.selection.active = mrrScpLayerBase
-        mrrScpLayerBase.mouse_drag_callbacks.append(mirror_scope_callback)
-        mrrScpLayerMov.mouse_drag_callbacks.append(mirror_scope_callback)
-        return [(mrrScp, baseMrrDict, "image"),
-                (mrrScp, movMrrDict, "image"),
+        return [(mrrScpBase, baseMrrDict, "image"),
+                (mrrScpMov, movMrrDict, "image"),
                 ([[0,0,0], [0,0,0]], mirrLinesDict, "shape"),
                 (baseImage.data, {'name': baseImage.name, 'opacity': 1-toggle_images/100}, "image"),
                 (movImage.data, {'name': movImage.name, 'opacity': toggle_images/100}, "image")]
@@ -883,12 +1000,14 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         viewer = widgt[0].value
         baseLayer = widgt[1].value
         movLayer = widgt[2].value
-        mirrorSize = widgt[3].value
-        movOpacity = widgt[4].value/100
+        displayType = widgt[3].value
+        mirrorSize = widgt[4].value
+        movOpacity = widgt[5].value/100
         baseOpacity = 1 - movOpacity
         baseLayer.opacity = baseOpacity
         movLayer.opacity = movOpacity
         layerNames = [lyr.name for lyr in viewer.layers]
+
         if 'Mirror-Scope-base' not in layerNames:
             return
         mrrBaseInd = layerNames.index('Mirror-Scope-base')
@@ -901,8 +1020,61 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         mrrScpLayerMov.metadata['mirrorSize'] = mirrorSize
         #baseLayer.refresh()
         #movLayer.refresh()
+
+        #reg_qa_widget.call_button.text = displayType
+        if displayType == '--- OFF ---':
+            widgt[4].visible = False
+            widgt[5].visible = False
+            # Delete mirror layers
+            if isinstance(mrrLineInd, (int, np.integer)):
+                del viewer.layers[mrrLineInd]
+            if isinstance(mrrMovInd, (int, np.integer)):
+                del viewer.layers[mrrMovInd]
+            if isinstance(mrrBaseInd, (int, np.integer)):
+                del viewer.layers[mrrBaseInd]
+
+            # Set scan layer as active
+            viewer.layers.selection.active = baseLayer
+
+            return
+
+        if displayType == 'Mirrorscope':
+            widgt[4].visible = True
+            widgt[5].visible = False
+            mrrScpLayerBase.visible = True
+            mrrScpLayerMov.visible = True
+            mirrorLine.visible = True
+            mrrScpLayerBase.mouse_pan = False
+            mrrScpLayerMov.mouse_pan = False
+        elif displayType == 'Sidebyside':
+            widgt[4].visible = False
+            widgt[5].visible = False
+            mrrScpLayerBase.visible = True
+            mrrScpLayerMov.visible = True
+            mirrorLine.visible = True
+            mrrScpLayerBase.mouse_pan = False
+            mrrScpLayerMov.mouse_pan = False
+        elif displayType == 'Toggle':
+            widgt[4].visible = False
+            widgt[5].visible = True
+            mrrScpLayerBase.visible = False
+            mrrScpLayerMov.visible = False
+            mirrorLine.visible = False
+            mrrScpLayerBase.mouse_pan = True
+            mrrScpLayerMov.mouse_pan = True
+        elif displayType == 'AlternateGrid':
+            widgt[4].visible = True
+            widgt[5].visible = False
+            mrrScpLayerBase.visible = True
+            mrrScpLayerMov.visible = True
+            mirrorLine.visible = False
+            mrrScpLayerBase.mouse_pan = True
+            mrrScpLayerMov.mouse_pan = True
+
         if 'currentPos' in mrrScpLayerBase.metadata:
-            updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize)
+            updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
+                         mrrScpLayerMov, mirrorLine, mirrorSize, displayType)
+
         return
 
     # Change slice to center of that structure
