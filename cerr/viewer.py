@@ -201,17 +201,27 @@ def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
     s = int(s)
     halfOff = int(offset / 2)
     halfOff = offset
-    if axNum == 1:
+    if axNum == 2:
         rMin = r - 2*offset
         rMax = r
         cMin = c - int(offset*1.5)
         cMax = c
         sMin = s
         sMax = s + 1
-    elif axNum == 2:
-        pass
+    elif axNum == 1:
+        rMin = r - 2*offset
+        rMax = r
+        cMin = c
+        cMax = c + 1
+        sMin = s - int(offset*1.5)
+        sMax = s
     elif axNum == 0:
-        pass
+        rMin = r
+        rMax = r + 1
+        cMin = c - 2*offset
+        cMax = c
+        sMin = s - int(offset*1.5)
+        sMax = s
     if rMin < 0:
         rMin = 0
     if rMax < 0:
@@ -259,7 +269,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
     baseSpacing = planC.scan[baseScanNum].getScanSpacing()
     movSpacing = planC.scan[movScanNum].getScanSpacing()
 
-    axNum = 1
+    axNum = viewer.dims.order[0]
     colsOffset = int(mirrorSize / (baseSpacing[0]*10))
     rowsOffset = int(mirrorSize / (baseSpacing[1]*10))
     slcsOffset = int(mirrorSize / (baseSpacing[2]*10))
@@ -272,7 +282,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
     cm = max(min(cm,numCols-1),1)
     sm = max(min(sm,numSlcs-1),1)
 
-    axNum = 1
+    axNum = viewer.dims.order[0]
     colsOffset = int(mirrorSize / (movSpacing[0]*10))
     rowsOffset = int(mirrorSize / (movSpacing[1]*10))
     slcsOffset = int(mirrorSize / (movSpacing[2]*10))
@@ -312,35 +322,63 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
     #croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
     #croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
     if displayType == 'Mirrorscope':
-        croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
-        croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
-        croppedScanMov = np.flip(croppedScanMov,axis=1)
         if viewer.dims.order[0] == 2:
-            mirrorAffineM = np.array([[dyM, 0, 0, yb[rMinM]], [0, dxM, 0, xm[cMinM]+deltaXmov], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
-            mirrorAffineB = np.array([[dyB, 0, 0, ym[rMinB]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+            croppedScanBase = baseLayer.data[rMinB:rMaxB,cMinB:cMaxB,int(sb)]
+            croppedScanMov = movLayer.data[rMinM:rMaxM,cMinM:cMaxM,int(sm)]
+            croppedScanMov = np.flip(croppedScanMov,axis=1)
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[cMinM]+deltaXmov], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
         elif viewer.dims.order[0] == 1:
-            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[cMinM]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
-        else:
+            croppedScanBase = baseLayer.data[rMinB:rMaxB,int(cb),sMinB:sMaxB]
+            croppedScanMov = movLayer.data[rMinM:rMaxM,int(cm),sMinM:sMaxM]
+            croppedScanMov = np.flip(croppedScanMov,axis=0)
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]+deltaYmov], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
             mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+        else:
+            croppedScanBase = baseLayer.data[int(rb),cMinB:cMaxB,sMinB:sMaxB]
+            croppedScanMov = movLayer.data[int(rm),cMinM:cMaxM,sMinM:sMaxM]
+            croppedScanMov = np.flip(croppedScanMov,axis=0)
+            mirrorAffineM = np.array([[dyB, 0, 0, yb[int(rm)]], [0, dxM, 0, xm[cMinM]+deltaXmov], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+            mirrorAffineB = np.array([[dyM, 0, 0, ym[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
     elif displayType == 'Sidebyside':
-        croppedScanBase = baseLayer.data[:,:int(cb),int(sb)]
-        croppedScanMov = movLayer.data[:,int(cm):,int(sm)]
         if viewer.dims.order[0] == 2:
+            croppedScanBase = baseLayer.data[:,:int(cb),int(sb)]
+            croppedScanMov = movLayer.data[:,int(cm):,int(sm)]
             mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
             mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
         elif viewer.dims.order[0] == 1:
-            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[cMinB]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[cMinM]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+            croppedScanBase = baseLayer.data[:int(rb),int(cb),:]
+            croppedScanMov = movLayer.data[int(rm):,int(cm),:]
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
         else:
-            mirrorAffineB = np.array([[dyB, 0, 0, yb[rMinB]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[sMinB]], [0, 0, 0, 1]])
-            mirrorAffineM = np.array([[dyM, 0, 0, ym[rMinM]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[sMinM]], [0, 0, 0, 1]])
+            croppedScanBase = baseLayer.data[int(rb),:int(cb),:]
+            croppedScanMov = movLayer.data[int(rm),int(cm):,:]
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
     else: # displayType == 'AlternateGrid':
-        baseShape = baseLayer.data[:,:,int(sb)].shape
-        movShape = movLayer.data[:,:,int(sm)].shape
-        croppedScanBase = np.ones(baseShape) * np.nan
-        croppedScanMov = movLayer.data[:,:,int(sm)].copy()
+        if viewer.dims.order[0] == 2:
+            baseShape = baseLayer.data[:,:,int(sb)].shape
+            movShape = movLayer.data[:,:,int(sm)].shape
+            croppedScanBase = np.ones(baseShape) * np.nan
+            croppedScanMov = movLayer.data[:,:,int(sm)].copy()
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+        elif viewer.dims.order[0] == 1:
+            baseShape = baseLayer.data[:,int(cb),:].shape
+            movShape = movLayer.data[:,int(cm),:].shape
+            croppedScanBase = np.ones(baseShape) * np.nan
+            croppedScanMov = movLayer.data[:,int(cm),:].copy()
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
+        else:
+            baseShape = baseLayer.data[int(rb),:,:].shape
+            movShape = movLayer.data[int(rm),:,:].shape
+            croppedScanBase = np.ones(baseShape) * np.nan
+            croppedScanMov = movLayer.data[int(rm),:,:].copy()
+            mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
+            mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
+
         block_size = mirrorSize
         checkBaseRows, checkBaseCols = checkerboard_indices(baseShape, block_size)
         checkMovRows, checkMovCols = checkerboard_indices(movShape, block_size)
@@ -352,15 +390,23 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
         #croppedScanMov[row_indices2, col_indices2] = np.nan
         #croppedScanBase = baseLayer.data[:,:,int(sb)]
         #croppedScanMov = movLayer.data[:,:,int(sm)]
-        mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
-        mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
+        # mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
+        # mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
 
 
     mrrScpLayerBase.affine.affine_matrix = mirrorAffineB
     mrrScpLayerMov.affine.affine_matrix = mirrorAffineM
     #cropNumRows, cropNumCols, cropNumSlcs = croppedScan.shape
-    mrrScpLayerBase.data = croppedScanBase[:,:,None]
-    mrrScpLayerMov.data = croppedScanMov[:,:,None]
+    if viewer.dims.order[0] == 2:
+        mrrScpLayerBase.data = croppedScanBase[:,:,None]
+        mrrScpLayerMov.data = croppedScanMov[:,:,None]
+    elif viewer.dims.order[0] == 0:
+        mrrScpLayerBase.data = croppedScanBase[None,:,:]
+        mrrScpLayerMov.data = croppedScanMov[None,:,:]
+    else:
+        mrrScpLayerBase.data = croppedScanBase[:,None,:]
+        mrrScpLayerMov.data = croppedScanMov[:,None,:]
+
     #mrrScpLayerBase.refresh()
     mrrScpLayerBase.contrast_limits = baseLayer.contrast_limits
     mrrScpLayerBase.contrast_limits_range = baseLayer.contrast_limits_range
@@ -372,18 +418,39 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
     mrrScpLayerMov.refresh()
 
     if displayType == 'Mirrorscope':
-        #data = [[[rMinB,cb,sb], [rMaxB,cb,sb]]]
-        data = [[[rMinB-(rMaxB-rMinB)*0.1,cb,sb], [rMinB,cb,sb]]]
-        data.append([[rMaxB,cb,sb], [rMaxB+(rMaxB-rMinB)*0.1,cb,sb]])
-        data.append([[rMinB,cMinB,sb], [rMinB,2*cMaxB-cMinB,sb]])
-        data.append([[rMinB,cMinB,sb], [rMaxB,cMinB,sb]])
-        data.append([[rMaxB,cMinB,sb], [rMaxB,2*cMaxB-cMinB,sb]])
-        data.append([[rMinB,cMaxB,sb], [rMaxB,cMaxB,sb]])
+        if viewer.dims.order[0] == 2:
+            data = [[[rMinB-(rMaxB-rMinB)*0.1,cb,sb], [rMinB,cb,sb]]]
+            data.append([[rMaxB,cb,sb], [rMaxB+(rMaxB-rMinB)*0.1,cb,sb]])
+            data.append([[rMinB,cMinB,sb], [rMinB,2*cMaxB-cMinB,sb]])
+            data.append([[rMinB,cMinB,sb], [rMaxB,cMinB,sb]])
+            data.append([[rMaxB,cMinB,sb], [rMaxB,2*cMaxB-cMinB,sb]])
+            data.append([[rMinB,2*cMaxB-cMinB,sb], [rMaxB,2*cMaxB-cMinB,sb]])
+        elif viewer.dims.order[0] == 0:
+            data = [[[rb,cb,sMinB-(sMaxB-sMinB)*0.1], [rb,cb,sMinB]]]
+            data.append([[rb,cb,sMaxB], [rb,cb,sMaxB+(sMaxB-sMinB)*0.1]])
+            data.append([[rb,cMinB,sMinB], [rb,cMinB,sMaxB]])
+            data.append([[rb,2*cMaxB-cMinB,sMinB], [rb,2*cMaxB-cMinB,sMaxB]])
+            data.append([[rb,cMinB,sMinB], [rb,2*cMaxB-cMinB,sMinB]])
+            data.append([[rb,cMinB,sMaxB], [rb,2*cMaxB-cMinB,sMaxB]])
+        else:
+            data = [[[rb,cb,sMinB-(sMaxB-sMinB)*0.1], [rb,cb,sMinB]]]
+            data.append([[rb,cb,sMaxB], [rb,cb,sMaxB+(sMaxB-sMinB)*0.1]])
+            data.append([[rMinB,cb,sMinB], [rMinB,cb,sMaxB]])
+            data.append([[2*rMaxB-rMinB,cb,sMinB], [2*rMaxB-rMinB,cb,sMaxB]])
+            data.append([[rMinB,cb,sMinB], [2*rMaxB-rMinB,cb,sMinB]])
+            data.append([[rMinB,cb,sMaxB], [2*rMaxB-rMinB,cb,sMaxB]])
         mirrorLine.data = np.asarray(data)
         mirrorLine.refresh()
     elif displayType == 'Sidebyside':
-        data = [[[0,cb,sb], [5,cb,sb]]]
-        data.append([[numRows-5,cb,sb], [numRows,cb,sb]])
+        if viewer.dims.order[0] == 2:
+            data = [[[0,cb,sb], [5,cb,sb]]]
+            data.append([[numRows-5,cb,sb], [numRows,cb,sb]])
+        elif viewer.dims.order[0] == 0:
+            data = [[[rb,cb,0], [rb,cb,5]]]
+            data.append([[rb,cb,numCols-5], [rb,cb,numCols]])
+        else:
+            data = [[[rb,cb,0], [rb,cb,5]]]
+            data.append([[rb,cb,numCols-5], [rb,cb,numCols]])
         mirrorLine.data = np.asarray(data)
         mirrorLine.refresh()
     return
