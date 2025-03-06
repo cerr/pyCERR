@@ -362,6 +362,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
             movShape = movLayer.data[:,:,int(sm)].shape
             croppedScanBase = np.ones(baseShape) * np.nan
             croppedScanMov = movLayer.data[:,:,int(sm)].copy()
+            croppedScanBaseOrig = baseLayer.data[:,:,int(sb)].copy()
             mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[int(sb)]], [0, 0, 0, 1]])
             mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[int(sm)]], [0, 0, 0, 1]])
         elif viewer.dims.order[0] == 1:
@@ -369,6 +370,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
             movShape = movLayer.data[:,int(cm),:].shape
             croppedScanBase = np.ones(baseShape) * np.nan
             croppedScanMov = movLayer.data[:,int(cm),:].copy()
+            croppedScanBaseOrig = baseLayer.data[:,int(cb),:].copy()
             mirrorAffineB = np.array([[dyB, 0, 0, yb[0]], [0, dxB, 0, xb[int(cb)]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
             mirrorAffineM = np.array([[dyM, 0, 0, ym[0]], [0, dxM, 0, xm[int(cm)]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
         else:
@@ -376,6 +378,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
             movShape = movLayer.data[int(rm),:,:].shape
             croppedScanBase = np.ones(baseShape) * np.nan
             croppedScanMov = movLayer.data[int(rm),:,:].copy()
+            croppedScanBaseOrig = baseLayer.data[int(rb),:,:].copy()
             mirrorAffineB = np.array([[dyB, 0, 0, yb[int(rb)]], [0, dxB, 0, xb[0]], [0, 0, dzB, zb[0]], [0, 0, 0, 1]])
             mirrorAffineM = np.array([[dyM, 0, 0, ym[int(rm)]], [0, dxM, 0, xm[0]], [0, 0, dzM, zm[0]], [0, 0, 0, 1]])
 
@@ -383,8 +386,7 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
         checkBaseRows, checkBaseCols = checkerboard_indices(baseShape, block_size)
         checkMovRows, checkMovCols = checkerboard_indices(movShape, block_size)
         for i in range(len(checkBaseRows)):
-            croppedScanBase[checkBaseRows[i],checkBaseCols[i]] = \
-                baseLayer.data[checkBaseRows[i],checkBaseCols[i],int(sb)]
+            croppedScanBase[checkBaseRows[i],checkBaseCols[i]] = croppedScanBaseOrig[checkBaseRows[i],checkBaseCols[i]]
         for i in range(len(checkMovRows)):
             croppedScanMov[checkBaseRows[i],checkBaseCols[i]] = np.nan
         #croppedScanMov[row_indices2, col_indices2] = np.nan
@@ -446,13 +448,17 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
             data = [[[0,cb,sb], [5,cb,sb]]]
             data.append([[numRows-5,cb,sb], [numRows,cb,sb]])
         elif viewer.dims.order[0] == 0:
-            data = [[[rb,cb,0], [rb,cb,5]]]
-            data.append([[rb,cb,numCols-5], [rb,cb,numCols]])
+            data = [[[rb,cb,-5], [rb,cb,0]]]
+            data.append([[rb,cb,numSlcs], [rb,cb,numSlcs+5]])
         else:
-            data = [[[rb,cb,0], [rb,cb,5]]]
-            data.append([[rb,cb,numCols-5], [rb,cb,numCols]])
+            data = [[[rb,cb,-5], [rb,cb,0]]]
+            data.append([[rb,cb,numSlcs], [rb,cb,numSlcs+5]])
         mirrorLine.data = np.asarray(data)
         mirrorLine.refresh()
+    #elif displayType == 'AlternateGrid':
+        #mirrorLine.data = np.asarray([])
+        #mirrorLine.refresh()
+
     return
 
 def mirror_scope_callback(layer, event):
@@ -489,6 +495,8 @@ def mirror_scope_callback(layer, event):
     #if 'currentPos' not in mrrScpLayerBase.metadata:
     mrrScpLayerBase.metadata['currentPos'] = currPt #event.pos
     mrrScpLayerMov.metadata['currentPos'] = currPt #event.pos
+    mrrScpLayerBase.metadata['currentAxis'] = viewer.dims.order[0] #event.pos
+    mrrScpLayerMov.metadata['currentAxis'] = viewer.dims.order[0] #event.pos
     updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov,
                  mirrorLine, mirrorSize, displayType)
     yield
@@ -500,12 +508,13 @@ def mirror_scope_callback(layer, event):
         mrrScpLayerMov.metadata['currentPos'] = viewer.cursor.position #event.pos
         updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov,
                      mirrorLine, mirrorSize, displayType)
-        #updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase, mrrScpLayerMov, mirrorLine, mirrorSize)
         yield
 
     # on release
     if dragged:
         pass
+
+    return
 
 def initialize_reg_qa_widget() -> FunctionGui:
     @magicgui(call_button=False, auto_call=True)
@@ -597,7 +606,8 @@ def initialize_reg_qa_widget() -> FunctionGui:
                    'movLayer': movImage, 'viewer': viewer,
                    'mrrScpLayerBase': mrrScpLayerBase,
                    'mrrScpLayerMov': mrrScpLayerMov,
-                   'currentPos': currentPos}
+                   'currentPos': currentPos,
+                   'currentAxis': viewer.dims.order[0]}
         baseMirrorAffine = mrrScpLayerBase.affine.affine_matrix
         movMirrorAffine = mrrScpLayerMov.affine.affine_matrix
 
@@ -1003,6 +1013,48 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
         return
 
+    def reset_mirror_position():
+        lyrNames = [lyr.name for lyr in viewer.layers]
+        if 'Mirror-Scope-base' in lyrNames:
+            mrrScpLayerBaseInd = lyrNames.index('Mirror-Scope-base')
+            mrrScpLayerMovInd = lyrNames.index('Mirror-Scope-mov')
+            mrrScpLayerBase = viewer.layers[mrrScpLayerBaseInd]
+            mrrScpLayerMov = viewer.layers[mrrScpLayerMovInd]
+            currentAxis = mrrScpLayerBase.metadata['currentAxis']
+            if currentAxis != viewer.dims.order[0]:
+                currentPos = [(rng[0] + rng[1])/2 for rng in viewer.dims.range]
+                currentAxis = viewer.dims.order[0]
+            else:
+                currentPos = list(mrrScpLayerBase.metadata['currentPos'])
+                currentAxis = mrrScpLayerBase.metadata['currentAxis']
+            currentPos[currentAxis] = viewer.dims.point[currentAxis]
+            mrrScpLayerBase.metadata['currentAxis'] = currentAxis
+            mrrScpLayerMov.metadata['currentAxis'] = currentAxis
+            mrrScpLayerBase.metadata['currentPos'] = currentPos
+            mrrScpLayerMov.metadata['currentPos'] = currentPos
+            mirror_scope_changed(reg_qa_widget)
+            return
+
+    def dims_order_changed(event):
+        dims = event.source
+        if dims.order == (1,0,2): # Axial
+            viewer.dims.order = (2,0,1)
+        elif dims.order == (0,1,2):
+            viewer.dims.order = (0,2,1)
+        #mirror_scope_changed(reg_qa_widget)
+        reset_mirror_position( )
+        return
+
+    def dims_point_changed(event):
+        # Update Mirrorscope
+        reset_mirror_position()
+        return
+
+
+    def dim_callback(event):
+        print(type(event.source))
+        return
+
     def update_colorbar(image):
 
         if image is None:
@@ -1168,6 +1220,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     viewer.layers.selection.events.active.connect(layer_active)
     viewer.layers.selection.events.changed.connect(layer_active)
     viewer.layers.events.changed.connect(layer_active)
+    viewer.dims.events.order.connect(dims_order_changed)
+    viewer.dims.events.point.connect(dims_point_changed)
+
 
     for dose_lyr in dose_layers:
         #dose_lyr.events.contrast_limits_range.connect(layer_active)
