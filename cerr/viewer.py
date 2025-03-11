@@ -777,6 +777,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         doseWindow = {"name": "--- Select ---",
                       "center": centerDose,
                       "width": widthDose}
+        assocScanNum = scn.getScanNumFromUID(planC.dose[dose_num].assocScanUID, planC)
         dose_lyr = viewer.add_image(doseArray,name=dose_name, affine=dose_affine,
                                   opacity=0.5,colormap="turbo",
                                   blending="additive",interpolation2d="linear",
@@ -784,6 +785,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                   metadata = {'dataclass': 'dose',
                                            'planC': planC,
                                            'doseNum': dose_num,
+                                           'assocScanNum': assocScanNum,
                                            'window': doseWindow}
                                    )
         dose_layers.append(dose_lyr)
@@ -865,8 +867,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                        edge_colormap='husl',
                                        affine = scan_affine,
                                        metadata = {'dataclass': 'dvf',
-                                               'planC': planC
-                                               }
+                                                   'assocScanNum': dvfScanNum,
+                                                    'planC': planC
+                                                  }
                                        )
         dvf_layer.append(vect_layr)
 
@@ -1043,6 +1046,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             viewer.dims.order = (0,2,1)
         #mirror_scope_changed(reg_qa_widget)
         reset_mirror_position( )
+        update_colorbar(viewer.layers.selection.active)
         return
 
     def dims_point_changed(event):
@@ -1050,10 +1054,6 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         reset_mirror_position()
         return
 
-
-    def dim_callback(event):
-        print(type(event.source))
-        return
 
     def update_colorbar(image):
 
@@ -1069,9 +1069,11 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         elif imgType == 'dose':
             planC = image.metadata['planC']
             doseNum = image.metadata['doseNum']
+            scanNum = image.metadata['assocScanNum']
             units = planC.dose[doseNum].doseUnits
         elif imgType == 'dvf':
             #planC = image.metadata['planC']
+            scanNum = image.metadata['assocScanNum']
             featureName = image._edge.color_properties.name
             units = featureName
         else:
@@ -1092,11 +1094,16 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             mz_axes = mz_canvas.figure.axes
             if len(mz_axes) == 0:
                 mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4]) #mz_canvas.figure.subplots()
+                mz_canvas.figure.add_axes([0.2, 0.1, 0.4, 0.1]) # orientation display axis
                 mz_axes = mz_canvas.figure.axes
+
             for ax in mz_axes:
-                colorbar_plt = ax.get_children()
-                for chld in colorbar_plt:
-                    del chld
+                children = ax.get_children()
+                text_objects = [child for child in children if isinstance(child, plt.Text)]
+                for text in text_objects:
+                    text.set_text('')
+                for child in children:
+                    del child
 
             if imgType in  ['scan', 'dose']:
                 colors = ListedColormap(image.colormap.colors)
@@ -1107,6 +1114,32 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                             norm=norm,
                             orientation='vertical')
 
+            # Draw arrows for patient direction
+            orientPos = ['L', 'P', 'S']
+            orientNeg = ['R', 'A', 'I']
+            flipDict = {}
+            for i in range(len(orientPos)):
+                flipDict[orientPos[i]] = orientNeg[i]
+                flipDict[orientNeg[i]] = orientPos[i]
+            oriStr = planC.scan[scanNum].getScanOrientation()
+            viewOrder = viewer.dims.order
+            mz_axes[1].arrow(0.2, 0.2, 0.6, 0, width=0.02, head_width=0.2, head_length=0.2)
+            mz_axes[1].arrow(0.2, 0.2, 0, 0.5, width=0.02, head_width=0.2, head_length=0.2)
+            mz_axes[1].set_xlim(0,1)
+            mz_axes[1].set_ylim(0,1)
+            mz_axes[1].axis('off')
+            if viewOrder[0] == 2:
+                xOri =  oriStr[viewOrder[1]]
+                yOri = flipDict[oriStr[viewOrder[2]]]
+            elif viewOrder[0] == 1:
+                xOri =  oriStr[viewOrder[0]]
+                yOri = flipDict[oriStr[viewOrder[1]]]
+            else:
+                xOri =  oriStr[viewOrder[0]]
+                yOri = flipDict[oriStr[viewOrder[1]]]
+            mz_axes[1].text(0, 1, yOri, fontsize=12, color='cyan')
+            mz_axes[1].text(1.1, 0.1, xOri, fontsize=12, color='cyan')
+
             cb1.set_label(units)
             mz_canvas.draw()
             mz_canvas.flush_events()
@@ -1114,6 +1147,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             #mz_axes.imshow(dose_layers[-1].colormap.colors)
             #mz_canvas.figure.tight_layout()
         return
+
 
     def mirror_scope_changed(widgt):
         viewer = widgt[0].value
