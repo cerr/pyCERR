@@ -836,6 +836,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             verts, faces, _, _ = measure.marching_cubes(volume=mask3M, level=0.5)
             #verts_scaled = verts * ranges / np.array(mask3M.shape) - mins
             cmap = vispy.color.Colormap([colr,colr])
+            isocenter = cerrStr.calcIsocenter(str_num, planC)
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
                                               affine=scan_affine, name=str_name,
                                               colormap=cmap,
