@@ -727,7 +727,21 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         scan_affine = np.array([[dy, 0, 0, y[0]], [0, dx, 0, x[0]], [0, 0, dz, z[0]], [0, 0, 0, 1]])
         scanAffineDict[scan_num] = scan_affine
 
+
+    #from qtpy import QtWidgets, QtCore
+    #QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
+    # above two lines are needed to allow to undock the widget with
+    # additional viewers - for Multiview
+
     viewer = napari.Viewer(title='pyCERR')
+
+    ## ======= Multiview - TBD  =====
+    #from cerr import multiViewHelper
+    #dock_widget = multiViewHelper.MultipleViewerWidget(viewer)
+    #cross = multiViewHelper.CrossWidget(viewer)
+    #viewer.window.add_dock_widget(dock_widget, name="pyCERR")
+    #viewer.window.add_dock_widget(cross, name="Cross", area="left")
+
 
     scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
     scan_layers = []
@@ -824,7 +838,12 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             cmap = vispy.color.Colormap([colr,colr])
             labl = viewer.add_surface((verts, faces),opacity=0.5,shading="flat",
                                               affine=scan_affine, name=str_name,
-                                              colormap=cmap)
+                                              colormap=cmap,
+                                              metadata = {'dataclass': 'structure',
+                                                'planC': planC,
+                                                'structNum': str_num,
+                                                'assocScanNum': scan_num,
+                                                'isocenter': isocenter})
             struct_layer.append(labl)
         elif displayMode.lower() == '2d':
             cmap = DirectLabelColormap(color_dict={None: None, int(1): colr, int(0): np.array([0,0,0,0])})
@@ -844,7 +863,8 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                     blending='translucent',
                                     colormap = cmap,
                                     opacity = 1,
-                                    metadata = {'planC': planC,
+                                    metadata = {'dataclass': 'structure',
+                                                'planC': planC,
                                                 'structNum': str_num,
                                                 'assocScanNum': scan_num,
                                                 'isocenter': isocenter})
@@ -1059,7 +1079,13 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     def update_colorbar(image):
 
         if image is None:
+            for lyr in viewer.layers:
+                if lyr.metadata['dataclass'] in ['scan','structure']:
+                    image = lyr
+                    break
+        if image is None:
             return
+
         # get Image units
         imgType = image.metadata['dataclass'] if 'dataclass' in image.metadata else ''
         units = ''
@@ -1073,10 +1099,15 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             scanNum = image.metadata['assocScanNum']
             units = planC.dose[doseNum].doseUnits
         elif imgType == 'dvf':
-            #planC = image.metadata['planC']
+            planC = image.metadata['planC']
             scanNum = image.metadata['assocScanNum']
             featureName = image._edge.color_properties.name
             units = featureName
+        elif imgType == 'structure':
+            planC = image.metadata['planC']
+            scanNum = image.metadata['assocScanNum']
+            featureName = ''
+            units = ''
         else:
             return
 
@@ -1086,34 +1117,46 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                 minVal = image.contrast_limits_range[0]
                 maxVal = image.contrast_limits_range[1]
                 mz_canvas = dose_colorbar_widget
-            else:
+                norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
+            elif imgType in ['dvf']:
                 minVal = image.properties[featureName].min() #image.edge_contrast_limits[0]
                 maxVal = image.properties[featureName].max() #image.edge_contrast_limits[1]
                 mz_canvas = dvf_colorbar_widget
+                norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
+            else:
+                mz_canvas = dose_colorbar_widget
 
-            norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
             mz_axes = mz_canvas.figure.axes
-            if len(mz_axes) == 0:
-                mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4]) #mz_canvas.figure.subplots()
-                mz_canvas.figure.add_axes([0.2, 0.1, 0.4, 0.1]) # orientation display axis
-                mz_axes = mz_canvas.figure.axes
 
-            for ax in mz_axes:
-                children = ax.get_children()
+            # Delete axes children
+            for axNum in range(len(mz_axes)):
+                #if imgType == 'structure' and axNum == 0:
+                #    continue
+                children = mz_axes[axNum].get_children()
                 text_objects = [child for child in children if isinstance(child, plt.Text)]
                 for text in text_objects:
                     text.set_text('')
                 for child in children:
                     del child
 
+            if len(mz_axes) == 0 and imgType in  ['scan', 'dose', 'structure']:
+                mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4]) #mz_canvas.figure.subplots()
+                mz_canvas.figure.add_axes([0.2, 0.1, 0.4, 0.1]) # orientation display axis
+                mz_axes = mz_canvas.figure.axes
+            elif len(mz_axes) == 0 and imgType in  ['dvf']: # imgType = 'dvf'
+                mz_canvas.figure.add_axes([0.1, 0.3, 0.2, 0.4])
+                mz_axes = mz_canvas.figure.axes
+
             if imgType in  ['scan', 'dose']:
                 colors = ListedColormap(image.colormap.colors)
-            else:
+            elif imgType == 'dvf':
                 colors = ListedColormap(image.edge_colormap.colors)
-
-            cb1 = mpl.colorbar.ColorbarBase(mz_axes[0], cmap=colors,
+            if imgType in  ['scan', 'dose', 'dvf']:
+                cb1 = mpl.colorbar.ColorbarBase(mz_axes[0], cmap=colors,
                             norm=norm,
                             orientation='vertical')
+                mz_axes[0].get_xaxis().set_visible(False)
+                cb1.set_label(units)
 
             # Draw arrows for patient direction
             orientPos = ['L', 'P', 'S']
@@ -1141,7 +1184,6 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             mz_axes[1].text(0, 1, yOri, fontsize=12, color='cyan')
             mz_axes[1].text(1.1, 0.1, xOri, fontsize=12, color='cyan')
 
-            cb1.set_label(units)
             mz_canvas.draw()
             mz_canvas.flush_events()
             #mz_axes.axis('image')
@@ -1284,7 +1326,6 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     # Set Image colorbar active
     colorbars_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
-
 
     return viewer, scan_layers, struct_layer, dose_layers, dvf_layer
 
