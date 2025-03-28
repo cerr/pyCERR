@@ -186,12 +186,11 @@ def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
-    ind = np.argmax(doseBinsV >= doseCutoff)
-
-    if ind is None:
+    inds = np.where(doseBinsV >= doseCutoff)
+    if len(inds) == 0:
         vx = 0
     else:
-        vx = cumVols2V[ind]
+        vx = cumVols2V[np.min(inds)]
 
     if volumeType == 1:
         vx = vx / cumVolsV[-1]
