@@ -167,22 +167,25 @@ def calcShapeFeatures(mask3M, xValsV, yValsV, zValsV, rowColSlcOri):
     for i in range(len(uniqSlcV)):
         slc = uniqSlcV[i]
         indV = slcV == slc
-        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxSlices = max(dmaxSlices, np.max(distM))
+        #distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxSlice = calcMaxDistBetweenPts(ptsM[indV,:], 'euclidean')
+        dmaxSlices = max(dmaxSlices, dmaxSlice)
 
     # Max diameter along cols
     for i in range(len(uniqColV)):
         col = uniqColV[i]
         indV = colV == col
-        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxCols = max(dmaxCols, np.max(distM))
+        #distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxCol = calcMaxDistBetweenPts(ptsM[indV,:], 'euclidean')
+        dmaxCols = max(dmaxCols, dmaxCol)
 
     # Max diameter along rows
     for i in range(len(uniqRowV)):
         row = uniqRowV[i]
         indV = rowV == row
-        distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
-        dmaxRows = max(dmaxRows, np.max(distM))
+        #distM = distance.cdist(ptsM[indV,:], ptsM[indV,:], 'euclidean')
+        dmaxRow = calcMaxDistBetweenPts(ptsM[indV,:], 'euclidean')
+        dmaxRows = max(dmaxRows, dmaxRow)
 
     axialIndex = rowColSlcOri.index('S') if 'S' in rowColSlcOri else rowColSlcOri.index('I')
     sagIndex = rowColSlcOri.index('A') if 'A' in rowColSlcOri else rowColSlcOri.index('P')
