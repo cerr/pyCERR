@@ -14,6 +14,7 @@ from cerr.utils.statistics import round
 EPS = np.finfo(float).eps
 rng = np.random.default_rng()
 
+
 def loadTimeSeq(planC, structNum, userInputTime=[]):
     """loadTimeSeq
     Function to extract 4D DCE scan array associated with input structure from planC
@@ -55,6 +56,7 @@ def loadTimeSeq(planC, structNum, userInputTime=[]):
 
     return scanArr4M, timePtsV, maskSlc3M, maskSlcV
 
+
 def intToConc(normSigM, concDict):
     """"
     Converts DCE-MRI signal intensity into contrast agent concentration.
@@ -93,14 +95,14 @@ def intToConc(normSigM, concDict):
     with np.errstate(invalid='ignore'):
         Dr = (1 - D) / (1 - D * np.cos(np.radians(FA)) + EPS)
         R1 = -1 / TR * np.log(Dr)
-        R1[Dr<=0] = 0
+        R1[Dr <= 0] = 0
 
     # Remove complex values
     R1[np.iscomplex(R1)] = 0
 
     # Concentrtation
     C = np.full(normSigM.shape, np.nan)
-    C[~skipIdxV, :] = 1/r1 * (R1 - R10)
+    C[~skipIdxV, :] = 1 / r1 * (R1 - R10)
     C[np.iscomplex(C)] = 0
 
     return C
@@ -207,7 +209,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
         if smoothFlag:
             for t in range(slcSeq3M.shape[2]):
                 slcSeq3M[:, :, t] = gaussian_filter(slcSeq3M[:, :, t], sigma=fSigma,
-                                    mode='nearest', truncate=fSize / fSigma)
+                                                    mode='nearest', truncate=fSize / fSigma)
         # Smoothing
         maskSlc3M = np.repeat(mask3M[:, :, slc, np.newaxis], nTimePts, axis=2)
         slcSeq3M[~maskSlc3M] = np.nan
@@ -218,7 +220,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
             midSlcMaskM = mask3M[:, :, midSlc]
             basePts = getStartofUptake(midSliceSeq3M, midSlcMaskM)
 
-        maskedSlcSeq3M = np.ma.masked_invalid(slcSeq3M[:, :, 0:basePts])  #Prevents RuntimeWarning: Mean of empty slice
+        maskedSlcSeq3M = np.ma.masked_invalid(slcSeq3M[:, :, 0:basePts])  # Prevents RuntimeWarning: Mean of empty slice
         baselineM = np.mean(maskedSlcSeq3M, axis=2).filled(np.nan)
         baselineM[baselineM == 0] = EPS
         normSig3M = scanArr4M[:, :, slc, :] / baselineM[:, :, np.newaxis]
@@ -226,12 +228,12 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
             normScan4M[:, :, slc, :] = normSig3M
         elif method == 'CC':
             for t in range(normScan4M.shape[3]):
-                normScan4M[:, :, slc, t] = intToConc(normSig3M[:,:,t], concDict)
+                normScan4M[:, :, slc, t] = intToConc(normSig3M[:, :, t], concDict)
 
     timePtsV = timePtsV - timePtsV[basePts]
     uptakeTimeV = timePtsV[basePts:]
     normScan4M = normScan4M[:, :, :, basePts:]
-
+    
     return normScan4M, uptakeTimeV, basePts
 
 
@@ -253,27 +255,34 @@ def locatePeak(sigM):
     minWin = 5  # Ensure reasonable window size
     calcNoiseLevel = lambda sigV: np.std(sigV - medfilt(sigV, kernel_size=3))
     getWindowSize = lambda sigV: max(min(2 * round(0.05 * calcNoiseLevel(sigV) * len(sigV) / 2) + 1,
-                                    maxWin, len(sigV) - 1), minWin)
-    sigMax = 0.8*np.max(sigM, axis=1)
+                                         maxWin, len(sigV) - 1), minWin)
+    sigMax = 0.8 * np.max(sigM, axis=1)
 
     filtSigM = np.apply_along_axis(
-                     lambda row: savgol_filter(row, window_length=getWindowSize(row), polyorder=3),
-                     axis=1,
-                     arr=sigM)
+        lambda row: savgol_filter(row, window_length=getWindowSize(row), polyorder=3),
+        axis=1,
+        arr=sigM)
 
     diffNextM = np.concatenate((np.zeros((nVox, 1)), np.diff(filtSigM, 1, 1)), axis=1)
     diffPrevM = np.concatenate((-np.diff(filtSigM, 1, 1), np.zeros((nVox, 1))), axis=1)
     localMaxIdxM = np.logical_and(diffNextM >= 0, diffPrevM >= 0)
-    highSigIdxM = filtSigM > np.tile(sigMax,(nTime, 1)).transpose()  # -ve conc.(??)
+    highSigIdxM = filtSigM > np.tile(sigMax, (nTime, 1)).transpose()  # -ve conc.(??)
+
     # Correction for noisy signals
     hasPeakV = np.any(highSigIdxM, axis=1)
-    if np.any(hasPeakV==0):
-        highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV,:] > np.tile(0.6*sigMax[~hasPeakV],
-                                                            (nTime, 1)).transpose()
+    if np.any(hasPeakV == 0):
+        highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV, :] > np.tile(0.6 * sigMax[~hasPeakV],
+                                                                     (nTime, 1)).transpose()
         hasPeakV = np.any(highSigIdxM, axis=1)
-        if np.any(hasPeakV==0):
-            highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV,:] > np.tile(0.8*np.max(filtSigM[~hasPeakV,:], axis=1),
-                                                                (nTime, 1)).transpose()
+        if np.any(hasPeakV == 0):
+            # Correction where max of filt signal < 0
+            selFiltSigM = filtSigM[~hasPeakV, :]
+            shiftIdxV = np.max(selFiltSigM, axis=1) < 0
+            selFiltSigM[shiftIdxV, :] = selFiltSigM[shiftIdxV, :] - np.tile(np.min(selFiltSigM[shiftIdxV,:], axis=1),
+                                                              (nTime, 1)).transpose()
+            filtSigM[~hasPeakV, :] = selFiltSigM
+            highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV, :] > np.tile(0.8 * np.max(filtSigM[~hasPeakV, :], axis=1),
+                                                                         (nTime, 1)).transpose()
 
     allPeaksM = np.logical_and(localMaxIdxM, highSigIdxM)
     skipVoxV = ~np.any(allPeaksM, axis=1)
@@ -281,6 +290,7 @@ def locatePeak(sigM):
     peakIdxV[skipVoxV] = np.nan
 
     return peakIdxV
+
 
 def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
     """smoothResample
@@ -301,7 +311,7 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
     """
 
     # Smoothing settings
-    #smoothing = 0.05  # Adjust this for more or less smoothing
+    # smoothing = 0.05  # Adjust this for more or less smoothing
     sigma = 1
     radius = 2
 
@@ -341,7 +351,7 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
         if resampFlag:
             skipIdxV = np.nansum(padSigM, axis=1) == 0
             padSubSigM = padSigM[~skipIdxV, :]
-            numPts = int(padSubSigM.shape[1] * tdiff /ts)
+            numPts = int(padSubSigM.shape[1] * tdiff / ts)
             resampPadSigM = np.full((sigM.shape[0], numPts), np.nan)
             resampPadSigM[~skipIdxV, :], timePadV = resample(padSubSigM, numPts, t=padTimeV, axis=1)
         else:
@@ -375,35 +385,35 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
     nVox = procSlcSigM.shape[0]
 
     # Peak enhancement
-    #PEv = np.max(procSlcSigM, axis=1)
-    #peakIdxV = np.argmax(procSlcSigM, axis=1)
+    # PEv = np.max(procSlcSigM, axis=1)
+    # peakIdxV = np.argmax(procSlcSigM, axis=1)
     peakIdxV = (locatePeak(procSlcSigM)).astype(int)
     PEv = procSlcSigM[np.arange(nVox), peakIdxV]
-    TTPv = procTimeV[peakIdxV]             #Time-to-peak
+    TTPv = procTimeV[peakIdxV]  # Time-to-peak
 
     # Half-peak
     halfMaxSig = .5 * PEv
     SHPcolIdx = np.zeros(nVox, dtype=int)
     for vox in range(nVox):
-        SHPcolIdx[vox] = np.argmin(np.abs(procSlcSigM[vox,:peakIdxV[vox]+1] - halfMaxSig[vox, np.newaxis]))
+        SHPcolIdx[vox] = np.argmin(np.abs(procSlcSigM[vox, :peakIdxV[vox] + 1] - halfMaxSig[vox, np.newaxis]))
     SHPv = procSlcSigM[np.arange(nVox), SHPcolIdx]  # Relative enhancement at half-peak
-    TTHPv = procTimeV[SHPcolIdx]                                        # Time to half-peak
+    TTHPv = procTimeV[SHPcolIdx]  # Time to half-peak
 
     # Wash-in slope
-    WISv = PEv / (TTPv + EPS)              # Wash in slope, WIS = PE / TTP
+    WISv = PEv / (TTPv + EPS)  # Wash in slope, WIS = PE / TTP
 
-    #Wash-out slope
+    # Wash-out slope
     # WOS = (PE - RSE(Tend)) / (Tend - TTP), if PE does not occur at Tend (0 otherwise).
     Tend = procTimeV[-1]
     RSEendV = procSlcSigM[:, -1]
     peakAtEndIdx = TTPv == Tend
     with np.errstate(invalid='ignore'):
-        WOSv = (PEv - RSEendV)/ (TTPv + EPS - Tend)
-        WOSv[peakAtEndIdx] = np.nan  #Not defined
+        WOSv = (PEv - RSEendV) / (TTPv + EPS - Tend)
+        WOSv[peakAtEndIdx] = np.nan  # Not defined
 
     # Wash-in/out gradients
     ## Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
-    IGv = np.full((nVox, ), fill_value=np.nan)
+    IGv = np.full((nVox,), fill_value=np.nan)
     for i in range(nVox):
         id_10 = np.argmin(np.abs(procSlcSigM[i, :peakIdxV[i] + 1] - .1 * PEv[i]))
         id_70 = np.argmin(np.abs(procSlcSigM[i, id_10:peakIdxV[i] + 1] - .7 * PEv[i]))
@@ -411,13 +421,13 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
             id_70 = peakIdxV[i]  # Handle case where no column exceeds 70%
         initialPts = np.arange(id_10, id_70 + 1)
         y = procSlcSigM[i, initialPts].T
-        x = np.hstack((np.ones((len(initialPts), 1)), procTimeV[initialPts].T[:,np.newaxis]))
-        #x = np.column_stack((np.ones(len(initialPts)), procTimeV[initialPts].T))  # Create the design matrix
+        x = np.hstack((np.ones((len(initialPts), 1)), procTimeV[initialPts].T[:, np.newaxis]))
+        # x = np.column_stack((np.ones(len(initialPts)), procTimeV[initialPts].T))  # Create the design matrix
         b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
         IGv[i] = b[1]
 
     # Wash-out gradient estimated by linear regression of RSE between  1 and 2 min elapsed from start of uptake
-    WOGv = np.full((nVox, ), fill_value=np.nan)
+    WOGv = np.full((nVox,), fill_value=np.nan)
     for i in range(nVox):
 
         id_1 = np.argmax(procTimeV >= 1)
@@ -431,13 +441,13 @@ def semiQuantFeatures(procSlcSigM, procTimeV):
             b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
             WOGv[i] = b[1]
 
-    #Signal enhancement ratio
+    # Signal enhancement ratio
     # RSE at 0.5 min divided by RSE at 2.5 min, elapsed from start of uptake
     tse1 = np.nanargmax(procTimeV >= .5)
     tse2 = np.nanargmax(procTimeV >= 2.5)
     SERv = procSlcSigM[:, tse1] / (procSlcSigM[:, tse2] + EPS)
 
-    #IAUC
+    # IAUC
     IAUCv = cumtrapz(y=procSlcSigM.T, x=procTimeV.T, axis=0, initial=0).T
     IAUCtthpV = np.full((nVox,), fill_value=np.nan)
     IAUCttpV = np.full((nVox,), fill_value=np.nan)
@@ -492,7 +502,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
 
     """
     userInputTime = []
-    if len(timeV)>0:
+    if len(timeV) > 0:
         userInputTime = timeV
 
     # Load DCE series
@@ -517,7 +527,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
         ## Smoothing + resampling
         procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
                                                 temporalSmoothFlag=temporalSmoothFlag, resampFlag=resampFlag)
-        if sigType=='RSE':
+        if sigType == 'RSE':
             # Calc. signal enhancement relative to baseline (assumed to be proportional to contrast agent concentration)
             procSlcSigM = procSlcSigM.copy() - 1  # S(t)/S(0) - 1
 
@@ -526,7 +536,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
 
         if 'display' in plotDict and plotDict['display']:
             plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=3,
-                               savePath=plotDict['savepath'], prefix=plotDict['prefix']+'_slc'+str(slc))
+                               savePath=plotDict['savepath'], prefix=plotDict['prefix'] + '_slc' + str(slc))
 
         featureList.append(featureDict)
 
@@ -549,7 +559,7 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         plt.figure()
         plt.axis([0, procTimeV[-1], np.min(procSlcSigM[idx, :]) - 0.01, np.max(procSlcSigM[idx, :]) + 0.01])
         plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=2)
-        #plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
+        # plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
 
         # TTP
         ttp = featureDict['TimeToPeak'][idx]
@@ -561,7 +571,7 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         # TTHP
         tthp = featureDict['TimeToHalfPeak'][idx]
         match = np.argmin(np.abs(procTimeV - tthp))
-        plt.annotate('TTHP', xy=(tthp, min(procSlcSigM[idx,:])) )
+        plt.annotate('TTHP', xy=(tthp, min(procSlcSigM[idx, :])))
         plt.vlines(x=tthp, ymin=min(procSlcSigM[idx, :]), ymax=procSlcSigM[idx, match],
                    color='purple', linestyles='dashed', linewidth=1.5)
 
@@ -573,7 +583,7 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         point_y2 = procSlcSigM[idx, ctr]
         midpt = (procTimeV[round(ctr / 2)], point_y2 / 2)
         slope = featureDict['WashInSlope'][idx]
-        angle = np.rad2deg(np.arctan2(point_y2-point_y1, point_x2-point_x1))
+        angle = np.rad2deg(np.arctan2(point_y2 - point_y1, point_x2 - point_x1))
         # line_length = 0.5  # Adjust length of the line
         # dx = line_length / np.sqrt(1 + slope ** 2)
         # dy = slope * dx
@@ -582,7 +592,7 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         plt.plot([point_x1, point_x2], [point_y1, point_y2], '--', color='purple',
                  label='Wash-in slope', linewidth=1.5)
         plt.annotate(f'Wash-in slope: {slope:.2f}', xy=midpt, rotation=angle,
-                      fontsize=10, ha="center", color="black")
+                     fontsize=10, ha="center", color="black")
 
         # Wash-out slope
         point_x1 = procTimeV[ctr]
@@ -592,7 +602,7 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         midptIdx = int(ctr + (len(procTimeV) - ctr) / 2)
         midpt = (procTimeV[midptIdx], procSlcSigM[idx, midptIdx])
         slope = featureDict['WashOutSlope'][idx]
-        angle = np.rad2deg(np.arctan2(point_y2-point_y1, point_x2-point_x1))
+        angle = np.rad2deg(np.arctan2(point_y2 - point_y1, point_x2 - point_x1))
         plt.plot([point_x1, point_x2], [point_y1, point_y2], '--', color='purple',
                  label='Wash-out slope', linewidth=1.5)
         # plt.annotate(f'Wash-out slope: {slope:.2f}', xy=midpt, rotation=degrees(atan(slope)),
@@ -643,13 +653,14 @@ def plotSampleFeatures(procSlcSigM, procTimeV, featureDict, numPlots=1, savePath
         plt.fill_between(xFill, 0, yFill, facecolor="none", color='skyblue', alpha=0.3, hatch=r'\\', label="AUC_{TTP}}")
 
         if savePath is not None:
-            figPath = os.path.join(savePath, prefix + '_vox' + str(idx)+'.jpg' )
+            figPath = os.path.join(savePath, prefix + '_vox' + str(idx) + '.jpg')
             plt.savefig(figPath)
             plt.close()
         else:
             plt.show(block=True)
 
     return 0
+
 
 def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan'):
     """createFeatureMaps
@@ -687,7 +698,7 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan')
     for key in feats:
         for s in range(numSlc):
             maskSlcM = mask3M[:, :, s]
-            
+
             # Get voxel indices in column-first order
             rowIdxV, colIdxV = np.where(maskSlcM)
             colFirstIdxV = np.lexsort((rowIdxV, colIdxV))
@@ -706,6 +717,6 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan')
                 planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
             if type.lower() == 'dose':
                 planC = pc.importDoseArray(mapDict[key], xV, yV, zV, planC, assocScan,
-                                           doseInfo={'fractionGroupID':key})
+                                           doseInfo={'fractionGroupID': key})
 
     return mapDict, planC
