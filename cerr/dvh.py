@@ -2,11 +2,20 @@ import numpy as np
 from cerr.dataclasses import scan as scn
 
 def getDVH(structNum, doseNum, planC):
+    """Routine to calculate Dose and Volume vectors to be used for Histogram calculation
+
+    Args:
+        structNum (int): Binary mask where 1s represent the segmentation
+        doseNum (int): x-values i.e. coordinates of columns of input mask
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        List (dosesV): vector of dose values for voxels in structNum
+        List (volsV): vector of volumes corresponding to voxels in dosesV
+        int (isError): error flag. 0: No error, 1: error in calculation
+
     """
-    Returns DVH vectors for a specified structure and dose set, where
-    dosesV is a vector of dose values at a voxel and volsV is a vector of
-    volumes of the corresponding voxel in dosesV.
-    """
+
 
     # Get the scan number associated with the requested structure.
     assocScanUID = planC.structure[structNum].assocScanUID
@@ -106,6 +115,19 @@ def accumulate(V1, V2, indV):
     return V1
 
 def doseHist(doseV, volsV, binWidth):
+    """Routine to calculate Dose Volume Histogram from input dose and volume vectors
+
+    Args:
+        doseV (List): vector of dose values for voxels in structNum
+        volsV (List): vector of volumes corresponding to voxels in dosesV
+        binWidth (float): Bin-width of dose bins.
+
+    Returns:
+        List (doseBinsV): vector of dose bin centers.
+        List (volsHistV): vector of volumes accumulated in corresponding dose bins.
+
+    """
+
     bufferNum = 1e-10
     if np.min(doseV) >= 0:
         maxD = np.max(doseV)
@@ -150,6 +172,17 @@ def doseHist(doseV, volsV, binWidth):
 # print("Volumes Histogram:", volsHistV)
 
 def MOHx(doseBinsV,volsHistV,percent):
+    """
+    This routine computes the mean of hottest x% dose.
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+        percent (float): cutoff in terms of percentage. (e.g. 90)
+
+    Returns:
+        Float: mean of the hottest x% dose
+    """
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
@@ -166,6 +199,18 @@ def MOHx(doseBinsV,volsHistV,percent):
 
 
 def MOCx(doseBinsV,volsHistV,percent):
+    """
+    This routine computes the mean of coldest x% dose.
+
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+        percent (float): cutoff in terms of percentage. (e.g. 10)
+
+    Returns:
+        Float: mean of the coldest x% dose
+
+    """
+
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
 
@@ -180,6 +225,19 @@ def MOCx(doseBinsV,volsHistV,percent):
 
 
 def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
+    """
+    This routine computes the volume receiving at least x dose.
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+        doseCutoff: dose cutoff in Gy.
+        volumeType (int): 0: Return output volume as absolute cc.
+                          1: Return output volume as percentage.
+
+    Returns:
+        Float: Volume (absolute ot percentage)
+    """
 
     # Add 0 to the beginning of volsHistV
     volsHistV = np.insert(volsHistV, 0, 0)
@@ -201,9 +259,20 @@ def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
     return vx
 
 
-def Dx(doseBinsV,volsHistV,x,volType):
+def Dx(doseBinsV,volsHistV,volCutoff,volType):
+    """"
+    This routine computes the minimum dose to the hottest x% volume.
 
-    # Assuming volsHistV, cumVolsV, doseBinsV, volType, and x are defined elsewhere
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+        volCutoff: volume cutoff in cc or percentage.
+        volumeType (int): 0: volume is input in absolute cc.
+                          1: volume is input in percentage.
+
+    Returns:
+        Float: Volume (absolute ot percentage)
+    """
 
     # Check if volType variable exists
     if 'volType' not in locals():
@@ -211,30 +280,79 @@ def Dx(doseBinsV,volsHistV,x,volType):
         pass
     else:
         if not volType:
-            x = x / np.sum(volsHistV) * 100
+            volCutoff = volCutoff / np.sum(volsHistV) * 100
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
-    ind = np.argmin(np.array(cumVols2V) / cumVolsV[-1] < x / 100)
-
-    if ind is None:
-        dx = 0
-    else:
+    ind = np.where(np.array(cumVols2V) / cumVolsV[-1] < volCutoff / 100)
+    if len(ind[0]) > 0:
+        ind = np.min(ind)
         dx = doseBinsV[ind]
+    else:
+        dx = 0
+
     return dx
 
 def meanDose(doseBinsV,volsHistV):
+    """
+    This routine computes the mean dose
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+
+    Returns:
+        Float: Mean dose
+
+    """
+
     return np.sum(doseBinsV * volsHistV) / np.sum(volsHistV)
 
 def minDose(doseBinsV,volsHistV):
+    """
+    This routine computes the minimum dose
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+
+    Returns:
+        Float: Minimum dose
+
+    """
+
     ind = np.where(volsHistV != 0)[0][0]
     return doseBinsV[ind]
 
 def maxDose(doseBinsV,volsHistV):
+    """
+    This routine computes the maximum dose
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+
+    Returns:
+        Float: Maximum dose
+
+    """
+
     ind = np.where(volsHistV != 0)[0][-1]
     return doseBinsV[ind]
 
 def medianDose(doseBinsV,volsHistV):
+    """
+    This routine computes the median dose
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+
+    Returns:
+        Float: Median dose
+
+    """
+
     # Find the indices of non-zero elements in volsHistV
     non_zero_indices = np.where(volsHistV != 0)[0]
 
