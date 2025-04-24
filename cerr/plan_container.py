@@ -137,7 +137,7 @@ def saveNiiStructure(niiFileName, labelDict, planC, strNumV=None, dim=3):
     elif dim == 4:
         # Export stack of binary masks
         # Required for overlapping structures
-        maskList, strNumV = getMaskList(planC, labelDict, strNumV)
+        maskList = getMaskList(strNumV, planC, labelDict=labelDict)
         maskOut = np.array(maskList)
     else:
         raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
