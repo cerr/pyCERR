@@ -1092,6 +1092,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
 def getSurfaceExpand(structNum, marginCm, planC, xyDownsampleIndex=1):
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
+    contractFlag = False
     if marginCm < 0:
         contractFlag = True
         marginCm = -marginCm
