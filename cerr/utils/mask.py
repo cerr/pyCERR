@@ -100,16 +100,9 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
 
     return r,c,s
 
-def surfaceExpand(mask3M, deltaRCSv, contractFlag=False):
+def surfaceExpand(mask3M, dxyz, marginCm, contractFlag=False):
 
     maskExpanded3M = mask3M.copy()
-
-    # Define the edge kernel
-    edge = np.zeros((3, 3, 3))
-    edge[:, :, 0] = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
-    edge[:, :, 1] = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-    edge[:, :, 2] = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
-    edge = edge / 7
 
     # Get surface points (assuming surfPoints is a list of coordinates)
     surfPoints = getSurfacePoints(maskExpanded3M)
@@ -120,6 +113,15 @@ def surfaceExpand(mask3M, deltaRCSv, contractFlag=False):
     # Mark surface points in edge3D
     edge3D[surfPoints[0],surfPoints[1],surfPoints[2]] = True
 
+    contractFlag = False
+    if marginCm < 0:
+        contractFlag = True
+        marginCm = -marginCm
+    c1 = int(np.ceil(marginCm / dxyz[1]))
+    c2 = int(np.ceil(marginCm / dxyz[0]))
+    c3 = int(np.ceil(marginCm / dxyz[2]))
+
+
     # Optional: Convolution (commented out in MATLAB)
     # edge3D = convolve(maskDown3D, edge, mode='same')
     # edge3D = (edge3D < 0.999) & maskDown3D
@@ -129,17 +131,17 @@ def surfaceExpand(mask3M, deltaRCSv, contractFlag=False):
     #c1 = int(np.ceil(margin / delta_xy))
     #c2 = int(np.ceil(margin / delta_xy))
     #c3 = int(np.ceil(margin / sliceThickness))
-    c1, c2, c3 = deltaRCSv
+    # c1, c2, c3 = deltaRCSv
 
     uM, vM, wM = np.meshgrid(np.arange(-c1, c1 + 1), np.arange(-c2, c2 + 1), np.arange(-c3, c3 + 1), indexing='ij')
 
-    #xM = uM * delta_xy
-    #yM = vM * delta_xy
-    #zM = wM * sliceThickness
+    xM = uM * dxyz[0]
+    yM = vM * dxyz[1]
+    zM = wM * dxyz[2]
 
-    rM = uM**2 + vM**2 + wM**2
-    marginSq = c1**2 + c2**2 + c3**2
-    ball = rM <= marginSq
+    rM = np.sqrt(xM**2 + yM**2 + zM**2)
+    #marginSq = c1**2 + c2**2 + c3**2
+    ball = rM <= marginCm
 
     # Find indices of the ball
     iBallV, jBallV, kBallV = np.where(ball)
@@ -161,7 +163,7 @@ def surfaceExpand(mask3M, deltaRCSv, contractFlag=False):
     ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
     if contractFlag:
         ball_offsetV = -ball_offsetV
-        onesV = 0 * onesV
+        onesV[:] = False
 
     # Apply the ball to maskDown3D
     for i in range(len(ind_surfV)):

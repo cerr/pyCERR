@@ -1089,19 +1089,21 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     return maskOut3M, planC
 
 
-def getSurfaceExpand(structNum, marginCm, planC, xyDownsampleIndex=1):
+def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
     contractFlag = False
     if marginCm < 0:
         contractFlag = True
-        marginCm = -marginCm
-    rowMargin = int(np.ceil(marginCm / dxyz[1]))
-    colMargin = int(np.ceil(marginCm / dxyz[0]))
-    slcMargin = int(np.ceil(marginCm / dxyz[2]))
-    marginV = [rowMargin,colMargin,slcMargin]
+    #     marginCm = -marginCm
+    # rowMargin = int(np.ceil(marginCm / dxyz[1]))
+    # colMargin = int(np.ceil(marginCm / dxyz[0]))
+    # slcMargin = int(np.ceil(marginCm / dxyz[2]))
+    # if restrict_2d:
+    #     slcMargin = 0
+    # marginV = [rowMargin,colMargin,slcMargin]
     mask3M = rs.getStrMask(structNum, planC)
-    expandedMask3M = maskUtils.surfaceExpand(mask3M, marginV, contractFlag)
+    expandedMask3M = maskUtils.surfaceExpand(mask3M, dxyz, marginCm, contractFlag)
     if contractFlag:
         sructName = planC.structure[structNum].structureName + '_shrink_' + str(marginCm) + ' cm'
     else:
