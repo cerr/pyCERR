@@ -568,7 +568,7 @@ def loadStructure(file_list):
                 struct_meta.structureFileFormat = "SEG"
                 struct_meta.patientName = str(ds.PatientName)
                 struct_meta.writer = ds.Manufacturer
-                struct_meta.dateWritten = ds.SeriesDate
+                if hasattr(ds,"SeriesDate"): struct_meta.dateWritten = ds.SeriesDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
                 struct_meta.roiNumber = ds.SegmentSequence[strNum].SegmentNumber
                 struct_meta.structureName = ds.SegmentSequence[strNum].SegmentLabel
@@ -1103,7 +1103,7 @@ def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
     #     slcMargin = 0
     # marginV = [rowMargin,colMargin,slcMargin]
     mask3M = rs.getStrMask(structNum, planC)
-    expandedMask3M = maskUtils.surfaceExpand(mask3M, dxyz, marginCm, contractFlag)
+    expandedMask3M = maskUtils.surfaceExpand(mask3M, dxyz, marginCm, restrict_2d)
     if contractFlag:
         sructName = planC.structure[structNum].structureName + '_shrink_' + str(marginCm) + ' cm'
     else:

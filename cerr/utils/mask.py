@@ -52,14 +52,15 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
     """
 
     surfPoints = []
+    maskToUse3M = mask3M.copy()
 
-    r, c, s = np.where(mask3M)
+    r, c, s = np.where(maskToUse3M)
 
     minR, maxR = np.min(r), np.max(r)
     minC, maxC = np.min(c), np.max(c)
     minS, maxS = np.min(s), np.max(s)
 
-    croppedMask3M = mask3M[minR:maxR + 1, minC:maxC + 1, minS:maxS + 1]
+    croppedMask3M = maskToUse3M[minR:maxR + 1, minC:maxC + 1, minS:maxS + 1]
 
     plusRowShift = croppedMask3M[2:, 1:-1, 1:-1]
     allNeighborsOn = plusRowShift.copy()
@@ -100,12 +101,28 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
 
     return r,c,s
 
-def surfaceExpand(mask3M, dxyz, marginCm, contractFlag=False):
+def surfaceExpand(mask3M, dxyz, marginCm, restrict_2d=False):
 
     maskExpanded3M = mask3M.copy()
 
     # Get surface points (assuming surfPoints is a list of coordinates)
-    surfPoints = getSurfacePoints(maskExpanded3M)
+    if restrict_2d:
+        _,_,kV = np.where(maskExpanded3M)
+        rowV = []
+        colV = []
+        slcV = []
+        for k in np.unique(kV):
+            maskSlcM = maskExpanded3M[:,:,k]
+            maskSlcM = np.expand_dims(maskSlcM,2)
+            maskSlcM = np.repeat(maskSlcM,3,2)
+            surfPointsSlc = getSurfacePoints(maskSlcM)
+            indValidV = surfPointsSlc[2] == 1
+            rowV.extend(surfPointsSlc[0][indValidV])
+            colV.extend(surfPointsSlc[1][indValidV])
+            slcV.extend(k * np.ones_like(surfPointsSlc[0][indValidV]))
+        surfPoints = (rowV, colV, slcV)
+    else:
+        surfPoints = getSurfacePoints(maskExpanded3M)
 
     # Initialize edge3D as a logical array
     edge3D = np.zeros_like(maskExpanded3M, dtype=bool)
@@ -113,13 +130,17 @@ def surfaceExpand(mask3M, dxyz, marginCm, contractFlag=False):
     # Mark surface points in edge3D
     edge3D[surfPoints[0],surfPoints[1],surfPoints[2]] = True
 
-    contractFlag = False
     if marginCm < 0:
         contractFlag = True
         marginCm = -marginCm
+    else:
+        contractFlag = False
+
     c1 = int(np.ceil(marginCm / dxyz[1]))
     c2 = int(np.ceil(marginCm / dxyz[0]))
     c3 = int(np.ceil(marginCm / dxyz[2]))
+    if restrict_2d:
+        c3 = 0
 
 
     # Optional: Convolution (commented out in MATLAB)
@@ -147,7 +168,7 @@ def surfaceExpand(mask3M, dxyz, marginCm, contractFlag=False):
     iBallV, jBallV, kBallV = np.where(ball)
 
     sR = rM.shape
-    deltaV = (np.array(sR) - 1) / 2 + 1
+    deltaV = (np.array(sR) - 1) / 2
 
     onesV = np.ones(len(iBallV), dtype=bool)
 
@@ -160,17 +181,30 @@ def surfaceExpand(mask3M, dxyz, marginCm, contractFlag=False):
     ind_surfV = iV + jV * sV[0] + kV * sV[0] * sV[1]
 
     # Calculate ball offsets
-    ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
+    if c3 == 0:
+        ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1])
+    else:
+        ball_offsetV = (iBallV - deltaV[0]) + sV[0] * (jBallV - deltaV[1]) + sV[0] * sV[1] * (kBallV - deltaV[2])
     if contractFlag:
-        ball_offsetV = -ball_offsetV
+        #ball_offsetV = -ball_offsetV
         onesV[:] = False
 
+    # # Apply the ball to maskDown3D
+    # for i in range(len(ind_surfV)):
+    #     total_indV = ind_surfV[i] + ball_offsetV
+    #     total_indV = np.clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
+    #     #maskExpanded3M[total_indV.astype(int)] = onesV
+    #     maskExpanded3M[np.unravel_index(total_indV.astype(int), sV, order='F')] = onesV
+
     # Apply the ball to maskDown3D
-    for i in range(len(ind_surfV)):
-        total_indV = ind_surfV[i] + ball_offsetV
-        total_indV = np.clip(total_indV, 0, np.prod(sV) - 1)  # Python uses 0-based indexing
-        #maskExpanded3M[total_indV.astype(int)] = onesV
-        maskExpanded3M[np.unravel_index(total_indV.astype(int), sV, order='F')] = onesV
+    for i in range(len(iV)):
+        iExpandV = np.array(iV[i] + iBallV - deltaV[0], dtype=int)
+        jExpandV = np.array(jV[i] + jBallV - deltaV[1], dtype=int)
+        kExpandV = np.array(kV[i] + kBallV - deltaV[2], dtype=int)
+        iExpandV = np.clip(iExpandV, 0, sV[0] - 1)
+        jExpandV = np.clip(jExpandV, 0, sV[1] - 1)
+        kExpandV = np.clip(kExpandV, 0, sV[2] - 1)
+        maskExpanded3M[iExpandV,jExpandV,kExpandV] = onesV
 
     return maskExpanded3M
 
