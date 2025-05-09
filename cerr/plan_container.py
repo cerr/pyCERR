@@ -471,6 +471,9 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     assocScanUIDList = [s.assocScanUID for s in planC.structure]
     for structNum, uid in enumerate(assocScanUIDList):
         ids = np.where(scanUIDList == uid)[0]
+        # If no matching scan, use all scans to figure out the scan associated with this structure
+        if len(ids) == 0:
+            ids = range(len(planC.scan))
         if len(ids) > 1:
             ctrList = planC.structure[structNum].contour
             sopInstanceUIDList = [c.referencedSopInstanceUID for c in ctrList if not isinstance(c,list)]
@@ -966,10 +969,11 @@ def parseDcmHeader(dcm_dir):
     # Modality, b-value * 3, temporalIndex, trigger, numSlices, EchoTime
     tag_list = [Tag(0x0010,0x0010), Tag(0x0010,0x0010), Tag(0x0020,0x000D), Tag(0x0020,0x000E),
         Tag(0x0008, 0x0060), Tag(0x0043,0x1039), Tag(0x0018,0x9087), Tag(0x0019,0x100C),
-        Tag(0x0020,0x0100), Tag(0x0018,0x1060), Tag(0x0021,0x104F), Tag(0x0018,0x0081)]
+        Tag(0x0020,0x0100), Tag(0x0018,0x1060), Tag(0x0021,0x104F), Tag(0x0018,0x0081),
+                Tag(0x0020,0x0012)]
     tag_heading = ["PatientName","PatientID","StudyInstanceUID","SeriesInstanceUID",
                    "Modality","bValue1","bValue2","bValue3","TemporalPosition",
-                   "TriggerTime","NumSlices","EchoTime","FilePath"]
+                   "TriggerTime","NumSlices","EchoTime","AcquisitionNumber","FilePath"]
     img_meta = []
     for root, _, files in os.walk(dcm_dir):
         for i,file in enumerate(files):
