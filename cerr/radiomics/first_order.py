@@ -79,8 +79,8 @@ def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     RadiomicsFirstOrderS['kurtosis'] = kurtosis(Iarray, fisher=False, nan_policy='omit') - 3
 
     # Entropy is a statistical measure of randomness that can be used to characterize the texture of the input image
-    xmin = np.min(Iarray)
-    xmax = np.max(Iarray)
+    xmin = np.nanmin(Iarray)
+    xmax = np.nanmax(Iarray)
     edgeMin = 0  # to match the MATLAB definition
     if binWidth is None and binNum is not None:
         binWidth = (xmax - xmin) / binNum
