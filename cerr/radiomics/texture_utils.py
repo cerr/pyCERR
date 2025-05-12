@@ -191,10 +191,15 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
         uniqueSlicesV = np.unique(slicesV)
         strName = 'ROI'
     else:
-        scanNum = planC.structure[strNum].getStructureAssociatedScan(planC)
+        if scanNum is None:
+            # Get scan index from assoc. structure
+            scanNum = planC.structure[strNum].getStructureAssociatedScan(planC)
         scan3M = planC.scan[scanNum].getScanArray()
         origSizeV = scan3M.shape
         mask3M = np.zeros(origSizeV, dtype=bool)
+        if scan3M.shape != mask3M.shape:
+            raise Exception("Error! Dimension mismatch between inputs scanNum= \
+                            {} and strNum={}.".format(scanNum, strNum))
         rasterSegM = planC.structure[strNum].rasterSegments
         slcMask3M, uniqueSlicesV = rs.raster_to_mask(rasterSegM, scanNum, planC)
         mask3M[:, :, uniqueSlicesV] = slcMask3M
