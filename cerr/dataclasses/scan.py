@@ -902,6 +902,63 @@ def loadSortedScanInfo(file_list):
     scan.scanUID = "CT." + si_pixel_data[2]
     return scan
 
+
+def parseScanInfoFromDB(scanInfoList, scanArray):
+    numberOfFrames = len(scanInfoList) #ds.NumberOfFrames.real
+    scan_info = np.empty(numberOfFrames, dtype=scn_info.ScanInfo)
+    for iFrame in range(numberOfFrames):
+        s_info = scn_info.ScanInfo()
+        fieldNames = scanInfoList[iFrame].keys()
+        for fieldName in fieldNames:
+            if hasattr(s_info, fieldName):
+                setattr(s_info, fieldName, scanInfoList[iFrame][fieldName])
+        slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
+                       - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
+        s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+        scan_info[iFrame] = s_info
+
+    scan = Scan()
+    sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
+    #scan_array = np.array(scan_array)
+    #scan_array = np.moveaxis(scan_array,[0,1,2],[2,0,1])
+    #scan_info = np.array(scan_info)
+    scan_info = scan_info[sort_index]
+    scan_array = scanArray[:,:,sort_index]
+    scan_info = scn_info.deduce_voxel_thickness(scan_info)
+    scan.scanInfo = scan_info
+    scan.scanArray = scan_array
+    scan.scanUID = "CT." + scan_info[0].seriesInstanceUID
+
+    return scan
+
+
+def getDcmScanInfo(scanNum, planC) -> list:
+    """This routine return a list of scanInfo from scan object. The order corresponds to scanArray slice dimension
+
+    Args:
+        scanNum (int): index of scan in planC.scan
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+    Returns:
+        list: list of scanInfo dictionaries
+
+    """
+
+    scnDict = planC.scan[scanNum].getScanDict()
+    scanInfoList = scnDict['scanInfo']
+    cerrSpecificKeyList = ['xOffset', 'yOffset',  'CTScale', 'distrustAbove',
+                            'imageSource', 'transferProtocol', 'studyNumberOfOrigin',
+                           'tapeOfOrigin', 'scanFileName', 'unitNumber', 'CTAir', 'CTWater',
+                           'zValue','imageNumber','caseNumber','CTOffset','scanType',
+                           'numberRepresentation', 'numberOfDimensions', 'voxelThickness',
+                           'headInOut', 'positionInScan', 'patientAttitude', 'frameAcquisitionDuration',
+                           'frameReferenceDateTime', 'scanNumber', 'scanID']
+    for scanInfoDict in scanInfoList:
+        for cerrKey in cerrSpecificKeyList:
+            del scanInfoDict[cerrKey]
+    return scanInfoList
+
+
 def getScanNumFromUID(assocScanUID,planC) -> int:
     """
 

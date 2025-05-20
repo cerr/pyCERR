@@ -552,6 +552,33 @@ def populatePlanCField(field_name, file_list, opts={}):
         beams_meta = bms.load_beams(file_list)
         return beams_meta
 
+def loadScanFromDB(sacnInfoList, scanArray, initplanC=''):
+    """This routine imports scan from a list of scanInfo dicts and scanArray into planC
+
+    Args:
+        sacnInfoList (list): List of dictionaries whose fields corresponsd to scanInfo fields
+        scanArray (np.ndarray):3D array of size numRows x numCols x numSlices, where the
+            slice-dimension corresponds to entries in sacnInfoList
+        initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan[-1]
+
+    """
+
+    scan = scn.parseScanInfoFromDB(sacnInfoList, scanArray)
+    scan.convertDcmToCerrVirtualCoords()
+
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC(header=headr.Header())
+    else:
+        planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
+    planC.scan.append(scan)
+
+    return planC
+
 def loadPlanCFromPkl(file_name=""):
     # Load planC from file
     #planC = sio.loadmat(file_name)
