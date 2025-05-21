@@ -559,6 +559,8 @@ class Scan:
 
         self.scanArray = suv3M
 
+        return
+
     def getScanDict(self):
         """ Routine to get dictionary representation of scan metadata
 
@@ -573,6 +575,31 @@ class Scan:
             sInfoList.append(sInfoDict)
         scanDict['scanInfo'] = sInfoList
         return scanDict
+
+
+    def getDcmScanInfo(self) -> list:
+        """This routine return a list of scanInfo from scan object. The order corresponds to scanArray slice dimension
+
+        Returns:
+            list: list of scanInfo dictionaries
+
+        """
+
+        scnDict = self.getScanDict()
+        scanInfoList = scnDict['scanInfo']
+        cerrSpecificKeyList = ['xOffset', 'yOffset',  'CTScale', 'distrustAbove',
+                                'imageSource', 'transferProtocol', 'studyNumberOfOrigin',
+                               'tapeOfOrigin', 'scanFileName', 'unitNumber', 'CTAir', 'CTWater',
+                               'zValue','imageNumber','caseNumber','CTOffset','scanType',
+                               'numberRepresentation', 'numberOfDimensions', 'voxelThickness',
+                               'headInOut', 'positionInScan', 'patientAttitude', 'frameAcquisitionDuration',
+                               'frameReferenceDateTime', 'scanNumber', 'scanID']
+        for scanInfoDict in scanInfoList:
+            for cerrKey in cerrSpecificKeyList:
+                del scanInfoDict[cerrKey]
+
+        return scanInfoList
+
 
 def flipSliceOrderFlag(scan):
     """ Routine to determine slice order for determining the origin for conversion to NifTi and SimpleITK formats.
@@ -930,33 +957,6 @@ def parseScanInfoFromDB(scanInfoList, scanArray):
     scan.scanUID = "CT." + scan_info[0].seriesInstanceUID
 
     return scan
-
-
-def getDcmScanInfo(scanNum, planC) -> list:
-    """This routine return a list of scanInfo from scan object. The order corresponds to scanArray slice dimension
-
-    Args:
-        scanNum (int): index of scan in planC.scan
-        planC (cerr.plan_container.PlanC): pyCERR's plan container object
-
-    Returns:
-        list: list of scanInfo dictionaries
-
-    """
-
-    scnDict = planC.scan[scanNum].getScanDict()
-    scanInfoList = scnDict['scanInfo']
-    cerrSpecificKeyList = ['xOffset', 'yOffset',  'CTScale', 'distrustAbove',
-                            'imageSource', 'transferProtocol', 'studyNumberOfOrigin',
-                           'tapeOfOrigin', 'scanFileName', 'unitNumber', 'CTAir', 'CTWater',
-                           'zValue','imageNumber','caseNumber','CTOffset','scanType',
-                           'numberRepresentation', 'numberOfDimensions', 'voxelThickness',
-                           'headInOut', 'positionInScan', 'patientAttitude', 'frameAcquisitionDuration',
-                           'frameReferenceDateTime', 'scanNumber', 'scanID']
-    for scanInfoDict in scanInfoList:
-        for cerrKey in cerrSpecificKeyList:
-            del scanInfoDict[cerrKey]
-    return scanInfoList
 
 
 def getScanNumFromUID(assocScanUID,planC) -> int:
