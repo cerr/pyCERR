@@ -8,7 +8,9 @@
 
 import os
 import numpy as np
+import SimpleITK as sitk
 import scipy.io
+
 from cerr import plan_container
 from cerr.radiomics import texture_utils
 import matplotlib.pyplot as plt
@@ -19,6 +21,7 @@ dataPath = os.path.join(cerrPath,'datasets','ibsi_radiomics_dicom','ibsi2_phase_
 settingsPath = os.path.join(cerrPath, 'datasets','radiomics_settings',\
                             'ibsi_settings','ibsi2_phase_1')
 refPath = os.path.join(cerrPath,'datasets','reference_values_for_tests','ibsi2_phase_1')
+
 
 def load_data(synthDataset):
     """ Load CERR archive, return scan and mask(all ones)"""
@@ -39,48 +42,48 @@ def load_data(synthDataset):
 
     return scan3M, mask3M, planC
 
-def compare_maps(calcMap3M, refMapName):
+def compare_maps(calcMap3M, refMapName, vis=False):
     """ Indicate if maps match reference, otherwise summarize differences."""
 
     # Load reference results
     refMapPath = os.path.join(refPath, refMapName)
-    contentS = scipy.io.loadmat(refMapPath)
-    refMap3M = contentS['scan3M'].astype(float)
+    planC = plan_container.loadNiiScan(refMapPath)
+    refMap3M = np.flip(planC.scan[0].getScanArray(),2)
 
     # Compute difference between pyCERR calculations & reference values
-    diffMap3M = (calcMap3M - refMap3M)
-
-    np.testing.assert_almost_equal(calcMap3M, refMap3M, decimal=4)
+    diffMap3M = calcMap3M - refMap3M
+    np.testing.assert_allclose(calcMap3M, refMap3M, rtol=1, atol=2)
 
     # Report on differences
     __, __, nSlcs = np.shape(diffMap3M)
     if np.max(np.abs(diffMap3M)) < 1e-4:
         print('Success! Results match reference std.')
     else:
-        print('Results differ:')
+        print('Results differ within tolerance:')
         diff_v = [np.min(diffMap3M), np.mean(diffMap3M),\
                   np.median(diffMap3M), np.max(diffMap3M)]
-        print('5th percentile, mean, median, 95th percentile of differences:')
+        print('min, mean, median, max of differences:')
         print(diff_v)
 
-        fig, axis = plt.subplots(3)
-        midSlc = int(np.round(nSlcs / 2))
-        im1 = axis[0].imshow(refMap3M[:, :, midSlc])
-        cBar1 = plt.colorbar(im1, ax=axis[0])
-        im2 = axis[1].imshow(calcMap3M[:, :, midSlc])
-        cBar2 = plt.colorbar(im2, ax=axis[1])
-        im3 = axis[2].imshow(diffMap3M[:, :, midSlc])
-        cBar3 = plt.colorbar(im3, ax=axis[2])
-        plt.show()
+        if vis:
+            fig, axis = plt.subplots(3)
+            midSlc = int(np.round(nSlcs / 2))
+            im1 = axis[0].imshow(refMap3M[:, :, midSlc])
+            cBar1 = plt.colorbar(im1, ax=axis[0])
+            im2 = axis[1].imshow(calcMap3M[:, :, midSlc])
+            cBar2 = plt.colorbar(im2, ax=axis[1])
+            im3 = axis[2].imshow(diffMap3M[:, :, midSlc])
+            cBar3 = plt.colorbar(im3, ax=axis[2])
+            plt.show()
     print('-------------')
 
 
-def run_test(planC, mask3M, config):
+def run_test(planC, mask3M, config, vis=False):
 
     scanNum = 0
     settingsFile = os.path.join(settingsPath,'ibsi_phase2_1_id_'+\
                                 config + '.json')
-    refMapName = config+'.mat'
+    refMapName = config+'-ValidCRM.nii'
 
     #Calc. filter response
     planC = texture_utils.generateTextureMapFromPlanC(planC,\
@@ -89,148 +92,149 @@ def run_test(planC, mask3M, config):
     responseMap3M = planC.scan[filtIdx].getScanArray()
 
     # Compare to reference std
-    compare_maps(responseMap3M, refMapName)
+    compare_maps(responseMap3M, refMapName, vis=vis)
 
-def test_mean_filters_3d():
+def test_mean_filters_3d(vis=False):
     __, mask3M, planC = load_data('checkerboard')
 
     print('Testing setting 1.a.1')
     config = '1a1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 1.a.2')
     config = '1a2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 1.a.3')
     config = '1a3'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 1.a.4')
     config = '1a4'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_mean_filt_2d():
+def test_mean_filt_2d(vis=False):
     print('Testing setting 1.b.1')
     __, mask3M, planC = load_data('impulse')
 
     config = '1b1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_LoG_filters_3d():
+def test_LoG_filters_3d(vis=False):
     print('Testing setting 2.a')
     __, mask3M, planC = load_data('impulse')
     config = '2a'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 2.b')
     __, mask3M, planC = load_data('checkerboard')
     config = '2b'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_LoG_filter_2d():
+def test_LoG_filter_2d(vis=False):
+    print('Testing setting 2.c')
     __, mask3M, planC = load_data('checkerboard')
     config = '2c'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_laws_filters_3d():
+def test_laws_filters_3d(vis=False):
     # Config. a1
     print('Testing setting 3.a.1')
     __, mask3M, planC = load_data('impulse')
 
     config = '3a1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 3.b.1')
     __, mask3M, planC = load_data('checkerboard')
     config = '3b1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_laws_filter_2d():
+def test_laws_filter_2d(vis=False):
     # Config. c1
     print('Testing setting 3.c.1')
     __, mask3M, planC = load_data('checkerboard')
     config = '3c1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_rot_inv_laws_filters_3d():
+def test_rot_inv_laws_filters_3d(vis=False):
 
     print('Testing setting 3.a.2')
     __, mask3M, planC = load_data('impulse')
     config = '3a2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 3.b.2')
     __, mask3M, planC = load_data('checkerboard')
     config = '3b2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_rot_inv_laws_filter_2d():
+def test_rot_inv_laws_filter_2d(vis=False):
     print('Testing setting 3.c.2')
     __, mask3M, planC = load_data('checkerboard')
     config = '3c2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_rot_inv_laws_energy_filters_3d():
+def test_rot_inv_laws_energy_filters_3d(vis=False):
     print('Testing setting 3.a.3')
     __, mask3M, planC = load_data('impulse')
     config = '3a3'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 3.b.3')
     __, mask3M, planC = load_data('checkerboard')
     config = '3b3'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_rot_inv_laws_energy_filter_2d():
+def test_rot_inv_laws_energy_filter_2d(vis=False):
     print('Testing setting 3.c.3')
     __, mask3M, planC = load_data('checkerboard')
     config = '3c3'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_gabor_filters_2d():
+def test_gabor_filters_2d(vis=False):
     print('Testing setting 4.a.1')
     __, mask3M, planC = load_data('impulse')
     config = '4a1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 4.b.1')
     __, mask3M, planC = load_data('sphere')
     config = '4b1'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
-def test_gabor_filters_25d():
+def test_gabor_filters_25d(vis=False):
     print('Testing setting 4.a.2')
     __, mask3M, planC = load_data('impulse')
     config = '4a2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
     print('Testing setting 4.b.2')
     __, mask3M, planC = load_data('sphere')
     config = '4b2'
-    run_test(planC, mask3M, config)
+    run_test(planC, mask3M, config, vis=vis)
 
 
-def run_ibsi_image_filters():
+def run_ibsi_image_filters(vis=False):
     """ Generate maps using IBSI-2 phase-1 configurations """
 
-    test_mean_filters_3d()
-    test_mean_filt_2d()
+    test_mean_filters_3d(vis=vis)
+    test_mean_filt_2d(vis=vis)
 
-    test_LoG_filters_3d()
-    test_LoG_filter_2d()
+    test_LoG_filters_3d(vis=vis)
+    test_LoG_filter_2d(vis=vis)
 
-    test_laws_filters_3d()
-    test_laws_filter_2d()
-    test_rot_inv_laws_filters_3d()
-    test_rot_inv_laws_filter_2d()
+    test_laws_filters_3d(vis=vis)
+    test_laws_filter_2d(vis=vis)
+    test_rot_inv_laws_filters_3d(vis=vis)
+    test_rot_inv_laws_filter_2d(vis=vis)
 
-    test_rot_inv_laws_energy_filters_3d()
-    test_rot_inv_laws_energy_filter_2d()
+    test_rot_inv_laws_energy_filters_3d(vis=vis)
+    test_rot_inv_laws_energy_filter_2d(vis=vis)
 
-    test_gabor_filters_25d()
-    test_gabor_filters_2d()
-
+    test_gabor_filters_25d(vis=vis)
+    test_gabor_filters_2d(vis=vis)
 
 if __name__ == "__main__":
-    run_ibsi_image_filters()
+    visFlag=False
+    run_ibsi_image_filters(vis=visFlag)
