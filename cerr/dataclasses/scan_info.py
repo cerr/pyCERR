@@ -206,7 +206,7 @@ class UniformScanInfo:
 def deduce_voxel_thickness(scan_info) -> ScanInfo:
     zValsV = np.array([s.zValue for s in scan_info])
     if len(zValsV) == 1:
-        voxel_thickness = 1
+        voxel_thickness = [1]
     else:
         thick_fwd = np.diff(zValsV)
         thick_bkw = - np.diff(zValsV[::-1])
