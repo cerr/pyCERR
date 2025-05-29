@@ -7,22 +7,23 @@ accessing the Dose metadata in CERR coordinate system.
 
 """
 
+import os
 import json
-from dataclasses import dataclass, field
+import warnings
+
 from math import sqrt
 import numpy as np
+import nibabel as nib
+import SimpleITK as sitk
+
+from dataclasses import dataclass, field
 from pydicom import dcmread
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import structure
 from cerr.utils import uid
 from cerr.utils.statistics import round
 from cerr.utils.interp import finterp3
-import nibabel as nib
-import json
-import os
-import SimpleITK as sitk
 from cerr.radiomics.preprocess import imgResample3D
-
 
 def get_empty_list():
     return []
@@ -594,24 +595,43 @@ def getPrescriptionDose(doseIdx, planC):
     elif hasattr(doseRefSeq,'DeliveryMaximumDose'):
         RxDose = planC.beams[planIdx].DoseReferenceSequence[0].DeliveryMaximumDose
     else:
-        raise AttributeError("TargetPrescriptionDose not found.")
+        warnings.warn("TargetPrescriptionDose not available. Returning None.")
+        RxDose = None
     return RxDose
 
-
-def getFrxSize(doseIdx, planC):
+def getNumFrx(doseIdx, planC):
     """
-
+    Returns no. fractions for dose at input index
         Args:
-            doseIdx (int): Index of dose in planC
+            doseIdx (int)                    : Index of dose in planC
             planC (cerr.plan_container.PlanC): pyCERR's plan container object
 
         Returns:
-            float: Fraction size of delivered dose
+            int: No. fractions of input dose
+        """
+
+    planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
+    if 'NumberOfFractionsPlanned' in planC.beams[planIdx].FractionGroupSequence and \
+        planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned is not None:
+        numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
+        return numFractions
+    else:
+        warnings.warn("NumberOfFractionsPlanned not available. Returning None.")
+        return None
+
+def getFrxSize(doseIdx, planC):
+    """
+    Returns fraction size for dose at input index
+        Args:
+            doseIdx (int)                    : Index of dose in planC
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            float: Fraction size of input dose
         """
 
     # Read no. fractions
-    planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
-    numFractions = planC.beams[planIdx].FractionGroupSequence[0].NumberOfFractionsPlanned
+    numFractions = float(getNumFrx(doseIdx, planC))
 
     # Read target prescription
     RxDose = getPrescriptionDose(doseIdx, planC)
@@ -641,10 +661,7 @@ def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = No
 
         """
     if isinstance(dose, int):
-        beamSOPInstances = [planC.beams[beamNum].SOPInstanceUID for beamNum in planC.beams]
-        ReferencedSOPInstanceUID = planC.dose[dose].refRTPlanSopInstanceUID
-        planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
-        numFractions = planC.beams(planIdx).FractionGroupSequence.NumberOfFractionsPlanned
+        numFractions = float(getNumFrx(dose, planC))
         doseArray = planC.dose[dose].doseArray
         inputFrxSize = doseArray/numFractions
     else:
@@ -674,10 +691,7 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
 
         """
     if isinstance(dose, int):
-        beamSOPInstances = [planC.beams[beamNum].SOPInstanceUID for beamNum in planC.beams]
-        ReferencedSOPInstanceUID = planC.dose[dose].refRTPlanSopInstanceUID
-        planIdx = beamSOPInstances.index(ReferencedSOPInstanceUID)
-        inputFrxNum = planC.beams(planIdx).FractionGroupSequence.NumberOfFractionsPlanned
+        inputFrxNum = float(getNumFrx(dose, planC))
         doseArray = planC.dose[dose].doseArray
     else:
         doseArray = dose
