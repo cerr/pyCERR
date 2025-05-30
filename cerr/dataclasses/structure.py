@@ -26,6 +26,7 @@ from cerr.radiomics.preprocess import imgResample3D
 import cerr.utils.mask as maskUtils
 import warnings
 from scipy.interpolate import splprep, splev
+import copy
 
 
 def get_empty_list():
@@ -269,6 +270,51 @@ class Structure:
         img.SetDirection(direction)
         return img
 
+    def getContourPolygons(self, planC, rcsFlag=False, dicomFlag=False):
+        """This routine returns the list of polygonal coordinates for all the segments of input structutre.
+
+        Args:
+            strNum (int): index of structure element in planC.structure
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+            rcsFlag (bool): optional, flag to return polygonal coordinates in row,col,slc units.
+                            By default, the polygonal coordinates are returned in physical units of cm.
+            dicomFlag (bool): optional, flag to return polygonal coordinates in DICOM coordinate system and units of mm.
+
+        Returns:
+            list: list of nx3 arrays corresponding to polygonal segments, where n is the number of points in that segment,
+                the columns of each array are x,y,z coordinates in physical units of cm or r,c,s units.
+
+        """
+        assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
+        # Transformation matrix to convert to DICOM coordinates
+        Image2VirtualPhysicalTransM = planC.scan[assocScanNum].Image2VirtualPhysicalTransM
+        Image2PhysicalTransM = planC.scan[assocScanNum].Image2PhysicalTransM
+        transM = np.matmul(Image2PhysicalTransM, np.linalg.inv(Image2VirtualPhysicalTransM))
+        transM[:,:3] = transM[:,:3] * 10 # cm to mm
+        numSlcs = len(self.contour)
+        polygons = []
+        sopInstanceUIDList = []
+        sopClassUIDList = []
+        for slc in range(numSlcs):
+            if self.contour[slc]:
+                sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
+                sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
+                for seg in self.contour[slc].segments:
+                    if rcsFlag:
+                        rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
+                        pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
+                    else:
+                        pts = seg.points.copy()
+                    if dicomFlag:
+                        tempPtsM = np.hstack((pts, np.ones((pts.shape[0], 1))))
+                        tempPtsM = np.matmul(transM, tempPtsM.T)
+                        pts = np.round(tempPtsM[:3,:].T, 10)
+                    polygons.append(pts)
+                    sopInstanceUIDList.append(sopInstanceUID)
+                    sopClassUIDList.append(sopClassUID)
+        return polygons, sopInstanceUIDList, sopClassUIDList
+
+
     def getStructDict(self):
         """ Routine to get dictionary representation of structure metadata
 
@@ -291,6 +337,66 @@ class Structure:
                 contourList.append([])
         structDict['contour'] = contourList
         return structDict
+
+    def saveJson(self, jsonFileName, planC):
+        """
+        Args:
+            structNumV (List): List of structure indices to export to JSON format.
+            jsonFileName (str): JSON file name.
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            None
+        """
+        #ctrSeq = rtstruct_iod.getROIContourSeq([0], planC)
+        return json.dumps(self, ensure_ascii=False, indent=4, cls=jsonSerializeStruct)
+        #strList = getJsonList(self, planC)
+        #with open(jsonFileName, 'w', encoding='utf-8') as f:
+        #    json.dump(strList, f, ensure_ascii=False, indent=4)
+
+    def saveContoursToJson(self, jsonFileName, planC):
+        """ Save contour polygons in DICOM coordinate system to a json file.
+        Args:
+            jsonFileName (str): JSON file name.
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            0 on successful creation of json file
+        """
+
+        assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
+        # Transformation matrix to convert to DICOM coordinates
+        Image2VirtualPhysicalTransM = planC.scan[assocScanNum].Image2VirtualPhysicalTransM
+        Image2PhysicalTransM = planC.scan[assocScanNum].Image2PhysicalTransM
+        transM = np.matmul(Image2PhysicalTransM, np.linalg.inv(Image2VirtualPhysicalTransM))
+        transM[:,:3] = transM[:,:3] * 10 # cm to mm
+
+        ctrList = []
+        for ctr in self.contour:
+            if hasattr(ctr, 'segments'):
+                segList = []
+                for seg in ctr.segments:
+                    tempPtsM = np.hstack((seg.points.copy(), np.ones((seg.points.shape[0], 1))))
+                    tempPtsM = np.matmul(transM, tempPtsM.T)
+                    segList.append(np.round(tempPtsM[:3,:].T, 10).tolist())
+                ctrDict = {}
+                ctrDict['segments'] = segList
+                ctrDict['referencedSopInstanceUID'] = ctr.referencedSopInstanceUID
+                ctrDict['referencedSopClassUID'] = ctr.referencedSopClassUID
+                ctrList.append(ctrDict)
+
+        strDict = {}
+        strDict['contour'] = ctrList
+        strDict['name'] = self.structureName
+        strDict['color'] = self.structureColor
+        strDict['referencedFORUID'] = self.referencedFrameOfReferenceUID
+        strDict['referencedSeriesUID'] = self.assocScanUID[3:]
+
+        with open(jsonFileName, 'w', encoding='utf-8') as f:
+            json.dump(strDict, f, ensure_ascii=False, indent=4)
+
+        return 0
+
 
 @dataclass
 class Contour:
@@ -360,7 +466,10 @@ class jsonSerializeStruct(json.JSONEncoder):
                 strDict[fld] = getattr(strObj, fld)
             ctrList = []
             for ctr in strObj.contour:
-                ctrList.append(json.dumps(ctr, cls=jsonSerializeContour))
+                if isinstance(ctr, Contour):
+                    ctrList.append(json.dumps(ctr, cls=jsonSerializeContour))
+                else:
+                    ctrList.append('')
             strDict['contour'] = ctrList
             return strDict
         else:
@@ -368,13 +477,16 @@ class jsonSerializeStruct(json.JSONEncoder):
             raise TypeError("Unexpected type {0}".format(type_name))
 
 def getJsonList(structNumV, planC):
-    if isinstance(structNumV, (int, float, np.integer, np.floating)):
-        structNumV = [structNumV]
-    strList = []
-    for strNum in structNumV:
-        strObj = planC.structure[strNum]
-        strList.append(json.dumps(strObj, ensure_ascii=False, indent=4, cls=jsonSerializeStruct))
-    return strList
+    if isinstance(structNumV, (Structure)):
+        return json.dumps(structNumV, ensure_ascii=False, indent=4, cls=jsonSerializeStruct)
+    else:
+        if isinstance(structNumV, (int, float, np.integer, np.floating)):
+            structNumV = [structNumV]
+        strList = []
+        for strNum in structNumV:
+            strObj = planC.structure[strNum]
+            strList.append(json.dumps(strObj, ensure_ascii=False, indent=4, cls=jsonSerializeStruct))
+        return strList
 
 def saveJson(structNumV, jsonFileName, planC):
     """
@@ -934,33 +1046,6 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
                 indMatchV.append(i)
     return indMatchV
 
-def getContourPolygons(strNum, planC, rcsFlag=False):
-    """This routine returns the list of polygonal coordinates for all the segments of input structutre.
-
-    Args:
-        strNum (int): index of structure element in planC.structure
-        planC (cerr.plan_container.PlanC): pyCERR's plan container object
-        rcsFlag (bool): optional, flag to return polygonal coordinates in row,col,slc units.
-                        By default, the polygonal coordinates are returned in physical units of cm.
-
-    Returns:
-        list: list of nx3 arrays corresponding to polygonal segments, where n is the number of points in that segment,
-            the columns of each array are x,y,z coordinates in physical units of cm or r,c,s units.
-
-    """
-    assocScanNum = scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC)
-    numSlcs = len(planC.structure[strNum].contour)
-    polygons = []
-    for slc in range(numSlcs):
-        if planC.structure[strNum].contour[slc]:
-            for seg in planC.structure[strNum].contour[slc].segments:
-                if rcsFlag:
-                    rowV, colV = rs.xytom(seg.points[:,0], seg.points[:,1],slc,planC, assocScanNum)
-                    pts = np.array((rowV, colV, slc*np.ones_like(rowV)), dtype=np.float64).T
-                else:
-                    pts = seg.points
-                polygons.append(pts)
-    return polygons
 
 def getClosedMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
               replaceFlag=None, procSructName=None):
