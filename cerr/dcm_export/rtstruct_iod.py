@@ -141,7 +141,7 @@ def getROIContourSeq(structNumV, planC):
     # 3006, 0039   ROI Contour Sequence
         #3006,0084   Referenced ROI Number
         #3006,002A   ROI Display Color
-        #3006,0048   Contour Sequence
+        #3006,0040   Contour Sequence
             # 3006,0048  Contour Number
             # 3006,0049  Attached Contours
             # 3006,0016 Contour Image Sequence

@@ -12,9 +12,9 @@ import numpy as np
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 import cerr.dataclasses.scan_info as scn_info
-import nibabel as nib
 import SimpleITK as sitk
 import json
+import os
 
 def get_empty_list():
     return []
@@ -457,7 +457,7 @@ class Scan:
                 return
 
 
-            decayCorrection = headerSlcS.decayCorrection
+            decayCorrection = headerSlcS.petDecayCorrection
             if decayCorrection == 'START':
                 scantime = seriesTime
                 if not np.isnan(acqStartTime) and acqStartTime < scantime:
@@ -593,12 +593,31 @@ class Scan:
                                'zValue','imageNumber','caseNumber','CTOffset','scanType',
                                'numberRepresentation', 'numberOfDimensions', 'voxelThickness',
                                'headInOut', 'positionInScan', 'patientAttitude', 'frameAcquisitionDuration',
-                               'frameReferenceDateTime', 'scanNumber', 'scanID']
+                               'frameReferenceDateTime', 'scanNumber', 'scanID', 'patientBirthDate',
+                               'scaleSlope', 'scaleIntercept', 'siteOfInterest','scanDate', 'patientPosition',
+                               'philipsImageUnits', 'philipsRescaleSlope', 'philipsRescaleIntercept']
         for scanInfoDict in scanInfoList:
             for cerrKey in cerrSpecificKeyList:
                 del scanInfoDict[cerrKey]
 
-        return scanInfoList
+        # Create a new dictionary with DICOM names for keys
+        scanDir = os.path.dirname(__file__)
+        mappingFile = os.path.join(scanDir, 'dcm_cerr_name_map.json')
+        with open(mappingFile, 'r') as nameMapFile:
+            dcmCerrNameMap = json.load(nameMapFile)
+
+        dcmNameScanInfoList = []
+        for scanInfoDict in scanInfoList:
+            dcmNameScanInfoDict = dict('')
+            for key in scanInfoDict.keys():
+                if key in dcmCerrNameMap:
+                    dcmNameScanInfoDict[dcmCerrNameMap[key]] = scanInfoDict[key]
+                    if isinstance(dcmNameScanInfoDict[dcmCerrNameMap[key]], np.ndarray):
+                        dcmNameScanInfoDict[dcmCerrNameMap[key]] = dcmNameScanInfoDict[dcmCerrNameMap[key]].tolist()
+            dcmNameScanInfoDict["PixelSpacing"] = [scanInfoDict['grid2Units'], scanInfoDict['grid1Units']]
+            dcmNameScanInfoList.append(dcmNameScanInfoDict)
+
+        return dcmNameScanInfoList #scanInfoList
 
 
 def flipSliceOrderFlag(scan):
@@ -696,8 +715,6 @@ def populateScanInfoFields(s_info, ds):
     if hasattr(ds,"StudyDate"): s_info.studyDate = ds.StudyDate
     if hasattr(ds,"StudyTime"): s_info.studyTime = ds.StudyTime
     if hasattr(ds,"StudyDescription"): s_info.studyDescription = ds.StudyDescription
-    if hasattr(ds,"CorrectedImage"): s_info.correctedImage = ds.CorrectedImage
-    if hasattr(ds,"DecayCorrection"): s_info.decayCorrection = ds.DecayCorrection
     if hasattr(ds,"PatientWeight"): s_info.patientWeight = ds.PatientWeight
     if hasattr(ds,"PatientSize"): s_info.patientSize = ds.PatientSize
     if ("0010","1022") in ds: s_info.patientBmi = ds["0010","1022"].value
@@ -930,33 +947,48 @@ def loadSortedScanInfo(file_list):
     return scan
 
 
-def parseScanInfoFromDB(scanInfoList, scanArray):
+def parseScanInfoFromDB(scanObj, scanInfoList):
+    """Assign scanInfo from the list of dictionaries to scanObj by matching zValue per slice
+
+    Args:
+        scanObj (cerr.dataclasses.scan.Scan): pyCERR's Scan object whose scanInfo needs to be populated
+        scanInfoList (list): list of dictionaries with fields corresponding to scanInfo
+
+    Returns:
+       0 when field assignment is successful
+
+    """
+
+    # Create a new dictionary with DICOM names for keys
+    scanDir = os.path.dirname(__file__)
+    mappingFile = os.path.join(scanDir, 'dcm_cerr_name_map.json')
+    with open(mappingFile, 'r') as nameMapFile:
+        dcmCerrNameMap = json.load(nameMapFile)
+    cerrDcmNameMap = {v: k for k, v in dcmCerrNameMap.items()}
+
+    zValsScanV = [s.zValue for s in scanObj.scanInfo]
+    # Get z-values for scanInfoList and assign scanInfo
     numberOfFrames = len(scanInfoList) #ds.NumberOfFrames.real
-    scan_info = np.empty(numberOfFrames, dtype=scn_info.ScanInfo)
     for iFrame in range(numberOfFrames):
-        s_info = scn_info.ScanInfo()
+
+        imageOri = np.array(scanInfoList[iFrame]['ImageOrientationPatient'])
+        imagePos = np.array(scanInfoList[iFrame]['ImagePositionPatient'])
+        slice_normal = imageOri[[1,2,0]] * imageOri[[5,3,4]] \
+                       - imageOri[[2,0,1]] * imageOri[[4,5,3]]
+        zValue = - np.sum(slice_normal * imagePos) / 10
+        indSlc = np.argmin((zValsScanV - zValue)**2)
         fieldNames = scanInfoList[iFrame].keys()
         for fieldName in fieldNames:
-            if hasattr(s_info, fieldName):
-                setattr(s_info, fieldName, scanInfoList[iFrame][fieldName])
-        slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
-                       - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
-        s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-        scan_info[iFrame] = s_info
+            if fieldName in cerrDcmNameMap:
+                cerrField = cerrDcmNameMap[fieldName]
+                if hasattr(scanObj.scanInfo[indSlc], cerrField):
+                    setattr(scanObj.scanInfo[indSlc], cerrField, scanInfoList[iFrame][fieldName])
+        scanObj.scanInfo[indSlc].imageOrientationPatient = imageOri
+        scanObj.scanInfo[indSlc].imagePositionPatient = imagePos
+        scanObj.scanInfo[indSlc].grid1Units = scanInfoList[iFrame]['PixelSpacing'][1]
+        scanObj.scanInfo[indSlc].grid2Units = scanInfoList[iFrame]['PixelSpacing'][0]
 
-    scan = Scan()
-    sort_index = [i for i,x in sorted(enumerate(scan_info),key=get_slice_position, reverse=False)]
-    #scan_array = np.array(scan_array)
-    #scan_array = np.moveaxis(scan_array,[0,1,2],[2,0,1])
-    #scan_info = np.array(scan_info)
-    scan_info = scan_info[sort_index]
-    scan_array = scanArray[:,:,sort_index]
-    scan_info = scn_info.deduce_voxel_thickness(scan_info)
-    scan.scanInfo = scan_info
-    scan.scanArray = scan_array
-    scan.scanUID = "CT." + scan_info[0].seriesInstanceUID
-
-    return scan
+    return 0
 
 
 def getScanNumFromUID(assocScanUID,planC) -> int:

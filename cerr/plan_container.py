@@ -552,12 +552,12 @@ def populatePlanCField(field_name, file_list, opts={}):
         beams_meta = bms.load_beams(file_list)
         return beams_meta
 
-def loadScanFromDB(sacnInfoList, scanArray, initplanC=''):
+def loadScanFromDB(sacnInfoList, niiFile, initplanC=''):
     """This routine imports scan from a list of scanInfo dicts and scanArray into planC
 
     Args:
         sacnInfoList (list): List of dictionaries whose fields corresponsd to scanInfo fields
-        scanArray (np.ndarray):3D array of size numRows x numCols x numSlices, where the
+        niiFile (np.ndarray):3D array of size numRows x numCols x numSlices, where the
             slice-dimension corresponds to entries in sacnInfoList
         initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
 
@@ -566,16 +566,11 @@ def loadScanFromDB(sacnInfoList, scanArray, initplanC=''):
 
     """
 
-    scan = scn.parseScanInfoFromDB(sacnInfoList, scanArray)
-    scan.convertDcmToCerrVirtualCoords()
+    # Read scan from Nii file
+    planC = loadNiiScan(niiFile, 'CT SCAN', '', initplanC)
 
-    if not isinstance(initplanC, PlanC):
-        planC = PlanC(header=headr.Header())
-    else:
-        planC = initplanC
-        if not isinstance(planC.header, headr.Header):
-            planC.header = headr.Header()
-    planC.scan.append(scan)
+    # Populate scanInfo for the latest scan from sacnInfoList
+    scn.parseScanInfoFromDB(planC.scan[-1], sacnInfoList)
 
     return planC
 

@@ -151,7 +151,6 @@ class ScanInfo:
     patientSize: float = '' #np.NAN
     patientBmi: float = '' #np.NAN
     patientSex: str = ''
-    radiopharmaInfoS: float = 0.0
     injectionTime: str = ''
     injectionDate: str = ''
     injectedDose: float = '' #np.NAN
@@ -164,8 +163,8 @@ class ScanInfo:
     petNumSlices: int = '' #np.NAN
     petPrimarySourceOfCounts: str = ''
     petDecayCorrectionDateTime: str = ''
-    decayCorrection: float = '' #np.NAN
-    correctedImage: float = '' #np.NAN
+    petDecayCorrection: str = ''
+    petCorrectedImage: str = ''
     seriesDate: str = ''
     seriesTime: str = ''
     studyDate: str = ''
