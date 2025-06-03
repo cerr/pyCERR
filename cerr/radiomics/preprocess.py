@@ -422,6 +422,63 @@ def unpadScan(padScan3M, marginV):
     return scan3M
 
 
+def getPerIndices(length, lf):
+    """ Replicate periodic indices: [length-lf+1 : length, 1:length, 1:lf] """
+
+    I = np.concatenate((np.arange(length - lf + 1, length + 1),
+                               np.arange(1, length + 1),
+                               np.arange(1, lf+1)))
+
+    if length < lf:
+        I = np.mod(I, length)
+        I[I == 0] = length
+
+    return I - 1
+
+def wextend(x, padV):
+    """Periodic extension of input array for wavelet decomposition"""
+    y = x.copy()
+
+    if y.ndim == 1:
+        sx = len(y)
+        if sx % 2 == 1:
+             y[sx] = y[sx-1]
+             sx = sx+1
+        indices = getPerIndices(sx, padV[0])
+        y = y[indices]
+
+    elif y.ndim == 2:
+        rx, cx = y.shape
+        # Extend columns
+        if cx % 2 == 1:  # Ensure even number of columns
+            y = np.hstack((y, y[:, [-1]]))  # Repeat last column
+            cx += 1
+        colIndices = getPerIndices(cx, padV[1])
+        y = y[:, colIndices]
+
+        # Extend rows
+        if rx % 2 == 1:  # Ensure even number of rows
+            y = np.vstack((y, y[[-1], :]))  # Repeat last row
+            rx += 1
+        rowIndices = getPerIndices(rx, padV[0])
+        y = y[rowIndices, :]
+
+    return y
+
+
+def dyadUp(filter1d, evenOdd=1):
+    """
+    Interleave with zeros at even positions.
+    """
+    filter1d = np.asarray(filter1d).flatten()
+    up = np.zeros((2 * len(filter1d),), dtype=filter1d.dtype)
+    if evenOdd % 2 == 0:
+        up[1::2] = filter1d  # zeros at even indices
+    else:
+        up[::2] = filter1d  # zeros at odd indices
+    return up
+
+
 def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     """
     This function applies pre-processing to scanNum as per settings specified in paramS dictionary.
