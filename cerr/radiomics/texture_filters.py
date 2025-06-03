@@ -4,14 +4,43 @@
  "rotationInvariantLaws", "rotationInvariantLawsEnergy"
 """
 
-#import pywt
 import numpy as np
+import pywt
+from itertools import permutations
 from scipy.signal import convolve2d
 from scipy.signal import convolve
 from scipy.ndimage import rotate
-from cerr.radiomics.preprocess import padScan
+from cerr.radiomics.preprocess import dyadUp, padScan, wextend
 from cerr.utils.mask import computeBoundingBox
 
+
+def conv1(x, f, mode='full'):
+    """
+        Perform 1D convolution.
+    """
+    x = np.asarray(x).flatten()        # Ensure row vector
+    f = np.asarray(f).flatten()[::-1]  # Flip filter
+    y = convolve(x, f, mode=mode)
+    return y
+
+def conv2(a, b, mode='full'):
+    """
+    Perform 2D convolution.
+    - Handles 1D row or column filters (1xN or Nx1)
+    - Flips filter for true convolution.
+    """
+    # Ensure both a and b are arrays
+    a = np.asarray(a)
+    b = np.asarray(b)
+
+    # If b is 1D, make it a column vector
+    if b.ndim == 1:
+        b = b[:, None]
+
+    # Flip filter both axes (as in 2D convolution definition)
+    b_flipped = np.flip(np.flip(b, axis=0), axis=1)
+    
+    return convolve2d(a, b_flipped, mode=mode)
 
 def meanFilter(scan3M, kernelSize, absFlag=False):
     """
@@ -885,134 +914,334 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
 
     return lawsEnergyAggPad3M
 
+def wkeep(z, size, first):
+    """Keep central segment of signal after convolution"""
+    if z.ndim == 1: #1D
+        last = first + size - 1
+        zkeep = z[first-1:last]
+    elif z.ndim == 2: #2D
+        last = [first[i] + size[i] - 1 for i in range(2)]
+        zkeep = z[first[0]-1:last[0], first[1]-1:last[1]]
+    return zkeep
 
-# def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
-#     """ getWaveletSubbands
-#     Copyright (C) 2017-2019 Martin Vallières
-#     All rights reserved.
-#     https://github.com/mvallieres/radiomics-develop
-#     ------------------------------------------------------------------------
-#     IMPORTANT:
-#     - THIS FUNCTION IS TEMPORARY AND NEEDS BENCHMARKING. ALSO, IT
-#     ONLY WORKS WITH AXIAL SCANS FOR NOW. USING DICOM CONVENTIONS(NOT MATLAB).
-#     - Strategy: 2D transform for each axial slice. Then 1D transform for each
-#     axial line. I need to find a faster way to do that with 3D convolutions
-#     of wavelet filters, this is too slow now. Using GPUs would be ideal.
-#     ------------------------------------------------------------------------
-#     """
-#
-#     # Initialization
-#     if dim not in ['2d', '3d']:
-#         raise ValueError("Invalid 'dim' value. Supported values are '2d' and '3d'.")
-#
-#     sizeV = scan3M.shape
-#     subbands = {}
-#
-#     # Step 1: Making sure the volume has even size
-#     if sizeV[0] % 2 == 1:
-#         scan3M = np.concatenate((scan3M, scan3M[-1][np.newaxis, :, :]), axis=0)
-#     if sizeV[1] % 2 == 1:
-#         scan3M = np.concatenate((scan3M, scan3M[:, -1][:, np.newaxis, :]), axis=1)
-#     if dim == '3d' and sizeV[2] % 2 == 1:
-#         scan3M = np.concatenate((scan3M, scan3M[:, :, -1][:, :, np.newaxis]), axis=2)
-#
-#     # Step 2: Compute all sub-bands
-#     names = []
-#     if dim == '2d':
-#         names = ['LL', 'LH', 'HL', 'HH']
-#     elif dim == '3d':
-#         names = ['LLL', 'LLH', 'LHL', 'LHH', 'HLL', 'HLH', 'HHL', 'HHH']
-#
-#     # Ensure odd filter dimensions
-#     loFilt, hiFilt = pywt.Wavelet(waveletName).filter_bank[0]
-#
-#     # First pass using 2D stationary wavelet transform in axial direction
-#     for k in range(sizeV[2]):
-#         coeffs = pywt.swt2(scan3M[:, :, k], wavelet=waveletName, level=level)
-#         for s, name in enumerate(names):
-#             subbands[name][:, :, k] = coeffs[s][0][:, :, level]
-#
-#     # Second pass using 1D stationary wavelet transform for all axial lines
-#     if dim == '3d':
-#         for j in range(sizeV[1]):
-#             for i in range(sizeV[0]):
-#                 for s, name in enumerate(names[:4]):
-#                     vector = subbands[name][i, j, :]
-#                     L, H = pywt.swt(vector, wavelet=waveletName, level=level)
-#                     subbands[name][i, j, :] = L[level]
-#                 for s, name in enumerate(names[4:]):
-#                     vector = subbands[name][i, j, :]
-#                     L, H = pywt.swt(vector, wavelet=waveletName, level=level)
-#                     subbands[name][i, j, :] = L[level]
-#
-#     # Removing unnecessary data added in step 1
-#     if sizeV[0] % 2 == 1:
-#         for name in names:
-#             subbands[name] = subbands[name][:-1, :, :]
-#     if sizeV[1] % 2 == 1:
-#         for name in names:
-#             subbands[name] = subbands[name][:, :-1, :]
-#     if dim == '3d' and sizeV[2] % 2 == 1:
-#         for name in names:
-#             subbands[name] = subbands[name][:, :, :-1]
-#
-#     return subbands
-#
-#
-# def waveletFilter(vol3M, waveType, direction, level):
-#     if len(direction) == 3:
-#         dim = '3d'
-#     elif len(direction) == 2:
-#         dim = '2d'
-#
-#     if dim == '3d':
-#         dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
-#     elif dim == '2d':
-#         dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
-#
-#     outS = dict()
-#     if direction == 'All':
-#         for n in range(1, len(dir_list)):
-#
-#             out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
-#             subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-#
-#             if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-#                 perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
-#                 match_dir = f"{perm_dir_list[0]}_{waveType}"
-#                 out3M = subbandsS[match_dir]
-#
-#                 for perm_dir in perm_dir_list[1:]:
-#                     match_dir = f"{perm_dir}_{waveType}"
-#                     out3M += subbandsS[match_dir]
-#
-#                 out3M /= len(perm_dir_list)
-#             else:
-#                 match_dir = f"{dir_list[n]}_{waveType}"
-#                 out3M = subbandsS[match_dir]
-#
-#             outS[out_name] = out3M
-#
-#     else:
-#         out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
-#         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
-#
-#         if 'RotationInvariance' in paramS and paramS['RotationInvariance']:
-#             perm_dir_list = [''.join(p) for p in permutations(direction)]
-#             match_dir = f"{perm_dir_list[0]}_{waveType}"
-#             out3M = subbandsS[match_dir]
-#
-#             for perm_dir in perm_dir_list[1:]:
-#                 match_dir = f"{perm_dir}_{waveType}"
-#                 out3M += subbandsS[match_dir]
-#
-#             out3M /= len(perm_dir_list)
-#         else:
-#             match_dir = f"{direction}_{waveType}"
-#             out3M = subbandsS[match_dir]
-#         outS[out_name] = out3M
-#
-#     return outS
+
+def decomposeLOC(x, lo, hi, first, sizeV):
+    # Approximation
+    y = conv2(x, lo, mode='full')
+    z = conv2(y.T, lo, mode='full').T
+    #y = convolve2d(x, lo[:,None], mode='full')
+    #z = convolve2d(y.T, lo[:,None], mode='full').T
+    ca = wkeep(z, sizeV, first)
+
+    # Horizontal
+    z = conv2(y.T, hi, mode='full').T
+    #z = convolve2d(y.T, hi[:,None], mode='full').T
+    ch = wkeep(z, sizeV, first)
+
+    # Vertical
+    y = conv2(x, hi, mode='full')
+    z = conv2(y.T, lo, mode='full').T
+    #y = convolve2d(x, hi[:,None], mode='full')
+    #z = convolve2d(y.T, lo[:,None], mode='full').T
+    cv = wkeep(z, sizeV, first)
+
+    # Diagonal
+    z = conv2(y.T, hi, mode='full').T
+    #z = convolve2d(y.T, hi[:,None], mode='full').T
+    cd = wkeep(z, sizeV, first)
+
+    return ca, ch, cv, cd
+
+
+def swt(sigV, level, loD, hiD):
+    """
+    Replicates MATLAB's swt 1D behavior using custom filters and symmetric padding.
+
+
+
+
+
+
+
+
+
+
+
+
+
+q
+    Args:
+        sigV (np.array): 1D signal
+        level (int)    : No. of decomposition levels
+        loD (np.array): Low-pass decomposition filter
+        hiD(np.array) : High-pass decomposition filter
+
+    Returns:
+        L: list of approximation coefficients per level
+        H: list of detail coefficients per level
+    """
+    origSigV = sigV.copy()
+    N = len(sigV)
+
+    L = np.zeros((level, N))
+    H = np.zeros_like(L)
+
+    tempLo = loD.copy()
+    tempHi = hiD.copy()
+
+    evenOdd = 0  #Matches default dyadup(x, 0)
+
+    for l in range(level):
+        lf = tempLo.size
+        pad = (lf // 2,)
+
+        sigExtV = wextend(origSigV, pad)
+
+        # Convolve with filters
+        cA = conv1(sigExtV, tempLo, mode='full')
+        cD = conv1(sigExtV, tempHi, mode='full')
+        #cA = convolve(sigExtV, tempLo, mode='full')
+        #cD = convolve(sigExtV, tempHi, mode='full')
+
+
+        # Crop to original length
+        L[l, :] = wkeep(cA, N, lf)
+        H[l, :] = wkeep(cD, N, lf)
+
+        # Upsample filters
+        tempLo = dyadUp(tempLo, evenOdd)
+        tempHi = dyadUp(tempHi, evenOdd)
+
+        # Update signal for next level
+        origSigV = L[l, :]
+
+    return L, H
+
+
+def swt2(imgM, level, loD, hiD):
+    """
+    Args:
+        imgM (np.float64): 2D image
+        level (int)      : No. of decomposition levels
+        loD (np.array)   : Low-pass decomposition filter
+        hiD (np.array)   : High-pass decomposition filter
+    Returns:
+        a: list of approximation coefficients per level
+        h: list of horizontal wavelet coefficients per level
+        v: list of vertical wavelet coefficients per level
+        d: list of diagonal wavelet coefficients per level
+    """
+    imgM = imgM.astype(np.float64)
+    origSiz = imgM.shape
+    lf = loD.size
+
+    # Initialize output
+    a = np.zeros((*origSiz, level))
+    h = np.zeros_like(a)
+    v = np.zeros_like(a)
+    d = np.zeros_like(a)
+
+    tempLo = loD.copy()
+    tempHi = hiD.copy()
+    tempImgM = imgM.copy()
+
+    for l in range(level):
+            first = [lf + 1, lf + 1]
+            ext = (lf // 2, lf // 2)
+
+            # Periodic extension
+            imgExtM = wextend(tempImgM, ext)
+
+            # Decompose
+            ca, ch, cv, cd = decomposeLOC(imgExtM, tempLo, tempHi, first, origSiz)
+            a[:, :, l] = ca
+            h[:, :, l] = ch
+            v[:, :, l] = cv
+            d[:, :, l] = cd
+
+            tempImgM = ca  # Next level input
+
+            # Upsample filters for next level
+            tempLo = dyadUp(dyadUp(tempLo, 1), 1)
+            tempHi = dyadUp(dyadUp(tempHi, 1), 1)
+
+    return a, h, v, d
+
+def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
+    """ getWaveletSubbands
+    Copyright (C) 2017-2019 Martin Vallières
+    All rights reserved.
+    https://github.com/mvallieres/radiomics-develop
+    ------------------------------------------------------------------------
+    IMPORTANT:
+    - THIS FUNCTION IS TEMPORARY AND NEEDS BENCHMARKING. ALSO, IT
+    ONLY WORKS WITH AXIAL SCANS FOR NOW. USING DICOM CONVENTIONS(NOT MATLAB).
+    - Strategy: 2D transform for each axial slice. Then 1D transform for each        r
+    axial line. I need to find a faster way to do that with 3D convolutions
+    of wavelet filters, this is too slow now. Using GPUs would be ideal.
+    ------------------------------------------------------------------------
+    """
+
+    # Initialization
+    if dim not in ['2d', '3d']:
+        raise ValueError("Invalid 'dim' value. Supported values are '2d' and '3d'.")
+
+    sizeV = scan3M.shape
+    subbands = {}
+
+    # Step 1: Making sure the volume has even size
+    removeV = np.zeros((3,))
+    if sizeV[0] % 2 == 1:
+        scan3M = np.concatenate((scan3M, scan3M[-1][np.newaxis, :, :]), axis=0)
+        removeV[0] = 1
+    if sizeV[1] % 2 == 1:
+        scan3M = np.concatenate((scan3M, scan3M[:, -1][:, np.newaxis, :]), axis=1)
+        removeV[1] = 1
+    if dim == '3d' and sizeV[2] % 2 == 1:
+        scan3M = np.concatenate((scan3M, scan3M[:, :, -1][:, :, np.newaxis]), axis=2)
+        removeV[2] = 1
+
+    # Step 2: Compute all sub-bands
+    names = []
+    if dim == '2d':
+        names = ['LL', 'LH', 'HL', 'HH']
+    elif dim == '3d':
+        names = ['LLL', 'LLH', 'LHL', 'LHH', 'HLL', 'HLH', 'HHL', 'HHH']
+
+    #Decomposition filters
+    wavelet = pywt.Wavelet(waveletName)
+    loD = np.asarray(wavelet.dec_lo).flatten()  # Low-pass decomposition filter
+    hiD = np.asarray(wavelet.dec_hi).flatten()  # High-pass decomposition filter
+
+    # First pass using 2D stationary wavelet transform in axial direction
+    for k in range(sizeV[2]):
+        #coeffs = pywt.swt2(scan3M[:, :, k], wavelet=wavelet, level=level, norm=False, trim_approx=False)
+        #LL, (LH, HL, HH) = coeffs[-1]  #last level
+        LL, LH, HL, HH = swt2(scan3M[:, :, k], level, loD, hiD)
+
+        if dim.lower() == '2d':
+            subbands.setdefault(f'LL_{waveletName}', np.zeros_like(scan3M))
+            subbands.setdefault(f'LH_{waveletName}', np.zeros_like(scan3M))
+            subbands.setdefault(f'HL_{waveletName}', np.zeros_like(scan3M))
+            subbands.setdefault(f'HH_{waveletName}', np.zeros_like(scan3M))
+
+            subbands[f'LL_{waveletName}'][:, :, k] = np.squeeze(LL[:,:,-1]) #Last index corresponds to input level
+            subbands[f'LH_{waveletName}'][:, :, k] = np.squeeze(LH[:,:,-1])
+            subbands[f'HL_{waveletName}'][:, :, k] = np.squeeze(HL[:,:,-1])
+            subbands[f'HH_{waveletName}'][:, :, k] = np.squeeze(HH[:,:,-1])
+
+        elif dim.lower() == '3d':
+            for band in ['LLL', 'LLH', 'LHL', 'LHH', 'HLL', 'HLH', 'HHL', 'HHH']:
+                subbands.setdefault(f'{band}_{waveletName}', np.zeros_like(scan3M))
+
+            # Simple mapping (same coefficients used multiple times)
+            subbands[f'LLL_{waveletName}'][:, :, k] = np.squeeze(LL[:,:,-1])
+            subbands[f'LLH_{waveletName}'][:, :, k] = np.squeeze(LL[:,:,-1])
+            subbands[f'LHL_{waveletName}'][:, :, k] = np.squeeze(LH[:,:,-1])
+            subbands[f'LHH_{waveletName}'][:, :, k] = np.squeeze(LH[:,:,-1])
+            subbands[f'HLL_{waveletName}'][:, :, k] = np.squeeze(HL[:,:,-1])
+            subbands[f'HLH_{waveletName}'][:, :, k] = np.squeeze(HL[:,:,-1])
+            subbands[f'HHL_{waveletName}'][:, :, k] = np.squeeze(HH[:,:,-1])
+            subbands[f'HHH_{waveletName}'][:, :, k] = np.squeeze(HH[:,:,-1])
+
+
+    # Second pass using 1D stationary wavelet transform for all axial lines
+    if dim == '3d':
+        keysToProcess = [('LLL', 'LLH'),('LHL', 'LHH'),('HLL', 'HLH'),('HHL', 'HHH')]
+        wav = pywt.Wavelet(waveletName)
+        loD = np.asarray(wav.dec_lo).flatten()  # Low-pass decomposition filter
+        hiD = np.asarray(wavelet.dec_hi).flatten()
+        shape = next(iter(subbands.values())).shape
+
+        for bandLow, bandHigh in keysToProcess:
+            lowKey = f'{bandLow}_{waveletName}'
+            highKey = f'{bandHigh}_{waveletName}'
+
+            for j in range(shape[1]):
+                for i in range(shape[0]):
+                    vec = np.asarray(subbands[lowKey][i, j, :]).flatten()
+                    #coeffs = pywt.swt(vec, wavelet=wav, level=level)
+                    #L, H = coeffs[-1]
+                    L, H = swt(vec, level, loD, hiD)
+
+                    subbands[lowKey][i, j, :] = L[-1]
+                    subbands[highKey][i, j, :] = H[-1]
+
+    # Removing unnecessary data added in step 1
+    if removeV[0]:
+        for name in names:
+            subbands[name] = subbands[name][:-1, :, :]
+    if removeV[1]:
+        for name in names:
+            subbands[name] = subbands[name][:, :-1, :]
+    if removeV[2]:
+        for name in names:
+            subbands[name] = subbands[name][:, :, :-1]
+
+    return subbands
+
+
+def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
+    # ---- testing -----
+    import warnings
+    warnings.warn("This is a preliminary implementation of the wavelet filter."
+                  "It has not been validated against IBSI results.")
+    #-------------------
+    if len(direction) == 3:
+        dim = '3d'
+    elif len(direction) == 2:
+        dim = '2d'
+
+    if dim == '3d':
+        dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
+    elif dim == '2d':
+        dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
+
+    outS = dict()
+    if direction == 'All':
+        for n in range(1, len(dir_list)):
+
+            out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
+            subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+
+
+            if rotInvFlag:
+                # Compute average of all permutations of selected decomposition
+                perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
+                match_dir = f"{perm_dir_list[0]}_{waveType}"
+                out3M = subbandsS[match_dir]
+
+                for perm_dir in perm_dir_list[1:]:
+                    match_dir = f"{perm_dir}_{waveType}"
+                    out3M += subbandsS[match_dir]
+
+                out3M /= len(perm_dir_list)
+            else:
+                match_dir = f"{dir_list[n]}_{waveType}"
+                out3M = subbandsS[match_dir]
+
+            outS[out_name] = out3M
+
+    else:
+        out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
+        subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
+
+        if rotInvFlag:
+            perm_dir_list = [''.join(p) for p in permutations(direction)]
+            match_dir = f"{perm_dir_list[0]}_{waveType}"
+            out3M = subbandsS[match_dir]
+
+            for perm_dir in perm_dir_list[1:]:
+                match_dir = f"{perm_dir}_{waveType}"
+                out3M += subbandsS[match_dir]
+
+            out3M /= len(perm_dir_list)
+        else:
+            match_dir = f"{direction}_{waveType}"
+            out3M = subbandsS[match_dir]
+        outS[out_name] = out3M
+
+    return outS
 
 
 ### Functions for rotation-invariant filtering and pooling
@@ -1127,8 +1356,47 @@ def rotate3dSequence(vol3M, index, sign):
     return rotArr3M
 
 
-def flipSequenceForWavelets():
-    pass
+def flipSequenceForWavelets(vol3M, index, sign):
+    """
+    Function to flip 2D or 3D arrays by 180 degrees around a specified axis.
+    Args:
+        vol3M (np.ndarray): 3D scan.
+        index (int): Flip index from (0,1,2...,7)
+        sign  : +1 or -1 (-1 to reverse order of flips).
+    """
+
+    if index == 0:
+        volOut3M = vol3M
+    elif index == 1:
+        volOut3M = np.flip(vol3M, axis=1)  # Flip rows
+    elif index == 2:
+        volOut3M = np.flip(vol3M, axis=0)  # Flip cols
+    elif index == 3:
+        if sign > 0:
+            volOut3M = np.flip(np.flip(vol3M, axis=1), axis=0)  # rows then cols
+        else:
+            volOut3M = np.flip(np.flip(vol3M, axis=0), axis=1)  # cols then rows
+    elif index == 4:
+        volOut3M = np.flip(vol3M, axis=2)  # Flip slices
+    elif index == 5:
+        if sign > 0:
+            volOut3M = np.flip(np.flip(vol3M, axis=1), axis=2)  # rows then slices
+        else:
+            volOut3M = np.flip(np.flip(vol3M, axis=2), axis=1)  # slices then rows
+    elif index == 6:
+        if sign > 0:
+            volOut3M = np.flip(np.flip(vol3M, axis=0), axis=2)  # cols then slices
+        else:
+            volOut3M = np.flip(np.flip(vol3M, axis=2), axis=0)  # slices then cols
+    elif index == 7:
+        if sign > 0:
+            volOut3M = np.flip(np.flip(np.flip(vol3M, axis=1), axis=0), axis=2)  # rows, cols, slices
+        else:
+            volOut3M = np.flip(np.flip(np.flip(vol3M, axis=2), axis=0), axis=1)  # slices, cols, rows
+    else:
+        raise ValueError("index must be an integer from 0 to 7.")
+
+    return volOut3M
 
 
 def rotationInvariantFilt(scan3M, mask3M, filter, *params):
@@ -1171,20 +1439,18 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
     # Apply filter at specified orientations
     rotTextureTypes = [{} for _ in range(numRotations)]
     for index in range(1, numRotations + 1):
+        rotMask3M = mask3M
         if waveletFlag:
             rotScan3M = flipSequenceForWavelets(scan3M, index - 1, 1)
-            rotMask3M = mask3M
             if len(mask3M) > 0:
                 rotMask3M = flipSequenceForWavelets(mask3M, index - 1, 1)
         else:
             if dim.lower() == '2d':
                 rotScan3M = np.rot90(scan3M, k=index - 1)
-                rotMask3M = mask3M
                 if len(mask3M) > 0:
                     rotMask3M = np.rot90(mask3M, k=index - 1)
             elif dim.lower() == '3d':
                 rotScan3M = rotate3dSequence(scan3M, index - 1, 1)
-                rotMask3M = mask3M
                 if len(mask3M) > 0:
                     rotMask3M = rotate3dSequence(mask3M, index - 1, 1)
 

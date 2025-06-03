@@ -151,18 +151,28 @@ def processImage(filterType, scan3M, mask3M, paramS):
                                                                       energyPadMethod, rotS)
             outS[type + '_Energy'] = out3M
 
-    # elif filterType in ['wavelets', 'rotationinvariantwavelets']:
-    #
-    #     waveType = paramS['Wavelets']
-    #     direction = paramS['Direction']
-    #     level = 1  # Default
-    #     if 'level' in paramS.keys():
-    #         level = paramS['Level']
-    #     if 'Index' in paramS and paramS['Index'] is not None:
-    #         waveType += str(paramS['Index'])
-    #     if filterType == 'rotationInvariantWaveletFilter':
-    #         outS = waveletFilter(scan3M, waveType, direction, level)
-    #     # elif filterType == 'rotationInvariantWavelets':
+    elif filterType in ['wavelets', 'rotationinvariantwavelets']:
+
+        #Handle S-I orientation flip for Wavelet filters
+        scan3M = np.flip(scan3M, 2) #FOR IBSI2 compatibility
+        outS = {}
+
+        waveType = paramS['Wavelets']
+        direction = paramS['Direction']
+        level = 1  # Default
+        if 'level' in paramS.keys():
+            level = paramS['Level']
+        if 'Index' in paramS and paramS['Index'] is not None:
+            waveType += str(paramS['Index'])
+        if filterType == 'wavelets':
+            flipOutS = texture_filters.waveletFilter(scan3M, waveType, direction, level)
+        # elif filterType == 'rotationInvariantWavelets':
+
+        fieldnames = list(flipOutS.keys())
+        for nOut in range(len(fieldnames)):
+            filtScan3M = np.flip(flipOutS[fieldnames[nOut]], axis=2)
+            #filtScan3M = flipOutS[fieldnames[nOut]]
+            outS[fieldnames[nOut]] = filtScan3M
 
     else:
         raise Exception('Unknown filter name ' + filterType)
