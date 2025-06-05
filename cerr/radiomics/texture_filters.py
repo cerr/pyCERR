@@ -14,34 +14,6 @@ from cerr.radiomics.preprocess import dyadUp, padScan, wextend
 from cerr.utils.mask import computeBoundingBox
 
 
-def conv1(x, f, mode='full'):
-    """
-        Perform 1D convolution.
-    """
-    x = np.asarray(x).flatten()        # Ensure row vector
-    f = np.asarray(f).flatten()[::-1]  # Flip filter
-    y = convolve(x, f, mode=mode)
-    return y
-
-def conv2(a, b, mode='full'):
-    """
-    Perform 2D convolution.
-    - Handles 1D row or column filters (1xN or Nx1)
-    - Flips filter for true convolution.
-    """
-    # Ensure both a and b are arrays
-    a = np.asarray(a)
-    b = np.asarray(b)
-
-    # If b is 1D, make it a column vector
-    if b.ndim == 1:
-        b = b[:, None]
-
-    # Flip filter both axes (as in 2D convolution definition)
-    b_flipped = np.flip(np.flip(b, axis=0), axis=1)
-    
-    return convolve2d(a, b_flipped, mode=mode)
-
 def meanFilter(scan3M, kernelSize, absFlag=False):
     """
     Function to compute patchwise mean on input image using specified kernel size.
@@ -927,27 +899,21 @@ def wkeep(z, size, first):
 
 def decomposeLOC(x, lo, hi, first, sizeV):
     # Approximation
-    y = conv2(x, lo, mode='full')
-    z = conv2(y.T, lo, mode='full').T
-    #y = convolve2d(x, lo[:,None], mode='full')
-    #z = convolve2d(y.T, lo[:,None], mode='full').T
+    y = convolve2d(x, lo[:,None], mode='full')
+    z = convolve2d(y.T, lo[:,None], mode='full').T
     ca = wkeep(z, sizeV, first)
 
     # Horizontal
-    z = conv2(y.T, hi, mode='full').T
-    #z = convolve2d(y.T, hi[:,None], mode='full').T
+    z = convolve2d(y.T, hi[:,None], mode='full')
     ch = wkeep(z, sizeV, first)
 
     # Vertical
-    y = conv2(x, hi, mode='full')
-    z = conv2(y.T, lo, mode='full').T
-    #y = convolve2d(x, hi[:,None], mode='full')
-    #z = convolve2d(y.T, lo[:,None], mode='full').T
+    y = convolve2d(x, hi[None,], mode='full')
+    z = convolve2d(y.T, lo[None,], mode='full').T
     cv = wkeep(z, sizeV, first)
 
     # Diagonal
-    z = conv2(y.T, hi, mode='full').T
-    #z = convolve2d(y.T, hi[:,None], mode='full').T
+    z = convolve2d(y.T, hi[None,:], mode='full').T
     cd = wkeep(z, sizeV, first)
 
     return ca, ch, cv, cd
@@ -956,20 +922,6 @@ def decomposeLOC(x, lo, hi, first, sizeV):
 def swt(sigV, level, loD, hiD):
     """
     Replicates MATLAB's swt 1D behavior using custom filters and symmetric padding.
-
-
-
-
-
-
-
-
-
-
-
-
-
-q
     Args:
         sigV (np.array): 1D signal
         level (int)    : No. of decomposition levels
@@ -998,15 +950,13 @@ q
         sigExtV = wextend(origSigV, pad)
 
         # Convolve with filters
-        cA = conv1(sigExtV, tempLo, mode='full')
-        cD = conv1(sigExtV, tempHi, mode='full')
-        #cA = convolve(sigExtV, tempLo, mode='full')
-        #cD = convolve(sigExtV, tempHi, mode='full')
+        cA = convolve(sigExtV, tempLo, mode='full')
+        cD = convolve(sigExtV, tempHi, mode='full')
 
 
         # Crop to original length
-        L[l, :] = wkeep(cA, N, lf)
-        H[l, :] = wkeep(cD, N, lf)
+        L[l, :] = wkeep(cA, N, lf+1)
+        H[l, :] = wkeep(cD, N, lf+1)
 
         # Upsample filters
         tempLo = dyadUp(tempLo, evenOdd)
@@ -1182,11 +1132,6 @@ def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
 
 
 def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
-    # ---- testing -----
-    import warnings
-    warnings.warn("This is a preliminary implementation of the wavelet filter."
-                  "It has not been validated against IBSI results.")
-    #-------------------
     if len(direction) == 3:
         dim = '3d'
     elif len(direction) == 2:
@@ -1227,6 +1172,11 @@ def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
 
         if rotInvFlag:
+            # ---- testing -----
+            import warnings
+            warnings.warn("This is a preliminary implementation of the rotationally invariant"
+                          "wavelet filter.It has not been validated against IBSI results.")
+            # -------------------
             perm_dir_list = [''.join(p) for p in permutations(direction)]
             match_dir = f"{perm_dir_list[0]}_{waveType}"
             out3M = subbandsS[match_dir]
