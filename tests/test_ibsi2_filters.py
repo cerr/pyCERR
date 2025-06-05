@@ -8,8 +8,6 @@
 
 import os
 import numpy as np
-import SimpleITK as sitk
-import scipy.io
 
 from cerr import plan_container
 from cerr.radiomics import texture_utils
@@ -68,12 +66,15 @@ def compare_maps(calcMap3M, refMapName, vis=False):
         if vis:
             fig, axis = plt.subplots(3)
             midSlc = int(np.round(nSlcs / 2))
-            im1 = axis[0].imshow(refMap3M[:, :, midSlc])
+            im1 = axis[0].imshow(refMap3M[:, :, midSlc],cmap='gray')
             cBar1 = plt.colorbar(im1, ax=axis[0])
-            im2 = axis[1].imshow(calcMap3M[:, :, midSlc])
+            axis[0].set_title('Reference')
+            im2 = axis[1].imshow(calcMap3M[:, :, midSlc], cmap='gray')
             cBar2 = plt.colorbar(im2, ax=axis[1])
-            im3 = axis[2].imshow(diffMap3M[:, :, midSlc])
+            axis[1].set_title('Computed')
+            im3 = axis[2].imshow(diffMap3M[:, :, midSlc], cmap='gray')
             cBar3 = plt.colorbar(im3, ax=axis[2])
+            axis[2].set_title('Difference')
             plt.show()
     print('-------------')
 
@@ -214,6 +215,16 @@ def test_gabor_filters_25d(vis=False):
     config = '4b2'
     run_test(planC, mask3M, config, vis=vis)
 
+def test_wavelet_filters_3d(vis=False):
+    print('Testing setting 5.a.1')
+    __, mask3M, planC = load_data('impulse')
+    config = '5a1'
+    run_test(planC, mask3M, config, vis=vis)
+
+    print('Testing setting 6.a.1')
+    __, mask3M, planC = load_data('sphere')
+    config = '6a1'
+    run_test(planC, mask3M, config, vis=vis)
 
 def run_ibsi_image_filters(vis=False):
     """ Generate maps using IBSI-2 phase-1 configurations """
@@ -231,9 +242,11 @@ def run_ibsi_image_filters(vis=False):
 
     test_rot_inv_laws_energy_filters_3d(vis=vis)
     test_rot_inv_laws_energy_filter_2d(vis=vis)
-
+    
     test_gabor_filters_25d(vis=vis)
     test_gabor_filters_2d(vis=vis)
+
+    test_wavelet_filters_3d(vis=vis)
 
 if __name__ == "__main__":
     visFlag=False
