@@ -163,7 +163,11 @@ def processImage(filterType, scan3M, mask3M, paramS):
             waveType += str(paramS['Index'])
         if filterType == 'wavelets':
             outS = texture_filters.waveletFilter(scan3M, waveType, direction, level)
-        # elif filterType == 'rotationInvariantWavelets':
+        elif filterType == 'rotationinvariantwavelets':
+            rotS = paramS['RotationInvariance']
+            outField = waveType + '_' + direction + '_' + rotS['AggregationMethod']
+            out3M = texture_filters.rotationInvariantWaveletFilter(scan3M, waveType, direction, level, rotS)
+            outS[outField] = out3M
 
     else:
         raise Exception('Unknown filter name ' + filterType)
