@@ -226,6 +226,17 @@ def test_wavelet_filters_3d(vis=False):
     config = '6a1'
     run_test(planC, mask3M, config, vis=vis)
 
+def test_rot_inv_wavelet_filters_3d(vis=False):
+    print('Testing setting 5.a.2')
+    __, mask3M, planC = load_data('impulse')
+    config = '5a2'
+    run_test(planC, mask3M, config, vis=vis)
+
+    print('Testing setting 6.a.2')
+    __, mask3M, planC = load_data('sphere')
+    config = '6a2'
+    run_test(planC, mask3M, config, vis=vis)
+
 def run_ibsi_image_filters(vis=False):
     """ Generate maps using IBSI-2 phase-1 configurations """
 
@@ -242,11 +253,12 @@ def run_ibsi_image_filters(vis=False):
 
     test_rot_inv_laws_energy_filters_3d(vis=vis)
     test_rot_inv_laws_energy_filter_2d(vis=vis)
-    
+
     test_gabor_filters_25d(vis=vis)
     test_gabor_filters_2d(vis=vis)
 
     test_wavelet_filters_3d(vis=vis)
+    test_rot_inv_wavelet_filters_3d(vis=vis)
 
 if __name__ == "__main__":
     visFlag=False
