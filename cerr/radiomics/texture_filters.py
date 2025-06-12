@@ -7,8 +7,7 @@
 import numpy as np
 import pywt
 from itertools import permutations
-from scipy.signal import convolve2d
-from scipy.signal import convolve
+from scipy.signal import convolve, convolve2d
 from scipy.ndimage import rotate
 from cerr.radiomics.preprocess import dyadUp, padScan, wextend
 from cerr.utils.mask import computeBoundingBox
@@ -886,8 +885,18 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
 
     return lawsEnergyAggPad3M
 
+
+### Functions for wavelet filtering
+
 def wkeep(z, size, first):
-    """Keep central segment of signal after convolution"""
+    """Keep central segment of signal after convolution
+    Args
+        z (np.array)   : Convolved signal
+        size (tuple)   : Dimensions of original signal
+        first: (int)   : Start index
+    Returns
+       Central segment of signal after convolution
+    """
     if z.ndim == 1: #1D
         last = first + size - 1
         zkeep = z[first-1:last]
@@ -899,21 +908,21 @@ def wkeep(z, size, first):
 
 def decomposeLOC(x, lo, hi, first, sizeV):
     # Approximation
-    y = convolve2d(x, lo[:,None], mode='full')
-    z = convolve2d(y.T, lo[:,None], mode='full').T
+    y = convolve2d(x, lo[None,:], mode='full')
+    z = convolve2d(y.T, lo[None,:], mode='full').T
     ca = wkeep(z, sizeV, first)
 
     # Horizontal
-    z = convolve2d(y.T, hi[:,None], mode='full')
+    z = convolve2d(y.T, hi[None,:], mode='full').T
     ch = wkeep(z, sizeV, first)
 
     # Vertical
-    y = convolve2d(x, hi[None,], mode='full')
-    z = convolve2d(y.T, lo[None,], mode='full').T
+    y = convolve2d(x, hi[None,:], mode='full')
+    z = convolve2d(y.T, lo[None,:], mode='full').T
     cv = wkeep(z, sizeV, first)
 
     # Diagonal
-    z = convolve2d(y.T, hi[None,:], mode='full').T
+    z = convolve2d(y.T, hi[None, :], mode='full').T
     cd = wkeep(z, sizeV, first)
 
     return ca, ch, cv, cd
@@ -952,7 +961,6 @@ def swt(sigV, level, loD, hiD):
         # Convolve with filters
         cA = convolve(sigExtV, tempLo, mode='full')
         cD = convolve(sigExtV, tempHi, mode='full')
-
 
         # Crop to original length
         L[l, :] = wkeep(cA, N, lf+1)
@@ -1132,66 +1140,108 @@ def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
 
 
 def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
+    """
+       Function to return wavelet filter response.
+
+       Args:
+            vol3M (np.ndarray): 3D scan.
+            waveType (string) : Wavelet name. Supported options include 'haar', 'db' (Daubechies),
+                                'sym' (Symlets), 'coif' (Coiflets), 'bior', (Biorthogonal), and
+                                'rbio' (Reverse biorthogonal).
+            direction (string): Filter sequence. May be :'HHH', 'LHH', 'HLH', 'HHL',
+                                'LLH', 'LHL', 'HLL', 'LLL' or 'All'.
+            level (int)       : Wavelet level. Supported: 1.
+            rotInvFlag (bool) : Set to True for rotation-invariant filtering (default:False).
+
+       Returns:
+            out3M (np.ndarray(dtype=float)): Laws filter response aggregated
+                   across orientations as specified.
+       """
+
+    if level!=1:
+        raise ValueError('Invalid level %d. Only level=1 is currently supported.')
+
     if len(direction) == 3:
         dim = '3d'
     elif len(direction) == 2:
         dim = '2d'
 
     if dim == '3d':
-        dir_list = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
+        dirList = ['All', 'HHH', 'LHH', 'HLH', 'HHL', 'LLH', 'LHL', 'HLL', 'LLL']
     elif dim == '2d':
-        dir_list = ['All', 'HH', 'HL', 'LH', 'LL']
+        dirList = ['All', 'HH', 'HL', 'LH', 'LL']
 
     outS = dict()
     if direction == 'All':
-        for n in range(1, len(dir_list)):
+        for n in range(1, len(dirList)):
 
-            out_name = f"{waveType}_{dir_list[n]}".replace('.', '_').replace(' ', '_')
+            outName = f"{waveType}_{dirList[n]}".replace('.', '_').replace(' ', '_')
             subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
 
 
             if rotInvFlag:
                 # Compute average of all permutations of selected decomposition
-                perm_dir_list = [''.join(p) for p in permutations(dir_list[n])]
-                match_dir = f"{perm_dir_list[0]}_{waveType}"
-                out3M = subbandsS[match_dir]
+                permDirList = np.unique([''.join(p) for p in permutations(dirList[n])])
+                matchDir = f"{permDirList[0]}_{waveType}"
+                out3M = subbandsS[matchDir]
 
-                for perm_dir in perm_dir_list[1:]:
-                    match_dir = f"{perm_dir}_{waveType}"
-                    out3M += subbandsS[match_dir]
+                for permDir in permDirList[1:]:
+                    matchDir = f"{permDir}_{waveType}"
+                    out3M += subbandsS[matchDir]
 
-                out3M /= len(perm_dir_list)
+                out3M /= len(permDirList)
             else:
-                match_dir = f"{dir_list[n]}_{waveType}"
-                out3M = subbandsS[match_dir]
-
-            outS[out_name] = out3M
-
+                matchDir = f"{dirList[n]}_{waveType}"
+                out3M = subbandsS[matchDir]
+            outS[outName] = out3M
     else:
-        out_name = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
+        outName = f"{waveType}_{direction}".replace('.', '_').replace(' ', '_')
         subbandsS = getWaveletSubbands(vol3M, waveType, level, dim)
 
         if rotInvFlag:
-            # ---- testing -----
-            import warnings
-            warnings.warn("This is a preliminary implementation of the rotationally invariant"
-                          "wavelet filter.It has not been validated against IBSI results.")
-            # -------------------
-            perm_dir_list = [''.join(p) for p in permutations(direction)]
-            match_dir = f"{perm_dir_list[0]}_{waveType}"
-            out3M = subbandsS[match_dir]
+            permDirList = np.unique([''.join(p) for p in permutations(direction)])
+            matchDir = f"{permDirList[0]}_{waveType}"
+            out3M = subbandsS[matchDir]
 
-            for perm_dir in perm_dir_list[1:]:
-                match_dir = f"{perm_dir}_{waveType}"
-                out3M += subbandsS[match_dir]
+            for permDir in permDirList[1:]:
+                matchDir = f"{permDir}_{waveType}"
+                out3M += subbandsS[matchDir]
 
-            out3M /= len(perm_dir_list)
+            out3M /= len(permDirList)
         else:
-            match_dir = f"{direction}_{waveType}"
-            out3M = subbandsS[match_dir]
-        outS[out_name] = out3M
+            matchDir = f"{direction}_{waveType}"
+            out3M = subbandsS[matchDir]
+        outS[outName] = out3M
 
     return outS
+
+def rotationInvariantWaveletFilter(scan3M, waveType, direction, level, rotS):
+   """
+   Function to return rotation-invariant Wavelet filter response.
+
+   Args:
+        scan3M (np.ndarray): 3D scan.
+        direction (string): Specifying '2d', '3d' or 'All'.
+        filterDim (string): Specifying '3', '5', 'all', or a combination
+                    of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
+        normFlag (bool): Flag to normalize kernel coefficients if set to True.
+                  Normalization ensures average pixel in filtered image
+                  is as bright as the average pixel in the original image
+        rotS (dict): Parameters for aggregating filter response across
+              different orientations
+
+   Returns:
+        out3M (np.ndarray(dtype=float)): Laws filter response aggregated
+               across orientations as specified.
+   """
+
+   filter = {"waveletFilter": waveletFilter}
+   rotInvFlag = True
+   response = rotationInvariantFilt(scan3M, [], filter,\
+               waveType, direction, level, rotInvFlag, rotS)
+   out3M = response[waveType+'_'+direction]
+
+   return out3M
 
 
 ### Functions for rotation-invariant filtering and pooling
@@ -1315,7 +1365,7 @@ def flipSequenceForWavelets(vol3M, index, sign):
         sign  : +1 or -1 (-1 to reverse order of flips).
     """
 
-    if index == 0:
+    if index == 0: #No flip
         volOut3M = vol3M
     elif index == 1:
         volOut3M = np.flip(vol3M, axis=1)  # Flip rows
@@ -1358,7 +1408,7 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
         scan3M (np.ndarray): 3D scan.
         mask3M (np.ndarray(dtype=bool)): 3D mask.
         filter (dict): Filter names and associated parameters.
-        params (dict)
+        params (dict): Dictionary of filter parameters
 
     Returns:
         aggS (dict): Rotation -invariant filter responses.
@@ -1368,7 +1418,7 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
     filterType = list(filter.keys())
     filterType = filterType[0].replace(' ', '')
     waveletFlag = 0
-    if filterType == 'wavelets':
+    if filterType == 'waveletFilter':
         waveletFlag = 1
 
     # Parameters for rotation invariance
@@ -1379,12 +1429,6 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
         numRotations = 4 if dim.lower() == '2d' else 8
     else:
         numRotations = 4 if dim.lower() == '2d' else 24
-
-    # Handle S-I orientation flip for Wavelet filters
-    if waveletFlag:
-        scan3M = np.flip(scan3M, axis=2)  # FOR IBSI2 compatibility
-        if len(mask3M) > 0:
-            mask3M = np.flip(mask3M, axis=2)
 
     # Apply filter at specified orientations
     rotTextureTypes = [{} for _ in range(numRotations)]
@@ -1417,19 +1461,16 @@ def rotationInvariantFilt(scan3M, mask3M, filter, *params):
 
                 if waveletFlag:
                     out3M = flipSequenceForWavelets(texture3M, index - 1, -1)
-                    out3M = np.flip(out3M, axis=2)
                 else:
                     if dim.lower() == '2d':
                         out3M = np.rot90(texture3M, k=-(index - 1))
                     elif dim.lower() == '3d':
                         out3M = rotate3dSequence(texture3M, index - 1, -1)
-
                 filterResult[key] = out3M
             rotTextureTypes[index - 1] = filterResult
         else:
             if waveletFlag:
                 out3M = flipSequenceForWavelets(filterResult, index - 1, -1)
-                #out3M = np.flip(rotOut3M, axis=2)
             else:
                 if dim.lower() == '2d':
                     filterResult = np.rot90(filterResult, k=-(index - 1))
