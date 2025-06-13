@@ -61,6 +61,9 @@ class Structure:
         structSetSopInstanceUID: str = ""
         referencedFrameOfReferenceUID (str): UID for frame of reference
         referencedSeriesUID (str): UID of structure series i.e. DICOM SeriesInstanceUID
+        structureFileName (str): Structure file name
+        manufacturerModelName (str): Manufacturer model name
+        writer (str): Manufacturer in DICOM terms
         structureFileFormat (str): File format from which structure's metadata was populated.
                                    Permitted values are "RTSTRUCT", "NPARRAY", "NIFTI".
     """
@@ -76,6 +79,7 @@ class Structure:
     maximumSegmentsPerScan: int = 0
     structureEdition: str = ""
     writer: str = ""
+    manufacturerModelName: str = ""
     dateWritten: str = ""
     structureColor: List = field(default_factory=get_empty_np_array)
     structureDescription: str = ""
@@ -94,6 +98,7 @@ class Structure:
     rasterized: bool = False
     referencedFrameOfReferenceUID: str = ""
     referencedSeriesUID: str = ""
+    structureFileName: str = ""
     structureFileFormat: str = ""
 
     def __getitem__(self, key):
@@ -621,7 +626,8 @@ def loadStructure(file_list):
             for str_num, str_roi in enumerate(str_roi_seq):
                 struct_meta = Structure() #parse_structure_fields(roi_contour_seq,str_roi_seq)
                 struct_meta.patientName = str(ds.PatientName)
-                struct_meta.writer = ds.Manufacturer
+                if hasattr(ds,"ManufacturerModelName"): struct_meta.manufacturerModelName = ds.ManufacturerModelName
+                if hasattr(ds,"Manufacturer"): struct_meta.writer = ds.Manufacturer
                 struct_meta.dateWritten = ds.StructureSetDate
                 if hasattr(ds,"SeriesDescription"): struct_meta.structureDescription = ds.SeriesDescription
                 struct_meta.roiNumber = str_roi.ROINumber.real
@@ -631,6 +637,8 @@ def loadStructure(file_list):
                     struct_meta.roiGenerationDescription  = str_roi["3006","0038"].value
                 ref_FOR_uid = str_roi.ReferencedFrameOfReferenceUID.name
                 struct_meta.referencedFrameOfReferenceUID = ref_FOR_uid
+
+                struct_meta.structureFileName = ds.filename
 
                 # Find the matching ROIContourSequence element
                 indCtrSeq = ctrSeqRefRoiNums == struct_meta.roiNumber

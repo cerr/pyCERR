@@ -733,6 +733,13 @@ def populateScanInfoFields(s_info, ds):
     if ("2005","140A") in ds: s_info.philipsRescaleSlope = ds["2005","140A"].value
     if ("2005","1409") in ds: s_info.philipsRescaleIntercept = ds["2005","1409"].value
 
+    if hasattr(ds,"PatientIdentityRemoved"): s_info.patientIdentityRemoved = ds.PatientIdentityRemoved
+    if hasattr(ds,"DeidentificationMethod"): s_info.deIdentificationMethod = ds.DeidentificationMethod
+    if hasattr(ds,"DeidentificationMethodCodeSequence"):
+        for deIdMethod in ds.DeidentificationMethodCodeSequence:
+            methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
+            s_info.deidentificationMethodDescription = np.append(s_info.deidentificationMethodDescription, methodStr)
+
     return s_info
 
 def populateRealWorldFields(s_info, perFrameSeq):

@@ -43,6 +43,9 @@ class Beams:
         ReviewTime (str): Time plan was reviewed
         ReviewerName (str): Reviewer name
         SOPInstanceUID (str): SOP Instance UID of the Plan
+        beamFileName (str): RTPLAN file name
+        manufacturer (str): Scanner Manufacturer
+        manufacturerModelName (str): Manufacturer model name
         BeamUID (str): pyCERR's UID of RTPLAN
 
     """
@@ -76,6 +79,9 @@ class Beams:
     ReviewTime: str = ""
     ReviewerName: str = ""
     SOPInstanceUID: str = ""
+    beamFileName: str = ''
+    manufacturer: str = ""
+    manufacturerModelName: str = ""
     BeamUID: str = ""
 
 @dataclass
@@ -273,6 +279,9 @@ def load_beams(file_list):
             beams_meta.PatientBirthDate = ds.PatientBirthDate
             beams_meta.PatientSex = ds.PatientSex
             beams_meta.SOPInstanceUID = ds.SOPInstanceUID
+            beams_meta.beamFileName = ds.filename
+            if hasattr(ds,"ManufacturerModelName"): beams_meta.manufacturerModelName = ds.ManufacturerModelName
+            if hasattr(ds,"Manufacturer"): beams_meta.manufacturer = ds.Manufacturer
             ref_dose_seq_list = np.array([],dtype=ReferenceSeq)
             ref_str_seq_list = np.array([],dtype=ReferenceSeq)
             if hasattr(ds,"ReferencedStructureSetSequence"):

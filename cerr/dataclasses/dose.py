@@ -57,6 +57,8 @@ class Dose:
         writer (str): Equipment Manufacturer for RTDOSE delivery.
         dateWritten (str): Study Date.
         studyInstanceUID (str): Study Instance UID of dose.
+        manufacturer (str): Scanner Manufacturer
+        manufacturerModelName (str): Manufacturer model name
         xcoordOfNormaliznPoint (float): x-ccordinate of normalization point
         ycoordOfNormaliznPoint (float): y-ccordinate of normalization point
         zcoordOfNormaliznPoint (float): z-ccordinate of normalization point
@@ -69,6 +71,7 @@ class Dose:
         doseUID (str): unique identifier of dose.
         assocScanUID (str): associated scan's unique identifier
         assocBeamUID (str): associated RTPLAN's unique identifier
+        doseFileName (str): dose file name
         frameOfReferenceUID (str): Frame of Reference UID
         refRTPlanSopInstanceUID (str): SOP Instance UID of associated RTPLAN
         refStructSetSopInstanceUID (str): SOP Instance UID of referenced RTSTRUCT
@@ -112,6 +115,8 @@ class Dose:
     planEditionOfOrigin: str = ""
     studyNumberOfOrigin: int = 0
     studyInstanceUID: str = ""
+    manufacturer: str = ""
+    manufacturerModelName: str = ""
     versionNumberOfProgram: str = ""
     xcoordOfNormaliznPoint: float = np.nan
     ycoordOfNormaliznPoint: float = np.nan
@@ -133,6 +138,7 @@ class Dose:
     doseUID: str = ""
     assocScanUID: str = ""
     assocBeamUID: str = ""
+    doseFileName: str = ''
     frameOfReferenceUID: str = ""
     refRTPlanSopInstanceUID: str = ""
     refStructSetSopInstanceUID: str = ""
@@ -395,6 +401,9 @@ def loadDose(file_list):
             dose_meta.doseType = ds.DoseType
             dose_meta.doseSummationType = ds.DoseSummationType
             dose_meta.frameOfReferenceUID = ds.FrameOfReferenceUID
+            if hasattr(ds,"ManufacturerModelName"): dose_meta.manufacturerModelName = ds.ManufacturerModelName
+            if hasattr(ds,"Manufacturer"): dose_meta.manufacturer = ds.Manufacturer
+            dose_meta.doseFileName = ds.filename
             if hasattr(ds,"ReferencedRTPlanSequence"):
                 dose_meta.refRTPlanSopInstanceUID = ds.ReferencedRTPlanSequence[0].ReferencedSOPInstanceUID
                 if hasattr(ds.ReferencedRTPlanSequence[0],"ReferencedFractionGroupSequence"):

@@ -96,6 +96,9 @@ class ScanInfo:
         triggerTime (float): Time, in msec, between peak of the R wave and the peak of the echo produced.
         frameAcquisitionDuration (float): Duration of Frame acquisition from the FrameContentSequence.
         frameReferenceDateTime (str): FrameReferenceDateTime from the FrameContentSequence
+        patientIdentityRemoved (str): A text string describing the de-identification method.
+        deIdentificationMethod (str): Indicates whether patient identity has been removed.
+        deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
 
     """
 
@@ -192,6 +195,10 @@ class ScanInfo:
     triggerTime: float = ''
     frameAcquisitionDuration: float = '' #np.NAN
     frameReferenceDateTime: str = ''
+    patientIdentityRemoved: str = ''
+    deIdentificationMethod: str = ''
+    deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
+
 
 @dataclass
 class UniformScanInfo:
