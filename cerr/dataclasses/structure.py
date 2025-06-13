@@ -66,6 +66,8 @@ class Structure:
         writer (str): Manufacturer in DICOM terms
         structureFileFormat (str): File format from which structure's metadata was populated.
                                    Permitted values are "RTSTRUCT", "NPARRAY", "NIFTI".
+        deIdentificationMethod (str): Indicates whether patient identity has been removed.
+        deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
     """
 
     roiNumber: int = 0
@@ -100,6 +102,9 @@ class Structure:
     referencedSeriesUID: str = ""
     structureFileName: str = ""
     structureFileFormat: str = ""
+    deIdentificationMethod: str = ''
+    deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
+
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -639,6 +644,11 @@ def loadStructure(file_list):
                 struct_meta.referencedFrameOfReferenceUID = ref_FOR_uid
 
                 struct_meta.structureFileName = ds.filename
+                if hasattr(ds,"DeidentificationMethod"): struct_meta.deIdentificationMethod = ds.DeidentificationMethod
+                if hasattr(ds,"DeidentificationMethodCodeSequence"):
+                    for deIdMethod in ds.DeidentificationMethodCodeSequence:
+                        methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
+                        struct_meta.deidentificationMethodDescription = np.append(struct_meta.deidentificationMethodDescription, methodStr)
 
                 # Find the matching ROIContourSequence element
                 indCtrSeq = ctrSeqRefRoiNums == struct_meta.roiNumber

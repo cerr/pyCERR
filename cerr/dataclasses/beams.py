@@ -46,8 +46,9 @@ class Beams:
         beamFileName (str): RTPLAN file name
         manufacturer (str): Scanner Manufacturer
         manufacturerModelName (str): Manufacturer model name
+        deIdentificationMethod (str): Indicates whether patient identity has been removed.
+        deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
         BeamUID (str): pyCERR's UID of RTPLAN
-
     """
 
     PatientName: str = ""
@@ -82,6 +83,8 @@ class Beams:
     beamFileName: str = ''
     manufacturer: str = ""
     manufacturerModelName: str = ""
+    deIdentificationMethod: str = ''
+    deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
     BeamUID: str = ""
 
 @dataclass
@@ -282,6 +285,11 @@ def load_beams(file_list):
             beams_meta.beamFileName = ds.filename
             if hasattr(ds,"ManufacturerModelName"): beams_meta.manufacturerModelName = ds.ManufacturerModelName
             if hasattr(ds,"Manufacturer"): beams_meta.manufacturer = ds.Manufacturer
+            if hasattr(ds,"DeidentificationMethod"): beams_meta.deIdentificationMethod = ds.DeidentificationMethod
+            if hasattr(ds,"DeidentificationMethodCodeSequence"):
+                for deIdMethod in ds.DeidentificationMethodCodeSequence:
+                    methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
+                    beams_meta.deidentificationMethodDescription = np.append(beams_meta.deidentificationMethodDescription, methodStr)
             ref_dose_seq_list = np.array([],dtype=ReferenceSeq)
             ref_str_seq_list = np.array([],dtype=ReferenceSeq)
             if hasattr(ds,"ReferencedStructureSetSequence"):
