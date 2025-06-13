@@ -22,23 +22,25 @@ refPath = os.path.join(cerrPath,'datasets','reference_values_for_tests','ibsi2_p
 
 def list_tests():
           print('pyCERR provides the following tests:\n '
-                '* test_mean_filters_3d\n '
-                '* test_mean_filt_2d\n ' 
-                '* test_LoG_filters_3d\n '
-                '* test_LoG_filter_2d\n ' 
-                '* test_laws_filters_3d\n ' 
-                '* test_laws_filter_2d\n '
-                '* test_rot_inv_laws_filters_3d\n '
-                '* test_rot_inv_laws_filter_2d\n '
-                '* test_rot_inv_laws_energy_filters_3d\n '
-                '* test_rot_inv_laws_energy_filter_2d\n '
-                '* test_gabor_filters_25d\n '
-                '* test_gabor_filters_2d\n '
-                '* test_wavelet_filters_3d\n '
-                '* test_rot_inv_wavelet_filters_3d\n\n'
+                '• test_mean_filters_3d\n '
+                '• test_mean_filt_2d\n ' 
+                '• test_LoG_filters_3d\n '
+                '• test_LoG_filter_2d\n ' 
+                '• test_laws_filters_3d\n ' 
+                '• test_laws_filter_2d\n '
+                '• test_rot_inv_laws_filters_3d\n '
+                '• test_rot_inv_laws_filter_2d\n '
+                '• test_rot_inv_laws_energy_filters_3d\n '
+                '• test_rot_inv_laws_energy_filter_2d\n '
+                '• test_gabor_filters_25d\n '
+                '• test_gabor_filters_2d\n '
+                '• test_wavelet_filters_3d\n '
+                '• test_rot_inv_wavelet_filters_3d\n\n'
+                'and a wrapper to run all available tests: \n'
+                '• run_ibsi_image_filters\n\n' 
                 'Optional inputs:\n '
                 'savePath: Write NIfTI response maps to location (default:None)\n '
-                'vis: If True, display IBSI consensus map, pyCERR-computed response map, and difference map (default: False).')
+                'vis     : If True, display IBSI consensus map, pyCERR-computed response map, and difference map (default: False).')
 def load_data(synthDataset):
     """ Load CERR archive, return scan and mask(all ones)"""
 
