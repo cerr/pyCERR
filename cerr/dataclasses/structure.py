@@ -547,10 +547,10 @@ def importJson(planC, strList=None, jsonFileName=None):
         num_contours = len(ctrList)
         contour_list = np.empty(num_contours,Contour)
         for ctr_num, ctr in enumerate(ctrList):
-            ctr = json.loads(ctr)
             if not ctr:
                 contour_list[ctr_num] = []
                 continue
+            ctr = json.loads(ctr)
             ctrObj = Contour()
             segList = ctr['segments']
             segments = []
