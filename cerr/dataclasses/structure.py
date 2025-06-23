@@ -552,6 +552,8 @@ def importJson(planC, strList=None, jsonFileName=None):
                 continue
             ctr = json.loads(ctr)
             ctrObj = Contour()
+            if 'segments' not in ctr:
+                continue
             segList = ctr['segments']
             segments = []
             for seg in segList:
@@ -1130,8 +1132,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     Args:
         structNum: int for index of structure in planC
                    (OR) np.ndarray(dtype=bool) 3D binary mask.
-        structuringElementSizeCm: float for desired size of structuring element for
-                                  morphological closing in cm.
+        numConnComponents: number of connected components.
         planC: [optional, default=None] pyCERR plan container object.
         saveFlag: [optional, default=False] bool flag for importing filtered mask
                   to planC if set to True.
