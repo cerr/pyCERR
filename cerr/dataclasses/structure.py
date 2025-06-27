@@ -66,6 +66,8 @@ class Structure:
         writer (str): Manufacturer in DICOM terms
         structureFileFormat (str): File format from which structure's metadata was populated.
                                    Permitted values are "RTSTRUCT", "NPARRAY", "NIFTI".
+        deIdentificationMethod (str): Indicates whether patient identity has been removed.
+        deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
     """
 
     roiNumber: int = 0
@@ -100,6 +102,9 @@ class Structure:
     referencedSeriesUID: str = ""
     structureFileName: str = ""
     structureFileFormat: str = ""
+    deIdentificationMethod: str = ''
+    deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
+
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -542,11 +547,13 @@ def importJson(planC, strList=None, jsonFileName=None):
         num_contours = len(ctrList)
         contour_list = np.empty(num_contours,Contour)
         for ctr_num, ctr in enumerate(ctrList):
-            ctr = json.loads(ctr)
             if not ctr:
                 contour_list[ctr_num] = []
                 continue
+            ctr = json.loads(ctr)
             ctrObj = Contour()
+            if 'segments' not in ctr:
+                continue
             segList = ctr['segments']
             segments = []
             for seg in segList:
@@ -639,6 +646,11 @@ def loadStructure(file_list):
                 struct_meta.referencedFrameOfReferenceUID = ref_FOR_uid
 
                 struct_meta.structureFileName = ds.filename
+                if hasattr(ds,"DeidentificationMethod"): struct_meta.deIdentificationMethod = ds.DeidentificationMethod
+                if hasattr(ds,"DeidentificationMethodCodeSequence"):
+                    for deIdMethod in ds.DeidentificationMethodCodeSequence:
+                        methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
+                        struct_meta.deidentificationMethodDescription = np.append(struct_meta.deidentificationMethodDescription, methodStr)
 
                 # Find the matching ROIContourSequence element
                 indCtrSeq = ctrSeqRefRoiNums == struct_meta.roiNumber
@@ -1120,8 +1132,7 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
     Args:
         structNum: int for index of structure in planC
                    (OR) np.ndarray(dtype=bool) 3D binary mask.
-        structuringElementSizeCm: float for desired size of structuring element for
-                                  morphological closing in cm.
+        numConnComponents: number of connected components.
         planC: [optional, default=None] pyCERR plan container object.
         saveFlag: [optional, default=False] bool flag for importing filtered mask
                   to planC if set to True.

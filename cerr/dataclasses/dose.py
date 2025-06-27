@@ -59,6 +59,8 @@ class Dose:
         studyInstanceUID (str): Study Instance UID of dose.
         manufacturer (str): Scanner Manufacturer
         manufacturerModelName (str): Manufacturer model name
+        deIdentificationMethod (str): Indicates whether patient identity has been removed.
+        deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
         xcoordOfNormaliznPoint (float): x-ccordinate of normalization point
         ycoordOfNormaliznPoint (float): y-ccordinate of normalization point
         zcoordOfNormaliznPoint (float): z-ccordinate of normalization point
@@ -117,6 +119,8 @@ class Dose:
     studyInstanceUID: str = ""
     manufacturer: str = ""
     manufacturerModelName: str = ""
+    deIdentificationMethod: str = ''
+    deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
     versionNumberOfProgram: str = ""
     xcoordOfNormaliznPoint: float = np.nan
     ycoordOfNormaliznPoint: float = np.nan
@@ -404,6 +408,12 @@ def loadDose(file_list):
             if hasattr(ds,"ManufacturerModelName"): dose_meta.manufacturerModelName = ds.ManufacturerModelName
             if hasattr(ds,"Manufacturer"): dose_meta.manufacturer = ds.Manufacturer
             dose_meta.doseFileName = ds.filename
+            if hasattr(ds,"DeidentificationMethod"): dose_meta.deIdentificationMethod = ds.DeidentificationMethod
+            if hasattr(ds,"DeidentificationMethodCodeSequence"):
+                for deIdMethod in ds.DeidentificationMethodCodeSequence:
+                    methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
+                    dose_meta.deidentificationMethodDescription = np.append(dose_meta.deidentificationMethodDescription, methodStr)
+
             if hasattr(ds,"ReferencedRTPlanSequence"):
                 dose_meta.refRTPlanSopInstanceUID = ds.ReferencedRTPlanSequence[0].ReferencedSOPInstanceUID
                 if hasattr(ds.ReferencedRTPlanSequence[0],"ReferencedFractionGroupSequence"):
