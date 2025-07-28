@@ -364,14 +364,16 @@ class Structure:
         #with open(jsonFileName, 'w', encoding='utf-8') as f:
         #    json.dump(strList, f, ensure_ascii=False, indent=4)
 
-    def saveContoursToJson(self, jsonFileName, planC):
+    def saveContoursToJson(self, planC, physicalUnitsFlag=True, jsonFileName=''):
         """ Save contour polygons in DICOM coordinate system to a json file.
         Args:
-            jsonFileName (str): JSON file name.
             planC (cerr.plan_container.PlanC): pyCERR's plan container object
+            physicalUnitsFlag (bool): Flag to save coordinates in Physical units.
+            jsonFileName (str): file name to write JSON.
+                if empty, Only the JSON-formatted string is returned in-memory.
 
         Returns:
-            0 on successful creation of json file
+            str: JSON-formatted string containing the contour metadata.
         """
 
         assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
@@ -380,6 +382,7 @@ class Structure:
         Image2PhysicalTransM = planC.scan[assocScanNum].Image2PhysicalTransM
         transM = np.matmul(Image2PhysicalTransM, np.linalg.inv(Image2VirtualPhysicalTransM))
         transM[:,:3] = transM[:,:3] * 10 # cm to mm
+        virt2ImTransM = np.linalg.inv(Image2VirtualPhysicalTransM)
 
         ctrList = []
         for ctr in self.contour:
@@ -387,7 +390,11 @@ class Structure:
                 segList = []
                 for seg in ctr.segments:
                     tempPtsM = np.hstack((seg.points.copy(), np.ones((seg.points.shape[0], 1))))
-                    tempPtsM = np.matmul(transM, tempPtsM.T)
+                    if physicalUnitsFlag:
+                        tempPtsM = np.matmul(transM, tempPtsM.T)
+                    else:
+                        # Convert to voxel units
+                        tempPtsM = np.matmul(virt2ImTransM, tempPtsM.T)
                     segList.append(np.round(tempPtsM[:3,:].T, 10).tolist())
                 ctrDict = {}
                 ctrDict['segments'] = segList
@@ -402,10 +409,13 @@ class Structure:
         strDict['referencedFORUID'] = self.referencedFrameOfReferenceUID
         strDict['referencedSeriesUID'] = self.assocScanUID[3:]
 
-        with open(jsonFileName, 'w', encoding='utf-8') as f:
-            json.dump(strDict, f, ensure_ascii=False, indent=4)
+        if jsonFileName:
+            with open(jsonFileName, 'w', encoding='utf-8') as f:
+                json.dump(strDict, f, ensure_ascii=False, indent=4)
 
-        return 0
+        jsonString = json.dumps(strDict, ensure_ascii=False, indent=4)
+
+        return jsonString
 
 
 @dataclass

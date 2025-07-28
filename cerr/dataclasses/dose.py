@@ -728,14 +728,14 @@ def sum(doseIndV, planC, fxCorrectDict={}, frxSizeV=None):
     """
 
     Args:
-                      doseIndV (list) : Indices of doses to be summed
-          planC (plan_container.planC): pyCERR's plan container object.
-                  fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
-                       frxSize (float): [optional; default: None]
+        doseIndV (list) : Indices of doses to be summed
+        planC (plan_container.planC): pyCERR's plan container object.
+        fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
+        frxSize (float): [optional; default: None]
 
     Returns:
-                  sumDose (np.ndarray): Summed dose
-                  refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
+        sumDose (np.ndarray): Summed dose
+        refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
 
     """
 
