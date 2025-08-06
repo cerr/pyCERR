@@ -322,10 +322,10 @@ class Dose:
 
         """
         xValsV = np.arange(self.coord1OFFirstPoint,
-                           self.sizeOfDimension1*self.horizontalGridInterval + self.coord1OFFirstPoint,
+                           (self.sizeOfDimension1-1)*self.horizontalGridInterval + self.horizontalGridInterval/2 + self.coord1OFFirstPoint,
                             self.horizontalGridInterval)
         yValsV = np.arange(self.coord2OFFirstPoint,
-                           self.sizeOfDimension2*self.verticalGridInterval + self.coord2OFFirstPoint,
+                           (self.sizeOfDimension2-1)*self.verticalGridInterval + self.verticalGridInterval/2 + self.coord2OFFirstPoint,
                            self.verticalGridInterval)
         zVals = self.zValues
 
@@ -728,14 +728,14 @@ def sum(doseIndV, planC, fxCorrectDict={}, frxSizeV=None):
     """
 
     Args:
-                      doseIndV (list) : Indices of doses to be summed
-          planC (plan_container.planC): pyCERR's plan container object.
-                  fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
-                       frxSize (float): [optional; default: None]
+        doseIndV (list) : Indices of doses to be summed
+        planC (plan_container.planC): pyCERR's plan container object.
+        fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
+        frxSize (float): [optional; default: None]
 
     Returns:
-                  sumDose (np.ndarray): Summed dose
-                  refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
+        sumDose (np.ndarray): Summed dose
+        refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
 
     """
 

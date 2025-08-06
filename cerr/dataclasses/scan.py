@@ -168,14 +168,16 @@ class Scan:
         sizeDim1 = scan_info.sizeOfDimension1-1
         sizeDim2 = scan_info.sizeOfDimension2-1
 
+        # Add gridUnits/2 to the last value to account for numerical noise
+
         # Calculate xVals
         xvals = np.arange(scan_info.xOffset - (sizeDim2 * scan_info.grid2Units) / 2,
-                  scan_info.xOffset + (sizeDim2 * scan_info.grid2Units) / 2 + scan_info.grid2Units,
+                  scan_info.xOffset + (sizeDim2 * scan_info.grid2Units) / 2 + scan_info.grid2Units/2,
                   scan_info.grid2Units)
 
         # Calculate yVals (flipped left-right)
         yvals = np.arange(scan_info.yOffset + (sizeDim1 * scan_info.grid1Units) / 2,
-                  scan_info.yOffset - (sizeDim1 * scan_info.grid1Units) / 2 - scan_info.grid1Units,
+                  scan_info.yOffset - (sizeDim1 * scan_info.grid1Units) / 2 - scan_info.grid1Units/2,
                   -scan_info.grid1Units)
 
         # Extract zValues from the scanStruct dictionary or object
