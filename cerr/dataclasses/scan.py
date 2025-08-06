@@ -196,6 +196,35 @@ class Scan:
                                     len(self.scanInfo)
         return np.asarray([numRows, numCols, numSlcs])
 
+
+    def getUniformScanSize(self):
+        """ Return the size of the uniformized scan.
+
+        Returns:
+            np.array:  numRows, numCols, numSlcs
+
+        """
+        uniformScanInfo = self.uniformScanInfo
+        scanInfo = self.scanInfo[0]
+
+        # No. slices in uniformized set.
+        nCTSlices = abs(uniformScanInfo.sliceNumSup - uniformScanInfo.sliceNumInf) + 1;
+        #Use scan access function in case of remote variables.
+        scanArraySup = self.scanArraySuperior
+        scanArrayInf = self.scanArrayInferior
+        nSupSlices = scanArraySup.shape[2]
+        if scanArraySup.size==0:
+            nSupSlices = 0
+        nInfSlices = scanArrayInf.shape[2]
+        if scanArrayInf.size==0:
+            nInfSlices = 0
+        zSize = nCTSlices + nSupSlices + nInfSlices
+        xSize = scanInfo[0].sizeOfDimension2
+        ySize = scanInfo[0].sizeOfDimension1
+
+        return ySize, xSize, zSize
+
+
     def getScanOrientation(self):
         """ Routine to get orientation of sacn w.r.t. patient.
 
