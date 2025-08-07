@@ -1,6 +1,8 @@
 import numpy as np
 from cerr.dataclasses import scan as scn
 
+EPS = np.finfo(float).eps
+
 def getDVH(structNum, doseNum, planC):
     """Routine to calculate Dose and Volume vectors to be used for Histogram calculation
 
@@ -364,3 +366,25 @@ def medianDose(doseBinsV,volsHistV):
     ind2 = int(np.ceil(ind))
 
     return (doseBinsV[ind1] + doseBinsV[ind2]) / 2
+
+def EUD(doseBinsV, volsHistV, exponent):
+    """
+    This routine computes the equivalent uniform dose given DVH and exponent.
+
+    Args:
+        doseBinsV: (List): vector of dose bin centers.
+        volsHistV (List): vector of volumes accumulated in corresponding dose bins.
+        exponent (int): exponent.
+
+    Returns:
+        Float: EUD
+
+    """
+    cumVolsV = np.cumsum(volsHistV)
+    cumVols2V = cumVolsV[-1] - cumVolsV
+    ind = np.max(np.where(volsHistV != 0)[0])
+    totalVolume = np.sum(volsHistV)
+    a = exponent + EPS
+
+    EUD = np.sum((doseBinsV ** a) * (volsHistV / totalVolume)) ** (1 / a)
+    return EUD
