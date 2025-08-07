@@ -367,7 +367,7 @@ def medianDose(doseBinsV,volsHistV):
 
     return (doseBinsV[ind1] + doseBinsV[ind2]) / 2
 
-def EUD(doseBinsV, volsHistV, exponent):
+def eud(doseBinsV, volsHistV, exponent):
     """
     This routine computes the equivalent uniform dose given DVH and exponent.
 
@@ -386,5 +386,5 @@ def EUD(doseBinsV, volsHistV, exponent):
     totalVolume = np.sum(volsHistV)
     a = exponent + EPS
 
-    EUD = np.sum((doseBinsV ** a) * (volsHistV / totalVolume)) ** (1 / a)
-    return EUD
+    result = np.sum((doseBinsV ** a) * (volsHistV / totalVolume)) ** (1 / a)
+    return result
