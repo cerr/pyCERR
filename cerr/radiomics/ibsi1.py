@@ -45,6 +45,13 @@ def getRadiomicsSettings(paramS):
     firstOrderEntropyBinNum = None
     textureBinNum = None
     textureBinWidth = None
+    cooccurType = None
+    rlmType = None
+    direction = None
+    szmDir = None
+    patch_radius = None
+    difference_threshold = None
+    offsetsM = []
     if  'offsetForEnergy' in [paramS['settings']['firstOrder']]:
         firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
     if 'binWidthEntropy' in paramS['settings']['firstOrder'] \
@@ -129,8 +136,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     featDict = {}
 
     firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum, \
-    cooccurType, rlmType, szmDir, patch_radius, difference_threshold, offsetsM, minClipIntensity, \
-    maxClipIntensity, textureBinNum, textureBinWidth  = getRadiomicsSettings(paramS)
+        cooccurType, rlmType, szmDir, patch_radius, difference_threshold, offsetsM, minClipIntensity, \
+        maxClipIntensity, textureBinNum, textureBinWidth  = getRadiomicsSettings(paramS)
     quantized3M = getQuantizedVolume(volToEval, paramS,
                        maskBoundingBox3M, textureBinNum,
                        minClipIntensity, maxClipIntensity,
