@@ -593,14 +593,17 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     # Pad scan as required for convolutional filtering
     filtPadMethod = 'mirror'
     filtPadSizeV = [3,3,3]
+    cropFlag = False
     if 'padding' in paramS['settings']:
         if 'method' in paramS['settings']['padding'] and paramS['settings']['padding']['method'].lower()!='none':
             filtPadMethod = paramS['settings']['padding']['method']
             filtPadSizeV = paramS['settings']['padding']['size']
             if len(filtPadSizeV)==2:
                 filtPadSizeV = [filtPadSizeV,0]
+            if 'cropToMask' in paramS["settings"]['padding']:
+                cropFlag = paramS["settings"]['padding']['cropToMask'].lower() == 'yes'
 
-        cropFlag = False
+        #cropFlag = False
         [volToEval,maskBoundingBox3M,outLimitsV] = padScan(resampScanBounds3M,\
         resampMaskBounds3M,filtPadMethod,filtPadSizeV,cropFlag)
 

@@ -38,10 +38,7 @@ def getDirectionOffsets(direction):
     return offsetsM
 
 
-def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS, rowColSlcOri='LPS'):
-
-    featDict = {}
-
+def getRadiomicsSettings(paramS):
     # Get feature extraction settings
     firstOrderOffsetEnergy = None
     firstOrderEntropyBinWidth = None
@@ -86,6 +83,8 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
             elif dirString == '2D':
                 direction = 2
                 szmDir = 2
+            offsetsM = getDirectionOffsets(direction)
+            offsetsM = offsetsM * glcmVoxelOffset
 
         # Min/Max for image quantization
         minClipIntensity = None
@@ -97,10 +96,15 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
                 isinstance(paramS['settings']['texture']['maxClipIntensity'], (int, float)):
             maxClipIntensity = paramS['settings']['texture']['maxClipIntensity']
 
-    # Shape  features
-    if 'shape' in paramS['featureClass'] and paramS['featureClass']['shape']["featureList"] != {}:
-        from cerr.radiomics.shape import calcShapeFeatures
-        featDict['shape'] = calcShapeFeatures(morphMask3M, gridS['xValsV'], gridS['yValsV'], gridS['zValsV'], rowColSlcOri)
+    return firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum, \
+            cooccurType, rlmType, szmDir, patch_radius, difference_threshold, offsetsM, \
+            minClipIntensity, maxClipIntensity, textureBinNum, textureBinWidth
+
+
+def getQuantizedVolume(volToEval, paramS,
+                       maskBoundingBox3M, textureBinNum,
+                       minClipIntensity, maxClipIntensity,
+                       textureBinWidth):
 
     # Assign nan values outside the mask, so that min/max within the mask are used for quantization
     volToEval[~maskBoundingBox3M] = np.nan
@@ -110,13 +114,33 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
         # Quantization
         quantized3M = preprocess.imquantize(volToEval, num_level=textureBinNum, \
                                             xmin=minClipIntensity, xmax=maxClipIntensity, binwidth=textureBinWidth)
-        nL = quantized3M.max()
 
-        if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
-            offsetsM = getDirectionOffsets(direction)
-            offsetsM = offsetsM * glcmVoxelOffset
+        # if any(name in ['glcm','glrlm','glszm'] for name in paramS['featureClass'].keys()):
+        #     offsetsM = getDirectionOffsets(direction)
+        #     offsetsM = offsetsM * glcmVoxelOffset
     else:
         quantized3M = volToEval
+
+    return quantized3M
+
+
+def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS, rowColSlcOri='LPS'):
+
+    featDict = {}
+
+    firstOrderOffsetEnergy, firstOrderEntropyBinWidth, firstOrderEntropyBinNum, \
+    cooccurType, rlmType, szmDir, patch_radius, difference_threshold, offsetsM, minClipIntensity, \
+    maxClipIntensity, textureBinNum, textureBinWidth  = getRadiomicsSettings(paramS)
+    quantized3M = getQuantizedVolume(volToEval, paramS,
+                       maskBoundingBox3M, textureBinNum,
+                       minClipIntensity, maxClipIntensity,
+                       textureBinWidth)
+    nL = quantized3M.max()
+
+    # Shape  features
+    if 'shape' in paramS['featureClass'] and paramS['featureClass']['shape']["featureList"] != {}:
+        from cerr.radiomics.shape import calcShapeFeatures
+        featDict['shape'] = calcShapeFeatures(morphMask3M, gridS['xValsV'], gridS['yValsV'], gridS['zValsV'], rowColSlcOri)
 
      # First order features
     if 'firstOrder' in paramS['featureClass'] and paramS['featureClass']['firstOrder']["featureList"] != {}:
@@ -156,6 +180,9 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
 
     return featDict
 
+
+def computeFeatureImportance():
+    pass
 
 
 def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
@@ -250,6 +277,7 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
                 featDictAllTypes = {**featDictAllTypes, **createFlatFeatureDict(featDict, imgFeatName, avgType, directionality, mapToIBSI)}
 
     return featDictAllTypes, diagS
+
 
 def getIBSINameMap():
     classDict = {'shape': 'morph',
