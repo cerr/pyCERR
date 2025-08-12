@@ -108,7 +108,7 @@ def logitFn(paramDict, doseBinList, volHistList):
 
                 if isinstance(predictorVal['val'], str):
                     if 'params' not in predictorVal:
-                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
+                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
                     else:
                         # Pass extra parameters (e.g., numFractions, abRatio)
                         params = predictorVal['params']
@@ -135,11 +135,11 @@ def appeltLogit(paramDict, doseBinList, volHistList):
     M. Bentzen (2014) Towards individualized dose constraints: Adjusting the QUANTEC
     radiation pneumonitis model for clinical risk factors, Acta Oncologica, 53:5, 605-612.
     Args:
-          paramDict: Dictionary specifying slope and intercept.
+          paramDict: Dictionary specifying predictors and associated coefficients.
           doseBinList: List of dose bins.
           volHistList: List of volumes corresponding to dose bins.
     Returns:
-          NTCP using logistic model.
+          NTCP using logistic model, following Appelt correction.
     """
 
     def _applyAppeltMod(D50_0, gamma50_0, OR):
@@ -216,7 +216,7 @@ def coxFn(paramDict, doseBinList, volHistList):
     """
     Evaluate Cox Proportional Hazards model.
     Args:
-          paramDict: Dictionary specifying slope and intercept.
+          paramDict: Dictionary specifying baseline hazard, predictors and coefficients.
           doseBinList: List of dose bins for input structures.
           volHistList: List of volumes corresponding to dose bins.
     Returns:
@@ -296,5 +296,3 @@ def coxFn(paramDict, doseBinList, volHistList):
         prob = _calcPa(H0, np.array(betaV), np.array(xV))
 
     return prob
-
-
