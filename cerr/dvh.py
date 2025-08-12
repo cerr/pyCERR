@@ -226,7 +226,7 @@ def MOCx(doseBinsV,volsHistV,percent):
     return moc
 
 
-def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
+def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
     """
     This routine computes the volume receiving at least x dose.
 
@@ -240,6 +240,14 @@ def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
     Returns:
         Float: Volume (absolute ot percentage)
     """
+
+    if isinstance(doseCutoff, dict): #For use with ROE
+        temp = doseCutoff
+        doseCutoff = temp['doseCutOff']['val']
+        volumeType = temp['volumeType']['val']
+
+    if volumeType is not None:
+        volumeType = 0   #Return vol in cc.
 
     # Add 0 to the beginning of volsHistV
     volsHistV = np.insert(volsHistV, 0, 0)
@@ -261,7 +269,7 @@ def Vx(doseBinsV,volsHistV,doseCutoff,volumeType):
     return vx
 
 
-def Dx(doseBinsV,volsHistV,volCutoff,volType):
+def Dx(doseBinsV,volsHistV,volCutoff,volType=None):
     """"
     This routine computes the minimum dose to the hottest x% volume.
 
@@ -276,8 +284,12 @@ def Dx(doseBinsV,volsHistV,volCutoff,volType):
         Float: Volume (absolute ot percentage)
     """
 
+    if isinstance(volCutoff, dict): #for use with ROE
+        volType = volCutoff['volType']['val']
+        volCutoff = volCutoff['volCutoff']['val']
+
     # Check if volType variable exists
-    if 'volType' not in locals():
+    if volType is not None:
         # warning('Input volume assumed to be in percentage. Set volType=0 for absolute values.')
         pass
     else:
