@@ -90,9 +90,9 @@ def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
         RadiomicsFirstOrderS['entropy'] = 0
     else:
         N = np.ceil((xmax - edgeMin) / binWidth).astype(int)
-        offsetForEntropy = -np.min(Iarray.min(),0)
+        offsetForEntropy = -np.min(np.nanmin(Iarray),0)
         xmin = 0
-        xmax = np.max(Iarray) + offsetForEntropy + binWidth/2
+        xmax = np.nanmax(Iarray) + offsetForEntropy + binWidth/2
         counts, _ = np.histogram(Iarray + offsetForEntropy, bins= np.arange(xmin,xmax,binWidth))
         RadiomicsFirstOrderS['entropy'] = entropy(counts, base=2)
 
