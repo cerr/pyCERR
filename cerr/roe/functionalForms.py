@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import erf
-from cerr.dvh import eud, meanDose
+from cerr.dvh import eud, meanDose, Dx, Vx
 
 def linearFn(paramDict, doseBinsV, volHistV):
     """
@@ -16,15 +16,17 @@ def linearFn(paramDict, doseBinsV, volHistV):
 
     # Get parameters
     intercept = paramDict['intercept']['val']
-    slope = paramDict['slope']['val']
 
-    structList = paramDict['structures']
-    dvhMetricName = structList[0].keys()
-    dvhMetricFn = structList[0][dvhMetricName[0]]['val']
-    dvhMetricVal = eval(dvhMetricFn + "(doseBinsV, volHistV)")
+    structDict = paramDict['structures']
+    structList = list(structDict.keys())
+    sum = 0
+    for structName in structList:
+        dvhMetricFn = structDict[structName]['val']
+        slope = structDict[structName]['weight']
+        sum = sum + slope * eval(dvhMetricFn + "(doseBinsV, volHistV)")
 
     #Compute NTCP
-    ntcp = intercept + slope * dvhMetricVal
+    ntcp = intercept + sum
 
     return ntcp
 
@@ -104,22 +106,22 @@ def logitFn(paramDict, doseBinList, volHistList):
                     doseBinsV = doseBinList
                     volHistV = volHistList
 
-                if isinstance(predictorVal['val'], 'str'):
-                    # Evaluate function using eval (assumes it's imported and available)
-                    paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
-                else:
-                    # Pass extra parameters (e.g., numFractions, abRatio)
-                    params = predictorVal['params']
-                    if 'numFractions' in paramDict:
-                        params['numFractions'] = {'val': paramDict['numFractions']['val']}
-                    if 'abRatio' in paramDict:
-                        params['abRatio'] = {'val': paramDict['abRatio']['val']}
+                if isinstance(predictorVal['val'], str):
+                    if 'params' not in predictorVal:
+                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
+                    else:
+                        # Pass extra parameters (e.g., numFractions, abRatio)
+                        params = predictorVal['params']
+                        if 'numFractions' in paramDict:
+                            params['numFractions'] = {'val': paramDict['numFractions']['val']}
+                        if 'abRatio' in paramDict:
+                            params['abRatio'] = {'val': paramDict['abRatio']['val']}
 
-                    paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
+                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
 
         return weightList, paramList
 
-    weight, x = _getParCoeff(paramDict, doseBinList, volHistList)
+    weight, x = _getParCoeff(paramDict, 'weight', doseBinList, volHistList)
     gx = np.sum(np.array(weight) * np.array(x))
     ntcp = 1 / (1 + np.exp(-gx))
     return ntcp
@@ -133,11 +135,11 @@ def appeltLogit(paramDict, doseBinList, volHistList):
     M. Bentzen (2014) Towards individualized dose constraints: Adjusting the QUANTEC
     radiation pneumonitis model for clinical risk factors, Acta Oncologica, 53:5, 605-612.
     Args:
-          paramDict: Dictionary specifying slope and intercept.
+          paramDict: Dictionary specifying predictors and associated coefficients.
           doseBinList: List of dose bins.
           volHistList: List of volumes corresponding to dose bins.
     Returns:
-          NTCP using logistic model.
+          NTCP using logistic model, following Appelt correction.
     """
 
     def _applyAppeltMod(D50_0, gamma50_0, OR):
@@ -214,7 +216,7 @@ def coxFn(paramDict, doseBinList, volHistList):
     """
     Evaluate Cox Proportional Hazards model.
     Args:
-          paramDict: Dictionary specifying slope and intercept.
+          paramDict: Dictionary specifying baseline hazard, predictors and coefficients.
           doseBinList: List of dose bins for input structures.
           volHistList: List of volumes corresponding to dose bins.
     Returns:
@@ -236,11 +238,12 @@ def coxFn(paramDict, doseBinList, volHistList):
             if genField.lower() == 'structures' and isinstance(genVal, dict):
                 for structName, structVal in genVal.items():
                     for parName, parVal in structVal.items():
-                        if 'cteg' in parVal or 'weight' in parVal:
+                        if 'weight' in parVal:
                             keepParS[f"{structName}{parName}"] = parVal
-            elif 'cteg' in genVal or 'weight' in genVal:
+            elif 'weight' in genVal:
                 keepParS[genField] = genVal
 
+            
         par = []
         coeff = []
         paramList = list(keepParS.keys())
@@ -293,5 +296,3 @@ def coxFn(paramDict, doseBinList, volHistList):
         prob = _calcPa(H0, np.array(betaV), np.array(xV))
 
     return prob
-
-
