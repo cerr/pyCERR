@@ -1128,13 +1128,13 @@ def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
     # Removing unnecessary data added in step 1
     if removeV[0]:
         for name in names:
-            subbands[name] = subbands[name][:-1, :, :]
+            subbands[name + '_' + waveletName] = subbands[name + '_' + waveletName][:-1, :, :]
     if removeV[1]:
         for name in names:
-            subbands[name] = subbands[name][:, :-1, :]
+            subbands[name + '_' + waveletName] = subbands[name + '_' + waveletName][:, :-1, :]
     if removeV[2]:
         for name in names:
-            subbands[name] = subbands[name][:, :, :-1]
+            subbands[name + '_' + waveletName] = subbands[name + '_' + waveletName][:, :, :-1]
 
     return subbands
 
