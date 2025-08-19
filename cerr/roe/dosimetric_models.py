@@ -1,6 +1,12 @@
+import json
 import numpy as np
 from scipy.special import erf
-from cerr.dvh import eud, meanDose, Dx, Vx
+
+from cerr.dvh import *
+from cerr.dvh import getDVH, doseHist
+from cerr.dataclasses.structure import getMatchingIndex
+from cerr.dataclasses.dose import fractionNumCorrect, fractionSizeCorrect
+
 
 def linearFn(paramDict, doseBinsV, volHistV):
     """
@@ -296,3 +302,143 @@ def coxFn(paramDict, doseBinList, volHistList):
         prob = _calcPa(H0, np.array(betaV), np.array(xV))
 
     return prob
+
+
+def biexpFn(paramDict, doseBinList, volHistList):
+    """
+    Evaluate bi-exponential model.
+    Args:
+          paramDict: Dictionary specifying, predictors and coefficients.
+          doseBinList: List of dose bins for input structures.
+          volHistList: List of volumes corresponding to dose bins.
+    Returns:
+          NTCP using biexponential model.
+    """
+
+    def _getParCoeff(paramDict, fieldName, doseBinList, volHistList):
+
+        keepParDict = {}
+
+        for genField in paramDict:
+            if genField.lower() == 'structures':
+                structS = paramDict[genField]
+                for structName in structS:
+                    strParamS = structS[structName]
+                    for parName in strParamS:
+                        entry = strParamS[parName]
+                        if 'weight' in entry:
+                            fullName = f"{structName}{parName}"
+                            keepParDict[fullName] = entry
+            else:
+                entry = paramDict[genField]
+                if 'weight' in entry:
+                    keepParDict[genField] = entry
+
+        weightList = []
+        paramList = []
+        numStr = 0
+
+        for predictorName, predictorVal in keepParDict.items():
+            weightList.append(predictorVal[fieldName])
+
+            if isinstance(predictorVal['val'], (int, float)):
+                paramList.append(predictorVal['val'])
+
+            else:  # val['val'] is a string referring to a function
+                if isinstance(doseBinList, list):  # multi-structure
+                    doseBinsV = doseBinList[numStr]
+                    volHistV = volHistList[numStr]
+                    numStr += 1
+                else:
+                    doseBinsV = doseBinList
+                    volHistV = volHistList
+
+                if isinstance(predictorVal['val'], str):
+                    if 'params' not in predictorVal:
+                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
+                    else:
+                        # Pass extra parameters (e.g., numFractions, abRatio)
+                        params = predictorVal['params']
+                        if 'numFractions' in paramDict:
+                            params['numFractions'] = {'val': paramDict['numFractions']['val']}
+                        if 'abRatio' in paramDict:
+                            params['abRatio'] = {'val': paramDict['abRatio']['val']}
+
+                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
+
+        return weightList, paramList
+
+    weights, predictors = _getParCoeff(paramDict, 'weight', doseBinList, volHistList)
+    ntcp = 0.5 * (np.exp(-weights[0] * predictors[0]) + np.exp(-weights[1] * predictors[1]))
+
+    return ntcp
+
+def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05):
+    """
+    Evaluate dosimetric model including fractionation correction where applicablegit add.
+    Args:
+          modelFile: Path to JSON file describing model parameters.
+          doseNum: Index of dose in planC
+          planC: plan container object
+          fSizeIn: Fraction size of input plan
+          fNumIn: Fraction no. of input plan
+          binWidth (float): Bin width for DVH calculation. Default:0.05
+    Returns:
+        Model-based NTCP.
+    """
+
+    # Read model parameters
+    with open(modelFile, 'r') as f:
+        model = json.load(f)
+
+    fields = list(model.keys())
+    modelFn = model['function']
+    paramDict = model['parameters']
+
+    fsizeCorr = False
+    fnumCorr = False
+    if 'fractionCorrect' in fields and model['fractionCorrect'].lower() == 'yes':
+        if model['correctionType'].lower() == 'fsize':
+            fsizeCorr = True
+            stdFsize = model['stdFractionSize']
+            abRatio = model['abRatio']
+            inputFrxsize = fSizeIn
+        elif model['correctionType'].lower() == 'fnum':
+            fnumCorr = True
+            stdFrxNum = model['stdNumFractions']
+            inputFrxNum = fNumIn
+
+    # Extract DVHs
+    modelStructs = model['parameters']['structures']
+    if isinstance(modelStructs, dict):
+        structureList = list(modelStructs.keys())
+    elif isinstance(modelStructs, str):
+        structureList = [modelStructs]
+    elif isinstance(modelStructs, list):
+        structureList = modelStructs
+        
+    availStructList = [cerrStr.structureName for cerrStr in planC.structure]
+
+    doseBinList = []
+    volHistList = []
+    for struct in structureList:
+        if isinstance(model['parameters']['structures'], dict) and \
+        isinstance(model['parameters']['structures'][struct], dict):
+            structNumV = getMatchingIndex(struct, availStructList, matchCriteria='exact')
+            dosesV, volsV, __ = getDVH(structNumV[0], doseNum, planC)
+            doseBinsV, volHistV = doseHist(dosesV, volsV, binWidth)
+
+            # Fractionation correction
+            if fsizeCorr:
+                corrDoseBinsV = fractionSizeCorrect(doseBinsV, stdFsize, abRatio, planC, inputFrxsize)
+            elif fnumCorr:
+                corrDoseBinsV = fractionNumCorrect(doseBinsV, stdFrxNum, abRatio, planC, inputFrxNum)
+            else:
+                corrDoseBinsV = doseBinsV
+
+            doseBinList.append(corrDoseBinsV)
+            volHistList.append(volHistV)
+
+    ntcp = eval(modelFn)(paramDict, doseBinList, volHistList)
+
+    return ntcp
