@@ -389,7 +389,11 @@ class Structure:
             if hasattr(ctr, 'segments'):
                 segList = []
                 for seg in ctr.segments:
-                    tempPtsM = np.hstack((seg.points.copy(), np.ones((seg.points.shape[0], 1))))
+                    tempPtsM = seg.points.copy()
+                    # Append 1st point to make it a closed planar
+                    if tempPtsM.shape[0] > 1 and not np.all(tempPtsM[0,:] == tempPtsM[-1,:]):
+                        tempPtsM = np.vstack([tempPtsM, tempPtsM[0,:]])
+                    tempPtsM = np.hstack((tempPtsM, np.ones((tempPtsM.shape[0], 1))))
                     if physicalUnitsFlag:
                         tempPtsM = np.matmul(transM, tempPtsM.T)
                     else:
