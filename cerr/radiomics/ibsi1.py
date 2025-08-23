@@ -51,7 +51,10 @@ def getRadiomicsSettings(paramS):
     szmDir = None
     patch_radius = None
     difference_threshold = None
+    minClipIntensity = None
+    maxClipIntensity = None
     offsetsM = []
+
     if  'offsetForEnergy' in [paramS['settings']['firstOrder']]:
         firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
     if 'binWidthEntropy' in paramS['settings']['firstOrder'] \
