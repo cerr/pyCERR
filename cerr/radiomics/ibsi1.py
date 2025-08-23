@@ -453,7 +453,7 @@ def createFieldNameFromParameters(imageType, settingS):
         if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
             settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
         fieldName = f"{imageType}_{settingsStr}"
-    elif imageType == 'rotationInvariantWavelets':
+    elif imageType == 'rotationinvariantwavelets':
         settingsStr = f"{settingS['Wavelets']}_{settingS['Index']}_{settingS['Direction']}"
         if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
                 settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"
