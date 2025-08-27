@@ -181,6 +181,7 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
     # NGLDM
     if 'gldm' in paramS['featureClass'] and paramS['featureClass']['gldm']["featureList"] != {}:
         s = neighbor_gray_level_dependence.calcNGLDM(quantized3M, patch_radius, nL, difference_threshold)
+        numVoxels = np.sum(maskBoundingBox3M.astype(int))
         featDict['gldm'] = neighbor_gray_level_dependence.ngldmToScalarFeatures(s, numVoxels)
 
     # NGTDM
