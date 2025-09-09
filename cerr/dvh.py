@@ -173,7 +173,7 @@ def doseHist(doseV, volsV, binWidth):
 # print("Dose Bins:", doseBinsV)
 # print("Volumes Histogram:", volsHistV)
 
-def MOHx(doseBinsV,volsHistV,percent):
+def MOHx(doseBinsV, volsHistV, percent):
     """
     This routine computes the mean of hottest x% dose.
 
@@ -185,6 +185,9 @@ def MOHx(doseBinsV,volsHistV,percent):
     Returns:
         Float: mean of the hottest x% dose
     """
+
+    if isinstance(percent, dict):
+        percent = percent['percent']['val']
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
@@ -200,7 +203,7 @@ def MOHx(doseBinsV,volsHistV,percent):
     return moh
 
 
-def MOCx(doseBinsV,volsHistV,percent):
+def MOCx(doseBinsV, volsHistV, percent):
     """
     This routine computes the mean of coldest x% dose.
 
@@ -212,6 +215,8 @@ def MOCx(doseBinsV,volsHistV,percent):
         Float: mean of the coldest x% dose
 
     """
+    if isinstance(percent, dict):
+        percent = percent['percent']['val']
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
@@ -241,10 +246,9 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
         Float: Volume (absolute ot percentage)
     """
 
-    if isinstance(doseCutoff, dict): #For use with ROE
-        temp = doseCutoff
-        doseCutoff = temp['doseCutOff']['val']
-        volumeType = temp['volumeType']['val']
+    if isinstance(doseCutoff, dict):  # For use with ROE
+        volumeType = doseCutoff['volumeType']['val']
+        doseCutoff = doseCutoff['doseCutOff']['val']
 
     if volumeType is not None:
         volumeType = 0   #Return vol in cc.
@@ -269,7 +273,7 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
     return vx
 
 
-def Dx(doseBinsV,volsHistV,volCutoff,volType=None):
+def Dx(doseBinsV, volsHistV, volCutoff, volType=None):
     """"
     This routine computes the minimum dose to the hottest x% volume.
 
@@ -284,7 +288,7 @@ def Dx(doseBinsV,volsHistV,volCutoff,volType=None):
         Float: Volume (absolute ot percentage)
     """
 
-    if isinstance(volCutoff, dict): #for use with ROE
+    if isinstance(volCutoff, dict):  # for use with ROE
         volType = volCutoff['volType']['val']
         volCutoff = volCutoff['volCutoff']['val']
 
@@ -307,7 +311,7 @@ def Dx(doseBinsV,volsHistV,volCutoff,volType=None):
 
     return dx
 
-def meanDose(doseBinsV,volsHistV):
+def meanDose(doseBinsV, volsHistV):
     """
     This routine computes the mean dose
 
@@ -322,7 +326,7 @@ def meanDose(doseBinsV,volsHistV):
 
     return np.sum(doseBinsV * volsHistV) / np.sum(volsHistV)
 
-def minDose(doseBinsV,volsHistV):
+def minDose(doseBinsV, volsHistV):
     """
     This routine computes the minimum dose
 
@@ -338,7 +342,7 @@ def minDose(doseBinsV,volsHistV):
     ind = np.where(volsHistV != 0)[0][0]
     return doseBinsV[ind]
 
-def maxDose(doseBinsV,volsHistV):
+def maxDose(doseBinsV, volsHistV):
     """
     This routine computes the maximum dose
 
@@ -354,7 +358,7 @@ def maxDose(doseBinsV,volsHistV):
     ind = np.where(volsHistV != 0)[0][-1]
     return doseBinsV[ind]
 
-def medianDose(doseBinsV,volsHistV):
+def medianDose(doseBinsV, volsHistV):
     """
     This routine computes the median dose
 

@@ -678,9 +678,9 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
     scanV = volToEval[maskBoundingBox3M]
     diagS['numVoxelsOrig'] = mask3M.sum()
     diagS['numVoxelsInterpReseg'] = maskBoundingBox3M.sum()
-    diagS['meanIntensityInterpReseg'] = scanV.mean()
-    diagS['maxIntensityInterpReseg'] = scanV.max()
-    diagS['minIntensityInterpReseg'] = scanV.min()
+    diagS['meanIntensityInterpReseg'] = np.nanmean(scanV)
+    diagS['maxIntensityInterpReseg'] = np.nanmax(scanV)
+    diagS['minIntensityInterpReseg'] = np.nanmin(scanV)
 
     # Return output image grid
     gridS = {'xValsV': xResampleV,
