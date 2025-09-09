@@ -11,9 +11,7 @@ import os
 import json
 import warnings
 
-from math import sqrt
 import numpy as np
-import nibabel as nib
 import SimpleITK as sitk
 
 from dataclasses import dataclass, field
@@ -715,12 +713,12 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
     else:
         doseArray = dose
 
-    Na = inputFrxNum
-    Nb = stdFrxNum
+    Na = float(inputFrxNum)
+    Nb = float(stdFrxNum)
     a = Na
     b = Na * Nb * abRatio
     c = -doseArray * (b + doseArray * Nb)
-    correctedDose = (-b + sqrt(b ^ 2 - 4 * a * c)) / (2 * a)
+    correctedDose = (-b + np.sqrt(b**2 - 4 * a * c)) / (2 * a)
 
     return correctedDose
 
