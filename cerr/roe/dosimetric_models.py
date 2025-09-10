@@ -165,10 +165,10 @@ def appeltLogit(paramDict, doseBinList, volHistList):
             if genField.lower() == 'structures' and isinstance(genVal, dict):
                 for structName, structVal in genVal.items():
                     for parName, parEntry in structVal.items():
-                        if 'weight' in parEntry:
+                        if 'OR' in parEntry:
                             fullName = f"{structName}{parName}"
                             keepParS[fullName] = parEntry
-            elif 'weight' in genVal:
+            elif 'OR' in genVal:
                 keepParS[genField] = genVal
 
         coeffList = []
@@ -205,7 +205,7 @@ def appeltLogit(paramDict, doseBinList, volHistList):
             gamma50_0 = paramDict['gamma50_0']['val']
 
             orList, weightList = _getParCoeff(paramDict, 'OR', doseBinsV, volHistV)
-            orMult = [o for o, w in zip(orList, weightList) if w == 1]
+            orMult = [w for o, w in zip(orList, weightList) if o == 1]
             OR = np.prod(orMult)
 
             D50, gamma50 = _applyAppeltMod(D50_0, gamma50_0, OR)
@@ -293,7 +293,7 @@ def coxFn(paramDict, doseBinList, volHistList):
         raise ValueError("Missing required parameter: baselineHazard")
 
     idx = matchIdx[0]
-    H0 = betaV[idx]
+    H0 = xV[idx]
     betaV.pop(idx)
     xV.pop(idx)
 
@@ -817,7 +817,7 @@ def getTreatmentSchedule(nFrx, scheduleType):
     return treatmentDays
 
 
-def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05):
+def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
     """
     Evaluate dosimetric model including fractionation correction where applicablegit add.
     Args:
@@ -828,6 +828,7 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05):
           fSizeIn: Fraction size of input plan
           fNumIn: Fraction no. of input plan
           binWidth (float): Bin width for DVH calculation. Default:0.05
+          mode: Set to 'test' for unit tests using single-voxel structures.
     Returns:
         Model-based NTCP.
     """
@@ -883,12 +884,23 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05):
             doseBinsV, volHistV = doseHist(dosesV, volsV, binWidth)
 
             # Fractionation correction
-            if fsizeCorr:
-                corrDoseBinsV = fractionSizeCorrect(doseBinsV, stdFsize, abRatio, planC, inputFrxsize)
-            elif fnumCorr:
-                corrDoseBinsV = fractionNumCorrect(doseBinsV, stdFrxNum, abRatio, planC, inputFrxNum)
+
+            if mode == 'test':
+                # Single-voxel structure
+                if fsizeCorr:
+                    corrDoseBinsV = fractionSizeCorrect(dosesV, stdFsize, abRatio, planC, inputFrxsize)
+                elif fnumCorr:
+                    corrDoseBinsV = fractionNumCorrect(dosesV, stdFrxNum, abRatio, planC, inputFrxNum)
+                else:
+                    corrDoseBinsV = dosesV
+                volHistV = volsV
             else:
-                corrDoseBinsV = doseBinsV
+                if fsizeCorr:
+                    corrDoseBinsV = fractionSizeCorrect(doseBinsV, stdFsize, abRatio, planC, inputFrxsize)
+                elif fnumCorr:
+                    corrDoseBinsV = fractionNumCorrect(doseBinsV, stdFrxNum, abRatio, planC, inputFrxNum)
+                else:
+                    corrDoseBinsV = doseBinsV
 
             doseBinList.append(corrDoseBinsV)
             volHistList.append(volHistV)
