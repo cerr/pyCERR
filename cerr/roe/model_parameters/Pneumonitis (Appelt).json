@@ -1,0 +1,58 @@
+{
+	"name": "Pneumonitis (Appelt)",
+	"type": "NTCP",
+	"stdNumFractions": 35,
+	"fractionCorrect": "Yes",
+	"correctionType": "frxnum",
+	"abRatio": 3,
+	"parameters": {
+
+   			"structures": "Lung_GTV",
+	
+			"appeltMod": {"val": "Yes"},
+			
+                        "D50_0": {"val": 34.4},
+
+                        "gamma50_0": {"val": 1.19},
+
+			"formerSmoker": {
+					  "val": 0,
+					  "OR": 0.69,
+					  "desc": {"No": 0, "Yes": 1}
+					},
+	
+			"currentSmoker": {
+ 					  "val": 0,	                  
+					  "OR": 0.62,
+					  "desc": {"No": 0, "Yes": 1}			  	
+					 },
+				
+			"over63yrs": {
+					"val": 0,			
+					"OR": 1.66,
+					"desc": {"No": 0, "Yes": 1}				     	 
+				     },
+                       	
+			"pulmonaryComorbidity": {
+						  "val": 0,
+						  "OR": 2.27,
+					  	  "desc": ["No","Yes"]	
+						},
+
+			"sequentialChemo": {
+					    "val": 0,
+					    "OR": 1.60,
+					    "desc": ["No","Yes"]	
+					   },
+ 
+			"lowerMidLobe": {
+					  "val": 0,
+					  "OR": 1.87,
+					  "desc": ["No","Yes"]	
+					}
+			}
+,
+	"function": "appeltLogit",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "09/04/2025"
+}

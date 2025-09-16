@@ -1,0 +1,27 @@
+{
+	"name": "Esophagitis (Huang)",
+	"type": "NTCP",
+	"stdNumFractions": 35,
+	"fractionCorrect": "Yes",
+	"correctionType": "frxnum",
+	"abRatio": 10,
+	"parameters": {
+
+ 		"structures": {
+			       "Esophagus":{
+                			  "meanDose": {"val": "meanDose", "weight": 0.0688}
+				              }
+		},
+
+		"concurrentChemo": {
+					"weight": 1.5, "val": 0, "desc": {"No": 0, "Yes": 1}
+		},
+
+		"constant": {
+					"weight": 1, "val": -3.13
+		}
+	},
+	"function": "logitFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "08/12/2025"
+}

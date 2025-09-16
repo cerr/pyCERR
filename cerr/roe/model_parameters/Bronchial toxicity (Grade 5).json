@@ -1,0 +1,30 @@
+{
+	"name": "Pulmonary toxicity (grade 5)",
+	"type": "NTCP",
+    "stdFractionSize": 2,
+	"fractionCorrect": "Yes",
+	"correctionType": "fsize",
+	"abRatio": 3,
+  	"parameters":{
+		       "constant": { 
+				     		"val": -3.865,
+				     		"weight": 1
+			               },
+
+		       "structures": {
+				   "PBT_protocol": {
+					   "D0.1": {
+						   "weight": 0.011,
+						   "val": "Dx",
+						   "params": {
+							   "volCutoff": {"val": 0.01},
+							   "volType": {"val": 0}
+						   }
+					   }
+				   }
+			   }
+	},
+	"function": "logitFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "08/11/2025"
+}

@@ -1,0 +1,18 @@
+{
+	"name": "Bronchial stenosis (cox)",
+	"type": "NTCP",
+	"fractionCorrect": "No",
+  	"parameters": 
+        	     {
+		       "structures":{
+                            		"Bronchi":{
+					        	"meanDose":{"weight":  0.0629, "val": "meanDose"}   
+		                       }
+                        },
+                        "baselineHazard": { "val": 0.00887, "weight": 1 }
+
+	},
+	"function": "coxFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "8/12/2025"
+}
