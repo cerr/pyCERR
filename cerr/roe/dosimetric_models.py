@@ -817,9 +817,9 @@ def getTreatmentSchedule(nFrx, scheduleType):
     return treatmentDays
 
 
-def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
+def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
     """
-    Evaluate dosimetric model including fractionation correction where applicablegit add.
+    Returns corrected dose bins and associated vol. histograms for structures involved.
     Args:
           modelFile: Path to JSON file describing model parameters OR
                      Dictionary of model parameters
@@ -833,27 +833,28 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
         Model-based NTCP.
     """
 
+    # Read input model parameters
     optFields = ['numFractions','frxSize','abRatio']
-    # Read model parameters
     if isinstance(modelFile, dict):
         model = modelFile
+        dictFields = list(model.keys())
     else:
         with open(modelFile, 'r') as f:
             model = json.load(f)
+            dictFields = list(model.keys())
 
-    dictFields = list(model.keys())
-    modelFn = model['function']
+    # Copy fractionation correction settings to parameter dictionary
     paramDict = model['parameters']
-
-    #Copy optional parameters
     for field in optFields:
         if field in dictFields:
             paramDict[field] = {'val': model[field]}
 
 
+    # Calc. corrected D-V bins
     fsizeCorr = False
     fnumCorr = False
     if 'fractionCorrect' in dictFields and model['fractionCorrect'].lower() == 'yes':
+        # Identify correciton type
         if model['correctionType'].lower() == 'frxsize':
             fsizeCorr = True
             stdFsize = model['stdFractionSize']
@@ -864,8 +865,7 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
             inputFrxNum = fNumIn
         abRatio = float(model['abRatio'])
 
-
-    # Extract DVHs
+    # Identify structures involved
     modelStructs = model['parameters']['structures']
     if isinstance(modelStructs, dict):
         structureList = list(modelStructs.keys())
@@ -873,38 +873,64 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
         structureList = [modelStructs]
     elif isinstance(modelStructs, list):
         structureList = modelStructs
-        
     availStructList = [cerrStr.structureName for cerrStr in planC.structure]
 
+    # Loop over structures
     doseBinList = []
     volHistList = []
     for struct in structureList:
-            structNumV = getMatchingIndex(struct, availStructList, matchCriteria='exact')
-            dosesV, volsV, __ = getDVH(structNumV[0], doseNum, planC)
-            doseBinsV, volHistV = doseHist(dosesV, volsV, binWidth)
+        # Extract DVH
+        structNumV = getMatchingIndex(struct, availStructList, matchCriteria='exact')
+        dosesV, volsV, __ = getDVH(structNumV[0], doseNum, planC)
+        doseBinsV, volHistV = doseHist(dosesV, volsV, binWidth)
 
-            # Fractionation correction
-
-            if mode == 'test':
-                # Single-voxel structure
-                if fsizeCorr:
-                    corrDoseBinsV = fractionSizeCorrect(dosesV, stdFsize, abRatio, planC, inputFrxsize)
-                elif fnumCorr:
-                    corrDoseBinsV = fractionNumCorrect(dosesV, stdFrxNum, abRatio, planC, inputFrxNum)
-                else:
-                    corrDoseBinsV = dosesV
-                volHistV = volsV
+        # Fractionation correction
+        if mode == 'test':
+            # Single-voxel structure
+            if fsizeCorr:
+                corrDoseBinsV = fractionSizeCorrect(dosesV, stdFsize, abRatio, planC, inputFrxsize)
+            elif fnumCorr:
+                corrDoseBinsV = fractionNumCorrect(dosesV, stdFrxNum, abRatio, planC, inputFrxNum)
             else:
-                if fsizeCorr:
-                    corrDoseBinsV = fractionSizeCorrect(doseBinsV, stdFsize, abRatio, planC, inputFrxsize)
-                elif fnumCorr:
-                    corrDoseBinsV = fractionNumCorrect(doseBinsV, stdFrxNum, abRatio, planC, inputFrxNum)
-                else:
-                    corrDoseBinsV = doseBinsV
+                corrDoseBinsV = dosesV
+            volHistV = volsV
+        else:
+            if fsizeCorr:
+                corrDoseBinsV = fractionSizeCorrect(doseBinsV, stdFsize, abRatio, planC, inputFrxsize)
+            elif fnumCorr:
+                corrDoseBinsV = fractionNumCorrect(doseBinsV, stdFrxNum, abRatio, planC, inputFrxNum)
+            else:
+                corrDoseBinsV = doseBinsV
 
-            doseBinList.append(corrDoseBinsV)
-            volHistList.append(volHistV)
+        doseBinList.append(corrDoseBinsV)
+        volHistList.append(volHistV)
 
+    return doseBinList, volHistList, model
+
+def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
+    """
+    Evaluate dosimetric model including fractionation correction where applicable.
+    Args:
+          modelFile: Path to JSON file describing model parameters OR
+                     Dictionary of model parameters
+          doseNum: Index of dose in planC
+          planC: plan container object
+          fSizeIn: Fraction size of input plan
+          fNumIn: Fraction no. of input plan
+          binWidth (float): Bin width for DVH calculation. Default:0.05
+          mode: Set to 'test' for unit tests using single-voxel structures.
+    Returns:
+        Model-based NTCP.
+    """
+
+    # Get corrected dose bins and associated volumes for structures involved
+    doseBinList, volHistList, model = get_corrected_dvbins(modelFile, doseNum, planC,
+                                                           fSizeIn=fSizeIn, fNumIn=fNumIn,
+                                                           binWidth=binWidth, mode=mode)
+
+    # Evaluate model
+    modelFn = model['function']
+    paramDict = model['parameters']
     ntcp = eval(modelFn)(paramDict, doseBinList, volHistList)
 
     return ntcp
