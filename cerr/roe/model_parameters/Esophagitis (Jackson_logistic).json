@@ -1,0 +1,27 @@
+{
+  "name": "Esophagitis grade 2+ (Jackson)",
+  "type": "NTCP",
+  "stdFractionSize": 2,
+  "fractionCorrect": "Yes",
+  "correctionType": "frxsize",
+  "abCorrect": "Yes",
+  "abRatio": 10,
+  "parameters": {
+			"structures": {
+				"Esophagus":{
+						    "D3": {    
+								"weight": 0.0882,
+								"val": "Dx",
+								"params": {
+					   				   	  	"volCutoff": {"val": 3}, "volType": {"val": 0}}
+                          		  }
+
+                          	}
+            },
+            "constant": {
+							"weight": 1, "val": -4.53}
+  },
+  "function": "logitFn",
+  "author": "Aditi Iyer (iyera@mskcc.org)",
+  "date_created": "08/12/2025"
+}

@@ -1,0 +1,20 @@
+{
+
+	"name": "Rectal bleeding (Grade 2+)",
+	"type": "NTCP",
+	"stdFractionSize": 2,
+	"fractionCorrect": "Yes",
+	"correctionType": "frxsize",
+	"abRatio": 3,
+	"parameters": {
+
+		"structures": "Rectum",
+		"D50": {"val": 76.9},
+		"m": {"val": 0.13},
+		"n": {"val": 0.09}
+
+	},
+	"function": "LKBFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "09/12/2025"
+}

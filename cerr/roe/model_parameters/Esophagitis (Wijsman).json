@@ -1,0 +1,35 @@
+{
+	"name": "Esophagitis (Wijsman)",
+	"type": "NTCP",
+	"stdFractionSize": 2,
+	"fractionCorrect": "Yes",
+	"correctionType": "frxsize",
+	"abRatio": 10,
+	"parameters": {
+
+		"structures": { 
+			       "Esophagus":{
+                				"meanDose": {"weight": 0.117, "val": "meanDose"}
+		                        }
+        },
+		"gender": {
+					"weight": 1.204, "val": 0, "desc": {"Male": 0, "Female": 1}
+                  },
+
+		"concurrentChemo": {
+					"weight": 2.645, "val": 0, "desc": {"No": 0, "Yes": 1}
+                  },
+
+		"tumorStage": {
+					"weight": 0.994, "val": 0, "desc": {"cT1/2": 0, "cT3/4":  1}
+			      },
+
+        "constant": {
+					"weight": 1, "val": -6.418
+				  }
+
+	},
+	"function": "logitFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "8/12/2025"
+}

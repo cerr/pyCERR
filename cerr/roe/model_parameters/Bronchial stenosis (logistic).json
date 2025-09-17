@@ -1,0 +1,17 @@
+{
+	"name": "Bronchial stenosis (logistic)",
+	"type": "NTCP",
+	"fractionCorrect": "No",
+  	"parameters": 
+        	     {
+		       "structures":{
+                            "Bronchi":{
+						"meanDose":{"weight": 0.0644, "val": "meanDose"}   
+		                           }
+                      },
+                      "constant": {"weight": 1, "val": -5.17}
+	},
+	"function": "logitFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "09/09/2025"
+}
