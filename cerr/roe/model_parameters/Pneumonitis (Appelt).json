@@ -36,19 +36,19 @@
 			"pulmonaryComorbidity": {
 						  "val": 0,
 						  "OR": 2.27,
-					  	  "desc": ["No","Yes"]	
+					  	  "desc": {"No":0 ,"Yes":1}	
 						},
 
 			"sequentialChemo": {
 					    "val": 0,
 					    "OR": 1.60,
-					    "desc": ["No","Yes"]	
+					    "desc": {"No":0, "Yes":1}	
 					   },
  
 			"lowerMidLobe": {
 					  "val": 0,
 					  "OR": 1.87,
-					  "desc": ["No","Yes"]	
+					  "desc": {"No":0, "Yes":1}	
 					}
 			}
 ,
