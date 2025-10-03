@@ -5,25 +5,29 @@ structure, dose and vector field.
 
 """
 
+import importlib
 import typing
 import warnings
+from typing import Annotated
+
+import ipywidgets as widgets
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
+from IPython.display import clear_output
+from IPython.display import display
+from ipywidgets import interactive_output
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
 from skimage import measure
+
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.scan as scn
 import cerr.dataclasses.structure as cerrStr
 import cerr.plan_container as pc
-import matplotlib.pyplot as plt
-from IPython.display import clear_output
-import ipywidgets as widgets
-from ipywidgets import interact, interactive_output
-from IPython.display import display
-from typing import Annotated, Literal
-import importlib
+from cerr.utils import custom_colormaps
+
 if importlib.util.find_spec('napari') is not None:
     import napari
     from napari.layers import Labels, Image
@@ -742,8 +746,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     #viewer.window.add_dock_widget(dock_widget, name="pyCERR")
     #viewer.window.add_dock_widget(cross, name="Cross", area="left")
 
-
-    scan_colormaps = ["gray","bop orange","bop purple", "cyan", "green", "blue"] * 5
+    starinterp_colormap = vispy.color.Colormap(custom_colormaps.starInterp())
+    scan_colormaps = ["gray",("star (interp)", starinterp_colormap),
+                      "bop orange","bop purple", "cyan", "green", "blue"] * 5
     scan_layers = []
     for i, scan_num in enumerate(scan_nums):
         sa = planC.scan[scan_num].getScanArray()
@@ -754,12 +759,12 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             center = 0
             width = 300
         else:
-            minScan = np.percentile(sa, 5)
+            minScan = np.nanpercentile(sa, 5)
             scanNoBkgdV = sa[sa > minScan]
-            center = np.median(scanNoBkgdV)
-            lowerVal = np.percentile(scanNoBkgdV, 5)
-            upperVal = np.percentile(scanNoBkgdV, 95)
-            width = 2 * np.max([center - lowerVal, upperVal - center])
+            center = np.nanmedian(scanNoBkgdV)
+            lowerVal = np.nanpercentile(scanNoBkgdV, 5)
+            upperVal = np.nanpercentile(scanNoBkgdV, 95)
+            width = 2 * np.nanmax([center - lowerVal, upperVal - center])
         scanWindow = {'name': "--- Select ---",
                       'center': center,
                       'width': width}
@@ -794,7 +799,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                       "width": widthDose}
         assocScanNum = scn.getScanNumFromUID(planC.dose[dose_num].assocScanUID, planC)
         dose_lyr = viewer.add_image(doseArray,name=dose_name, affine=dose_affine,
-                                  opacity=0.5,colormap="turbo",
+                                  opacity=0.5,colormap=('starInterp', starinterp_colormap),
                                   blending="additive",interpolation2d="linear",
                                   interpolation3d="linear",
                                   metadata = {'dataclass': 'dose',
