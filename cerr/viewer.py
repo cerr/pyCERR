@@ -36,7 +36,7 @@ if importlib.util.find_spec('napari') is not None:
     from magicgui import magicgui
     from magicgui.widgets import FunctionGui
     import vispy.color
-    from napari.utils import DirectLabelColormap
+    from napari.utils import DirectLabelColormap, Colormap
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -63,7 +63,7 @@ def initialize_image_window_widget() -> FunctionGui:
         wdth = float(Width)
         minVal = ctr - wdth/2
         maxVal = ctr + wdth/2
-        contrast_limits_range = [minVal, maxVal]
+        #contrast_limits_range = [minVal, maxVal]
         contrast_limits = [minVal, maxVal]
         windowDict = {"name": CT_Window,
                       "center": ctr,
@@ -78,6 +78,7 @@ def initialize_image_window_widget() -> FunctionGui:
             metaDict = {'dataclass': metaDict['dataclass'],
                                    'planC': metaDict['planC'],
                                    'doseNum': metaDict['doseNum'],
+                                   'assocScanNum': metaDict['assocScanNum'],
                                    'window': windowDict}
         else:
             return
@@ -88,7 +89,7 @@ def initialize_image_window_widget() -> FunctionGui:
         #               'metadata': metaDict }
         scanDict = {'name': image.name,
                     'metadata': metaDict }
-        image.contrast_limits_range = contrast_limits_range
+        #image.contrast_limits_range = contrast_limits_range
         image.contrast_limits = contrast_limits
         return (image.data, scanDict, "image")
     return image_window
@@ -746,7 +747,13 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     #viewer.window.add_dock_widget(dock_widget, name="pyCERR")
     #viewer.window.add_dock_widget(cross, name="Cross", area="left")
 
-    starinterp_colormap = vispy.color.Colormap(custom_colormaps.starInterp())
+    #starinterp_colormap = vispy.color.Colormap(custom_colormaps.starInterp())
+    starinterp_colormap = Colormap(
+        colors=custom_colormaps.starInterp(),
+        name="star (interp)",
+        nan_color=[0, 0, 0., 0] # transparent color
+    )
+
     scan_colormaps = ["gray",("star (interp)", starinterp_colormap),
                       "bop orange","bop purple", "cyan", "green", "blue"] * 5
     scan_layers = []
@@ -782,7 +789,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     dose_layers = []
     for dose_num in dose_nums:
-        doseArray = planC.dose[dose_num].doseArray
+        doseArray = planC.dose[dose_num].doseArray.copy()
         dose_name = planC.dose[dose_num].fractionGroupID
         xd,yd,zd = planC.dose[dose_num].getDoseXYZVals()
         yd = -yd # negative since napari viewer y increases from top to bottom
@@ -969,7 +976,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         image_window_widget.Center.value = center
         image_window_widget.Width.value = width
         image_window_widget.CT_Window.value = windows_name
-        image.contrast_limits_range = rangeVal
+        #image.contrast_limits_range = rangeVal
         image.contrast_limits = rangeVal
         update_colorbar(image)
         return
@@ -1030,16 +1037,29 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     def contrast_changed(event):
         image = event.source
-        contrast_limits = image.contrast_limits
-        center = (contrast_limits[0] + contrast_limits[1]) / 2
-        width = contrast_limits[1] - contrast_limits[0]
-        scanWindow = {'name': "--- Select ---",
-                      'center': center,
-                      'width': width}
-        image.metadata['window'] = scanWindow
-        image_window_widget.Center.value = scanWindow['center']
-        image_window_widget.Width.value = scanWindow['width']
-        image_window_widget.CT_Window.value = scanWindow['name']
+        #contrast_limits = image.contrast_limits
+        #minClipValue = contrast_limits[0]
+        #maxClipValue = contrast_limits[1]
+        #dataclass = image.metadata['dataclass']
+        #if dataclass == 'scan':
+        #    data = planC.scan[image.metadata['scanNum']].getScanArray()
+        #elif dataclass == 'dose':
+        #    data = planC.dose[image.metadata['doseNum']].doseArray.copy()
+        #data[data <= minClipValue] = minClipValue
+        #data[data >= maxClipValue] = maxClipValue
+        #image.data = data
+        #contrast_limits_range = image.contrast_limits_range
+        #center = (contrast_limits_range[0] + contrast_limits_range[1]) / 2
+        #width = contrast_limits_range[1] - contrast_limits_range[0]
+        #scanWindow = {'name': "--- Select ---",
+        #              'center': center,
+        #              'width': width}
+        #image.metadata['window'] = scanWindow
+        #image_window_widget.Center.value = scanWindow['center']
+        #image_window_widget.Width.value = scanWindow['width']
+        #image_window_widget.CT_Window.value = scanWindow['name']
+        update_colorbar(image)
+        #image.refresh()
 
         return
 
@@ -1120,8 +1140,8 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         with plt.style.context('dark_background'):
             #mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 0.1)))
             if imgType in  ['scan', 'dose']:
-                minVal = image.contrast_limits_range[0]
-                maxVal = image.contrast_limits_range[1]
+                minVal = image.contrast_limits[0]
+                maxVal = image.contrast_limits[1]
                 mz_canvas = dose_colorbar_widget
                 norm = mpl.colors.Normalize(vmin=minVal, vmax=maxVal)
             elif imgType in ['dvf']:
