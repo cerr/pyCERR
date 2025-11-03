@@ -6,10 +6,11 @@ structure, dose and vector field.
 """
 
 import importlib
+import os
+import pathlib
 import typing
 import warnings
 from typing import Annotated
-
 import ipywidgets as widgets
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -37,7 +38,6 @@ if importlib.util.find_spec('napari') is not None:
     from magicgui.widgets import FunctionGui
     import vispy.color
     from napari.utils import DirectLabelColormap, Colormap
-
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -94,8 +94,8 @@ def initialize_image_window_widget() -> FunctionGui:
         return (image.data, scanDict, "image")
     return image_window
 
-def initialize_struct_save_widget() -> FunctionGui:
-    @magicgui(label={'label': 'Select Structure', 'nullable': True}, call_button = 'Save')
+def initialize_struct_edit_widget() -> FunctionGui:
+    @magicgui(label={'label': 'Edit Structure', 'nullable': True}, call_button = 'Save edits')
     def struct_save(label: Labels, overwrite_existing_structure = True) -> LayerDataTuple:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
@@ -121,7 +121,7 @@ def initialize_struct_save_widget() -> FunctionGui:
             colr = np.array(planC.structure[-1].structureColor) / 255
         else:
             #colr = label.color[1]
-            colr = label.colormap.color_dict[1]
+            colr = label.colormap.color_dict[1] # foreground color
         planC = pc.importStructureMask(mask3M, assocScanNum, structName, planC, structNum)
         if structNum is None:
             # Assign the index of added structure
@@ -134,7 +134,8 @@ def initialize_struct_save_widget() -> FunctionGui:
                      'blending': 'translucent',
                      'opacity': 1,
                      'colormap': cmap,
-                      'metadata': {'planC': planC,
+                      'metadata': {'dataclass': 'structure',
+                                   'planC': planC,
                                    'structNum': structNum,
                                    'assocScanNum': scanNum,
                                    'isocenter': isocenter} }
@@ -142,7 +143,7 @@ def initialize_struct_save_widget() -> FunctionGui:
         return (mask3M, labelDict, "labels")
     return struct_save
 
-def initialize_struct_add_widget() -> FunctionGui:
+def initialize_struct_create_widget() -> FunctionGui:
     @magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
     def struct_add(image: Image, structure_name = "") -> Labels:
         # do something with whatever layer the user has selected
@@ -160,13 +161,82 @@ def initialize_struct_add_widget() -> FunctionGui:
                                 blending='translucent',
                                 opacity = 1,
                                 colormap = cmap,
-                                metadata = {'planC': planC,
+                                metadata = {'dataclass': 'structure',
+                                            'planC': planC,
                                             'structNum': None,
                                             'assocScanNum': scanNum,
                                             'isocenter': [None, None, None]})
         shp.contour = 0
         return shp
     return struct_add
+
+
+def getLabelsDict(vwr):
+    labelDict = {}
+    ind = 1
+    for lyr in vwr.layers:
+        if isinstance(lyr, Labels) and lyr.metadata['dataclass'] == 'structure' and lyr.metadata['structNum'] is not None:
+            strName = lyr.metadata['planC'].structure[lyr.metadata['structNum']].structureName
+            labelDict[str(ind) + '_' + strName] = lyr.metadata['structNum']
+            ind += 1
+    return labelDict
+
+def getLabelsList(vwr):
+    labelDict = getLabelsDict(vwr)
+    allLabelNames = list(labelDict.keys())
+    return allLabelNames
+
+def initialize_struct_export_widget(vwr) -> FunctionGui:
+    labelDict = getLabelsDict(vwr)
+    allLabelNames = list(labelDict.keys())
+    defaultSelected = ()
+    if len(allLabelNames) > 0:
+        defaultSelected = allLabelNames[0]
+    @magicgui(structures=dict(widget_type='Select', label='Structures to Export',
+                              allow_multiple=True, nullable=False,
+                              choices=allLabelNames),
+              file_format={"choices": ['DICOM', 'NifTi'], "label": 'File Format'},
+              file_name={"mode": "w", "filter": "*.dcm"},
+              call_button='Export',
+              auto_call=False)
+    def struct_export(structures=defaultSelected, file_format='DICOM', file_name=pathlib.Path(os.path.join(os.getcwd(), '*.dcm'))) -> None:
+        for lyr in vwr.layers:
+            if 'planC' in lyr.metadata:
+                planC = lyr.metadata['planC']
+                break
+        structsToExport = []
+        niiLabelDict = {}
+        ind = 1
+        for label in structures:
+            structNum = labelDict[label]
+            structsToExport.append(structNum)
+            niiLabelDict[structNum] = ind
+            ind += 1
+        # Check file_name
+        saveDir = os.path.dirname(file_name)
+        saveDirExists = os.path.exists(saveDir)
+        if not saveDirExists:
+            print('Cannot export structure. Directory not found.')
+            return
+
+        if file_format == 'DICOM':
+            # DICOM export
+            from cerr.dcm_export import rtstruct_iod
+            if str(file_name)[-4:] == '.dcm':
+                rtstruct_iod.create(structNumV = structsToExport, filePath = file_name, planC = planC, seriesOpts = {'SeriesDescription':'Exported from pyCERR'})
+                print('Exported structures to ' + str(file_name))
+            else:
+                print('Cannot export structure. Invalid file name.')
+        else:
+            # Nii export
+            if str(file_name)[-7:] == '.nii.gz':
+                pc.saveNiiStructure(file_name,niiLabelDict,planC,structsToExport)
+                print('Exported structures to ' + str(file_name))
+            else:
+                print('Cannot export structure. Invalid file name.')
+        return None
+    return struct_export
+
 
 
 def checkerboard_indices(shape, tile_size, evenTiles=True):
@@ -930,8 +1000,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     #viewer.axes.visible = True
     #if len(struct_layer)> 0:
     image_window_widget = initialize_image_window_widget()
-    struct_add_widget = initialize_struct_add_widget()
-    struct_save_widget = initialize_struct_save_widget()
+    struct_add_widget = initialize_struct_create_widget()
+    struct_save_widget = initialize_struct_edit_widget()
+    struct_export_widget = initialize_struct_export_widget(viewer)
     dose_select_widget = initialize_dose_select_widget()
     dose_colorbar_widget = initialize_dose_colorbar_widget()
     dvf_colorbar_widget = initialize_dvf_colorbar_widget()
@@ -995,6 +1066,23 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         if ctrWidth is None:
             return
         image_window_widget.CT_Window.value = '--- Select ---'
+        return
+
+    def structure_export_format_changed(file_format):
+        if file_format is None:
+            return
+        if file_format == 'DICOM':
+            fileExt = '*.dcm'
+        else:
+            fileExt = '*.nii.gz'
+        struct_export_widget.file_name.filter = fileExt
+        struct_export_widget.file_name.value = ''
+        return
+
+    def struct_export_widget_reset_choices(widgt):
+        allStructureLabels = getLabelsList(viewer)
+        if set(struct_export_widget.structures.choices) != set(allStructureLabels):
+            struct_export_widget.structures.choices = allStructureLabels
         return
 
     def label_changed(widgt):
@@ -1301,12 +1389,14 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
     # Change slice to center of that structure
     struct_save_widget.changed.connect(label_changed)
+    struct_save_widget.called.connect(struct_export_widget_reset_choices)
     image_window_widget.image.changed.connect(image_changed)
     image_window_widget.CT_Window.changed.connect(window_changed)
     image_window_widget.Center.changed.connect(center_width_changed)
     image_window_widget.Width.changed.connect(center_width_changed)
     scanWidget = viewer.window.add_dock_widget([image_window_widget], area='left', name="Window", tabify=True)
-    structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget], area='left', name="Segmentation", tabify=True)
+    struct_export_widget.file_format.changed.connect(structure_export_format_changed)
+    structWidget = viewer.window.add_dock_widget([struct_add_widget, struct_save_widget, struct_export_widget], area='left', name="Segmentation", tabify=True)
     colorbars_dock = viewer.window.add_dock_widget([dose_colorbar_widget], area='right', name="Image Colorbar", tabify=True)
     dvf_dock = viewer.window.add_dock_widget([dvf_colorbar_widget], area='right', name="DVF Colorbar", tabify=True)
     reg_qa_dock = viewer.window.add_dock_widget(reg_qa_widget, area='left', name="Reg QA", tabify=True)

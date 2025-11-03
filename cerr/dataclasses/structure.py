@@ -1387,7 +1387,7 @@ def getLabelMap(planC, labelDict=None, strNumV=None, dim=3):
     #     # Assign default labels
     #     for idx in range(len(strNumV)):
     #         strName = planC.structure[strNumV[idx]].structureName
-    #         labelDict[idx + 1] = strName
+    #         labelDict[strName] = idx + 1
 
     strList = [s.structureName for s in planC.structure]
     if strNumV is None or len(strNumV) == 0:
