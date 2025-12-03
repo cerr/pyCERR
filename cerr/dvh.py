@@ -194,7 +194,7 @@ def MOHx(doseBinsV, volsHistV, percent):
 
     inds = np.where(cumVols2V / cumVolsV[-1] <= percent / 100)[0]
 
-    if len(inds) == 0:
+    if len(inds) == 0 or np.sum(volsHistV[inds]) == 0:
         moh = 0
     else:
         moh = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
@@ -223,7 +223,7 @@ def MOCx(doseBinsV, volsHistV, percent):
 
     inds = np.where(cumVols2V / cumVolsV[-1] >= (100-percent) / 100)[0]
 
-    if len(inds) == 0:
+    if len(inds) == 0 or np.sum(volsHistV[inds]) == 0:
         moc = 0
     else:
         moc = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
@@ -258,7 +258,7 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
-    inds = np.where(doseBinsV >= doseCutoff)
+    inds = np.where(doseBinsV >= doseCutoff)[0]
     if len(inds) == 0:
         vx = 0
     else:
@@ -302,8 +302,8 @@ def Dx(doseBinsV, volsHistV, volCutoff, volType=None):
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
-    ind = np.where(np.array(cumVols2V) / cumVolsV[-1] < volCutoff / 100)
-    if len(ind[0]) > 0:
+    ind = np.where(np.array(cumVols2V) / cumVolsV[-1] < volCutoff / 100)[0]
+    if len(ind) > 0:
         ind = np.min(ind)
         dx = doseBinsV[ind]
     else:
