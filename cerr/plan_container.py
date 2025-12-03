@@ -22,7 +22,7 @@ from cerr.dataclasses import dose as rtds
 from cerr.dataclasses import scan as scn
 from cerr.dataclasses import deform as dfrm
 from cerr.dataclasses import structure as structr
-from cerr.dataclasses.structure import Contour, getLabelMap, getMaskList
+from cerr.dataclasses.structure import Contour, getLabelMap, createSitkImage
 from cerr.dataclasses import header as headr
 
 def get_empty_list():
@@ -131,29 +131,39 @@ def saveNiiStructure(niiFileName, labelDict, planC, strNumV=None, dim=3):
     if isinstance(strNumV, (int, float, np.number)):
         strNumV = [strNumV]
 
-    if dim == 3:
-        # Export label map
-        maskOut, strNumV = getLabelMap(planC, labelDict, strNumV)
-    elif dim == 4:
-        # Export stack of binary masks
-        # Required for overlapping structures
-        maskList = getMaskList(strNumV, planC, labelDict=labelDict)
-        maskOut = np.array(maskList)
-    else:
-        raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
+    scanNumV = [scn.getScanNumFromUID(planC.structure[strNum].assocScanUID, planC) for strNum in strNumV]
+    assocScanNum = np.unique(scanNumV)
+    if len(assocScanNum) > 1:
+        return
+    assocScanNum = assocScanNum[0]
+    maskOut, strNumV = getLabelMap(planC, labelDict, strNumV, dim)
 
-    maskOut = np.moveaxis(maskOut,[0,1],[1,0])
+    maskImg = createSitkImage(maskOut, assocScanNum, planC)
+    sitk.WriteImage(maskImg, niiFileName)
 
-    assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
 
-    # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
-    if scn.flipSliceOrderFlag(planC.scan[assocScan]): # np.all(np.sign(zDiff) < 0):
-        #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
-        maskOut = np.flip(maskOut,axis=2)
-
-    affine3M = planC.scan[assocScan].getNiiAffine()
-    strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
-    nib.save(strImg, niiFileName)
+    # if dim == 3:
+    #     # Export label map
+    #     maskOut, strNumV = getLabelMap(planC, labelDict, strNumV, dim)
+    # elif dim == 4:
+    #     # Export stack of binary masks
+    #     # Required for overlapping structures
+    #     maskList = getLabelMap(planC, labelDict, strNumV, dim)
+    # else:
+    #     raise ValueError("Invalid input. dim must be 3 (label map) or 4 (stack of binary masks)")
+    #
+    # maskOut = np.moveaxis(maskOut,[0,1],[1,0])
+    #
+    # assocScan = planC.structure[strNumV[0]].getStructureAssociatedScan(planC)
+    #
+    # # https://neurostars.org/t/direction-orientation-matrix-dicom-vs-nifti/14382/2
+    # if scn.flipSliceOrderFlag(planC.scan[assocScan]): # np.all(np.sign(zDiff) < 0):
+    #     #if not planC.scan[scan_num].isCerrSliceOrderMatchDcm():
+    #     maskOut = np.flip(maskOut,axis=2)
+    #
+    # affine3M = planC.scan[assocScan].getNiiAffine()
+    # strImg = nib.Nifti1Image(maskOut.astype('uint16'), affine3M)
+    # nib.save(strImg, niiFileName)
 
     return 0
 

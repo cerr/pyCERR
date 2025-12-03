@@ -254,31 +254,11 @@ class Structure:
             sitk.Image: SimpleITK Image with value of 1 assigned to segmented pixels
 
         """
-
-        assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
         mask3M = rs.getStrMask(self, planC)
-        sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1)) # z,y,x order
-        # CERR slice ordering is opposite of DICOM
-        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
-            sitkArray = np.flip(sitkArray, axis = 0)
-        originXyz = list(np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
-        xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
-        dx = np.abs(xV[1] - xV[0]) * 10
-        dy = np.abs(yV[1] - yV[0]) * 10
-        dz = np.abs(zV[1] - zV[0]) * 10
-        spacing = [dx, dy, dz]
-        img_ori = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
-        slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
-                       - img_ori[[2,0,1]] * img_ori[[4,5,3]]
-        # Get row-major directions for ITK
-        dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
-        direction = dir_cosine_mat.reshape(9,order='C')
-        img = sitk.GetImageFromArray(sitkArray)
-        img = sitk.Cast(img, sitk.sitkUInt8)
-        img.SetOrigin(originXyz)
-        img.SetSpacing(spacing)
-        img.SetDirection(direction)
+        assocScanNum = scn.getScanNumFromUID(self.assocScanUID, planC)
+        img = createSitkImage(mask3M, assocScanNum, planC)
         return img
+
 
     def getContourPolygons(self, planC, rcsFlag=False, dicomFlag=False):
         """This routine returns the list of polygonal coordinates for all the segments of input structutre.
@@ -801,17 +781,43 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
         resample.SetReferenceImage(scanImage)
         resample.SetInterpolator(getattr(sitk,'sitkNearestNeighbor'))
         resample.SetDefaultPixelValue(extrapVal)
-        resampMaskImage = resample.Execute(image)
-        maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
 
-        all_labels = np.unique(maskOnScan3M)
-        all_labels = all_labels[all_labels != 0]
-        if len(labels_dict) == 0:
-            for label in all_labels:
-                labels_dict[label] = "Label " + str(label)
+        imgSize = image.GetSize()
+        if len(imgSize) == 3:
+            resampMaskImage = resample.Execute(image)
+            maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
 
-        for label in labels_dict.keys():
-            planC = importStructureMask(maskOnScan3M == label, assocScanNum, labels_dict[label], planC, None)
+            all_labels = np.unique(maskOnScan3M)
+            all_labels = all_labels[all_labels != 0]
+            if len(labels_dict) == 0:
+                for label in all_labels:
+                    labels_dict["Label " + str(label)] = label
+
+            for index, (key,label) in enumerate(labels_dict.items()):
+                planC = importStructureMask(maskOnScan3M == label, assocScanNum, key, planC, None)
+
+        elif len(imgSize) == 4:
+            # Create the filter
+            extractFilter = sitk.ExtractImageFilter()
+            size3d = list(imgSize)
+            size3d[3] = 0
+            extractFilter.SetSize(size3d)
+            maskList = []
+            labelList = []
+            for i in range(imgSize[-1]):
+                extractFilter.SetIndex([0,0,0,i])
+                resampMaskImage = extractFilter.Execute(image)
+                maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
+                maskList.append(maskOnScan3M)
+                labelList.append(max(np.unique(maskOnScan3M)))
+
+            if len(labels_dict) == 0:
+                for label in labelList:
+                    labels_dict["Label " + str(label)] = label
+
+            for index, (key,label) in enumerate(labels_dict.items()):
+                ind = labelList.index(label)
+                planC = importStructureMask(maskList[ind] == label, assocScanNum, key, planC, None)
 
     return planC
 
@@ -922,6 +928,70 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
     planC.structure[structNum].rasterSegments = rs.generateRastersegs(planC.structure[structNum], planC)
     return planC
+
+def createSitkImage(mask3M, assocScanNum, planC):
+    """
+    Args:
+        mask3M (np.ndarray or int or list): binary mask for segmentation which is of the same shape as the associated scan,
+                            Or a list of structure indices from planC.structure
+        assocScanNum (int): index of scan object within planC.scan to associate the structure
+        planC (cerr.plan_container.PlanC): pyCERR's container object
+        structNum (int or None): optional, index of structure object within planC.structure to replace
+
+    Returns:
+        SimpleITK.Image: SimpleITK Image
+    """
+
+    # Get Image coordinates
+    originXyz = list(np.matmul(planC.scan[assocScanNum].Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
+    xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
+    dx = np.abs(xV[1] - xV[0]) * 10
+    dy = np.abs(yV[1] - yV[0]) * 10
+    dz = np.abs(zV[1] - zV[0]) * 10
+    spacing = [dx, dy, dz]
+    img_ori = planC.scan[assocScanNum].scanInfo[0].imageOrientationPatient
+    slice_normal = img_ori[[1,2,0]] * img_ori[[5,3,4]] \
+                   - img_ori[[2,0,1]] * img_ori[[4,5,3]]
+    # Get row-major directions for ITK
+    dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
+    direction = dir_cosine_mat.reshape(9,order='C')
+
+    # 3-d vs 4-d
+    if isinstance(mask3M, np.ndarray) and len(mask3M.shape) == 3:
+        sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1)) # z,y,x order
+        # CERR slice ordering is opposite of DICOM
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+            sitkArray = np.flip(sitkArray, axis = 0)
+        img = sitk.GetImageFromArray(sitkArray)
+        maxLabelVal = mask3M.max()
+        if maxLabelVal < 256:
+            img = sitk.Cast(img, sitk.sitkUInt8)
+        else:
+            img = sitk.Cast(img, sitk.sitkFloat32)
+        img.SetOrigin(originXyz)
+        img.SetSpacing(spacing)
+        img.SetDirection(direction)
+    else:
+        sitkArray = []
+        # Extract each 3D slice from the numpy array
+        for ind in range(len(mask3M)):
+            # Get the 3D slice and convert it to a SimpleITK image
+            vol3M = np.transpose(mask3M[ind].astype(int), (2, 0, 1)) # z,y,x order
+            # CERR slice ordering is opposite of DICOM
+            if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+                vol3M = np.flip(vol3M, axis = 0)
+            volImg = sitk.GetImageFromArray(vol3M)
+            if mask3M[ind].max() < 256:
+                volImg = sitk.Cast(volImg, sitk.sitkUInt8)
+            else:
+                volImg = sitk.Cast(volImg, sitk.sitkFloat32)
+            volImg.SetOrigin(originXyz)
+            volImg.SetSpacing(spacing)
+            volImg.SetDirection(direction)
+            sitkArray.append(volImg)
+        img = sitk.JoinSeries(sitkArray)
+
+    return img
 
 
 def getColorForStructNum(structNum):
@@ -1416,7 +1486,7 @@ def getLabelMap(planC, labelDict=None, strNumV=None, dim=3):
                 #    raise Exception("Overlapping structures encountered. Please set dim=4.")
                 labelMap[mask3M] = strLabel
     elif dim == 4:
-        labelMap = np.array(getMaskList(strNumV, planC, labelDict=labelDict))
+        labelMap = getMaskList(strNumV, planC, labelDict=labelDict)
     else:
         raise ValueError("Invalid input. Dim must be 3 or 4.")
 
@@ -1448,18 +1518,21 @@ def getMaskList(strNumV, planC, labelDict=None):
     for idx in range(len(strNumV)):
         scanNum = scn.getScanNumFromUID(planC.structure[strNumV[idx]].assocScanUID, planC)
         mask3M = rs.getStrMask(strNumV[idx], planC)
+        mask3M = mask3M.astype(int)
         strName = planC.structure[strNumV[idx]].structureName
         #matchLabels = [label for label in allLabels if labelDict[label] == strName]
         #strLabel = matchLabels[0] if len(matchLabels)>0 else None
         if strName in allLabels:
             strLabel = labelDict[strName]
+            mask3M[mask3M == 1] = strLabel
         else:
             continue
-        mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
-        if scn.flipSliceOrderFlag(planC.scan[scanNum]):
-            mask3M = np.flip(mask3M, axis=2)
-        if isinstance(strLabel, str):
-                strLabel = int(strLabel)
-        maskList.insert(strLabel-1, mask3M)
+        #mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
+        #if scn.flipSliceOrderFlag(planC.scan[scanNum]):
+        #    mask3M = np.flip(mask3M, axis=2)
+        #if isinstance(strLabel, str):
+        #        strLabel = int(strLabel)
+        #maskList.insert(strLabel-1, mask3M)
+        maskList.append(mask3M)
 
     return maskList
