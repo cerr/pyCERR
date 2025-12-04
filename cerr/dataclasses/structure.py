@@ -1492,15 +1492,15 @@ def getLabelMap(planC, labelDict=None, strNumV=None, dim=3):
 
     return labelMap, strNumV
 
-def getMaskList(strNumV, planC, labelDict=None):
+def getMaskList(strNumV, planC, labelDict=None, binFlag=False):
     """
-        Function to create list of binary masks of user-specified structures.
+        Function to create list of label maps (default) or binary masks (binFlag=True) of user-specified structures.
 
         Args:
             strNumV: list of structure indices to be exported.
             planC: pyCERR plan_container object.
             labelDict: [optional, default={}] dictionary mapping indices with structure names.
-
+            binFlag: Set to true to return binary masks rather than label maps (default)
         Returns:
            maskList: list(dtype=bool) of binary masks.
     """
@@ -1524,7 +1524,8 @@ def getMaskList(strNumV, planC, labelDict=None):
         #strLabel = matchLabels[0] if len(matchLabels)>0 else None
         if strName in allLabels:
             strLabel = labelDict[strName]
-            mask3M[mask3M == 1] = strLabel
+            if not binFlag:
+                mask3M[mask3M == 1] = strLabel
         else:
             continue
         #mask3M = np.moveaxis(mask3M, [0, 1], [1, 0])
