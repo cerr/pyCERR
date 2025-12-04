@@ -250,7 +250,7 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
         volumeType = doseCutoff['volumeType']['val']
         doseCutoff = doseCutoff['doseCutOff']['val']
 
-    if volumeType is not None:
+    if volumeType is None:
         volumeType = 0   #Return vol in cc.
 
     # Add 0 to the beginning of volsHistV
@@ -273,7 +273,7 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
     return vx
 
 
-def Dx(doseBinsV, volsHistV, volCutoff, volType=None):
+def Dx(doseBinsV, volsHistV, volCutoff, volumeType=None):
     """"
     This routine computes the minimum dose to the hottest x% volume.
 
@@ -289,19 +289,20 @@ def Dx(doseBinsV, volsHistV, volCutoff, volType=None):
     """
 
     if isinstance(volCutoff, dict):  # for use with ROE
-        volType = volCutoff['volType']['val']
+        volumeType = volCutoff['volType']['val']
         volCutoff = volCutoff['volCutoff']['val']
 
     # Check if volType variable exists
-    if volType is not None:
+    if volumeType is None:
         # warning('Input volume assumed to be in percentage. Set volType=0 for absolute values.')
-        pass
-    else:
-        if not volType:
-            volCutoff = volCutoff / np.sum(volsHistV) * 100
+        volumeType = 1 # in percentage
+    if volumeType == 0: # convert to percentage
+        volCutoff = volCutoff / np.sum(volsHistV) * 100
 
     cumVolsV = np.cumsum(volsHistV)
     cumVols2V = cumVolsV[-1] - cumVolsV
+    if volCutoff == 0:
+        volCutoff += np.finfo(float).eps
     ind = np.where(np.array(cumVols2V) / cumVolsV[-1] < volCutoff / 100)[0]
     if len(ind) > 0:
         ind = np.min(ind)
