@@ -897,8 +897,8 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
         #     ind = ind[0][0]
         # else:
         #     raise Exception('No matching slices found.')
-        sopClassUID = planC.scan[assocScanNum].scanInfo[slc].sopClassUID
-        sopInstanceUID = planC.scan[assocScanNum].scanInfo[slc].sopInstanceUID
+        sopClassUID = planC.scan[assocScanNum].scanInfo[slcNum].sopClassUID
+        sopInstanceUID = planC.scan[assocScanNum].scanInfo[slcNum].sopInstanceUID
 
         num_contours = len(contours)
         for iContour, contour in enumerate(contours):
