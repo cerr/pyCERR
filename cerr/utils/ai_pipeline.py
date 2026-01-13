@@ -28,6 +28,8 @@ def createSessionDir(sessionPath, inputDicomPath, inputSubDirs=None):
         _, folderNam = os.path.split(inputDicomPath[:-1])
     else:
         _, folderNam = os.path.split(inputDicomPath)
+    folderNam = folderNam.replace("(","").replace(")","")
+    print(f'folderNam: {folderNam}')
 
     dateTimeV = datetime.now().timetuple()[:6]
     randStr = f"{random.random() * 1000:.3f}"
