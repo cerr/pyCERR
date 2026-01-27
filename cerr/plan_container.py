@@ -415,7 +415,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         dcmDir (str): absolute path to directory containing dicom files
         opts (dict): dictionary of import options. Currently supported options are:
                      'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
-                    e.g.  opts = {'suvType': 'LBM'}
+                     'groupByAcquisitionNumber': Choose from True, False (default)
+                    e.g.  opts = {'suvType': 'LBM', 'groupByAcquisitionNumber': True}
         initplanC (PlanC): An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
 
     Returns:
@@ -440,7 +441,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     numOrigStructs = len(planC.structure)
     numOrigDoses = len(planC.dose)
-    pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
+
+    if 'groupByAcquisitionNumber' in opts and opts['groupByAcquisitionNumber'] == True:
+        pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
+    else:
+        grouping_cols = [c for c in df_img.columns.to_list()[:-1] if c != 'AcquisitionNumber']
+        pt_groups = df_img.groupby(by=grouping_cols, dropna=False)
+
     pt_groups.size()
     for group_name,group_content in pt_groups:
         print(group_name)
