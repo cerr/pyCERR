@@ -99,6 +99,7 @@ class ScanInfo:
         patientIdentityRemoved (str): A text string describing the de-identification method.
         deIdentificationMethod (str): Indicates whether patient identity has been removed.
         deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
+        ContrastBolusAgent (str):  Contrast or bolus agent.
 
     """
 
@@ -198,6 +199,7 @@ class ScanInfo:
     patientIdentityRemoved: str = ''
     deIdentificationMethod: str = ''
     deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
+    contrastBolusAgent: str = ''
 
 
 @dataclass

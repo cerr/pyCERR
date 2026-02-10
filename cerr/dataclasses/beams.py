@@ -347,27 +347,27 @@ def load_beams(file_list):
                 num_beams = len(ds.BeamSequence)
                 for beam in ds.BeamSequence:
                     bs = BeamSeq()
-                    bs.Manufacturer: beam.Manufacturer
-                    bs.BeamName: beam.BeamName
-                    bs.BeamType: beam.BeamType
-                    bs.BeamDescription: beam.BeamDescription
-                    bs.BeamNumber: beam.BeamNumber
-                    bs.SourceAxisDistance: beam.SourceAxisDistance
+                    bs.Manufacturer = beam.Manufacturer
+                    bs.BeamName = beam.BeamName
+                    bs.BeamType = beam.BeamType
+                    bs.BeamDescription = beam.BeamDescription
+                    bs.BeamNumber = int(beam.BeamNumber)
+                    bs.SourceAxisDistance = float(beam.SourceAxisDistance)
                     limit_sevice_seq = np.array([])
                     for limitDevSeq in beam.BeamLimitingDeviceSequence:
                         seq = BeamLimitingDevicePositionSeq()
                         seq.RTBeamLimitingDeviceType = limitDevSeq.RTBeamLimitingDeviceType
                         if hasattr(limitDevSeq, "LeafJawPositions"):
-                            seq.LeafJawPositions = limitDevSeq.LeafJawPositions
+                            seq.LeafJawPositions = np.array(limitDevSeq.LeafJawPositions)
                         limit_sevice_seq = np.append(limit_sevice_seq,seq)
                     bs.BeamLimitingDevicePositionSeq = limit_sevice_seq
                     bs.RadiationType = beam.RadiationType
                     bs.TreatmentDeliveryType = beam.TreatmentDeliveryType
-                    bs.NumberOfWedges = beam.NumberOfWedges
-                    bs.NumberOfBoli = beam.NumberOfBoli
-                    bs.NumberOfCompensators = beam.NumberOfCompensators
-                    bs.NumberOfBlocks = beam.NumberOfBlocks
-                    bs.NumberOfControlPoints = beam.NumberOfControlPoints
+                    bs.NumberOfWedges = float(beam.NumberOfWedges)
+                    bs.NumberOfBoli = float(beam.NumberOfBoli)
+                    bs.NumberOfCompensators = float(beam.NumberOfCompensators)
+                    bs.NumberOfBlocks = float(beam.NumberOfBlocks)
+                    bs.NumberOfControlPoints = float(beam.NumberOfControlPoints)
                     ctr_pt_seq = np.array([])
                     for ctr_pt in beam.ControlPointSequence:
                         c = ControlPointSequence()
@@ -376,32 +376,32 @@ def load_beams(file_list):
                             for lim_seq in ctr_pt.BeamLimitingDevicePositionSequence:
                                 beam_lim_pos_seq = BeamLimitingDevicePositionSeq()
                                 beam_lim_pos_seq.RTBeamLimitingDeviceType = lim_seq.RTBeamLimitingDeviceType
-                                beam_lim_pos_seq.LeafJawPositions = lim_seq.LeafJawPositions
+                                beam_lim_pos_seq.LeafJawPositions = np.array(lim_seq.LeafJawPositions)
                                 beam_lim_pos_seq_list = np.append(beam_lim_pos_seq_list,beam_lim_pos_seq)
                         c.BeamLimitingDevicePositionSequence = beam_lim_pos_seq_list
                         c.ControlPointIndex = ctr_pt.ControlPointIndex
                         if hasattr(ctr_pt, "NominalBeamEnergy"):
-                            c.NominalBeamEnergy = ctr_pt.NominalBeamEnergy
+                            c.NominalBeamEnergy = float(ctr_pt.NominalBeamEnergy)
                         if hasattr(ctr_pt, "GantryAngle"):
-                            c.GantryAngle = ctr_pt.GantryAngle
+                            c.GantryAngle = float(ctr_pt.GantryAngle)
                         if hasattr(ctr_pt, "GantryRotationDirection"):
                             c.GantryRotationDirection = ctr_pt.GantryRotationDirection
                         if hasattr(ctr_pt, "BeamLimitingDeviceAngle"):
-                            c.BeamLimitingDeviceAngle = ctr_pt.BeamLimitingDeviceAngle
+                            c.BeamLimitingDeviceAngle = float(ctr_pt.BeamLimitingDeviceAngle)
                         if hasattr(ctr_pt, "BeamLimitingDeviceRotationDirection"):
                             c.BeamLimitingDeviceRotationDirection = ctr_pt.BeamLimitingDeviceRotationDirection
                         if hasattr(ctr_pt, "PatientSupportAngle"):
-                            c.PatientSupportAngle = ctr_pt.PatientSupportAngle
+                            c.PatientSupportAngle = float(ctr_pt.PatientSupportAngle)
                         if hasattr(ctr_pt, "TableTopEccentricAngle"):
-                            c.TableTopEccentricAngle = ctr_pt.TableTopEccentricAngle
+                            c.TableTopEccentricAngle = float(ctr_pt.TableTopEccentricAngle)
                         if hasattr(ctr_pt, "TableTopEccentricRotationDirection"):
                             c.TableTopEccentricRotationDirection = ctr_pt.TableTopEccentricRotationDirection
                         if hasattr(ctr_pt, "IsocenterPosition"):
-                            c.IsocenterPosition = ctr_pt.IsocenterPosition
+                            c.IsocenterPosition = np.array(ctr_pt.IsocenterPosition)
                         if hasattr(ctr_pt, "SourceToSurfaceDistance"):
-                            c.SourceToSurfaceDistance = ctr_pt.SourceToSurfaceDistance
+                            c.SourceToSurfaceDistance = float(ctr_pt.SourceToSurfaceDistance)
                         if hasattr(ctr_pt, "CumulativeMetersetWeight"):
-                            c.CumulativeMetersetWeight = ctr_pt.CumulativeMetersetWeight
+                            c.CumulativeMetersetWeight = float(ctr_pt.CumulativeMetersetWeight)
                         ctr_pt_seq = np.append(ctr_pt_seq,c)
                     bs.ControlPointSequence = ctr_pt_seq
                     beam_item_list = np.append(beam_item_list,bs)
