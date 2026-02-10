@@ -35,7 +35,8 @@ dependencies = [
     'shapelysmooth',
     'matplotlib <= 3.9.0',
     'ipywidgets',
-    'surface-distance @ git+https://github.com/google-deepmind/surface-distance.git'
+    'surface-distance @ git+https://github.com/google-deepmind/surface-distance.git',
+    'itk-strain'
 ]
 
 [project.urls]
