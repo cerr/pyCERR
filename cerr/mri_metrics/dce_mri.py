@@ -885,7 +885,7 @@ def batchSelectStartOfUptake(baseDir, saveDir):
                 # timeV = np.array([extractTime(seriesDesc) for seriesDesc in seriesDescList]) / 60  # in min
                 #  -------
 
-                scanArr4M, timeV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, timeV)
+                scanArr4M, timeV, mask3M, maskSlcV = loadTimeSeq(planC, structNum)
 
                 # Save uptake curve for middle slice
                 midSlc = int(round(len(maskSlcV) / 2))
