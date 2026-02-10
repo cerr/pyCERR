@@ -13,3 +13,5 @@ pandas
 shapelysmooth
 ipywidgets
 napari[all]
+surface-distance @ git+https://github.com/google-deepmind/surface-distance.git
+itk-strain
