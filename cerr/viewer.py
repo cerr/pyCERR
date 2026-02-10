@@ -852,7 +852,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
                                             metadata = {'dataclass': 'scan',
                                                      'planC': planC,
                                                      'scanNum': scan_num,
-                                                     'window': scanWindow},
+                                                     'window': scanWindow}
                                             ))
         scan_layers[-1].contrast_limits = [center-width/2, center+width/2]
         scan_layers[-1].contrast_limits_range = [center-width/2, center+width/2]
@@ -1176,9 +1176,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     def dims_order_changed(event):
         dims = event.source
         if dims.order == (1,0,2): # Axial
-            viewer.dims.order = (2,0,1)
+           viewer.dims.order = (2,0,1)
         elif dims.order == (0,1,2):
-            viewer.dims.order = (0,2,1)
+           viewer.dims.order = (0,2,1)
         #mirror_scope_changed(reg_qa_widget)
         reset_mirror_position( )
         update_colorbar(viewer.layers.selection.active)
@@ -1436,6 +1436,9 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     update_colorbar(scan_layers[0])
     if len(dvf_layer) > 0:
         update_colorbar(dvf_layer[0])
+
+    #from napari_orthogonal_views.ortho_view_manager import show_orthogonal_views
+    #show_orthogonal_views(viewer)
 
     viewer.show(block=False)
     #napari.run()

@@ -9,6 +9,9 @@
 import os
 import numpy as np
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
 from cerr import plan_container as pc
 from cerr.radiomics import texture_utils
 import matplotlib.pyplot as plt
@@ -41,6 +44,8 @@ def list_tests():
                 'Optional inputs:\n '
                 'savePath: Write NIfTI response maps to location (default:None)\n '
                 'vis     : If True, display IBSI consensus map, pyCERR-computed response map, and difference map (default: False).')
+
+
 def load_data(synthDataset):
     """ Load CERR archive, return scan and mask(all ones)"""
 
@@ -64,7 +69,6 @@ def plot_slice(data1, data2, data3, slice_idx):
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     plt.subplots_adjust(right=0.85)
     titles = ['IBSI consensus', 'pyCERR output', 'Difference']
-    # Clear each axis, plot the selected slice, and add a colorbar
     for ax, vol, title in zip(axes, (data1, data2, data3), titles):
         ax.clear()
         im = ax.imshow(vol[:, :, slice_idx], cmap='gray', origin='lower')
@@ -290,6 +294,96 @@ def run_ibsi_image_filters(savePath=None, vis=False):
     test_rot_inv_wavelet_filters_3d(savePath=savePath, vis=vis)
 
 if __name__ == "__main__":
-    savePath=None
-    visFlag=False
-    run_ibsi_image_filters(savePath=savePath,vis=visFlag)
+    #-------------
+    # Run tests
+    #-------------
+    savePath = None
+    visFlag = False
+    run_ibsi_image_filters(savePath=savePath, vis=visFlag)
+
+    #---------------------------------------------
+    # Summary of available tests and compatibility
+    # --------------------------------------------
+    tests = ['1a1', '1a2', '1a3', '1a4', '1b1', '2a', '2b', '2c',
+             '3a1', '3a2', '3a3', '3b1', '3b2', '3b3', '3c1', '3c2', '3c3',
+             '4a1', '4a2', '4b1', '4b2', '5a1', '5a2','6a1', '6a2',
+             '7a1','7a2','8a1','8a2','8a3','9a','9b1','9b2','10a','10b1','10b2']
+    statuses = {
+        '1a1': 'pass',
+        '1a2': 'pass',
+        '1a3': 'pass',
+        '1a4': 'pass',
+        '1b1': 'pass',
+        '2a': 'pass',
+        '2b': 'pass',
+        '2c': 'pass',
+        '3a1': 'pass',
+        '3a2': 'pass',
+        '3a3': 'pass',
+        '3b1': 'pass',
+        '3b2': 'pass',
+        '3b3': 'pass',
+        '3c1': 'pass',
+        '3c2': 'pass',
+        '3c3': 'pass',
+        '4a1': 'pass',
+        '4a2': 'pass',
+        '4b1': 'pass',
+        '4b2': 'pass',
+        '5a1': 'pass',
+        '5a2': 'pass',
+        '6a1': 'pass',
+        '6a2': 'pass',
+        '7a1': 'not implemented',
+        '7a2': 'not implemented',
+        '8a1': 'not implemented',
+        '8a2': 'not implemented',
+        '8a3': 'not implemented',
+        '9a': 'not implemented',
+        '9b1': 'not implemented',
+        '9b2': 'not implemented',
+        '10a': 'not implemented',
+        '10b1': 'not implemented',
+        '10b2': 'not implemented',
+    }
+
+    # Mapping statuses to colors
+    color_map = {
+        'pass': '#41B3A3',
+        'fail': '#E8A87C',
+        'not implemented': '#C38D9E'
+    }
+
+    fig, ax = plt.subplots(figsize=(9, 1.2))
+    ax.set_xlim(0, len(tests))
+    ax.set_ylim(0, 1)
+    ax.axis('off')
+    ax.set_aspect('equal', adjustable='box')
+    width = 0.9
+    height = 0.9
+    y0 = 0.05
+
+    for i, test in enumerate(tests):
+        x0 = i + (1 - width) / 2
+        rect = mpatches.Rectangle((x0, y0), width, height,
+                                  facecolor=color_map[statuses[test]],
+                                  edgecolor='black', linewidth=1.2)
+        ax.add_patch(rect)
+        ax.text(i + 0.5, y0 - 0.02, test,
+                ha='center', va='top', rotation=90, fontsize=10)
+
+    # Title
+    ax.set_title("IBSI-2 compatibility ", fontsize=14, pad=20)
+    ax.set_ylabel("pyCERR ", fontsize=14)
+
+    # Create legend
+    legend_patches = [
+        mpatches.Patch(color=color_map[s],
+                       label=('Pass' if s == 'pass' else 'Fail' if s == 'fail' else 'Not Implemented'))
+        for s in color_map
+    ]
+    fig.subplots_adjust(top=0.75)
+    fig.legend(handles=legend_patches, loc='upper center', ncol=3,
+               bbox_to_anchor=(0.5, 0.90), frameon=False, fontsize=12)
+    plt.tight_layout()
+    plt.show()

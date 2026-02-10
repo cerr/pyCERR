@@ -770,6 +770,7 @@ def populateScanInfoFields(s_info, ds):
         for deIdMethod in ds.DeidentificationMethodCodeSequence:
             methodStr = deIdMethod.CodeValue + ': ' + deIdMethod.CodeMeaning
             s_info.deidentificationMethodDescription = np.append(s_info.deidentificationMethodDescription, methodStr)
+    if ("0018","0010") in ds: s_info.contrastBolusAgent = ds["0018","0010"].value
 
     return s_info
 
