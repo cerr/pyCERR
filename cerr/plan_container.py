@@ -720,7 +720,7 @@ def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
         nii_file_name (str): path of NifTi file containing the structure/s
         assocScanNum (int): index of scan from planC.scan associated with segmentation
         planC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append structure/s
-        labels_dict (dict): optional, dictionary mapping labels to structure name. e.g. {1:'GTV', 2:'Lung_total'}
+        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
