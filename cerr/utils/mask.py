@@ -393,7 +393,7 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
         mins = np.min(kV).astype(int)
         maxs = np.max(kV).astype(int)
 
-    bboxmask = None
+    bboxmask = np.zeros_like(binaryMaskM)
 
     if maskFlag != 0:
         bboxmask = np.zeros_like(binaryMaskM)
@@ -412,7 +412,6 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
                 maxc = int(siz[1] - 1)
             if minc < 0:
                 minc = 0
-
             else:
                 mins -= maskFlag
                 maxs += maskFlag
@@ -421,10 +420,10 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
                 if mins < 0:
                     mins = 0
 
-        if is2DFlag:
-            bboxmask[minr:maxr+1, minc:maxc+1] = 1
-        else:
-            bboxmask[minr:maxr+1, minc:maxc+1, mins:maxs+1] = 1
+    if is2DFlag:
+        bboxmask[minr:maxr+1, minc:maxc+1] = 1
+    else:
+        bboxmask[minr:maxr+1, minc:maxc+1, mins:maxs+1] = 1
 
     return minr, maxr, minc, maxc, mins, maxs, bboxmask
 
