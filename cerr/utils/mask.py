@@ -374,6 +374,9 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
     """
     maskFlag = int(maskFlag)
 
+    if not np.any(binaryMaskM):
+        return 0, 0, 0, 0, 0, 0, np.zeros_like(binaryMaskM)
+
     if is2DFlag:
 
         iV, jV = np.where(binaryMaskM)
@@ -412,7 +415,8 @@ def computeBoundingBox(binaryMaskM, is2DFlag=False, maskFlag=0):
                 maxc = int(siz[1] - 1)
             if minc < 0:
                 minc = 0
-            else:
+
+            if not is2DFlag:
                 mins -= maskFlag
                 maxs += maskFlag
                 if maxs >= siz[2]:
