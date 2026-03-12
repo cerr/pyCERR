@@ -549,7 +549,7 @@ def populatePlanCField(field_name, file_list, opts={}):
         scan_meta[0].convertDcmToCerrVirtualCoords()
         scan_meta[0].convertDcmToRealWorldUnits(opts)
         if scan_meta[0].scanInfo[0].imageType == "PT SCAN":
-            suvType = 'BW'
+            suvType = None
             if 'suvType' in opts:
                 suvType = opts['suvType']
             elif scan_meta[0].scanInfo[0].suvType:
