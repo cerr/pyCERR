@@ -431,7 +431,7 @@ class Scan:
                 scaleSlope = self.scanInfo[0].scaleSlope
                 self.scanArray = self.scanArray.astype(np.float32) / (rescaleSlope * scaleSlope)
 
-    def convertToSUV(self, suvType="BW"):
+    def convertToSUV(self, suvType=None):
         """ Routine to convert pixel array for PET scan from DICOM storage to SUV
 
         Args:
@@ -441,17 +441,19 @@ class Scan:
 
         """
 
-        # Allow None input for suvType
-        if suvType == None:
-            suvType = ''
-
         scan3M = self.scanArray
         headerS = self.scanInfo
         scanSiz = scan3M.shape
         suv3M = np.zeros(scanSiz)
-
         numSlcs = scan3M.shape[2]
         acqTimeV = np.empty(numSlcs,dtype=float)
+
+        # Allow None input for suvType
+        if suvType == "" or suvType == None:
+            suvType = headerS[0].suvType
+            if suvType == "":
+                suvType = 'BW'
+
         for slcNum in range(numSlcs):
             headerSlcS = headerS[slcNum]
             if headerSlcS.acquisitionTime:
@@ -470,119 +472,133 @@ class Scan:
         for slcNum in range(scan3M.shape[2]):
             headerSlcS = headerS[slcNum]
             imgM = scan3M[:, :, slcNum] - headerSlcS.CTOffset
-
             imgUnits = headerSlcS.imageUnits
             imgMUnits = imgM.copy()
             if imgUnits == 'CNTS':
-                activityScaleFactor = headerSlcS.petActivityConctrScaleFactor
-                imgMUnits = imgMUnits * activityScaleFactor
-                imgMUnits = imgMUnits * 1000  # Bq/L
+                activityScaleFactor = headerSlcS.philipsActivityConcentrationScaleFactor
+                suvScaleFactor = headerSlcS.philipsSUVScaleFactor
+                if activityScaleFactor != "":
+                    imgMUnits = imgMUnits * activityScaleFactor
+                    imgMUnits = imgMUnits * 1000  # Bq/L
+                    imgUnits = 'BQL'
+                elif suvScaleFactor != "":
+                    suvM = imgMUnits * suvScaleFactor # GML
+                    imageUnits = 'GML'
             elif imgUnits in ['BQML', 'BQCC']:
                 imgMUnits = imgMUnits * 1000  # Bq/L
+                imgUnits = 'BQL'
             elif imgUnits in ['KBQCC', 'KBQML']:
                 imgMUnits = imgMUnits * 1e6  # Bq/L
+                imgUnits = 'BQL'
+            elif imgUnits in ['GML', 'CM2ML']:
+                suvM = imgMUnits
+                imageUnits = imgUnits
             else:
                 #raise ValueError('SUV calculation is supported only for imageUnits BQML and CNTS')
                 import warnings
                 warnings.warn("'SUV calculation is supported only for imageUnits BQML and CNTS'")
                 return
 
-
-            decayCorrection = headerSlcS.petDecayCorrection
-            if decayCorrection == 'START':
-                scantime = seriesTime
-                if not np.isnan(acqStartTime) and acqStartTime < scantime:
-                    scantime = acqStartTime
-            elif decayCorrection == 'ADMIN':
-                scantime = dcm_hhmmss(headerSlcS.injectionTime)
-            elif decayCorrection == 'NONE':
-                scantime = np.nan
-            elif len(headerSlcS.petDecayCorrectionDateTime) > 8:
-                scantime = dcm_hhmmss(headerSlcS.petDecayCorrectionDateTime[8:])[0]
-            else:
-                scantime = np.nan
-
-            # Start Time for Radiopharmaceutical Injection
-            injection_time = dcm_hhmmss(headerSlcS.injectionTime)[0]
-
-            if not np.isnan(seriesDate) and not np.isnan(injectionDate):
-                date_diff = seriesDate - injectionDate
-                if date_diff < 5: # check whether it is a reasonable value
-                    injection_time = injection_time - date_diff.item().total_seconds()
-
-            # Half Life for Radionuclide
-            half_life = headerSlcS.halfLife
-
-            # Total dose injected for Radionuclide
-            injected_dose = headerSlcS.injectedDose
-
-            # Modality
-            modality = headerSlcS.imageType
-            if modality.upper() == 'NM SCAN':
-                injected_dose = injected_dose * 1e6  # Convert MBq to Bq
-
-            # Fix issue where IOD is PT and injected_dose units are in MBq
-            if injected_dose < 1e5:
-                injected_dose = injected_dose * 1e6
-
-            # Calculate the decay
-            # The injected dose used to calculate suvM is corrected for the decay that
-            # occurs between the time of injection and the time of scan.
-            # decayFactor = e^(t1-t2/halflife)
-            if decayCorrection.upper() == 'NONE':
-                decay = 1
-            else:
-                decay = np.exp(-np.log(2) * (scantime - injection_time) / half_life)
-
-            # Calculate the dose decayed during procedure
-            injected_dose_decay = injected_dose * decay  # in Bq
-
-            # Patient Weight
-            ptWeight = headerSlcS.patientWeight
-
-            # Calculate SUV based on type
-            # reference: http://dicom.nema.org/medical/Dicom/2017e/output/chtml/part16/sect_CID_85.html
-            # SUVbw and SUVbsa equations are taken from Kim et al. Journal of Nuclear Medicine. Volume 35, No. 1, January 1994. pp 164-167.
-            suvType = suvType.upper()
-            if suvType == 'BW':  # Body Weight
-                suvM = imgMUnits * ptWeight / injected_dose_decay  # pt weight in grams
-                imageUnits = 'GML'
-            elif suvType == 'BSA':  # body surface area
-                # Patient height
-                # (BSA in m2) = [(weight in kg)^0.425 * (height in cm)^0.725 * 0.007184].
-                # SUV-bsa = (PET image Pixels) * (BSA in m2) * (10000 cm2/m2) / (injected dose).
-                ptHeight = headerSlcS.patientSize  # units of meter
-                bsaMm = ptWeight**0.425 * (ptHeight * 100)**0.725 * 0.007184
-                suvM = imgMUnits * bsaMm / injected_dose_decay
-                imageUnits = 'CM2ML'
-            elif suvType == 'LBM':  # lean body mass by James method
-                ptGender = headerSlcS.patientSex
-                ptHeight = headerSlcS.patientSize
-                if ptGender.upper() == 'M':
-                    # LBM in kg = 1.10 * (weight in kg) - 120 * [(weight in kg) / (height in cm)]^2.
-                    lbmKg = 1.10 * ptWeight - 120 * (ptWeight / (ptHeight * 100))**2
+            if imgUnits == 'BQL':
+                decayCorrection = headerSlcS.petDecayCorrection
+                if len(headerSlcS.petDecayCorrectionDateTime) > 8:
+                    scantime = dcm_hhmmss(headerSlcS.petDecayCorrectionDateTime[8:])[0]
+                elif len(headerSlcS.gePETDecayCorrectionDateTime) > 8:
+                    scantime = dcm_hhmmss(headerSlcS.gePETDecayCorrectionDateTime[8:])[0]
+                elif len(headerSlcS.siemensPETDecayCorrectionDateTime) > 8:
+                    scantime = dcm_hhmmss(headerSlcS.siemensPETDecayCorrectionDateTime[8:])[0]
+                elif decayCorrection == 'START':
+                    scantime = seriesTime
+                    if not np.isnan(acqStartTime) and acqStartTime < scantime:
+                        scantime = acqStartTime
+                elif decayCorrection == 'ADMIN':
+                    scantime = dcm_hhmmss(headerSlcS.injectionTime)[0]
+                elif decayCorrection == 'NONE':
+                    scantime = np.nan
                 else:
-                    # if gender == female
-                    # LBM in kg = 1.07 * (weight in kg) - 148 * [(weight in kg) / (height in cm)]^2.
-                    lbmKg = 1.07 * ptWeight - 148 * (ptWeight / (ptHeight * 100))**2
-                suvM = imgMUnits * lbmKg / injected_dose_decay
-                imageUnits = 'GML'
-            elif suvType == 'LBMJAMES128':  # lean body mass by James method
-                imageUnits = 'GML'
-            elif suvType == 'LBMJANMA':  # lean body mass by Janmahasatian method
-                ptHeight = headerSlcS['patientSize']
-                bmi = (ptWeight * 2.20462 / (ptHeight * 39.3701)**2) * 703
-                ptGender = headerSlcS['patientSex']
-                if ptGender.upper() == 'M':
-                    lbmKg = (9270 * ptWeight) / (6680 + 216 * bmi)  # male
+                    scantime = np.nan
+
+                # Start Time for Radiopharmaceutical Injection
+                injection_time = dcm_hhmmss(headerSlcS.injectionTime)[0]
+
+                if not np.isnan(seriesDate) and not np.isnan(injectionDate):
+                    date_diff = seriesDate - injectionDate
+                    if date_diff < 5: # check whether it is a reasonable value
+                        injection_time = injection_time - date_diff.item().total_seconds()
+
+                # Half Life for Radionuclide
+                half_life = headerSlcS.halfLife
+
+                # Total dose injected for Radionuclide
+                injected_dose = headerSlcS.injectedDose
+
+                # Modality
+                modality = headerSlcS.imageType
+                if modality.upper() == 'NM SCAN':
+                    injected_dose = injected_dose * 1e6  # Convert MBq to Bq
+
+                # Fix issue where IOD is PT and injected_dose units are in MBq
+                if injected_dose < 1e5:
+                    injected_dose = injected_dose * 1e6
+
+                # Calculate the decay
+                # The injected dose used to calculate suvM is corrected for the decay that
+                # occurs between the time of injection and the time of scan.
+                # decayFactor = e^(t1-t2/halflife)
+                if decayCorrection.upper() == 'NONE':
+                    decay = 1
                 else:
-                    lbmKg = (9270 * ptWeight) / (8780 + 244 * bmi)  # female
-                suvM = imgMUnits * lbmKg / injected_dose_decay
-                imageUnits = 'GML'
-            elif suvType == 'IBW':  # ideal body weight
-                imageUnits = 'GML'
-            else:
-                return
+                    decay = np.exp(-np.log(2) * (scantime - injection_time) / half_life)
+
+                # Calculate the dose decayed during procedure
+                injected_dose_decay = injected_dose * decay  # in Bq
+
+                # Patient Weight
+                ptWeight = headerSlcS.patientWeight
+
+                # Calculate SUV based on type
+                # reference: http://dicom.nema.org/medical/Dicom/2017e/output/chtml/part16/sect_CID_85.html
+                # SUVbw and SUVbsa equations are taken from Kim et al. Journal of Nuclear Medicine. Volume 35, No. 1, January 1994. pp 164-167.
+                suvType = suvType.upper()
+                if suvType == 'BW':  # Body Weight
+                    suvM = imgMUnits * ptWeight / injected_dose_decay  # pt weight in grams
+                    imageUnits = 'GML'
+                elif suvType == 'BSA':  # body surface area
+                    # Patient height
+                    # (BSA in m2) = [(weight in kg)^0.425 * (height in cm)^0.725 * 0.007184].
+                    # SUV-bsa = (PET image Pixels) * (BSA in m2) * (10000 cm2/m2) / (injected dose).
+                    ptHeight = headerSlcS.patientSize  # units of meter
+                    bsaMm = ptWeight**0.425 * (ptHeight * 100)**0.725 * 0.007184
+                    suvM = imgMUnits * bsaMm / injected_dose_decay
+                    imageUnits = 'CM2ML'
+                elif suvType == 'LBM':  # lean body mass by James method
+                    ptGender = headerSlcS.patientSex
+                    ptHeight = headerSlcS.patientSize
+                    if ptGender.upper() == 'M':
+                        # LBM in kg = 1.10 * (weight in kg) - 120 * [(weight in kg) / (height in cm)]^2.
+                        lbmKg = 1.10 * ptWeight - 120 * (ptWeight / (ptHeight * 100))**2
+                    else:
+                        # if gender == female
+                        # LBM in kg = 1.07 * (weight in kg) - 148 * [(weight in kg) / (height in cm)]^2.
+                        lbmKg = 1.07 * ptWeight - 148 * (ptWeight / (ptHeight * 100))**2
+                    suvM = imgMUnits * lbmKg / injected_dose_decay
+                    imageUnits = 'GML'
+                elif suvType == 'LBMJAMES128':  # lean body mass by James method
+                    imageUnits = 'GML'
+                elif suvType == 'LBMJANMA':  # lean body mass by Janmahasatian method
+                    ptHeight = headerSlcS['patientSize']
+                    bmi = (ptWeight * 2.20462 / (ptHeight * 39.3701)**2) * 703
+                    ptGender = headerSlcS['patientSex']
+                    if ptGender.upper() == 'M':
+                        lbmKg = (9270 * ptWeight) / (6680 + 216 * bmi)  # male
+                    else:
+                        lbmKg = (9270 * ptWeight) / (8780 + 244 * bmi)  # female
+                    suvM = imgMUnits * lbmKg / injected_dose_decay
+                    imageUnits = 'GML'
+                elif suvType == 'IBW':  # ideal body weight
+                    imageUnits = 'GML'
+                else:
+                    return
 
             suv3M[:, :, slcNum] = suvM
             self.scanInfo[slcNum].imageUnits = imageUnits
@@ -823,8 +839,11 @@ def populateRadiopharmaFields(s_info, seq):
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartTime
         s_info.injectedDose = float(radiopharmaInfoSeq.RadionuclideTotalDose)
         s_info.halfLife = float(radiopharmaInfoSeq.RadionuclideHalfLife)
-        if ("7053","1009") in seq: s_info.petActivityConctrScaleFactor = seq["7053","1009"].value
+        if ("7053","1009") in seq: s_info.philipsActivityConcentrationScaleFactor = seq["7053","1009"].value
         if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
+        if ("0071","1022") in seq: s_info.siemensPETDecayCorrectionDateTime = seq["0071","1022"].value # Siemens
+        if ("0009","100D") in seq: s_info.gePETDecayCorrectionDateTime = seq["0009","100D"].value # GE
+        if ("7053","1000") in seq: s_info.philipsSUVScaleFactor = seq["7053","1000"].value
     return s_info
 
 

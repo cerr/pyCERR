@@ -74,7 +74,7 @@ class ScanInfo:
         suvType (str): The type of SUV stored in scanArray as per (0054,1006) tag.
         petCountSource (str): The primary source of counts as per (0054,1002).  EMISSION or TRANSMISSION
         petSeriesType (str): A multi-valued indicator of the type of Series as per (0054,1000).
-        petActivityConctrScaleFactor (float): Used to convert the pixel data from counts to Activity Concentration (in Bq/ml) as per (7053, 1009 tag
+        philipsActivityConcentrationScaleFactor (float): Used to convert the pixel data from counts to Activity Concentration (in Bq/ml) as per (7053, 1009 tag
         petNumSlices (int): The number of slices in each separate volume as per (0054,0081)
         petDecayCorrectionDateTime (str): The date and time to which all frames in this Image were decay corrected as per (0018,9701)
         decayCorrection (float): Whether Decay (DECY) correction has been applied to image. YES or NO.
@@ -100,6 +100,10 @@ class ScanInfo:
         deIdentificationMethod (str): Indicates whether patient identity has been removed.
         deidentificationMethodDescription (np.array): codes that specifies the methods used to de-identify patient data
         ContrastBolusAgent (str):  Contrast or bolus agent.
+        philipsSUVScaleFactor (float): Philips scanner private tag to convert PET pixel data from counts to Standardized Uptake Value (SUV)
+        philipsActivityConcentrationScaleFactor (float): Philips scanner private tag to convert stored pixel values (after applying the Rescale Slope (0028,1053)) into Activity Concentration units (MBq/mL).
+        gePETDecayCorrectionDateTime (float): GE scanner private tag for the date and time to which all frames in this Image were decay corrected.
+        siemensPETDecayCorrectionDateTime (float): Siemens scanner private tag for the date and time to which all frames in this Image were decay corrected.
 
     """
 
@@ -163,7 +167,6 @@ class ScanInfo:
     suvType: str = ''
     petCountSource: str = ''
     petSeriesType: str = ''
-    petActivityConctrScaleFactor: float = '' #np.NAN
     petNumSlices: int = '' #np.NAN
     petPrimarySourceOfCounts: str = ''
     petDecayCorrectionDateTime: str = ''
@@ -200,6 +203,11 @@ class ScanInfo:
     deIdentificationMethod: str = ''
     deidentificationMethodDescription: np.array = field(default_factory=get_empty_np_array)
     contrastBolusAgent: str = ''
+    philipsSUVScaleFactor: float = ''
+    philipsActivityConcentrationScaleFactor: float = ''
+    gePETDecayCorrectionDateTime: float = ''
+    siemensPETDecayCorrectionDateTime: float = ''
+
 
 
 @dataclass
