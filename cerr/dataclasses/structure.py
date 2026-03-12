@@ -756,7 +756,7 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
         file_list (List or str): List of nii file paths or a string containing path for a single file.
         assocScanNum (int): index of scan in planC to associate the segmentation.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
-        labels_dict (dict): dictionary of index to structure name mapping. e.g. {1: 'GTV', 2: 'Lung_total'}
+        labels_dict (dict): dictionary of index to structure name mapping. e.g. {'GTV':1, 'Lung_total': 2}
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object
