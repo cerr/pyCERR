@@ -229,7 +229,7 @@ def initialize_struct_export_widget(vwr) -> FunctionGui:
                 print('Cannot export structure. Invalid file name.')
         else:
             # Nii export
-            if str(file_name)[-7:] == '.nii.gz':
+            if '.nii' in str(file_name)[-7:]:
                 pc.saveNiiStructure(file_name,niiLabelDict,planC,structsToExport)
                 print('Exported structures to ' + str(file_name))
             else:
@@ -832,6 +832,13 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         scan_affine = scanAffineDict[scan_num]
         opacity = 0.5
         scan_name = planC.scan[scan_num].scanInfo[0].imageType
+        file_name = os.path.basename(planC.scan[scan_num].scanInfo[0].scanFileName)
+        if file_name[-4:] == '.dcm':
+            file_name = os.path.dirname(planC.scan[scan_num].scanInfo[0].scanFileName)
+            file_name = os.path.basename(file_name)
+        elif '.nii' in file_name:
+            separatorIndex = file_name.index('.nii')
+            file_name = file_name[:separatorIndex+1]
         if scan_name == 'CT SCAN':
             center = 0
             width = 300
@@ -842,10 +849,11 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             lowerVal = np.nanpercentile(scanNoBkgdV, 5)
             upperVal = np.nanpercentile(scanNoBkgdV, 95)
             width = 2 * np.nanmax([center - lowerVal, upperVal - center])
+        scanDisplayStr = file_name + ' (' + scan_name + ')'
         scanWindow = {'name': "--- Select ---",
                       'center': center,
                       'width': width}
-        scan_layers.append(viewer.add_image(sa,name=scan_name,affine=scan_affine,
+        scan_layers.append(viewer.add_image(sa,name=scanDisplayStr,affine=scan_affine,
                                            opacity=opacity, colormap=scan_colormaps[i],
                                             blending="additive",interpolation2d="linear",
                                             interpolation3d="linear",
@@ -1314,9 +1322,14 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
         mirrorSize = widgt[4].value
         movOpacity = widgt[5].value/100
         baseOpacity = 1 - movOpacity
+        layerNames = []
+        for lyr in viewer.layers:
+            layerNames.append(lyr.name)
+            lyr.visible = False
         baseLayer.opacity = baseOpacity
         movLayer.opacity = movOpacity
-        layerNames = [lyr.name for lyr in viewer.layers]
+        baseLayer.visible = True
+        movLayer.visible = True
 
         if 'Mirror-Scope-base' not in layerNames:
             return

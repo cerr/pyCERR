@@ -904,30 +904,49 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
         for iFrame in range(numberOfFrames):
             s_info = scn_info.ScanInfo()
             s_info = populateScanInfoFields(s_info, ds)
-            perFrameSeq = ds.PerFrameFunctionalGroupsSequence[iFrame]
-            s_info = populateRealWorldFields(s_info, perFrameSeq)
+            if 'PerFrameFunctionalGroupsSequence' in ds:
+                perFrameSeq = ds.PerFrameFunctionalGroupsSequence[iFrame]
+                s_info = populateRealWorldFields(s_info, perFrameSeq)
+                if 'PixelValueTransformationSequence' in perFrameSeq:
+                    PixelValueTransformSeq = perFrameSeq.PixelValueTransformationSequence[0]
+                    if hasattr(PixelValueTransformSeq,'RescaleSlope'): s_info.rescaleSlope = PixelValueTransformSeq.RescaleSlope
+                    if hasattr(PixelValueTransformSeq,'RescaleIntercept'): s_info.rescaleIntercept = PixelValueTransformSeq.RescaleIntercept
+                    if ("2005","100E") in PixelValueTransformSeq: s_info.scaleSlope = PixelValueTransformSeq["2005","100E"].value
+                    if ("2005","100D") in PixelValueTransformSeq: s_info.scaleIntercept = PixelValueTransformSeq["2005","100D"].value
 
-            PixelSpacing = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
+                    s_info.imagePositionPatient = np.array(perFrameSeq.PlanePositionSequence[0].ImagePositionPatient)
+                    s_info.imageOrientationPatient = np.array(perFrameSeq.PlaneOrientationSequence[0].ImageOrientationPatient)
+                    slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
+                                   - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
+                    s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+
+                    if 'FrameVOILUTSequence' in perFrameSeq:
+                        s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
+                        s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
+            else: # NM scans
+                s_info = populateRealWorldFields(s_info, ds)
+                if 'DetectorInformationSequence' in ds:
+                    imagePositionPatientStart = np.array(ds.DetectorInformationSequence[0].ImagePositionPatient)
+                    s_info.imageOrientationPatient = np.array(ds.DetectorInformationSequence[0].ImageOrientationPatient)
+                    sliceSpacing = ds.SpacingBetweenSlices * iFrame
+                    slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
+                                   - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
+                    s_info.imagePositionPatient = imagePositionPatientStart + slice_normal * sliceSpacing
+                    s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
+
+            if 'SharedFunctionalGroupsSequence' in ds:
+                PixelSpacing = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
+                s_info.sliceThickness = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness / 10
+            else:
+                PixelSpacing = ds.PixelSpacing
+                if isinstance(ds.SliceThickness, (float, int)):
+                    s_info.sliceThickness = ds.SliceThickness / 10
+                elif 'SpacingBetweenSlices' in ds and isinstance(ds.SpacingBetweenSlices, (float, int)):
+                    s_info.sliceThickness = ds.SpacingBetweenSlices / 10
+
             s_info.grid1Units = PixelSpacing[1] / 10
             s_info.grid2Units = PixelSpacing[0] / 10
-            s_info.sliceThickness = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness / 10
 
-            if 'PixelValueTransformationSequence' in perFrameSeq:
-                PixelValueTransformSeq = perFrameSeq.PixelValueTransformationSequence[0]
-                if hasattr(PixelValueTransformSeq,'RescaleSlope'): s_info.rescaleSlope = PixelValueTransformSeq.RescaleSlope
-                if hasattr(PixelValueTransformSeq,'RescaleIntercept'): s_info.rescaleIntercept = PixelValueTransformSeq.RescaleIntercept
-                if ("2005","100E") in PixelValueTransformSeq: s_info.scaleSlope = PixelValueTransformSeq["2005","100E"].value
-                if ("2005","100D") in PixelValueTransformSeq: s_info.scaleIntercept = PixelValueTransformSeq["2005","100D"].value
-
-            s_info.imagePositionPatient = np.array(perFrameSeq.PlanePositionSequence[0].ImagePositionPatient)
-            s_info.imageOrientationPatient = np.array(perFrameSeq.PlaneOrientationSequence[0].ImageOrientationPatient)
-            slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
-                           - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
-            s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
-
-            if 'FrameVOILUTSequence' in perFrameSeq:
-                s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
-                s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
 
             # MR-specific tags
             TR = ("0018", "0080")
@@ -960,7 +979,7 @@ def loadSortedScanInfo(file_list):
     multiFrameFlag = False
     for file in file_list:
         ds = dcmread(file)
-        if np.any(ds.Modality == np.array(["CT","PT", "MR"])): #hasattr(ds, "pixel_array"):
+        if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM"])): #hasattr(ds, "pixel_array"):
             if len(file_list) == 1 and 'NumberOfFrames' in ds:
                 multiFrameFlag = True
                 si_pixel_data = parseScanInfoFields(ds, multiFrameFlag)
@@ -984,7 +1003,7 @@ def loadSortedScanInfo(file_list):
         scan_info = np.delete(scan_info,np.arange(count,scan_array.shape[2]),axis=0)
 
     # Filter out duplicate SOP Instances
-    if np.any(ds.Modality == np.array(["CT","PT", "MR"])) and not multiFrameFlag:
+    if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM"])) and not multiFrameFlag:
         allSOPs = [s.sopInstanceUID for s in scan_info]
         uniqSOPs, uniqInds = np.unique(allSOPs, return_index=True)
         duplicateIDs = list(set(range(len(scan_info))) - set(uniqInds))

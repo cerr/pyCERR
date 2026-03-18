@@ -454,7 +454,7 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         d = group_content.to_dict()
         files = group_content.iloc[:,-1]
         modality = group_content.iloc[0,4]
-        if modality in ["CT","PT", "MR"]:
+        if modality in ["CT","PT", "MR", "NM"]:
             # populate scan attributes
             scan_meta = populatePlanCField('scan', files, opts)
             planC.scan.extend(scan_meta)
@@ -690,6 +690,7 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
             s_info.seriesDate = currentDate
             s_info.seriesTime = currentTime
             s_info.studyNumberOfOrigin = ''
+            s_info.scanFileName = nii_file_name
             #scan_info.append(s_info)
             scan_info[count] = s_info
             count += 1
