@@ -350,7 +350,8 @@ def load_beams(file_list):
                     bs.Manufacturer = beam.Manufacturer
                     bs.BeamName = beam.BeamName
                     bs.BeamType = beam.BeamType
-                    bs.BeamDescription = beam.BeamDescription
+                    if hasattr(beam, 'BeamDescription'):
+                        bs.BeamDescription = beam.BeamDescription
                     bs.BeamNumber = int(beam.BeamNumber)
                     bs.SourceAxisDistance = float(beam.SourceAxisDistance)
                     limit_sevice_seq = np.array([])

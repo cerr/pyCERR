@@ -3,7 +3,7 @@
 "structures": ["ROI"],
 
 "imageType": {
-  		   "Wavelets": {
+  		   "rotationInvariantWavelets": {
 			    	    "Direction": "LH",
 				        "Wavelets":"db",
 				        "Index": "3",

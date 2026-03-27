@@ -425,11 +425,27 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     """
 
     import os
-    if not os.path.isdir(dcmDir):
-        raise FileNotFoundError(dcmDir + 'is not a valid directory path')
+
+    # Split string into list of directories
+    if isinstance(dcmDir, (str)):
+        if os.path.isdir(dcmDir):
+            dcmDir = [dcmDir]
+        else:
+            dcmDir = dcmDir.split()
+
+    if isinstance(dcmDir, (list, np.ndarray)):
+        fileList = []
+        for i,itemInList in enumerate(dcmDir):
+            if os.path.isdir(itemInList):
+                for root, _, files in os.walk(itemInList):
+                    for i,file in enumerate(files):
+                        fileList.append(os.path.join(root, file))
+            elif os.path.isfile(itemInList):
+                fileList.append(itemInList)
+
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
-    df_img = parseDcmHeader(dcmDir)
+    df_img = parseDcmHeader(fileList)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
     if not isinstance(initplanC, PlanC):
@@ -986,11 +1002,11 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     return planC
 
 
-def parseDcmHeader(dcm_dir):
+def parseDcmHeader(fileList):
     """This routine parses header from DICOM files in the input directory
 
     Args:
-        dcm_dir (str): path to directory containing DICOM files
+        fileList (list): list of DICOM files
 
     Returns:
         pandas.DataFrame: Data frame containing header values of DICOM files. The header attributes consist of
@@ -1014,26 +1030,27 @@ def parseDcmHeader(dcm_dir):
     tag_heading = ["PatientName","PatientID","StudyInstanceUID","SeriesInstanceUID",
                    "Modality","bValue1","bValue2","bValue3","TemporalPosition",
                    "TriggerTime","NumSlices","EchoTime","AcquisitionNumber","FilePath"]
+
     img_meta = []
-    for root, _, files in os.walk(dcm_dir):
-        for i,file in enumerate(files):
-            file_path = os.path.join(root, file)
-            if is_dicom(file_path):
-                ds = dcmread(file_path,specific_tags=tag_list)
-                #tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
-                tag_vals = []
-                for t in tag_list:
-                    if t in ds:
-                        val = ds[t].value
-                        if isinstance(val, dataelem.MultiValue):
-                            val = tuple(val)
-                        else: #isinstance(val, pydicom.valuerep.PersonName):
-                            val = str(val)
-                    else:
-                        val = ''
-                    tag_vals.append(val)
-                tag_vals.append(ds.filename)
-                img_meta.append(tag_vals)
+    #for root, _, files in os.walk(dcm_dir):
+    for i,file_path in enumerate(fileList):
+        #file_path = os.path.join(root, file)
+        if is_dicom(file_path):
+            ds = dcmread(file_path,specific_tags=tag_list)
+            #tag_vals = [ds[t].value if t in ds else "" for t in tag_list]
+            tag_vals = []
+            for t in tag_list:
+                if t in ds:
+                    val = ds[t].value
+                    if isinstance(val, dataelem.MultiValue):
+                        val = tuple(val)
+                    else: #isinstance(val, pydicom.valuerep.PersonName):
+                        val = str(val)
+                else:
+                    val = ''
+                tag_vals.append(val)
+            tag_vals.append(ds.filename)
+            img_meta.append(tag_vals)
     df = pd.DataFrame(img_meta,columns=tag_heading)
     return df
 
