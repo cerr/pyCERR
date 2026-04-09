@@ -957,7 +957,7 @@ class ROEGui(QMainWindow):
         self._build_combined_legend(ntcp, tcp, bed)
 
         # Draw initial crosshair at slider position
-        self._update_slider_line(self.slider.value())
+        self.update_slider_line(self.slider.value())
 
     def _render_mode_delta(
         self,
@@ -977,7 +977,7 @@ class ROEGui(QMainWindow):
         self._apply_dual_axis_labels("ΔFractions")
         self.ax_main.set_xticks(np.arange(_DELTA_FRX_MIN, _DELTA_FRX_MAX + 1, 2))
         self._build_combined_legend(ntcp, tcp, bed)
-        self._update_slider_line(self.slider.value())
+        self.update_slider_line(self.slider.value())
 
     def _render_mode_bed(
         self,
