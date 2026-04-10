@@ -169,7 +169,8 @@ class ROEGui(QMainWindow):
 
         # ---- application state ----
         self.models: List[dict] = []          # loaded model dicts
-        self._dvh_cache: Dict[str, Tuple] = {}  # key: model name → (bins_list, vols_list)
+        self._dvh_cache: Dict[Tuple, Tuple] = {}  # key: (model_name, struct_names) → (bins_list, vols_list)
+        self._struct_assignments: Dict[int, List[str]] = {}  # model index → selected struct names
         self._crosshair_line = None            # vertical dashed line on plot
         self._selected_model_row = -1
 
@@ -248,6 +249,8 @@ class ROEGui(QMainWindow):
         self.model_list = QListWidget()
         self.model_list.setMaximumHeight(110)
         self.model_list.currentRowChanged.connect(self.on_model_selected)
+        self.model_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.model_list.customContextMenuRequested.connect(self._model_list_context_menu)
         layout.addWidget(self.model_list)
 
         # ---- Structure mapping ----
@@ -473,6 +476,41 @@ class ROEGui(QMainWindow):
 
         self.status_bar.showMessage(f"Loaded {len(paths)} model(s). Total: {len(self.models)}.")
 
+    def _model_list_context_menu(self, pos):
+        """Show a right-click context menu on the model list with a Remove option."""
+        from PyQt5.QtWidgets import QMenu
+        item = self.model_list.itemAt(pos)
+        if item is None:
+            return
+        row = self.model_list.row(item)
+        menu = QMenu(self)
+        action_remove = menu.addAction("Remove model")
+        if menu.exec_(self.model_list.viewport().mapToGlobal(pos)) == action_remove:
+            self._remove_model(row)
+
+    def _remove_model(self, row: int):
+        """Remove the model at *row* from self.models and the list widget."""
+        if row < 0 or row >= len(self.models):
+            return
+        name = self.models[row].get("name", f"model {row}")
+        self.models.pop(row)
+        self.model_list.takeItem(row)
+        # Evict all cache entries for this model name
+        for key in list(self._dvh_cache.keys()):
+            if isinstance(key, tuple) and key[0] == name:
+                del self._dvh_cache[key]
+        # Rebuild _struct_assignments with keys shifted down past the removed row
+        self._struct_assignments = {
+            (k if k < row else k - 1): v
+            for k, v in self._struct_assignments.items()
+            if k != row
+        }
+        # Clear the parameter / structure tables if the removed row was selected
+        self.struct_table.setRowCount(0)
+        self.param_table.setRowCount(0)
+        self._selected_model_row = -1
+        self.status_bar.showMessage(f"Removed '{name}'. Total: {len(self.models)}.")
+
     # ======================================================================
     # Model selection → populate tables
     # ======================================================================
@@ -480,23 +518,44 @@ class ROEGui(QMainWindow):
     def on_model_selected(self, row: int):
         """
         Called when user clicks a model in the list.
-        Populates the structure mapping table and parameter table.
+        Saves the current structure mapping, then repopulates for the new model.
         """
+        # Persist whatever is currently displayed before switching away
+        self._save_struct_assignments(self._selected_model_row)
+
         self._selected_model_row = row
         if row < 0 or row >= len(self.models):
             return
         model = self.models[row]
-        self.populate_structure_table(model)
-        self.populate_params_table(model)
+        self.populate_structure_table(model, row)
+        self.populate_param_table(model)
 
-    def populate_structure_table(self, model: dict):
+    def _save_struct_assignments(self, model_row: int):
+        """Read the structure table combos and persist them for *model_row*."""
+        if model_row < 0 or model_row >= len(self.models):
+            return
+        selections: List[str] = []
+        for r in range(self.struct_table.rowCount()):
+            combo = self.struct_table.cellWidget(r, 1)
+            if combo is not None:
+                text = combo.currentText()
+                selections.append("" if text == "-- select --" else text)
+            else:
+                selections.append("")
+        self._struct_assignments[model_row] = selections
+
+    def populate_structure_table(self, model: dict, model_row: int = -1):
         """
         Fill the structure mapping table for the selected model.
         Column 0: required structure name (read-only).
         Column 1: QComboBox of available structures from planC.
+
+        Previously saved selections for *model_row* are restored; auto-match
+        is only used for rows that have no saved choice yet.
         """
         required = _get_struct_list(model)
         available = self._avail_struct_names()
+        saved = self._struct_assignments.get(model_row, [])
 
         self.struct_table.blockSignals(True)
         self.struct_table.setRowCount(len(required))
@@ -512,16 +571,20 @@ class ROEGui(QMainWindow):
             combo.addItem("-- select --")
             combo.addItems(available)
 
-            # Auto-select best match
-            best_idx = _find_struct_index(struct_name, available)
-            if best_idx is not None:
-                combo.setCurrentIndex(best_idx + 1)  # offset for "-- select --"
+            # Restore saved selection if present, otherwise auto-match
+            saved_name = saved[row_idx] if row_idx < len(saved) else ""
+            if saved_name and saved_name in available:
+                combo.setCurrentIndex(available.index(saved_name) + 1)
+            else:
+                best_idx = _find_struct_index(struct_name, available)
+                if best_idx is not None:
+                    combo.setCurrentIndex(best_idx + 1)  # offset for "-- select --"
 
             self.struct_table.setCellWidget(row_idx, 1, combo)
 
         self.struct_table.blockSignals(False)
 
-    def populate_params_table(self, model: dict):
+    def populate_param_table(self, model: dict):
         """
         Populate the model parameters table.
         Only show leaf parameters (not 'structures') that have a 'val' key.
@@ -615,7 +678,11 @@ class ROEGui(QMainWindow):
             val = text
 
         params[pname]["val"] = val
-        self._dvh_cache.pop(model.get("name", ""), None)
+        # Invalidate all cache entries for this model (cache keys are tuples)
+        mname = model.get("name", "")
+        for key in list(self._dvh_cache.keys()):
+            if isinstance(key, tuple) and key[0] == mname:
+                del self._dvh_cache[key]
 
     # ======================================================================
     # Structure assignments
@@ -667,43 +734,68 @@ class ROEGui(QMainWindow):
     # ======================================================================
 
     def get_dvh_for_model(
-        self, model: dict, dose_num: int
+        self, model: dict, dose_num: int,
+        assigned_names: Optional[List[str]] = None,
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Compute raw (un-corrected) DVH bins and volumes for each structure
-        required by *model*.  Results are cached in self._dvh_cache.
+        required by *model*.  Results are cached in self._dvh_cache keyed by
+        (model name, tuple of resolved structure names).
+
+        Parameters
+        ----------
+        assigned_names : optional list of structure names chosen by the user in
+            the structure-assignment table.  When provided, used in preference
+            over the model JSON's own structure names.
 
         Returns
         -------
         bins_list : list of np.ndarray  — one array per required structure
         vols_list : list of np.ndarray  — one array per required structure
         """
-        name = model.get("name", id(model))
-        if name in self._dvh_cache:
-            return self._dvh_cache[name]
-
         required = _get_struct_list(model)
         available = self._avail_struct_names()
+
+        # Resolve each required structure to the user's assignment (if any)
+        resolved: List[str] = []
+        for i, sname in enumerate(required):
+            user_name = (
+                assigned_names[i]
+                if assigned_names and i < len(assigned_names) and assigned_names[i]
+                else None
+            )
+            lookup = user_name if user_name else sname
+            sidx = _find_struct_index(lookup, available)
+            if sidx is None and user_name:
+                # Fall back to the model's own name
+                sidx = _find_struct_index(sname, available)
+                lookup = sname
+            resolved.append(lookup if sidx is not None else sname)
+
+        cache_key = (model.get("name", id(model)), tuple(resolved))
+        if cache_key in self._dvh_cache:
+            return self._dvh_cache[cache_key]
+
         bins_list: List[np.ndarray] = []
         vols_list: List[np.ndarray] = []
 
-        for sname in required:
-            sidx = _find_struct_index(sname, available)
+        for lookup in resolved:
+            sidx = _find_struct_index(lookup, available)
             if sidx is None:
                 raise ValueError(
-                    f"Structure '{sname}' required by model '{name}' "
-                    f"not found in planC."
+                    f"Structure '{lookup}' not found in planC "
+                    f"(model '{model.get('name', '')}')."
                 )
             dosesV, volsV, is_err = getDVH(sidx, dose_num, self.planC)
             if is_err:
                 raise RuntimeError(
-                    f"DVH calculation failed for structure '{sname}'."
+                    f"DVH calculation failed for structure '{lookup}'."
                 )
             bins_v, vols_v = doseHist(dosesV, volsV, _DEFAULT_BIN_WIDTH)
             bins_list.append(np.asarray(bins_v, dtype=float))
             vols_list.append(np.asarray(vols_v, dtype=float))
 
-        self._dvh_cache[name] = (bins_list, vols_list)
+        self._dvh_cache[cache_key] = (bins_list, vols_list)
         return bins_list, vols_list
 
     # ======================================================================
@@ -813,6 +905,7 @@ class ROEGui(QMainWindow):
         rx_dose = self._rx_dose()
         rx_frx  = self._rx_frx()
         results = np.full(len(x_values), np.nan)
+        first_error: Optional[str] = None
 
         for i, xv in enumerate(x_values):
             try:
@@ -840,9 +933,15 @@ class ROEGui(QMainWindow):
                     ]
 
                 results[i] = self._evaluate_model(model, corr_bins_list, raw_vols_list)
-            except Exception:
+            except Exception as exc:
+                if first_error is None:
+                    first_error = str(exc)
                 # Leave as NaN for this point
-                pass
+
+        if first_error is not None and not np.any(np.isfinite(results)):
+            # All points failed — surface the first error to the status bar
+            model_name = model.get("name", "")
+            self.status_bar.showMessage(f"[{model_name}] Curve error: {first_error}")
 
         return results
 
@@ -868,6 +967,8 @@ class ROEGui(QMainWindow):
         # Clear axes
         self.ax_main.cla()
         self.ax_twin.cla()
+        self.ax_twin.yaxis.set_label_position("right")
+        self.ax_twin.yaxis.tick_right()
         self._crosshair_line = None
 
         # Choose X axis values
@@ -876,18 +977,27 @@ class ROEGui(QMainWindow):
         else:
             x_values = np.arange(_DELTA_FRX_MIN, _DELTA_FRX_MAX + 1, dtype=float)
 
-        # Gather per-type curves
-        ntcp_curves: List[Tuple[np.ndarray, str, str]] = []  # (y, label, color)
-        tcp_curves:  List[Tuple[np.ndarray, str, str]] = []
-        bed_curves:  List[Tuple[np.ndarray, str, str]] = []
+        # Gather per-type curves — tuples are (y, label, color, model_dict)
+        ntcp_curves: List[Tuple[np.ndarray, str, str, dict]] = []
+        tcp_curves:  List[Tuple[np.ndarray, str, str, dict]] = []
+        bed_curves:  List[Tuple[np.ndarray, str, str, dict]] = []
+
+        # Save the current model's structure assignments before iterating
+        if self._selected_model_row >= 0:
+            self._save_struct_assignments(self._selected_model_row)
 
         for mi, model in enumerate(self.models):
             color = _COLORS[mi % len(_COLORS)]
             name  = model.get("name", f"Model {mi}")
             mtype = _model_type(model)
 
+            # Use user-assigned structure names when available
+            assigned_names = self._struct_assignments.get(mi, [])
+
             try:
-                raw_bins_list, raw_vols_list = self.get_dvh_for_model(model, dose_num)
+                raw_bins_list, raw_vols_list = self.get_dvh_for_model(
+                    model, dose_num, assigned_names
+                )
             except Exception as exc:
                 self.status_bar.showMessage(f"[{name}] DVH error: {exc}")
                 continue
@@ -902,11 +1012,11 @@ class ROEGui(QMainWindow):
                 continue
 
             if mtype == _TYPE_NTCP:
-                ntcp_curves.append((y, name, color))
+                ntcp_curves.append((y, name, color, model))
             elif mtype == _TYPE_TCP:
-                tcp_curves.append((y, name, color))
+                tcp_curves.append((y, name, color, model))
             elif mtype == _TYPE_BED:
-                bed_curves.append((y, name, color))
+                bed_curves.append((y, name, color, model))
 
         # ---- Dispatch to mode-specific renderer ----
         try:
@@ -915,7 +1025,10 @@ class ROEGui(QMainWindow):
             elif mode == _MODE_DELTA:
                 self._render_mode_delta(x_values, ntcp_curves, tcp_curves, bed_curves)
             elif mode == _MODE_BED:
-                self._render_mode_bed(x_values, ntcp_curves, tcp_curves, bed_curves)
+                self._render_mode_bed(
+                    x_values, ntcp_curves, tcp_curves, bed_curves,
+                    self._rx_dose(), self._rx_frx()
+                )
             elif mode == _MODE_TCP:
                 self._render_mode_tcp(x_values, ntcp_curves, tcp_curves, bed_curves)
         except Exception as exc:
@@ -934,7 +1047,13 @@ class ROEGui(QMainWindow):
         """Set axis labels and style for dual-Y plots."""
         self.ax_main.set_xlabel(x_label)
         self.ax_main.set_ylabel("NTCP", color="black")
-        self.ax_twin.set_ylabel("TCP / BED (Gy)", color="grey")
+
+        self.ax_twin.set_visible(True)
+        self.ax_twin.yaxis.set_label_position("right")
+        self.ax_twin.yaxis.tick_right()
+        self.ax_twin.set_ylabel("TCP / BED (Gy)", color="#1f77b4", labelpad=8)
+        self.ax_twin.tick_params(axis="y", labelcolor="#1f77b4")
+
         self.ax_main.set_ylim(0, 1.05)
         self.ax_main.grid(True, alpha=0.3)
 
@@ -946,11 +1065,11 @@ class ROEGui(QMainWindow):
         bed: list,
     ):
         """Mode 0: NTCP/TCP vs dose scale factor."""
-        for (y, label, color) in ntcp:
+        for (y, label, color, _model) in ntcp:
             self.ax_main.plot(x, y, color=color, linestyle="-", label=label)
-        for (y, label, color) in tcp:
+        for (y, label, color, _model) in tcp:
             self.ax_twin.plot(x, y, color=color, linestyle="--", label=label)
-        for (y, label, color) in bed:
+        for (y, label, color, _model) in bed:
             self.ax_twin.plot(x, y, color=color, linestyle=":", label=label)
 
         self._apply_dual_axis_labels("Dose scale factor")
@@ -967,11 +1086,11 @@ class ROEGui(QMainWindow):
         bed: list,
     ):
         """Mode 1: NTCP/TCP vs delta fractions."""
-        for (y, label, color) in ntcp:
+        for (y, label, color, _model) in ntcp:
             self.ax_main.plot(x, y, color=color, linestyle="-", label=label)
-        for (y, label, color) in tcp:
+        for (y, label, color, _model) in tcp:
             self.ax_twin.plot(x, y, color=color, linestyle="--", label=label)
-        for (y, label, color) in bed:
+        for (y, label, color, _model) in bed:
             self.ax_twin.plot(x, y, color=color, linestyle=":", label=label)
 
         self._apply_dual_axis_labels("ΔFractions")
@@ -985,31 +1104,45 @@ class ROEGui(QMainWindow):
         ntcp: list,
         tcp: list,
         bed: list,
+        rx_dose: float,
+        rx_frx: int,
     ):
         """
-        Mode 2: NTCP vs BED.
-        For each BED curve as X axis, plot each NTCP curve as Y.
-        """
-        if not bed:
-            self.status_bar.showMessage(
-                "Mode 2 requires at least one BED model to be loaded."
-            )
-            return
+        Mode 2: NTCP vs BED (parametric — delta frx is the parameter).
 
-        for (bed_y, bed_label, bed_color) in bed:
-            for ci, (ntcp_y, ntcp_label, ntcp_color) in enumerate(ntcp):
-                lbl = f"{ntcp_label} vs {bed_label}"
-                self.ax_main.plot(
-                    bed_y, ntcp_y, color=ntcp_color, linestyle="-", label=lbl
-                )
+        BED is computed from the LQ model for each NTCP model using its own
+        abRatio:  BED = D_total * (1 + (D_total / n) / ab)
+
+        No separate BED-type model is required; all loaded NTCP models are plotted.
+        If dedicated BED-type models are also loaded they are plotted in addition.
+        """
+        # Compute BED x-axis per NTCP model from the LQ formula
+        for (ntcp_y, ntcp_label, ntcp_color, model) in ntcp:
+            ab = float(model.get("abRatio", 3))
+            bed_x = np.array([
+                rx_dose * (1.0 + (rx_dose / max(1, rx_frx + int(dv))) / ab)
+                for dv in x
+            ])
+            self.ax_main.plot(
+                bed_x, ntcp_y, color=ntcp_color, linestyle="-", label=ntcp_label
+            )
+
+        # Also plot any explicitly-typed BED models
+        for (bed_y, bed_label, bed_color, _model) in bed:
+            self.ax_twin.plot(x, bed_y, color=bed_color, linestyle=":", label=bed_label)
+
+        if not ntcp and not bed:
+            self.status_bar.showMessage("No models computed for Mode 2.")
+            return
 
         self.ax_main.set_xlabel("BED (Gy)")
         self.ax_main.set_ylabel("NTCP")
+        self.ax_main.set_ylim(0, 1.05)
         self.ax_main.grid(True, alpha=0.3)
         handles, labels = self.ax_main.get_legend_handles_labels()
         if handles:
             self.ax_main.legend(handles, labels, fontsize=8, loc="best")
-        self.ax_twin.set_visible(False)
+        self.ax_twin.set_visible(bool(bed))
 
     def _render_mode_tcp(
         self,
@@ -1020,15 +1153,17 @@ class ROEGui(QMainWindow):
     ):
         """
         Mode 3: NTCP vs TCP (parametric — delta frx is the parameter).
+        Requires at least one TCP-type model to be loaded alongside NTCP models.
         """
         if not tcp:
             self.status_bar.showMessage(
-                "Mode 3 requires at least one TCP model to be loaded."
+                "Mode 3 (NTCP vs TCP) requires at least one TCP-type model. "
+                "Load a JSON with \"type\": \"TCP\"."
             )
             return
 
-        for (tcp_y, tcp_label, tcp_color) in tcp:
-            for (ntcp_y, ntcp_label, ntcp_color) in ntcp:
+        for (tcp_y, tcp_label, _tcp_color, _tcp_model) in tcp:
+            for (ntcp_y, ntcp_label, ntcp_color, _ntcp_model) in ntcp:
                 lbl = f"{ntcp_label} vs {tcp_label}"
                 self.ax_main.plot(
                     tcp_y, ntcp_y, color=ntcp_color, linestyle="-", label=lbl
@@ -1036,6 +1171,7 @@ class ROEGui(QMainWindow):
 
         self.ax_main.set_xlabel("TCP")
         self.ax_main.set_ylabel("NTCP")
+        self.ax_main.set_ylim(0, 1.05)
         self.ax_main.grid(True, alpha=0.3)
         handles, labels = self.ax_main.get_legend_handles_labels()
         if handles:
@@ -1049,15 +1185,15 @@ class ROEGui(QMainWindow):
     def _build_combined_legend(self, ntcp: list, tcp: list, bed: list):
         """Build a combined legend covering both axes."""
         handles = []
-        for (_, label, color) in ntcp:
+        for (_, label, color, _model) in ntcp:
             handles.append(
                 mlines.Line2D([], [], color=color, linestyle="-", label=label)
             )
-        for (_, label, color) in tcp:
+        for (_, label, color, _model) in tcp:
             handles.append(
                 mlines.Line2D([], [], color=color, linestyle="--", label=f"{label} (TCP)")
             )
-        for (_, label, color) in bed:
+        for (_, label, color, _model) in bed:
             handles.append(
                 mlines.Line2D([], [], color=color, linestyle=":", label=f"{label} (BED)")
             )
@@ -1177,6 +1313,8 @@ class ROEGui(QMainWindow):
         self.ax_main.cla()
         self.ax_twin.cla()
         self.ax_twin.set_visible(True)
+        self.ax_twin.yaxis.set_label_position("right")
+        self.ax_twin.yaxis.tick_right()
         self.canvas.draw()
 
 
@@ -1204,9 +1342,20 @@ def launch(planC=None):
     >>> from cerr.roe.roe_gui import launch
     >>> win = launch(planC)
     """
-    app = QApplication.instance() or QApplication(sys.argv)
+    app = QApplication.instance()
+    _owns_app = app is None
+    if _owns_app:
+        app = QApplication(sys.argv)
+
     win = ROEGui(planC)
     win.show()
+
+    # Only run the event loop when we created the QApplication ourselves.
+    # If an existing loop is already running (napari, IPython %gui qt, etc.)
+    # the caller's loop will dispatch events and exec_() must NOT be called.
+    if _owns_app:
+        app.exec_()
+
     return win
 
 
