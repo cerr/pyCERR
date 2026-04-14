@@ -16,8 +16,25 @@ from cerr.utils import uid
 import json
 
 def get_empty_list():
+    """Return an empty list.
+
+    Used as a ``default_factory`` for dataclass fields that require a mutable
+    list default.
+
+    Returns:
+        list: An empty list ``[]``.
+    """
     return []
+
 def get_empty_np_array():
+    """Return an empty 3-D NumPy array with shape (0, 0, 0).
+
+    Used as a ``default_factory`` for dataclass fields that require a mutable
+    NumPy array default.
+
+    Returns:
+        np.ndarray: A zero-element array with shape ``(0, 0, 0)``.
+    """
     return np.empty((0,0,0))
 
 @dataclass
@@ -45,7 +62,33 @@ class Deform:
 
 
     def convertDcmToCerrVirtualCoords(self):
+        """Compute and store coordinate-system transformation matrices for the DVF.
 
+        Builds the affine mapping from DICOM image indices to DICOM physical
+        (patient) coordinates (``Image2PhysicalTransM``) and to pyCERR's virtual
+        physical coordinate system (``Image2VirtualPhysicalTransM``), accounting
+        for the possibility that CERR's slice ordering is the reverse of DICOM's.
+        Also populates ``xOffset``, ``yOffset``, and ``cerrToDcmTransM`` (the
+        transformation that converts pyCERR xyz coordinates in cm back to DICOM
+        physical coordinates in mm).
+
+        The method operates entirely on the instance attributes already set
+        (``imageOrientationPatient``, ``imagePositionPatientV``, ``dvfMatrix``,
+        ``dx``, ``dy``) and updates the following attributes in-place:
+
+        Attributes set:
+            xOffset (float): X-coordinate of the DVF volume centre in the CERR
+                coordinate system (cm).
+            yOffset (float): Y-coordinate of the DVF volume centre in the CERR
+                coordinate system (cm, sign-flipped relative to DICOM column
+                direction).
+            Image2PhysicalTransM (np.ndarray): 4×4 affine from DICOM image
+                indices to DICOM physical coordinates (cm).
+            Image2VirtualPhysicalTransM (np.ndarray): 4×4 affine from DICOM
+                image indices to pyCERR virtual physical coordinates (cm).
+            cerrToDcmTransM (np.ndarray): 4×4 matrix converting pyCERR xyz
+                (cm) to DICOM physical coordinates (mm).
+        """
         # Construct DICOM Affine transformation matrix
         # To construct DICOM affine transformation matrix it is necessary to figure out
         # whether CERR slice direction matches DICOM to get the position of the 1st slice
@@ -111,7 +154,24 @@ class Deform:
         self.cerrToDcmTransM[:,:3] = self.cerrToDcmTransM[:,:3] * 10 # cm to mm
 
     def getDVFXYZVals(self):
+        """Compute the x, y, and z coordinate vectors for the DVF grid.
 
+        Derives spatial coordinate arrays from the stored grid offsets
+        (``xOffset``, ``yOffset``), voxel spacings (``dx``, ``dy``), and
+        per-slice z-values (``zValuesV``) based on the dimensions of
+        ``dvfMatrix``.
+
+        Returns:
+            tuple: A 3-tuple ``(xvals, yvals, zvals)`` where
+
+            - **xvals** (*np.ndarray*): 1-D array of x-coordinates (cm) for
+              each column of the DVF grid, increasing left-to-right.
+            - **yvals** (*np.ndarray*): 1-D array of y-coordinates (cm) for
+              each row of the DVF grid, decreasing top-to-bottom (CERR
+              convention).
+            - **zvals** (*np.ndarray*): 1-D array of z-coordinates (cm) for
+              each slice, taken directly from ``self.zValuesV``.
+        """
         numRows, numCols, numSlcs, _ = self.dvfMatrix.shape
         numCols = numCols  -1
         numRows = numRows - 1
@@ -132,10 +192,33 @@ class Deform:
         return (xvals,yvals,zvals)
 
     def getDeformDict(self):
+        """Return a shallow copy of the Deform instance's attribute dictionary.
+
+        Returns:
+            dict: A dictionary mapping each attribute name to its current value
+            for this ``Deform`` instance.
+        """
         deformDict = self.__dict__.copy()
         return deformDict
 
 def flipSliceOrderFlag(deform):
+    """Determine whether the slice ordering in the Deform object is reversed relative to DICOM.
+
+    Computes the slice normal from the image orientation cosines and projects
+    consecutive ``imagePositionPatient`` vectors onto it.  A negative dot-product
+    difference indicates that DICOM slices are stored in the opposite order from
+    pyCERR's internal convention.
+
+    Args:
+        deform (Deform): A ``Deform`` dataclass instance whose
+            ``imageOrientationPatient`` (shape ``(6,)``) and
+            ``imagePositionPatientV`` (shape ``(N, 3)``) attributes are
+            already populated.
+
+    Returns:
+        bool: ``True`` if the slice order should be flipped (i.e. DICOM stores
+        slices in descending z-order relative to pyCERR), ``False`` otherwise.
+    """
     dcmImgOri = deform.imageOrientationPatient
     slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
            - dcmImgOri[[2,0,1]] * dcmImgOri[[4,5,3]]

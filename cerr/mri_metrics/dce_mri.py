@@ -115,8 +115,23 @@ def intToConc(normSigM, concDict):
 
 
 def plotUptake(timePtsV, sigV, blockFlag, savePath=None):
-    """plotUptake
-    Function to plot sample uptake curve for interactive selection of baseline points
+    """Plot a sample DCE uptake curve for interactive selection of baseline points.
+
+    Displays a labeled time-series plot of ROI mean signal intensity with each
+    time-point annotated by its index so the user can identify the start of uptake.
+
+    Args:
+        timePtsV (np.ndarray): 1-D array of acquisition time points.
+        sigV (np.ndarray): 1-D array of ROI mean signal intensities corresponding
+            to each time point in ``timePtsV``.
+        blockFlag (bool): If ``True``, the plot blocks execution until it is
+            closed; if ``False``, execution continues immediately.
+        savePath (str, optional): File path at which to save the figure.
+            When provided the figure is saved and closed rather than displayed
+            interactively. Defaults to ``None``.
+
+    Returns:
+        int: Always returns 0.
     """
 
     # Interactive selection of baseline pts
@@ -801,7 +816,18 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan')
     return mapDict, planC
 
 def collectUserInput(saveDir):
-    """Display plots sequentially and collect user input
+    """Display saved uptake-curve plots sequentially and collect user-entered start-of-uptake values.
+
+    Iterates over all PNG files in ``saveDir``, displays each image, prompts the
+    user to enter the start-of-uptake time point for that dataset, and saves all
+    responses to an Excel file (``user_inputs.xlsx``) in the same directory.
+
+    Args:
+        saveDir (str): Path to a directory containing PNG plot files whose
+            base-names are used as dataset identifiers.
+
+    Returns:
+        int: Always returns 0.
     """
     import pandas as pd
 
@@ -835,6 +861,28 @@ def collectUserInput(saveDir):
 
 
 def batchSelectStartOfUptake(baseDir, saveDir):
+    """Batch-process a cohort of DCE-MRI datasets to facilitate interactive start-of-uptake selection.
+
+    For each patient directory found under ``baseDir`` the function loads the
+    corresponding DICOM data and NIfTI segmentation mask into a pyCERR
+    ``planC``, extracts the DCE time sequence, computes the mean ROI signal
+    curve for the middle ROI slice, saves a PNG plot of that curve to
+    ``saveDir``, and finally invokes :func:`collectUserInput` so the user can
+    annotate all saved plots in one pass.  Any exceptions encountered during
+    per-patient processing are recorded in ``exceptions.log`` inside
+    ``saveDir``.
+
+    Args:
+        baseDir (str): Root directory whose immediate sub-directories each
+            correspond to one patient / dataset.
+        saveDir (str): Directory in which output PNG plots, the collected
+            ``user_inputs.xlsx``, and any ``exceptions.log`` are written.
+            Created automatically if it does not exist.
+
+    Returns:
+        file: The open log-file handle for ``exceptions.log`` (or the handle
+        from the last iteration when no exceptions were raised).
+    """
     import glob
 
     # Directories

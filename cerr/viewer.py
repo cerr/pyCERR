@@ -53,6 +53,16 @@ window_dict = {
                 }
 
 def initialize_image_window_widget() -> FunctionGui:
+    """Creates a magicgui widget for adjusting the image contrast window.
+
+    Builds a GUI panel with a CT window preset dropdown and manual center/width
+    fields. When the user clicks 'Set', the selected layer's contrast limits are
+    updated and the updated layer metadata is returned as a LayerDataTuple.
+
+    Returns:
+        FunctionGui: The magicgui ``image_window`` widget ready to be docked in
+            a Napari viewer.
+    """
     @magicgui(CT_Window={"choices": window_dict.keys()}, call_button="Set")
     def image_window(image: Image, CT_Window='--- Select ---', Center="", Width="") -> LayerDataTuple:
         # do something with whatever layer the user has selected
@@ -95,6 +105,17 @@ def initialize_image_window_widget() -> FunctionGui:
     return image_window
 
 def initialize_struct_edit_widget() -> FunctionGui:
+    """Creates a magicgui widget for editing and saving structure masks.
+
+    Builds a GUI panel that lets the user pick a Labels layer and choose whether
+    to overwrite the existing structure or save as a new one. On clicking
+    'Save edits', the updated mask is imported back into ``planC`` and the layer
+    metadata is refreshed.
+
+    Returns:
+        FunctionGui: The magicgui ``struct_save`` widget ready to be docked in
+            a Napari viewer.
+    """
     @magicgui(label={'label': 'Edit Structure', 'nullable': True}, call_button = 'Save edits')
     def struct_save(label: Labels, overwrite_existing_structure = True) -> LayerDataTuple:
         # do something with whatever layer the user has selected
@@ -144,6 +165,17 @@ def initialize_struct_edit_widget() -> FunctionGui:
     return struct_save
 
 def initialize_struct_create_widget() -> FunctionGui:
+    """Creates a magicgui widget for drawing a new structure on a scan.
+
+    Builds a GUI panel that lets the user pick an Image layer and supply a
+    structure name. Clicking 'Create' adds a blank Labels layer sized to match
+    the chosen scan, pre-configured with the next available structure color and
+    associated ``planC`` metadata.
+
+    Returns:
+        FunctionGui: The magicgui ``struct_add`` widget ready to be docked in
+            a Napari viewer.
+    """
     @magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
     def struct_add(image: Image, structure_name = "") -> Labels:
         # do something with whatever layer the user has selected
@@ -172,6 +204,20 @@ def initialize_struct_create_widget() -> FunctionGui:
 
 
 def getLabelsDict(vwr):
+    """Returns a mapping from display label strings to structure indices.
+
+    Iterates over all layers in the Napari viewer and collects those that are
+    Labels layers with a saved ``structNum``. Each key is a string of the form
+    ``"<index>_<structureName>"`` and each value is the corresponding integer
+    structure index in ``planC``.
+
+    Args:
+        vwr (napari.Viewer): The active Napari viewer whose layers are searched.
+
+    Returns:
+        dict: Mapping of ``"<index>_<structureName>"`` strings to integer
+            structure indices.
+    """
     labelDict = {}
     ind = 1
     for lyr in vwr.layers:
@@ -182,11 +228,37 @@ def getLabelsDict(vwr):
     return labelDict
 
 def getLabelsList(vwr):
+    """Returns a list of display label strings for all saved structures in the viewer.
+
+    Convenience wrapper around :func:`getLabelsDict` that returns only the keys
+    (i.e. the ``"<index>_<structureName>"`` strings) as an ordered list.
+
+    Args:
+        vwr (napari.Viewer): The active Napari viewer whose layers are searched.
+
+    Returns:
+        list[str]: Ordered list of ``"<index>_<structureName>"`` label strings.
+    """
     labelDict = getLabelsDict(vwr)
     allLabelNames = list(labelDict.keys())
     return allLabelNames
 
 def initialize_struct_export_widget(vwr) -> FunctionGui:
+    """Creates a magicgui widget for exporting structures to DICOM or NIfTI.
+
+    Builds a GUI panel populated with the structures currently visible in the
+    Napari viewer. The user can multi-select structures, choose an output format
+    (DICOM RT-STRUCT or NIfTI), and specify an output file path. Clicking
+    'Export' writes the file to disk.
+
+    Args:
+        vwr (napari.Viewer): The active Napari viewer used to enumerate available
+            structure layers.
+
+    Returns:
+        FunctionGui: The magicgui ``struct_export`` widget ready to be docked in
+            the Napari viewer.
+    """
     labelDict = getLabelsDict(vwr)
     allLabelNames = list(labelDict.keys())
     defaultSelected = ()
@@ -270,8 +342,28 @@ def checkerboard_indices(shape, tile_size, evenTiles=True):
     return row_indices, col_indices
 
 
-def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
+def getRCSwithinScanExtents(r, c, s, numRows, numCols, numSlcs,
                    offset, axNum):
+    """Computes a bounding box of voxel indices clamped to the scan volume.
+
+    Given a cursor position ``(r, c, s)`` and a half-size ``offset``, computes
+    a rectangular region around the cursor along the two in-plane axes determined
+    by ``axNum``, then clamps every edge to the valid index range of the volume.
+
+    Args:
+        r (int or float): Row index of the cursor position.
+        c (int or float): Column index of the cursor position.
+        s (int or float): Slice index of the cursor position.
+        numRows (int): Total number of rows in the scan volume.
+        numCols (int): Total number of columns in the scan volume.
+        numSlcs (int): Total number of slices in the scan volume.
+        offset (int): Half-size of the bounding region in voxels.
+        axNum (int): Axis perpendicular to the current viewing plane (0, 1, or 2).
+
+    Returns:
+        tuple[int, int, int, int, int, int]: ``(rMin, rMax, cMin, cMax, sMin, sMax)``
+            — the clamped bounding-box indices for rows, columns, and slices.
+    """
     r = int(r)
     c = int(c)
     s = int(s)
@@ -327,6 +419,31 @@ def getRCSwithinScanExtents(r, c, s,numRows, numCols, numSlcs,
 
 def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
                  mrrScpLayerMov, mirrorLine, mirrorSize, displayType):
+    """Refreshes the mirror-scope overlay layers and border lines for registration QA.
+
+    Called on every cursor move event to re-extract cropped sub-volumes from the
+    base and moving image layers at the current cursor position, resize/flip them
+    according to ``displayType``, write the result into the temporary
+    ``mrrScpLayerBase`` / ``mrrScpLayerMov`` image layers, and redraw the
+    ``mirrorLine`` shapes that mark the split boundary.
+
+    Args:
+        viewer (napari.Viewer): The active Napari viewer.
+        baseLayer (napari.layers.Image): The fixed/reference image layer.
+        movLayer (napari.layers.Image): The moving/registered image layer.
+        mrrScpLayerBase (napari.layers.Image): Temporary overlay layer for the
+            cropped base image patch.
+        mrrScpLayerMov (napari.layers.Image): Temporary overlay layer for the
+            cropped moving image patch.
+        mirrorLine (napari.layers.Shapes): Shapes layer used to draw the split
+            boundary line.
+        mirrorSize (float): Approximate radius of the mirror region in mm.
+        displayType (str): One of ``'Mirrorscope'``, ``'Sidebyside'``, or
+            ``'AlternateGrid'``.
+
+    Returns:
+        None
+    """
     #currPt = viewer.cursor.position
     currPt = mrrScpLayerBase.metadata['currentPos']
     #baseLyrInd = getLayerIndex(scanNum,'scan',scan_layer)
@@ -538,6 +655,30 @@ def updateMirror(viewer, baseLayer, movLayer, mrrScpLayerBase,
     return
 
 def mirror_scope_callback(layer, event):
+    """Mouse-drag callback that drives the mirror-scope registration QA overlay.
+
+    Registered as a ``mouse_drag_callbacks`` handler on the mirror-scope image
+    layers. On the initial click and on every subsequent drag event it reads the
+    current cursor world-coordinate from the viewer, stores it in the layer
+    metadata, and calls :func:`updateMirror` to refresh the cropped overlay
+    patches and boundary lines.
+
+    Args:
+        layer (napari.layers.Image): The mirror-scope image layer that received
+            the mouse event. Its ``metadata`` dict must contain keys
+            ``'mirrorline'``, ``'displayType'``, ``'mirrorSize'``,
+            ``'viewer'``, ``'baseLayer'``, ``'movLayer'``,
+            ``'mrrScpLayerBase'``, and ``'mrrScpLayerMov'``.
+        event: The napari mouse event object (used as a generator via ``yield``
+            to distinguish click from drag).
+
+    Yields:
+        None: Yields control back to napari between the click and each move
+            event so the viewer can process intermediate frames.
+
+    Returns:
+        None
+    """
     # on click
     #print('mouse clicked')
     # mrrScpLayerBase.visible = True
@@ -593,6 +734,20 @@ def mirror_scope_callback(layer, event):
     return
 
 def initialize_reg_qa_widget() -> FunctionGui:
+    """Creates a magicgui widget for interactive registration quality-assurance overlays.
+
+    Builds a GUI panel with dropdowns for selecting a base image and a moving
+    image from the Napari viewer, a display-type selector
+    (``'Mirrorscope'``, ``'Sidebyside'``, ``'AlternateGrid'``, ``'Toggle'``,
+    or ``'--- OFF ---'``), and sliders for mirror size and image toggle opacity.
+    The widget creates and manages the temporary ``'Mirror-Scope-base'``,
+    ``'Mirror-Scope-mov'``, and ``'Mirror-line'`` layers in the viewer and
+    hooks up :func:`mirror_scope_callback` for interactive drag-to-compare.
+
+    Returns:
+        FunctionGui: The magicgui ``mirror_scope`` widget ready to be docked in
+            the Napari viewer.
+    """
     @magicgui(call_button=False, auto_call=True)
     def mirror_scope(viewer: 'napari.viewer.Viewer',
                      baseImage: Image,
@@ -724,6 +879,17 @@ def initialize_reg_qa_widget() -> FunctionGui:
 
 
 def initialize_dose_select_widget() -> FunctionGui:
+    """Creates a magicgui widget for selecting a dose layer in the Napari viewer.
+
+    Builds a minimal GUI panel with an Image layer picker labelled 'Pick a Dose'.
+    The widget auto-calls on change and returns the selected dose layer as a
+    ``LayerDataTuple`` so that downstream widgets (e.g. the dose colorbar) can
+    react to the selection.
+
+    Returns:
+        FunctionGui: The magicgui ``dose_select`` widget ready to be docked in
+            the Napari viewer.
+    """
     @magicgui(image={'label': 'Pick a Dose'}, call_button=False)
     def dose_select(image:Image) -> LayerDataTuple:
         # do something with whatever layer the user has selected
@@ -738,11 +904,31 @@ def initialize_dose_select_widget() -> FunctionGui:
     return dose_select
 
 def initialize_dose_colorbar_widget() -> FunctionGui:
+    """Creates a matplotlib canvas widget used as a dose colorbar panel.
+
+    Constructs a narrow (1 x 10 inch) ``FigureCanvasQTAgg`` figure with a dark
+    background style intended to be docked alongside the Napari viewer to display
+    the dose colorbar.
+
+    Returns:
+        FigureCanvasQTAgg: A Qt-compatible matplotlib canvas ready to be embedded
+            as a Napari dock widget.
+    """
     with plt.style.context('dark_background'):
         mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 10)))
     return mz_canvas
 
 def initialize_dvf_colorbar_widget() -> FunctionGui:
+    """Creates a matplotlib canvas widget used as a deformation vector field colorbar panel.
+
+    Constructs a narrow (1 x 10 inch) ``FigureCanvasQTAgg`` figure with a dark
+    background style intended to be docked alongside the Napari viewer to display
+    the DVF magnitude colorbar.
+
+    Returns:
+        FigureCanvasQTAgg: A Qt-compatible matplotlib canvas ready to be embedded
+            as a Napari dock widget.
+    """
     with plt.style.context('dark_background'):
         mz_canvas = FigureCanvasQTAgg(Figure(figsize=(1, 10)))
     return mz_canvas
@@ -1758,5 +1944,131 @@ def showMplNb(planC, scanNum=0, structNums=[], doseNum=None,
         out = interactive_output(showSlice, {'view':viewSelect, 'slcNum':sliceSliderAxial, 'doseAlpha':doseAlphaSlider})
 
     display(sliders, out)
+
+    return
+
+
+
+def captureToFile(planC, fileName, scanNums, strNums, doseNums, vectorDict, centerStr, dispOpts=[]):
+    """Renders axial, sagittal, and coronal screenshots of a structure and saves them to a file.
+
+    Opens a Napari viewer via :func:`showNapari`, navigates to the slices with the
+    largest cross-section of ``centerStr`` along each axis, captures screenshots,
+    then saves all three views as a single image file using matplotlib.
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        fileName (str): Output image file path (e.g. ``'output.png'``).
+        scanNums (int or list[int]): Scan index or indices to display.
+        strNums (int or list[int]): Structure index or indices to display.
+        doseNums (int or list[int]): Dose index or indices to display.
+        vectorDict (dict): Deformation vector field dictionary passed to
+            :func:`showNapari` (may be empty).
+        centerStr (int): Index of the structure in ``planC.structure`` used to
+            determine which slice to show in each view.
+        dispOpts (list or dict, optional): Display options controlling opacity,
+            windowing, and contour width for scan, structure, and dose layers.
+            Defaults to ``[]`` (no overrides).
+
+    Returns:
+        None
+    """
+    def saveViews(images, filename, titles):
+        fig, axes = plt.subplots(1, len(images), figsize=(12, 4))
+        for ax, img, title in zip(axes, images, titles):
+            ax.imshow(img, cmap='gray')
+            ax.set_title(title)
+            ax.axis('off')
+        plt.tight_layout()
+        plt.savefig(filename, dpi=150)
+        plt.close()
+
+    if isinstance(scanNums, (int, float, np.number)):
+        scanNums = [scanNums]
+    if isinstance(strNums, (int, float, np.number)):
+        strNums = [strNums]
+    if isinstance(doseNums, (int, float, np.number)):
+        doseNums = [doseNums]
+
+    # Display scan
+    viewer, scan_layer, struct_layer, dose_layer, dvf_layer = \
+        showNapari(planC, scanNums, strNums, doseNums, vectors_dict=vectorDict, displayMode='2d')
+
+    numScans = len(scanNums)
+    numStrs = len(strNums)
+    numDoses = len(doseNums)
+    for i,_ in enumerate(scanNums):
+        if 'scan' in dispOpts and 'opacity' in dispOpts['scan'][i]:
+            scan_layer[i].opacity = dispOpts['scan'][i]
+        else:
+            scan_layer[i].opacity = 1/numScans
+        if 'scan' in dispOpts and 'window' in dispOpts['scan'][i]:
+            window = dispOpts['scan'][i]['window']
+            if isinstance(window, (str)) and (window in window_dict):
+                center = window_dict[window][0]
+                width = window_dict[window][1]
+                scan_layer[i].contrast_limits = [center-width/2, center+width/2]
+                scan_layer[i].contrast_limits_range = [center-width/2, center+width/2]
+        scan_layer[i].refresh()
+
+    for i,_ in enumerate(strNums):
+        if 'structure' in dispOpts and 'opacity' in dispOpts['structure'][i]:
+            struct_layer[i].opacity = dispOpts['structure'][i]['opacity']
+        else:
+            struct_layer[i].opacity = 0.5
+        if 'structure' in dispOpts:
+            struct_layer[i].contour = dispOpts['structure'][i]['width']
+        else:
+            struct_layer[i].contour = 0
+        struct_layer[i].refresh()
+
+    for i,_ in enumerate(doseNums):
+        if 'dose' in dispOpts and 'opacity' in dispOpts['dose'][i]:
+            dose_layer[i].opacity = dispOpts['dose'][i]['opacity']
+        else:
+            dose_layer[i].opacity = 0.5/numDoses
+        dose_layer[i].refresh()
+
+    # Show structure central slice
+    assocScanNum = planC.structure[centerStr].getStructureAssociatedScan(planC)
+    mask3M = rs.getStrMask(centerStr, planC)
+    rV, cV, sV = np.where(mask3M)
+
+    screenshots = []
+
+    # update viewer to display the central slice and capture screenshot
+    xV, yV, zV = planC.scan[assocScanNum].getScanXYZVals()
+
+    # Axial
+    uniqueSlices, counts = np.unique(sV, return_counts=True)
+    maxSizeInd = uniqueSlices[np.argmax(counts)]
+    #midSliceInd = int(np.round(np.median(uniqueSlices))) #corrected
+    viewer.dims.set_point(2, zV[maxSizeInd])
+    viewer.dims.order = (1, 2, 0) # required to refresh viewer
+    viewer.dims.order = (2, 0, 1)
+    screenshots.append(viewer.screenshot())
+
+
+    # Sagittal
+    uniqueCols, counts = np.unique(cV, return_counts=True)
+    maxSizeInd = uniqueCols[np.argmax(counts)]
+    #midSliceInd = int(np.round(np.median(uniqueCols)))
+    viewer.dims.set_point(1, xV[maxSizeInd])
+    viewer.dims.order = (1, 2, 0)
+    screenshots.append(viewer.screenshot())
+
+    # Coronal
+    uniqueRows, counts = np.unique(rV, return_counts=True)
+    maxSizeInd = uniqueRows[np.argmax(counts)]
+    #midSliceInd = int(np.round(np.median(uniqueRows)))
+    viewer.dims.set_point(0, -yV[maxSizeInd])
+    viewer.dims.order = (0, 2, 1)
+    screenshots.append(viewer.screenshot())
+
+
+    titles = ['Axial', 'Sagittal', 'Coronal']
+    saveViews(screenshots, fileName, titles)
+
+    viewer.close()
 
     return

@@ -14,6 +14,35 @@ Returns: updated planC
 '''
 
 def smoothStructure(planC, struct_idx, replace_original = True, name_suffix ="", tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
+    """Apply 2-D contour smoothing to every segment of a structure in planC.
+
+    Deep-copies the structure at ``struct_idx``, applies piecewise smoothing to
+    each 2-D contour segment via :func:`smooth2DContour`, regenerates raster
+    segments, and either replaces the original structure in ``planC`` or appends
+    a new one depending on ``replace_original``.
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR plan container object.
+        struct_idx (int): Index of the structure to smooth in
+            ``planC.structure``.
+        replace_original (bool, optional): When ``True`` (default) the
+            smoothed structure overwrites the original entry.  When ``False``
+            the smoothed structure is appended as a new entry.
+        name_suffix (str, optional): String appended to the structure name of
+            the smoothed copy.  Defaults to ``""``.
+        tol (int, optional): Minimum gap (in vertices) between jagged regions
+            for them to be treated as separate segments.  Defaults to ``4``.
+        taubin_mu (float, optional): Mu parameter for Taubin smoothing of
+            jagged regions.  Defaults to ``0.8``.
+        taubin_factor (float, optional): Factor (lambda) for Taubin smoothing.
+            Defaults to ``0.8``.
+        catmull_alpha (float, optional): Alpha parameter for Catmull-Rom
+            interpolation of smooth regions.  Defaults to ``1``.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with the smoothed
+        structure in place (or appended).
+    """
     struct_obj = copy.deepcopy(planC.structure[struct_idx])
     for contour_orig in struct_obj.contour:
         if contour_orig != []:
@@ -42,6 +71,40 @@ Returns: Smoothed Contour X, range indices of jagged regions in original contour
 '''
 
 def smooth2DContour(C, tol = 4, taubin_mu = 0.8, taubin_factor = 0.8, catmull_alpha = 1):
+    """Piecewise-smooth a closed 2-D contour in place.
+
+    Identifies "jagged" vertices — those where the cosine of the interior
+    angle (``dot(v1, v2) / (|v1| |v2|)``) is either very small (near-perpendicular
+    turns) or very close to 1 (near-collinear, i.e. micro-steps) — groups them
+    into contiguous jagged regions, and applies Taubin smoothing to each jagged
+    region while using Catmull-Rom interpolation on the smooth regions in
+    between.  If no jagged vertices are detected the original 2-D coordinates
+    are returned unchanged.
+
+    Args:
+        C (np.ndarray): Contour vertex array of shape ``(N, 3)`` or ``(N, 2)``.
+            When 3 columns are present the third (z) column is stripped before
+            processing and not included in the output.
+        tol (int, optional): Maximum vertex-index gap allowed within a single
+            jagged region.  Adjacent jagged vertices separated by more than
+            ``tol`` indices are split into separate regions.  Defaults to ``4``.
+        taubin_mu (float, optional): Mu parameter for Taubin smoothing.
+            Defaults to ``0.8``.
+        taubin_factor (float, optional): Factor (lambda) parameter for Taubin
+            smoothing.  Defaults to ``0.8``.
+        catmull_alpha (float, optional): Alpha parameter for Catmull-Rom
+            interpolation.  Defaults to ``1``.
+
+    Returns:
+        tuple:
+            - **piecewise_segs** (np.ndarray): Smoothed contour vertices as an
+              array of shape ``(M, 2)`` containing only the x/y coordinates.
+              Returns the original ``(N, 2)`` array unchanged when no jagged
+              segments are found.
+            - **taubin_range** (list[list[int]] | list): List of ``[start, end]``
+              vertex-index pairs identifying each jagged region that was
+              Taubin-smoothed.  Empty list when no jagged segments were found.
+    """
     if C.shape[1] == 3:
         Cxy = np.delete(C,2,1)
     elif C.shape[2] == 2:

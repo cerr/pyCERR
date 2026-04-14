@@ -112,6 +112,20 @@ def getDVH(structNum, doseNum, planC):
     return dosesV, volsV, isError
 
 def accumulate(V1, V2, indV):
+    """Accumulate values from V2 into V1 at positions specified by indV.
+
+    For each element in V2, adds its value to V1 at the corresponding index
+    given by indV.  Operates in-place and also returns the modified V1.
+
+    Args:
+        V1 (np.ndarray): Target array that will be updated in-place.
+        V2 (np.ndarray): Source values to add into V1.
+        indV (np.ndarray): Integer index array; indV[i] is the position in V1
+            where V2[i] should be accumulated.
+
+    Returns:
+        np.ndarray: The updated V1 array.
+    """
     for i in range(len(V2)):
         V1[indV[i]] += V2[i]
     return V1

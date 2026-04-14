@@ -13,6 +13,16 @@ import SimpleITK as sitk
 
 
 def getDown2Mask(inM, sample):
+    """Create a 2D downsampling mask by marking every ``sample``-th row and column.
+
+    Args:
+        inM (np.ndarray): 2D input array whose shape determines the mask size.
+        sample (int): Step size used to select rows and columns.
+
+    Returns:
+        np.ndarray: Boolean array of the same shape as ``inM`` with ``True``
+        at every ``sample``-th row/column intersection.
+    """
     sV = inM.shape
     vec = list(range(0, sV[1], sample))
 
@@ -26,6 +36,18 @@ def getDown2Mask(inM, sample):
     return maskM
 
 def getDown3Mask(mask3M, sampleTrans, sampleAxis):
+    """Create a 3D downsampling mask by applying 2D downsampling on selected slices.
+
+    Args:
+        mask3M (np.ndarray): 3D input array whose shape determines the mask size.
+        sampleTrans (int): Step size for downsampling within each transverse slice
+            (rows and columns).
+        sampleAxis (int): Step size for selecting slices along the third axis.
+
+    Returns:
+        np.ndarray: Boolean array of the same shape as ``mask3M`` with ``True``
+        only at sampled row/column/slice positions.
+    """
     sV = mask3M.shape
     sampleSlices = int(np.ceil(sV[2] / sampleAxis))
 
@@ -102,7 +124,25 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
     return r,c,s
 
 def surfaceExpand(mask3M, dxyz, marginCm, restrict_2d=False):
+    """Expand or contract a binary mask by a physical margin along its surface.
 
+    Surface voxels are identified and a spherical ball of radius ``marginCm``
+    is applied at each surface point to grow (positive margin) or shrink
+    (negative margin) the mask.
+
+    Args:
+        mask3M (np.ndarray): 3D binary input mask.
+        dxyz (array-like): Voxel spacing in cm as ``[dx, dy, dz]``.
+        marginCm (float): Margin to apply in cm. Positive values expand the
+            mask; negative values contract it.
+        restrict_2d (bool): If ``True``, expansion is performed independently
+            on each transverse slice (no inter-slice spreading). Defaults to
+            ``False``.
+
+    Returns:
+        np.ndarray: Boolean array of the same shape as ``mask3M`` representing
+        the expanded (or contracted) mask.
+    """
     maskExpanded3M = mask3M.copy()
 
     # Get surface points (assuming surfPoints is a list of coordinates)

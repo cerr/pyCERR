@@ -30,8 +30,19 @@ import copy
 
 
 def get_empty_list():
+    """Return an empty list used as a default factory for dataclass fields.
+
+    Returns:
+        list: An empty list.
+    """
     return []
+
 def get_empty_np_array():
+    """Return an empty 3-D NumPy array used as a default factory for dataclass fields.
+
+    Returns:
+        np.ndarray: An empty array with shape (0, 0, 0).
+    """
     return np.empty((0,0,0))
 
 @dataclass
@@ -107,9 +118,23 @@ class Structure:
 
 
     def __getitem__(self, key):
+        """Return the value of the attribute identified by *key*.
+
+        Args:
+            key (str): Name of the attribute to retrieve.
+
+        Returns:
+            object: Value of the requested attribute.
+        """
         return getattr(self, key)
 
     def __setitem__(self, key, value):
+        """Set the attribute identified by *key* to *value*.
+
+        Args:
+            key (str): Name of the attribute to set.
+            value (object): Value to assign to the attribute.
+        """
         return setattr(self, key, value)
 
     def saveNii(self, niiFileName, planC):
@@ -431,6 +456,18 @@ class Segment:
 
 class jsonSerializeSegment(json.JSONEncoder):
     def default(self, segObj):
+        """Serialize a :class:`Segment` instance to a JSON-compatible dictionary.
+
+        Args:
+            segObj (Segment): Segment object to serialize.
+
+        Returns:
+            dict: Dictionary with a ``points`` key containing the serialized
+                contour point coordinates.
+
+        Raises:
+            TypeError: When *segObj* is not a :class:`Segment` instance.
+        """
         segDict = {}
         if not segObj:
             segDict['points'] = ''
@@ -443,6 +480,18 @@ class jsonSerializeSegment(json.JSONEncoder):
 
 class jsonSerializeContour(json.JSONEncoder):
     def default(self, ctrObj):
+        """Serialize a :class:`Contour` instance to a JSON-compatible dictionary.
+
+        Args:
+            ctrObj (Contour): Contour object to serialize.
+
+        Returns:
+            dict: Dictionary containing ``referencedSopClassUID``,
+                ``referencedSopInstanceUID``, and ``segments`` keys.
+
+        Raises:
+            TypeError: When *ctrObj* is not a :class:`Contour` instance.
+        """
         ctrDict = {}
         if isinstance(ctrObj, Contour):
             ctrDict['referencedSopClassUID'] = ctrObj.referencedSopClassUID
@@ -464,6 +513,21 @@ fieldsList = ['structureName', 'patientName', 'assocScanUID', 'strUID',
 
 class jsonSerializeStruct(json.JSONEncoder):
     def default(self, strObj):
+        """Serialize a :class:`Structure` instance to a JSON-compatible dictionary.
+
+        Only the fields listed in ``fieldsList`` are exported together with the
+        nested contour data.
+
+        Args:
+            strObj (Structure): Structure object to serialize.
+
+        Returns:
+            dict: Dictionary whose keys are the fields from ``fieldsList`` plus
+                a ``contour`` list of serialized contour entries.
+
+        Raises:
+            TypeError: When *strObj* is not a :class:`Structure` instance.
+        """
         strDict = {}
         if isinstance(strObj, Structure):
             for fld in fieldsList:
@@ -481,6 +545,19 @@ class jsonSerializeStruct(json.JSONEncoder):
             raise TypeError("Unexpected type {0}".format(type_name))
 
 def getJsonList(structNumV, planC):
+    """Return a JSON-formatted string (or list of strings) for the specified structures.
+
+    Args:
+        structNumV (Structure, int, float, np.integer, np.floating, or list):
+            A single :class:`Structure` object, a scalar structure index, or a
+            list of indices into ``planC.structure``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        str or list[str]: A JSON-formatted string when *structNumV* is a
+            :class:`Structure` object, otherwise a list of JSON-formatted
+            strings—one per requested structure index.
+    """
     if isinstance(structNumV, (Structure)):
         return json.dumps(structNumV, ensure_ascii=False, indent=4, cls=jsonSerializeStruct)
     else:
@@ -1278,6 +1355,20 @@ def getLargestConnComps(structNum, numConnComponents, planC=None, saveFlag=None,
 
 
 def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
+    """Expand or contract a structure mask by a uniform surface margin and save the result to planC.
+
+    Args:
+        structNum (int): Index of the structure in ``planC.structure``.
+        marginCm (float): Expansion margin in centimetres. Negative values produce
+            a contraction (shrinkage) of the mask.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        restrict_2d (bool): When ``True``, the expansion is limited to the
+            in-plane (2-D) directions only. Defaults to ``False``.
+
+    Returns:
+        cerr.plan_container.PlanC: Updated plan container object with the
+            expanded/contracted structure appended to ``planC.structure``.
+    """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
     contractFlag = False

@@ -421,6 +421,34 @@ def resizeScanAndMask(scan3M, mask4M, gridS, outputImgSizeV, method, \
 
 
 def transformScan(scan3M, mask4M, gridS, orientation):
+    """Transpose a scan (and optional mask/grid) into a target anatomical orientation.
+
+    Reorders the axes of ``scan3M`` and ``mask4M`` so that the data is laid out
+    in the requested viewing plane without resampling.
+
+    Args:
+        scan3M (np.ndarray): 3D input scan array with shape
+            ``[nRows, nCols, nSlices]``.
+        mask4M (np.ndarray or None): 4D mask array with shape
+            ``[nRows, nCols, nSlices, nStructures]``, or ``None`` if no mask
+            is needed.
+        gridS (tuple or None): Coordinate tuple ``(xV, yV, zV)`` for the input
+            scan/mask, or ``None`` if coordinates are not required.
+        orientation (str): Target orientation. Supported values are
+            ``'axial'`` (no change), ``'coronal'``, and ``'sagittal'``.
+
+    Returns:
+        tuple: A three-element tuple ``(outScan3M, outMask4M, outGridS)`` where
+
+        - **outScan3M** (*np.ndarray*): Transposed scan array.
+        - **outMask4M** (*np.ndarray or None*): Transposed mask array, or
+          ``None`` if ``mask4M`` was ``None``.
+        - **outGridS** (*tuple or None*): Reordered coordinate tuple, or
+          ``None`` if ``gridS`` was ``None``.
+
+    Raises:
+        ValueError: If ``orientation`` is not one of the supported values.
+    """
     outMask4M = None
     outGridS = None
     if orientation == 'coronal':

@@ -63,12 +63,47 @@ def imquantize(x, num_level=None, xmin=None, xmax=None, binwidth=None):
 
 
 def calcRobustZscore(imgM):
+    """Compute element-wise robust z-scores using median and median absolute deviation (MAD).
+
+    The robust z-score is defined as ``0.6745 * (x - median) / MAD``, where the
+    constant ``0.6745`` makes the estimator consistent with the standard deviation
+    for normally distributed data.
+
+    Args:
+        imgM (numpy.ndarray): Input image array of any shape.
+
+    Returns:
+        numpy.ndarray: Array of the same shape as *imgM* containing the robust
+            z-score for each element.
+    """
     medianVal = np.median(imgM, axis=None)
     madVal = stats.median_abs_deviation(imgM, axis=None)
     robustZscoreM = 0.6745 * (imgM.copy() - medianVal) / madVal
     return robustZscoreM
 
 def extract_patches_3d_slice_wise(data_3d, patch_size):
+    """Extract 2-D patches from each axial slice of a 3-D volume.
+
+    For every slice along the third axis of *data_3d*, ``sklearn``'s
+    :func:`sklearn.feature_extraction.image.extract_patches_2d` is called with
+    *patch_size* and the resulting patches are stacked into a 4-D array.
+
+    Args:
+        data_3d (numpy.ndarray): 3-D input array of shape ``(rows, cols, slices)``.
+        patch_size (tuple): 2-element tuple ``(patch_rows, patch_cols)`` specifying
+            the spatial size of each extracted patch.
+
+    Returns:
+        numpy.ndarray: 4-D array of shape
+            ``(n_patches_per_slice, patch_rows, patch_cols, slices)`` containing
+            all extracted patches.
+
+    Example::
+
+        data_3d = np.random.rand(30, 30, 30)
+        patch_size = (5, 5)
+        patches_3d = extract_patches_3d_slice_wise(data_3d, patch_size)
+    """
     # # Example usage:
     # data_3d = np.random.rand(30, 30, 30)
     # patch_size = (5, 5)
@@ -423,7 +458,24 @@ def unpadScan(padScan3M, marginV):
 
 
 def getPerIndices(length, lf):
-    """ Replicate periodic indices: [length-lf+1 : length, 1:length, 1:lf] """
+    """Compute 0-based periodic (wrap-around) index array for wavelet extension.
+
+    Constructs the index sequence
+    ``[length-lf, ..., length-1, 0, ..., length-1, 0, ..., lf-1]``
+    (1-based math mapped to 0-based) used to periodically extend an array of
+    *length* elements by *lf* elements on each side.
+
+    Args:
+        length (int): Length of the original array to be extended.
+        lf (int): Number of extension elements (half the filter length).
+
+    Returns:
+        numpy.ndarray: 1-D integer array of 0-based indices into the original array,
+            of length ``length + 2 * lf`` (approximately).
+
+    Note:
+        Replicate periodic indices: ``[length-lf+1 : length, 1:length, 1:lf]``
+    """
 
     I = np.concatenate((np.arange(length - lf + 1, length + 1),
                                np.arange(1, length + 1),
@@ -436,7 +488,22 @@ def getPerIndices(length, lf):
     return I - 1
 
 def wextend(x, padV):
-    """Periodic extension of input array for wavelet decomposition"""
+    """Periodically extend a 1-D or 2-D array for wavelet decomposition.
+
+    Ensures an even number of elements along each axis (repeating the last
+    element if needed) and then applies periodic (wrap-around) extension using
+    :func:`getPerIndices`.
+
+    Args:
+        x (numpy.ndarray): Input 1-D or 2-D array to extend.
+        padV (array-like): Sequence of padding amounts.  For a 1-D array, only
+            ``padV[0]`` (row padding) is used.  For a 2-D array, ``padV[0]``
+            applies to rows and ``padV[1]`` applies to columns.
+
+    Returns:
+        numpy.ndarray: Periodically extended copy of *x* with the same number
+            of dimensions.
+    """
     y = x.copy()
 
     if y.ndim == 1:
@@ -467,8 +534,24 @@ def wextend(x, padV):
 
 
 def dyadUp(filter1d, evenOdd=1):
-    """
-    Interleave with zeros at even positions.
+    """Upsample a 1-D filter by interleaving zeros (dyadic upsampling).
+
+    Inserts a zero between every pair of consecutive filter coefficients,
+    doubling the length of the array.  This is the standard upsampling step
+    in the synthesis bank of a wavelet filter.
+
+    Args:
+        filter1d (array-like): 1-D filter coefficient array to upsample.
+        evenOdd (int): Controls the zero-insertion pattern.
+
+            - Odd value (default ``1``): zeros at *odd* indices
+              (i.e. original values occupy even-indexed positions ``0, 2, 4, …``).
+            - Even value: zeros at *even* indices
+              (i.e. original values occupy odd-indexed positions ``1, 3, 5, …``).
+
+    Returns:
+        numpy.ndarray: 1-D array of length ``2 * len(filter1d)`` with zeros
+            interleaved according to *evenOdd*.
     """
     filter1d = np.asarray(filter1d).flatten()
     up = np.zeros((2 * len(filter1d),), dtype=filter1d.dtype)

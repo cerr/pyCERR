@@ -17,8 +17,19 @@ import json
 import os
 
 def get_empty_list():
+    """Return an empty list, used as a default factory for dataclass fields.
+
+    Returns:
+        list: An empty list.
+    """
     return []
+
 def get_empty_np_array():
+    """Return an empty 3-D numpy array, used as a default factory for dataclass fields.
+
+    Returns:
+        np.ndarray: A zero-element array with shape (0, 0, 0).
+    """
     return np.empty((0,0,0))
 
 @dataclass
@@ -58,13 +69,38 @@ class Scan:
     cerrToDcmTransM:  np.ndarray = field(default_factory=get_empty_np_array)
 
     def __getitem__(self, key):
+        """Return the value of the named attribute.
+
+        Args:
+            key (str): Attribute name to retrieve.
+
+        Returns:
+            Any: Value of the requested attribute.
+        """
         return getattr(self, key)
 
     def __setitem__(self, key, value):
+        """Set the value of the named attribute.
+
+        Args:
+            key (str): Attribute name to set.
+            value (Any): Value to assign to the attribute.
+        """
         return setattr(self, key, value)
 
     class json_serialize(json.JSONEncoder):
         def default(self, obj):
+            """Serialize a Scan instance to a JSON-compatible dictionary.
+
+            Args:
+                obj (Any): Object to serialize.  When the object is an instance
+                    of :class:`Scan` its ``scanUID`` is returned; all other types
+                    fall back to an empty string.
+
+            Returns:
+                str | dict: ``{'scan': obj.scanUID}`` for Scan instances,
+                    otherwise an empty string.
+            """
             if isinstance(obj, Scan):
                 return {'scan':obj.scanUID}
             return "" #json.JSONEncoder.default(self, obj)
@@ -707,6 +743,18 @@ def getITKDirection(scan):
     return itk_direction
 
 def dcm_hhmmss(time_str):
+    """Parse a DICOM time string (HHMMSS) into its components and total seconds.
+
+    Args:
+        time_str (str): DICOM-format time string with at least 6 characters in
+            HHMMSS order (fractional seconds are accepted but currently ignored).
+
+    Returns:
+        tuple: A 5-element tuple ``(totSec, hh, mm, ss, fract)`` where
+            ``totSec`` (int) is the total number of seconds since midnight,
+            ``hh`` (int) is hours, ``mm`` (int) is minutes, ``ss`` (int) is
+            seconds, and ``fract`` is ``None`` (reserved for future use).
+    """
     hh = int(time_str[0:2])
     mm = int(time_str[2:4])
     ss = int(time_str[4:6])
@@ -716,12 +764,31 @@ def dcm_hhmmss(time_str):
     return totSec, hh, mm, ss, fract
 
 def dcm_to_np_date(dateStr):
+    """Convert a DICOM date string (YYYYMMDD) to a numpy datetime64 object.
+
+    Args:
+        dateStr (str): DICOM-format date string, exactly 8 characters in
+            YYYYMMDD order.
+
+    Returns:
+        np.datetime64 | None: A ``numpy.datetime64`` with day precision when
+            ``dateStr`` is 8 characters long, otherwise ``None``.
+    """
     dateObj = None
     if len(dateStr) == 8:
         dateObj = np.datetime64(dateStr[:4] + "-" + dateStr[4:6] + "-" + dateStr[6:], 'D')
     return dateObj
 
 def get_slice_position(scan_info_item):
+    """Extract the z-position from an enumerated scan-info pair for sort key use.
+
+    Args:
+        scan_info_item (tuple): A ``(index, ScanInfo)`` pair as produced by
+            ``enumerate``.  The second element must have a ``zValue`` attribute.
+
+    Returns:
+        float: The ``zValue`` of the scan-info slice, in centimetres.
+    """
     return scan_info_item[1].zValue
 
 def populateScanInfoFields(s_info, ds):

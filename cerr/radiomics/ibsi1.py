@@ -11,6 +11,16 @@ import json
 
 
 def getDirectionOffsets(direction):
+    """Return the voxel offset vectors for the given directionality.
+
+    Args:
+        direction (int): Directionality flag. ``1`` for 3D (13 unique directions),
+            ``2`` for 2D (4 in-plane directions).
+
+    Returns:
+        numpy.ndarray: Integer array of shape ``(N, 3)`` where each row is a
+            ``[row, col, slice]`` offset vector defining one co-occurrence direction.
+    """
     if direction == 1:
         offsetsM = np.asarray([[1, 0, 0],
                                [0, 1, 0],
@@ -39,6 +49,33 @@ def getDirectionOffsets(direction):
 
 
 def getRadiomicsSettings(paramS):
+    """Parse a radiomics parameter dictionary and return individual extraction settings.
+
+    Args:
+        paramS (dict): Radiomics parameter dictionary loaded from a JSON settings file.
+            Expected top-level keys include ``'settings'`` and ``'featureClass'``.
+
+    Returns:
+        tuple: A 13-element tuple containing:
+
+            - **firstOrderOffsetEnergy** (*float or None*): Energy offset for first-order features.
+            - **firstOrderEntropyBinWidth** (*float or None*): Bin width used for first-order entropy.
+            - **firstOrderEntropyBinNum** (*int or None*): Number of bins for first-order entropy.
+            - **cooccurType** (*int or None*): GLCM computation type (``1`` = merged texture,
+              ``2`` = merged features).
+            - **rlmType** (*int or None*): RLM computation type (same convention as cooccurType).
+            - **szmDir** (*int or None*): SZM directionality (``1`` = 3D, ``2`` = 2D).
+            - **patch_radius** (*int or None*): Patch radius in voxels for NGTDM/NGLDM.
+            - **difference_threshold** (*float or None*): Intensity difference threshold for NGLDM.
+            - **offsetsM** (*numpy.ndarray or list*): Direction offset vectors for texture matrices.
+            - **minClipIntensity** (*float or None*): Lower clipping bound before quantization.
+            - **maxClipIntensity** (*float or None*): Upper clipping bound before quantization.
+            - **textureBinNum** (*int or None*): Number of quantization bins for texture features.
+            - **textureBinWidth** (*float or None*): Bin width for texture quantization.
+
+    Raises:
+        Exception: If both ``textureBinNum`` and ``textureBinWidth`` are specified simultaneously.
+    """
     # Get feature extraction settings
     firstOrderOffsetEnergy = None
     firstOrderEntropyBinWidth = None
@@ -115,6 +152,30 @@ def getQuantizedVolume(volToEval, paramS,
                        maskBoundingBox3M, textureBinNum,
                        minClipIntensity, maxClipIntensity,
                        textureBinWidth):
+    """Quantize a 3D volume for texture feature computation.
+
+    Voxels outside the mask are set to ``NaN`` prior to quantization so that the
+    intensity range is derived exclusively from within the ROI.
+
+    Args:
+        volToEval (numpy.ndarray): 3D image array (floating-point) to quantize.
+        paramS (dict): Radiomics parameter dictionary.  Must contain a ``'settings'``
+            key; if a ``'texture'`` sub-key is present, quantization is applied.
+        maskBoundingBox3M (numpy.ndarray): Boolean 3D mask aligned with *volToEval*.
+            Voxels outside the mask are excluded from quantization range estimation.
+        textureBinNum (int or None): Number of quantization levels.  Mutually exclusive
+            with *textureBinWidth*.
+        minClipIntensity (float or None): Lower clip bound applied before quantization.
+            If ``None``, the in-mask minimum is used.
+        maxClipIntensity (float or None): Upper clip bound applied before quantization.
+            If ``None``, the in-mask maximum is used.
+        textureBinWidth (float or None): Bin width for quantization.  Mutually exclusive
+            with *textureBinNum*.
+
+    Returns:
+        numpy.ndarray: Quantized integer volume of the same shape as *volToEval*, or
+            the original *volToEval* unmodified when no ``'texture'`` settings are found.
+    """
 
     # Assign nan values outside the mask, so that min/max within the mask are used for quantization
     volToEval[~maskBoundingBox3M] = np.nan
@@ -135,6 +196,32 @@ def getQuantizedVolume(volToEval, paramS,
 
 
 def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, paramS, rowColSlcOri='LPS'):
+    """Compute IBSI-1 radiomics features for a single image type.
+
+    Iterates over the feature classes listed in ``paramS['featureClass']`` (shape,
+    first-order, GLCM, RLM, SZM, NGLDM, NGTDM) and returns a dictionary of
+    computed features.
+
+    Args:
+        volToEval (numpy.ndarray): 3D floating-point image array cropped to the
+            bounding box of the ROI.
+        maskBoundingBox3M (numpy.ndarray): Boolean 3D mask of the same shape as
+            *volToEval* identifying the ROI voxels.
+        morphMask3M (numpy.ndarray): Boolean 3D mask used for shape/morphology
+            feature calculation (may differ from *maskBoundingBox3M* when
+            re-segmentation thresholds are applied).
+        gridS (dict): Grid coordinate dictionary with keys ``'xValsV'``,
+            ``'yValsV'``, ``'zValsV'``, and ``'PixelSpacingV'``.
+        paramS (dict): Radiomics parameter dictionary loaded from a JSON settings
+            file specifying which feature classes to compute and their settings.
+        rowColSlcOri (str): Patient orientation string for the scan (e.g. ``'LPS'``).
+            Defaults to ``'LPS'``.
+
+    Returns:
+        dict: Dictionary whose keys are feature-class names (e.g. ``'shape'``,
+            ``'firstOrder'``, ``'glcm'``) and whose values are dictionaries of
+            scalar feature name → value mappings.
+    """
 
     featDict = {}
 
@@ -193,10 +280,38 @@ def calcRadiomicsForImgType(volToEval, maskBoundingBox3M, morphMask3M, gridS, pa
 
 
 def computeFeatureImportance():
+    """Placeholder for future feature importance computation.
+
+    Returns:
+        None
+    """
     pass
 
 
 def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
+    """Pre-process a scan and compute all IBSI-1 radiomics features specified in a settings file.
+
+    Reads the JSON settings file, pre-processes the scan, and loops over every
+    image type (original + filtered) requested in ``radiomicsSettingS['imageType']``.
+    For each image type, :func:`calcRadiomicsForImgType` is called and the results
+    are flattened into a single dictionary.
+
+    Args:
+        scanNum (int): Index of the scan in ``planC.scan``.
+        structNum (int): Index of the structure in ``planC.structure``.
+        settingsFile (str): Path to the JSON radiomics settings file.
+        planC (cerr.plan_container.PlanC): pyCERR plan container object.
+
+    Returns:
+        tuple: A 2-element tuple ``(featDictAllTypes, diagS)`` where
+
+            - **featDictAllTypes** (*dict*): Flat dictionary mapping feature names
+              (prefixed with image-type and feature-class labels) to scalar values.
+              Returns an empty dict pair ``({}, {})`` when the ROI mask is empty.
+            - **diagS** (*dict*): Diagnostic statistics dictionary (voxel counts,
+              mean/min/max intensity after interpolation and re-segmentation).
+
+    """
 
     with open(settingsFile, ) as settingsFid:
         radiomicsSettingS = json.load(settingsFid)
@@ -291,6 +406,16 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
 
 
 def getIBSINameMap():
+    """Return mappings from pyCERR feature names to IBSI benchmark feature names.
+
+    Returns:
+        tuple: A 2-element tuple ``(classDict, featDict)`` where
+
+            - **classDict** (*dict*): Maps pyCERR feature-class names (e.g.
+              ``'firstOrder'``) to their IBSI counterparts (e.g. ``'stat'``).
+            - **featDict** (*dict*): Maps pyCERR scalar feature names (e.g.
+              ``'mean'``) to their IBSI counterparts (e.g. ``'mean'``).
+    """
     classDict = {'shape': 'morph',
                  'firstOrder': 'stat',
                  'glcm': 'cm',
@@ -495,7 +620,31 @@ def createFieldNameFromParameters(imageType, settingS):
 
     return fieldName
 
-def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBSI = False):
+def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBSI=False):
+    """Flatten a nested feature dictionary into a single-level dictionary with descriptive keys.
+
+    Constructs unique feature-name strings by combining the image type, feature
+    class, feature name, directionality, and averaging strategy.  For matrix-based
+    features (GLCM, RLM) the mean, median, standard deviation, min, and max across
+    directions are stored separately.
+
+    Args:
+        featDict (dict): Nested dictionary returned by :func:`calcRadiomicsForImgType`.
+            Outer keys are feature-class names; inner keys are scalar feature names.
+        imageType (str): Label for the image type (e.g. ``'original'``, ``'wavelets_...'``).
+        avgType (str): Averaging strategy used for directional texture features.
+            ``'feature'`` → values are averaged per feature; any other string →
+            combined (merged) matrix approach.
+        directionality (str): Directionality string from the settings file
+            (``'2D'`` or ``'3D'``).
+        mapToIBSI (bool): When ``True``, feature class and feature names are mapped
+            to IBSI benchmark identifiers via :func:`getIBSINameMap`.
+            Defaults to ``False``.
+
+    Returns:
+        dict: Flat dictionary mapping descriptive feature-name strings to scalar
+            numeric values (or arrays for directional features).
+    """
 
     featClasses = featDict.keys()
     flatFeatDict = {}
@@ -540,7 +689,21 @@ def createFlatFeatureDict(featDict, imageType, avgType, directionality, mapToIBS
                     flatFeatDict[imageType + '_' + mapFeatClass + '_' + itemName + '_' + dirString] = item[1]
     return flatFeatDict
 
-def writeFeaturesToFile(featList, csvFileName, writeHeader = True):
+def writeFeaturesToFile(featList, csvFileName, writeHeader=True):
+    """Append one or more flat feature dictionaries to a CSV file.
+
+    Args:
+        featList (dict or list of dict): A single flat feature dictionary or a
+            list of flat feature dictionaries (as produced by
+            :func:`createFlatFeatureDict`) to write as rows.
+        csvFileName (str): Path to the output CSV file.  The file is opened in
+            append mode so existing content is preserved.
+        writeHeader (bool): When ``True``, a header row of field names is written
+            before the data rows.  Defaults to ``True``.
+
+    Returns:
+        None
+    """
     import csv
     if not isinstance(featList,list):
         featList = [featList]

@@ -26,6 +26,11 @@ from cerr.dataclasses.structure import Contour, getLabelMap, createSitkImage
 from cerr.dataclasses import header as headr
 
 def get_empty_list():
+    """Return an empty list, used as a default factory for dataclass fields.
+
+    Returns:
+        list: An empty list.
+    """
     return []
 
 @dataclass
@@ -53,10 +58,27 @@ class PlanC:
     deform: List[dfrm.Deform] = field(default_factory=get_empty_list) #beams.Beams()
 
     def addScan(self, new_scan) -> scan:
+        """Append a new scan object to the plan container's scan list.
+
+        Args:
+            new_scan (cerr.dataclasses.scan.Scan): The scan object to add.
+        """
         self.scan.append(new_scan)
 
     class json_serialize(json.JSONEncoder):
         def default(self, obj):
+            """Serialize pyCERR dataclass objects to JSON-compatible representations.
+
+            Args:
+                obj: The object to serialize. Handled types are
+                    cerr.dataclasses.scan.Scan,
+                    cerr.dataclasses.dose.Dose, and
+                    cerr.dataclasses.structure.Structure.
+
+            Returns:
+                dict: A dictionary containing the object's UID, or an empty
+                    string for unrecognized types.
+            """
             if isinstance(obj, scn.Scan):
                 return {'scan':obj.scanUID}
             elif isinstance(obj, rtds.Dose):
@@ -66,12 +88,34 @@ class PlanC:
             return "" #json.JSONEncoder.default(self, obj)
 
 def getSortedItems(itemList):
+    """Sort a list of H5 group-item names of the form ``Item_N`` by their numeric suffix.
+
+    Args:
+        itemList (list): List of strings such as ``['Item_2', 'Item_0', 'Item_1']``.
+
+    Returns:
+        list: The same items sorted in ascending numeric order, or the original
+            list unchanged if it is empty.
+    """
     if not itemList:
         return itemList
     itemList = np.array(itemList)
     return itemList[np.argsort([int(item[5:]) for item in itemList])].tolist()
 
 def addToH5Grp(h5Grp,structDict,key):
+    """Write a single key from a dictionary into an HDF5 group as an attribute or dataset.
+
+    Scalar strings and numbers are stored as HDF5 attributes; lists and arrays
+    are stored as compressed HDF5 datasets.
+
+    Args:
+        h5Grp (h5py.Group): The HDF5 group to write into.
+        structDict (dict): Dictionary containing the data to write.
+        key (str): The key in ``structDict`` whose value should be written.
+
+    Returns:
+        h5py.Group: The updated HDF5 group.
+    """
     if isinstance(structDict[key], (str)):
         h5Grp.attrs[key] = np.string_(structDict[key])
     elif isinstance(structDict[key], (int, float, np.number)):
@@ -202,6 +246,15 @@ def loadFromH5(h5File, initplanC=''):
     return planC
 
 def saveH5Header(headerGrp, planC):
+    """Write planC header attributes into an HDF5 group.
+
+    Args:
+        headerGrp (h5py.Group): The HDF5 group that will receive the header data.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        h5py.Group: The updated HDF5 header group.
+    """
     # Routine to write header attributes from planC to H5 group
     headerDict = planC.header.__dict__.copy()
     keys = list(headerDict.keys())
@@ -210,6 +263,17 @@ def saveH5Header(headerGrp, planC):
     return headerGrp
 
 def saveH5Scan(scanGrp, scanNumV, planC):
+    """Write selected scan objects from planC into an HDF5 group.
+
+    Args:
+        scanGrp (h5py.Group): The HDF5 group that will receive the scan data.
+        scanNumV (list[int]): Indices into ``planC.scan`` identifying which scans
+            to export.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        h5py.Group: The updated HDF5 scan group.
+    """
     # Routine to write scan attributes from planC to H5 group
     scnCount = 0
     for scanNum in scanNumV:
@@ -235,10 +299,32 @@ def saveH5Scan(scanGrp, scanNumV, planC):
 
 
 def saveH5Dose(structGrp, structNumV, planC):
+    """Write selected dose objects from planC into an HDF5 group.
+
+    Args:
+        structGrp (h5py.Group): The HDF5 group that will receive the dose data.
+        structNumV (list[int]): Indices into ``planC.dose`` identifying which dose
+            objects to export.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Note:
+        This function is not yet implemented.
+    """
     # Routine to write dose attributes from planC to H5 group
     pass
 
 def saveH5Deform(deformGrp, deformNumV, planC):
+    """Write selected deformation objects from planC into an HDF5 group.
+
+    Args:
+        deformGrp (h5py.Group): The HDF5 group that will receive the deformation data.
+        deformNumV (list[int]): Indices into ``planC.deform`` identifying which
+            deformation objects to export.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        h5py.Group: The updated HDF5 deformation group.
+    """
     # Routine to write deform attributes from planC to H5 group
     deformCount = 0
     for deformNum in deformNumV:
@@ -252,6 +338,20 @@ def saveH5Deform(deformGrp, deformNumV, planC):
     return deformGrp
 
 def saveH5Structure(structGrp, structNumV, planC):
+    """Write selected structure objects from planC into an HDF5 group.
+
+    Each structure's contour segments are serialised recursively into nested
+    HDF5 sub-groups.
+
+    Args:
+        structGrp (h5py.Group): The HDF5 group that will receive the structure data.
+        structNumV (list[int]): Indices into ``planC.structure`` identifying which
+            structures to export.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        h5py.Group: The updated HDF5 structure group.
+    """
     # Routine to write structure attributes from planC to H5 group
     strCount = 0
     for structNum in structNumV:
@@ -289,6 +389,21 @@ def saveH5Structure(structGrp, structNumV, planC):
     return structGrp
 
 def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
+    """Populate a Python object's fields from matching HDF5 attributes and datasets.
+
+    Scalar fields stored as HDF5 attributes are decoded from bytes when
+    necessary.  Array fields stored as HDF5 datasets are loaded via slice
+    notation.  Fields listed in ``excludeKeys`` are skipped.
+
+    Args:
+        obj: Any object whose ``__dict__`` fields should be populated.
+        h5Grp (h5py.Group): The HDF5 group containing attributes and datasets
+            that correspond to ``obj``'s fields.
+        excludeKeys (list[str]): Optional list of field names to skip.
+
+    Returns:
+        obj: The same object with fields populated from the HDF5 group.
+    """
     # Routine to read object attributes into H5 group
     structFields = list(obj.__dict__.keys())
     for key in excludeKeys:
@@ -311,6 +426,15 @@ def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
 
 
 def loadH5Header(headerGrp, planC):
+    """Load header metadata from an HDF5 group into planC.
+
+    Args:
+        headerGrp (h5py.Group): The HDF5 group containing header attributes.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to update.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with header populated.
+    """
     headerObj = headr.Header()
     planC.header = headr.Header()
     headerObj = readAttribsAndDsets(headerObj, headerGrp)
@@ -319,6 +443,20 @@ def loadH5Header(headerGrp, planC):
     return planC
 
 def loadH5Scan(scanGrp, planC):
+    """Load scan objects from an HDF5 group into planC, skipping duplicates.
+
+    Each ``Item_N`` sub-group in ``scanGrp`` is deserialised into a
+    :class:`cerr.dataclasses.scan.Scan` object together with its associated
+    ``scanInfo`` entries.  Scans whose ``scanUID`` already exists in
+    ``planC.scan`` are skipped with a warning.
+
+    Args:
+        scanGrp (h5py.Group): The HDF5 group containing serialised scan items.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to update.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with scans appended.
+    """
     scanUIDs = [s.scanUID for s in planC.scan]
     scanFieldToExclude = ['scanInfo']
     scanItems = scanGrp.keys()
@@ -347,6 +485,19 @@ def loadH5Scan(scanGrp, planC):
     return planC
 
 def loadH5Deform(deformGrp, planC):
+    """Load deformation objects from an HDF5 group into planC, skipping duplicates.
+
+    Each ``Item_N`` sub-group in ``deformGrp`` is deserialised into a
+    :class:`cerr.dataclasses.deform.Deform` object.  Deformations whose
+    ``deformUID`` already exists in ``planC.deform`` are skipped with a warning.
+
+    Args:
+        deformGrp (h5py.Group): The HDF5 group containing serialised deformation items.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to update.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with deformations appended.
+    """
     deformUIDs = [d.deformUID for d in planC.deform]
     deformItems = deformGrp.keys()
     # Sort deformItems in order item_1, item_2,...
@@ -364,6 +515,20 @@ def loadH5Deform(deformGrp, planC):
 
 
 def loadH5Strucutre(structGrp, planC):
+    """Load structure objects from an HDF5 group into planC, skipping duplicates.
+
+    Each ``Item_N`` sub-group in ``structGrp`` is deserialised into a
+    :class:`cerr.dataclasses.structure.Structure` object together with its
+    contour and segment data.  Structures whose ``strUID`` already exists in
+    ``planC.structure`` are skipped with a warning.
+
+    Args:
+        structGrp (h5py.Group): The HDF5 group containing serialised structure items.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to update.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with structures appended.
+    """
     strUIDs = [s.strUID for s in planC.structure]
     strFieldToExclude = ['contour']
     ctrFieldToExclude = ['segments']
@@ -559,6 +724,21 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     #    pickle.dump(planC, pickle_file)
 
 def populatePlanCField(field_name, file_list, opts={}):
+    """Load imaging metadata from a list of DICOM files into the appropriate pyCERR dataclass.
+
+    Args:
+        field_name (str): The planC field to populate. Accepted values are
+            ``'scan'``, ``'structure'``, ``'dose'``, and ``'beams'``.
+        file_list (pandas.Series or list): Collection of DICOM file paths
+            belonging to a single series/modality group.
+        opts (dict): Optional import options forwarded to the underlying loader.
+            Recognised keys include ``'suvType'``.
+
+    Returns:
+        list: A list of dataclass objects corresponding to ``field_name``
+            (e.g. a list of :class:`cerr.dataclasses.scan.Scan` for
+            ``field_name='scan'``).
+    """
     if field_name == "scan":
         scan_meta = []
         scan_meta.append(scn.loadSortedScanInfo(file_list))
@@ -608,6 +788,14 @@ def loadScanFromDB(sacnInfoList, niiFile, initplanC=''):
     return planC
 
 def loadPlanCFromPkl(file_name=""):
+    """Load a planC object previously serialised with Python's pickle module.
+
+    Args:
+        file_name (str): Path to the pickle file to load.
+
+    Returns:
+        cerr.plan_container.PlanC: The deserialised plan container object.
+    """
     # Load planC from file
     #planC = sio.loadmat(file_name)
     with open(file_name, 'rb') as pickle_file:
@@ -726,6 +914,21 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
     return planC
 
 def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose"):
+    """Load a dose distribution from a NIfTI file into planC.
+
+    Args:
+        nii_file_name (str): Path to the NIfTI file containing the dose array.
+        assocScanNum (int): Index into ``planC.scan`` of the scan associated
+            with this dose distribution.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to
+            which the dose will be appended.
+        fractionGroupID (str): Optional label for the fraction group.
+            Defaults to ``'RT-dose'``.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with the dose
+            appended to ``planC.dose``.
+    """
     planC = rtds.importNii(nii_file_name, assocScanNum, planC)
     planC.dose[-1].fractionGroupID = fractionGroupID
     return planC

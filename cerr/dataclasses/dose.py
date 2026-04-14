@@ -24,8 +24,19 @@ from cerr.utils.interp import finterp3
 from cerr.radiomics.preprocess import imgResample3D
 
 def get_empty_list():
+    """Return an empty list, used as a default factory for dataclass list fields.
+
+    Returns:
+        list: An empty list.
+    """
     return []
+
 def get_empty_np_array():
+    """Return an empty 3-D NumPy array, used as a default factory for dataclass array fields.
+
+    Returns:
+        np.ndarray: An empty array with shape (0, 0, 0).
+    """
     return np.empty((0,0,0))
 
 @dataclass
@@ -152,6 +163,16 @@ class Dose:
 
     class json_serialize(json.JSONEncoder):
         def default(self, obj):
+            """Serialize a Dose object to a JSON-compatible dictionary.
+
+            Args:
+                obj: The object to serialize.
+
+            Returns:
+                dict: A dictionary with key ``'dose'`` mapped to the dose's UID
+                    when ``obj`` is a :class:`Dose` instance, otherwise an empty
+                    string.
+            """
             if isinstance(obj, Dose):
                 return {'dose':obj.doseUID}
             return "" #json.JSONEncoder.default(self, obj)
@@ -172,7 +193,16 @@ class Dose:
         return doseAffine3M
 
     def getSitkImage(self):
+        """Convert the pyCERR Dose object to a SimpleITK Image.
 
+        The dose array is reoriented from pyCERR's (row, col, slice) order to
+        SimpleITK's (z, y, x) order, and image metadata (origin, spacing,
+        direction cosines) are applied.
+
+        Returns:
+            SimpleITK.Image: A 3-D SimpleITK image populated with the dose
+            array and spatial metadata.
+        """
         sitkArray = np.transpose(self.doseArray, (2, 0, 1)) # z,y,x order
         if not self.cerrDcmSliceDirMatch:
             sitkArray = np.flip(sitkArray, axis = 0)
@@ -219,7 +249,16 @@ class Dose:
         # nib.save(dose_img, niiFileName)
 
     def getImage2PhysicalTransM(self, assocScanNum, planC):
+        """Compute the 4x4 affine matrix that maps dose image indices to DICOM physical coordinates (cm).
 
+        Args:
+            assocScanNum (int): Index of the associated scan in ``planC``.
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+        Returns:
+            np.ndarray: A 4x4 homogeneous transformation matrix that converts
+            (column, row, slice) image indices to physical coordinates in cm.
+        """
         imgOrientation = self.imageOrientationPatient
         imagePositionPatient = self.imagePositionPatient / 10
         spacing = [-self.verticalGridInterval, self.horizontalGridInterval]
@@ -239,8 +278,24 @@ class Dose:
 
 
     def convertDcmToCerrVirtualCoords(self, planC):
-        """Routine to get scan from DICOM to pyCERR virtual coordinates. More information
-            about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+        """Convert dose grid coordinates from DICOM to pyCERR virtual coordinates.
+
+        Populates ``coord1OFFirstPoint``, ``coord2OFFirstPoint``,
+        ``horizontalGridInterval``, ``verticalGridInterval``, and ``zValues``
+        in pyCERR's virtual coordinate system.  Also flips the dose array and
+        z-values when the DICOM slice order does not match pyCERR's expected
+        order, and sets ``cerrDcmSliceDirMatch`` accordingly.
+
+        More information about virtual coordinates is on the Wiki:
+        https://github.com/cerr/pyCERR/wiki/Coordinate-system
+
+        Args:
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+                used to look up the associated scan and its coordinate
+                transforms.
+
+        Returns:
+            Dose: The updated :class:`Dose` instance (``self``).
         """
 
         # Get CERR z-ccordiinate for dose slices based on associated scan's virtual coordinate transform.
@@ -330,12 +385,18 @@ class Dose:
         return xValsV,yValsV,zVals
 
     def getDoseAt(self,xV,yV,zV):
-        """ Routine to obtain dose at input x,y,z grid coordinates. The coordinates are in pyCERR's
-        virtual coordinate system.
+        """Return interpolated dose values at the specified pyCERR virtual coordinates.
+
+        Args:
+            xV (np.ndarray or float): x-coordinates (columns) at which to interpolate
+                the dose, in pyCERR virtual coordinate units (cm).
+            yV (np.ndarray or float): y-coordinates (rows) at which to interpolate
+                the dose, in pyCERR virtual coordinate units (cm).
+            zV (np.ndarray or float): z-coordinates (slices) at which to interpolate
+                the dose, in pyCERR virtual coordinate units (cm).
 
         Returns:
-            tuple (np.array): An array of dose values.
-
+            np.ndarray: Array of interpolated dose values at each (x, y, z) point.
         """
         if not isinstance(xV, np.ndarray):
             xV = np.array([xV])
@@ -382,13 +443,13 @@ class Dose:
             return None
 
 def loadDose(file_list):
-    """
+    """Parse a list of DICOM files and return pyCERR Dose objects for each RTDOSE file found.
 
     Args:
         file_list (list): list of files to read into pyCERR's Dose object
 
     Returns:
-        List[cerr.daatclasses.dose.Dose]: List whose elements are pyCERR Dose objects containing metadata from file_list.
+        List[cerr.dataclasses.dose.Dose]: List whose elements are pyCERR Dose objects containing metadata from file_list.
 
     """
 
@@ -579,14 +640,14 @@ def importNii(file_list, assocScanNum, planC):
 
 
 def getDoseNumFromUID(assocDoseUID,planC) -> int:
-    """
+    """Return the index of the dose in planC whose UID matches the given doseUID.
 
     Args:
         assocDoseUID (str): doseUID
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
 
     Returns:
-        int: index of planC.dose matching input assocDoseUID
+        int: index of planC.dose matching input assocDoseUID, or ``None`` if not found.
     """
 
     uid_list = [s.doseUID for s in planC.dose]
@@ -596,14 +657,14 @@ def getDoseNumFromUID(assocDoseUID,planC) -> int:
         return None
 
 def getPrescriptionDose(doseIdx, planC):
-    """
+    """Return the prescription dose for the plan associated with the specified dose.
 
-            Args:
-                doseIdx (int): Index of dose in planC
-                planC (cerr.plan_container.PlanC): pyCERR's plan container object
+    Args:
+        doseIdx (int): Index of dose in ``planC``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
 
-            Returns:
-                float: Prescribed dose (Gy)
+    Returns:
+        float: Prescribed dose in Gy, or ``None`` if the tag is unavailable.
     """
     planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
     doseRefSeq = planC.beams[planIdx].DoseReferenceSequence[0]
@@ -617,15 +678,15 @@ def getPrescriptionDose(doseIdx, planC):
     return RxDose
 
 def getNumFrx(doseIdx, planC):
-    """
-    Returns no. fractions for dose at input index
-        Args:
-            doseIdx (int)                    : Index of dose in planC
-            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+    """Return the number of planned fractions for the dose at the given index.
 
-        Returns:
-            int: No. fractions of input dose
-        """
+    Args:
+        doseIdx (int): Index of dose in ``planC``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        int: Number of planned fractions, or ``None`` if the tag is unavailable.
+    """
 
     planIdx = planC.dose[doseIdx].getAssociatedBeamNum(planC)
     if 'NumberOfFractionsPlanned' in planC.beams[planIdx].FractionGroupSequence and \
@@ -637,15 +698,17 @@ def getNumFrx(doseIdx, planC):
         return None
 
 def getFrxSize(doseIdx, planC):
-    """
-    Returns fraction size for dose at input index
-        Args:
-            doseIdx (int)                    : Index of dose in planC
-            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+    """Return the fraction size (dose per fraction) for the dose at the given index.
 
-        Returns:
-            float: Fraction size of input dose
-        """
+    Computed as the prescription dose divided by the number of planned fractions.
+
+    Args:
+        doseIdx (int): Index of dose in ``planC``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        float: Fraction size in Gy.
+    """
 
     # Read no. fractions
     numFractions = float(getNumFrx(doseIdx, planC))
@@ -660,23 +723,25 @@ def getFrxSize(doseIdx, planC):
 
 
 def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = None):
+    """Convert a dose distribution to its radiobiological equivalent at a different fraction size.
+
+    Uses the linear-quadratic (LQ) model to compute the equivalent dose when
+    the fraction size is changed from ``inputFrxSize`` to ``stdFrxSize``.
+
+    Args:
+        dose (np.ndarray or int): 3-D dose array in Gy, or an integer index
+            into ``planC.dose``.  When an index is supplied, ``planC`` must
+            also be provided.
+        stdFrxSize (float): Target (output) fraction size in Gy.
+        abRatio (float): Alpha/beta ratio in Gy for the tissue of interest.
+        planC (cerr.plan_container.PlanC, optional): pyCERR's plan container
+            object.  Required when ``dose`` is an index.  Defaults to ``None``.
+        inputFrxSize (float, optional): Fraction size of the input dose in Gy.
+            Required when ``dose`` is a numpy array.  Defaults to ``None``.
+
+    Returns:
+        np.ndarray: Dose array corrected to the equivalent dose at ``stdFrxSize``.
     """
-        Function to convert input dose to equivalent in specified fraction size.
-
-        Args:
-                       dose (np.ndarray): Dose array  OR
-                                   (int): Index to dose in planC
-                        stdFrxSize (int): Desired output fraction size
-                        abRatio (float) : Radiosensitivity in Gy
-            planC (plan_container.planC): [optional, default=None] pyCERR's plan container object.
-                                          Required when dose index specified via `dose` input.
-                      inputFrxSize (int): [optional, default=None] Input fraction size.
-                                          Required when dose array directly specified via `dose` input.
-
-        Returns:
-            correctedDose: Equivalent dose in specified fraction size.
-
-        """
     if isinstance(dose, int):
         numFractions = float(getNumFrx(dose, planC))
         doseArray = planC.dose[dose].doseArray
@@ -690,23 +755,27 @@ def fractionSizeCorrect(dose, stdFrxSize, abRatio, planC=None, inputFrxSize = No
 
 
 def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None):
+    """Convert a dose distribution to its radiobiological equivalent delivered in a different number of fractions.
+
+    Uses the linear-quadratic (LQ) model to compute the equivalent total dose
+    when the number of fractions changes from ``inputFrxNum`` to ``stdFrxNum``,
+    solving the resulting quadratic equation analytically.
+
+    Args:
+        dose (np.ndarray or int): 3-D dose array in Gy, or an integer index
+            into ``planC.dose``.  When an index is supplied, ``planC`` must
+            also be provided.
+        stdFrxNum (int): Target (output) number of fractions.
+        abRatio (float): Alpha/beta ratio in Gy for the tissue of interest.
+        planC (cerr.plan_container.PlanC, optional): pyCERR's plan container
+            object.  Required when ``dose`` is an index.  Defaults to ``None``.
+        inputFrxNum (int, optional): Number of fractions of the input dose.
+            Required when ``dose`` is a numpy array.  Defaults to ``None``.
+
+    Returns:
+        np.ndarray: Dose array corrected to the equivalent total dose delivered
+        in ``stdFrxNum`` fractions.
     """
-        Function to convert input dose to equivalent in specified fraction size.
-
-        Args:
-                       dose (np.ndarray): Dose array  OR
-                                   (int): Index to dose in planC
-                        stdFrxNum (int): Desired output no. fractions.
-                        abRatio (float) : Radiosensitivity in Gy
-            planC (plan_container.planC): [optional, default=None] pyCERR's plan container object.
-                                          Required when dose index specified via `dose` input.
-                      inputFrxNum (int): [optional, default=None] Input no. fractions.
-                                          Required when dose array directly specified via `dose` input.
-
-        Returns:
-            correctedDose: Equivalent dose in specified no. fractions.
-
-        """
     if isinstance(dose, int):
         inputFrxNum = float(getNumFrx(dose, planC))
         doseArray = planC.dose[dose].doseArray
@@ -723,17 +792,28 @@ def fractionNumCorrect(dose, stdFrxNum, abRatio, planC=None, inputFrxNum = None)
     return correctedDose
 
 def sum(doseIndV, planC, fxCorrectDict={}, frxSizeV=None):
-    """
+    """Sum multiple dose distributions onto a shared grid, with optional fractionation correction.
+
+    The output grid spans the union of all input dose grid extents and uses
+    the finest resolution found across all inputs.  Each dose is resampled to
+    the shared grid before summation.
 
     Args:
-        doseIndV (list) : Indices of doses to be summed
+        doseIndV (list): Indices of doses in ``planC`` to be summed.
         planC (plan_container.planC): pyCERR's plan container object.
-        fxCorrectDict (dict): Dictionary specifying correctionType and parameters for fractionation correction.
-        frxSize (float): [optional; default: None]
+        fxCorrectDict (dict): Dictionary specifying ``correctionType``
+            (``'fractionNum'`` or ``'fractionSize'``) and any additional
+            keyword arguments forwarded to the correction function.
+            Pass an empty dict (default) to skip fractionation correction.
+        frxSizeV (list, optional): Per-dose fraction sizes used when
+            ``fxCorrectDict`` is provided and fraction size cannot be inferred
+            from the plan.  Defaults to ``None``.
 
     Returns:
-        sumDose (np.ndarray): Summed dose
-        refGrid (list) : Coordinates of output (combined) dose grid [xOutV, yOutV, zOutV]
+        tuple:
+            - **sumDose** (*np.ndarray*): Summed dose array on the shared grid.
+            - **refGrid** (*tuple*): ``(xOutV, yOutV, zOutV)`` coordinate
+              vectors of the output dose grid.
 
     """
 

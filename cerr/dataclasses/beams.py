@@ -12,8 +12,25 @@ from cerr.utils import uid
 import json
 
 def get_empty_list():
+    """Return an empty list.
+
+    Used as a ``default_factory`` for dataclass fields that require a mutable
+    list default.
+
+    Returns:
+        list: An empty list ``[]``.
+    """
     return []
+
 def get_empty_np_array():
+    """Return an empty 3-D NumPy array with shape (0, 0, 0).
+
+    Used as a ``default_factory`` for dataclass fields that require a mutable
+    NumPy array default.
+
+    Returns:
+        np.ndarray: A zero-element array with shape ``(0, 0, 0)``.
+    """
     return np.empty((0,0,0))
 
 @dataclass
@@ -255,6 +272,20 @@ class BeamSeq:
 
     class json_serialize(json.JSONEncoder):
         def default(self, obj):
+            """Serialize a ``Beams`` instance to a JSON-compatible dictionary.
+
+            Overrides ``json.JSONEncoder.default`` to handle ``Beams`` objects
+            by returning a compact dictionary containing only the beam's UID.
+            All other object types are serialized as an empty string instead of
+            raising a ``TypeError``.
+
+            Args:
+                obj (object): The object to serialize.
+
+            Returns:
+                dict or str: ``{'beams': obj.BeamUID}`` when ``obj`` is a
+                ``Beams`` instance; otherwise an empty string ``""``.
+            """
             if isinstance(obj, Beams):
                 return {'beams':obj.BeamUID}
             return "" #json.JSONEncoder.default(self, obj)

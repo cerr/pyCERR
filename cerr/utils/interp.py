@@ -2,6 +2,34 @@ import numpy as np
 from scipy.interpolate import interp2d
 
 def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, OOBV=None):
+    """Perform fast trilinear interpolation of a 3D scalar field.
+
+    Interpolates ``field3M`` at the query coordinates ``(xInterpV, yInterpV,
+    zInterpV)`` using trilinear interpolation. Points that fall outside the
+    field grid are assigned ``OOBV``.
+
+    Args:
+        xInterpV (np.ndarray): 1-D array of x (column-direction) query
+            coordinates.
+        yInterpV (np.ndarray): 1-D array of y (row-direction) query
+            coordinates.
+        zInterpV (np.ndarray): 1-D array of z (slice-direction) query
+            coordinates.
+        field3M (np.ndarray): 3D array of scalar field values with shape
+            ``[nRows, nCols, nSlices]``.
+        xFieldV (np.ndarray): 1-D array of x grid coordinates for
+            ``field3M``. Must be uniformly spaced.
+        yFieldV (np.ndarray): 1-D array of y grid coordinates for
+            ``field3M``. Must be uniformly spaced.
+        zFieldV (np.ndarray): 1-D array of z grid coordinates for
+            ``field3M``. May be non-uniformly spaced.
+        OOBV (float, optional): Value assigned to out-of-bounds query
+            points. Defaults to ``np.nan``.
+
+    Returns:
+        np.ndarray: 1-D array of interpolated values with the same length as
+        ``xInterpV``. Out-of-bounds entries are set to ``OOBV``.
+    """
     siz = field3M.shape
 
     if OOBV is None:
