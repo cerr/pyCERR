@@ -1,7 +1,6 @@
-numpy
+scipy
 pydicom
 python-dateutil
-scipy
 h5py
 SimpleITK
 matplotlib
