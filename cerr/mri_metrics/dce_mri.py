@@ -5,7 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from scipy.signal import resample, savgol_filter, medfilt
-from scipy.interpolate import PchipInterpolator
+from scipy.interpolate import PchipInterpolator, CubicSpline
 from scipy.ndimage import gaussian_filter
 from scipy.integrate import cumulative_trapezoid
 
@@ -355,7 +355,7 @@ def locatePeak(sigM, smoothFlag=False):
     return peakIdxV
 
 
-def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
+def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False, minWin=None, maxWin=None):
     """smoothResample
     Function to process uptake curve prior to feature extraction
 
@@ -366,6 +366,8 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
                                      using cubic splines.
         resampFlag (bool)          : [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
+        minWin (int)               : [optional, default:7] Minimum length of smoothing window (must be odd).
+        maxWin (int)               : [optional, default:25] Maximum length of smoothing window (must be odd).
 
     Returns:
         resampSigM  (np.ndarray, 2D)  : Processed uptake curves (nVox x nResampUptakeTime)
@@ -373,69 +375,83 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False):
 
     """
 
+    origSigM = sigM.copy()
+
     # Resampling settings
     nPad = 100
     ts = 0.1
     tdiff = timeV[1] - timeV[0]
 
-    # Pad signal
-    padSigM = np.hstack((np.tile(sigM[:, 0], (nPad, 1)).transpose(), sigM,
-                         np.tile(sigM[:, -1], (nPad, 1)).transpose()))
-    padTimeV = np.hstack((np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
-                          np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
-
+    padSigM = np.hstack((np.tile(origSigM[:, 0], (nPad, 1)).transpose(), sigM,
+                         np.tile(origSigM[:, -1], (nPad, 1)).transpose()))
+    padTimeV = np.hstack(
+        (np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
+         np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
 
     # Smoothing settings
-    maxWin = min(25, sigM.shape[1] - 1)
-    minWin = 5
+    if minWin is None:
+        minWin = 7
+    if maxWin is None:
+        maxWin = 25
+    maxWin = min(maxWin, origSigM.shape[1] - 1)
     calcNoiseLevel = lambda sigV: np.std(sigV - medfilt(sigV, kernel_size=3))
     #calcRelativeNoise = lambda sigV: calcNoiseLevel(sigV)/(np.ptp(sigV) + EPS)
     calcRelativeNoise = lambda sigV: calcNoiseLevel(sigV) / (prctile(sigV, 95) - prctile(sigV, 5) + EPS)
-    getWindowSize = lambda sigV: max(min(2 * round(calcRelativeNoise(sigV) * len(sigV)/3) + 1,
+    getWindowSize = lambda sigV: max(min(2 * round(calcRelativeNoise(sigV) * len(sigV)/2) + 1,
                                          maxWin, len(sigV) - 1), minWin)
 
     if not (resampFlag or temporalSmoothFlag):
-        return sigM, timeV
+        return origSigM, timeV
     else:
         if temporalSmoothFlag:
             # Locate first peak
             peakIdxV = locatePeak(sigM, smoothFlag=True)
             # Smooth signal following first peak
-            keepIdxV = np.nansum(padSigM, axis=1) != 0
+            keepIdxV = np.nansum(origSigM, axis=1) != 0
+            selSigM = origSigM[keepIdxV, :]
             selPadSigM = padSigM[keepIdxV, :]
             peakIdxV = peakIdxV[keepIdxV]
-            for vox in range(selPadSigM.shape[0]):
+            for vox in range(selSigM.shape[0]):
                 smoothIdxV = np.arange(int(nPad + peakIdxV[vox] + 1), padSigM.shape[1])
-                winSiz = getWindowSize(selPadSigM[vox, smoothIdxV])
-                padSigM[vox, smoothIdxV] = savgol_filter(selPadSigM[vox, smoothIdxV],
+                postPeakPadSigV = selPadSigM[vox, smoothIdxV]
+                winSiz = getWindowSize(postPeakPadSigV)
+                postPeakSigV = selSigM[vox, int(peakIdxV[vox]) + 1:]
+                winSiz = min(winSiz, len(postPeakSigV))
+                if winSiz % 2 == 0:
+                        winSiz -= 1
+                if len(postPeakSigV) < minWin:
+                    continue  # skip smoothing
+                selSigM[vox, int(peakIdxV[vox]) + 1:] = savgol_filter(postPeakSigV,
                                                          window_length=winSiz,
                                                          polyorder=3)
-
+            origSigM[keepIdxV, :] = selSigM
         if resampFlag:
+            # Pad signal
+            padSigM = np.hstack((np.tile(origSigM[:, 0], (nPad, 1)).transpose(), origSigM,
+                                 np.tile(origSigM[:, -1], (nPad, 1)).transpose()))
+            padTimeV = np.hstack(
+                (np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
+                 np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
+
             nanIdxV = np.nansum(padSigM, axis=1) == 0
             zeroIdxV = np.sum(padSigM, axis=1) == 0
             skipIdxV = np.logical_and(nanIdxV, ~zeroIdxV)
             padSubSigM = padSigM[~skipIdxV, :]
             numPts = int(padSubSigM.shape[1] * tdiff / ts)
-            resampPadSigM = np.full((sigM.shape[0], numPts), np.nan)
+            resampPadSigM = np.full((origSigM.shape[0], numPts), np.nan)
             #FFT
             #resampPadSigM[~skipIdxV, :], timePadV = resample(padSubSigM, numPts, t=padTimeV, axis=1)
-            #PCHIP
             timePadV = np.linspace(padTimeV[0], padTimeV[-1], num=numPts, endpoint=True)
-            resampler = PchipInterpolator(padTimeV, padSubSigM, axis=1)
-            resampPadSigM[~skipIdxV, :] = resampler(timePadV)
-            #POLY
-            # ratio = Fraction(tdiff / ts).limit_denominator(1000)
-            # up = ratio.numerator  # Upsampling factor
-            # down = ratio.denominator  # Downsampling factor
-            # temp = resample_poly(padSubSigM, up, down, axis=1)
-            # resampPadSigM[~skipIdxV, :] = temp[:, :numPts]
-            # timePadV = np.linspace(timeV[0] - nPad * tdiff, timeV[-1] + nPad * tdiff, num=resampPadSigM.shape[1],
-            #                        endpoint=True)
+            resampler = CubicSpline(padTimeV, padSubSigM, axis=1, extrapolate=False)
+            temp = resampler(timePadV[:numPts])
+            resampPadSigM[~skipIdxV, :] = temp
         else:
-            resampPadSigM = padSigM
+            resampPadSigM = np.hstack((np.tile(origSigM[:, 0], (nPad, 1)).transpose(), origSigM,
+                                 np.tile(origSigM[:, -1], (nPad, 1)).transpose()))
+            timePadV = np.hstack(
+                (np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
+                 np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
             ts = tdiff
-            timePadV = padTimeV
 
         # Un-pad
         tSkip = round(nPad * tdiff / ts)
@@ -688,9 +704,9 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
         plt.figure()
 
         plt.axis([0, procTimeV[-1], np.min(procSlcSigM[idx, :]) - 0.01, np.max(procSlcSigM[idx, :]) + 0.01])
-        plt.plot(origTimeV, origSigM[idx, :], color='gray', alpha=0.5,
-                    linewidth=1, label='Original')
-        plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=2, label='SmoothResamp')
+        plt.plot(origTimeV, origSigM[idx, :], color='gray', alpha=0.7,
+                    linewidth=2, linestyle='dashed', label='Original')
+        plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=1, label='SmoothResamp')
         # plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
 
         # TTP
