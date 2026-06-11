@@ -65,7 +65,7 @@ def intToConc(normSigM, concDict):
     Converts DCE-MRI signal intensity into contrast agent concentration.
 
     Args:
-        normSigM (tuple, float): Array of normalized intensities (S(t)/S(0))
+        normSigM (tuple, float): Intensity-normalized image (S(t)/S(0))
         concDict (dict): Dictionary specifying
             clip_between (float array): Clip normalized intensities (intensity/baseline)
                                         between specified mon,max values
@@ -90,9 +90,9 @@ def intToConc(normSigM, concDict):
     R10 = 1.0 / T10  # Relaxation rate before contrast
 
     # Apply threshold to normalized signal
-    skipIdxV = np.nansum(normSigM, axis=1) == 0
-    zeroIdxV = np.sum(normSigM, axis=1) == 0
-    validNormSigM = normSigM[~skipIdxV, :]
+    skipIdxM = np.isnan(normSigM)
+    zeroIdxM = normSigM == 0
+    validNormSigM = normSigM[~skipIdxM]
     if 'clip_between' in concDict:
         normThreshV = concDict['clip_between']
         validNormSigM[validNormSigM < normThreshV[0]] = normThreshV[0]
@@ -109,9 +109,9 @@ def intToConc(normSigM, concDict):
 
     # Concentration
     C = np.full(normSigM.shape, np.nan)
-    C[~skipIdxV, :] = 1 / r1 * (R1 - R10)
+    C[~skipIdxM] = 1 / r1 * (R1 - R10)
     C[np.iscomplex(C)] = 0
-    C[zeroIdxV,:] = 0
+    C[zeroIdxM] = 0
     C[C < 0] = 0
 
     return C
@@ -651,11 +651,11 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
         zeroIdxV = np.sum(normSlcSigM, axis=1) == 0
         skipIdxV = np.logical_and(np.nansum(normSlcSigM, axis=1)==0, ~zeroIdxV)
         #skipIdxV = np.isnan(np.sum(normSlcSigM, axis=1))
-        baselineV = baselineV[~skipIdxV]
         if np.all(skipIdxV): #No enhancing voxels
            continue
         else:
             normROISlcSigM = normSlcSigM[~skipIdxV, :]
+            slcBaselineV = baselineV[~skipIdxV]
             ## Smoothing + resampling
             procSlcSigM, procTimeV = smoothResample(normROISlcSigM, selTimePtsV,
                                                     temporalSmoothFlag=temporalSmoothFlag,
@@ -667,7 +667,7 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
                 convSlcSigM = procSlcSigM.copy()
 
             # Compute features
-            featureDict, skipIdxV = semiQuantFeatures(convSlcSigM, procTimeV, baselineV, sigType=sigType)
+            featureDict, skipIdxV = semiQuantFeatures(convSlcSigM, procTimeV, slcBaselineV, sigType=sigType)
 
             origSigM = normROISlcSigM if sigType != 'RSE' else normROISlcSigM - 1
             origTimeV = selTimePtsV
