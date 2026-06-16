@@ -381,12 +381,8 @@ def create(filePath, baseScanNum, movScanNum, dvf_nii_file, reg_out_dcm_file, pr
 
     # Add Structure Set tags
     ds = iod_helper.addStructureSetTags(ds, struct_set_tags)
-    ds.ReferencedFrameOfReferenceSequence = getRefFORSeq(structNumV, planC)
-    ds.StructureSetROISequence = getStructSetROISeq(structNumV, planC)
-    ds.ROIContourSequence = getROIContourSeq(structNumV, planC)
-    ds.RTROIObservationsSequence = getROIObservSeq(structNumV, planC)
 
-    print("Writing RTSTRUCT file ...", filePath)
+    print("Writing REG file ...", filePath)
     ds.save_as(filePath)
     print("File saved.")
 

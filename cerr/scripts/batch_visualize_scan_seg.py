@@ -213,6 +213,10 @@ strName = planC.structure[origStrNum].structureName #strToLabelMap[label+1]
 planC = pc.importStructureMask(procMask3M, 0, strName, planC, origStrNum)
 
 
+# Directories for the batch visualization loop below (set before running)
+zScoreSaveDir = r''  # input: dir containing wk0/wk1/... subfolders with Img.nii.gz + Seg.nii.gz
+imageSaveDir = r''   # output: dir to write the screenshot PNGs
+
 for wk in ['wk0']: #['wk0', 'wk1', 'wk2']:
 
     wkDir = os.path.join(zScoreSaveDir, wk)
