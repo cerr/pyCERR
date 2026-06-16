@@ -35,7 +35,13 @@ dependencies = [
     'matplotlib <= 3.9.0',
     'ipywidgets',
     'surface-distance @ git+https://github.com/google-deepmind/surface-distance.git',
-    'itk-strain'
+    'itk-strain',
+    # Desktop Qt viewer (cerr.viewer.pycerr_gui): PyQt5 is the Qt binding;
+    # pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk is pulled in
+    # transitively by pyvista).
+    'PyQt5',
+    'pyvista',
+    'pyvistaqt'
 ]
 
 [project.urls]

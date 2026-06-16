@@ -24,6 +24,15 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install system libraries for Qt / headless GUI tests
+      # The viewer import smoke tests load napari / PyQt5, which need Qt system
+      # libraries and a virtual X display (xvfb) on the headless runner.
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libegl1 libopengl0 libdbus-1-3 \
+          libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+          libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+          libxcb-xinerama0
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -37,5 +46,6 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
+      # Run under xvfb so the napari / PyQt5 import tests have a display.
       run: |
-        pytest
+        xvfb-run -a pytest -v

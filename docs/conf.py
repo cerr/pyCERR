@@ -44,7 +44,17 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-autodoc_mock_imports = ['numpy']
+# Mock heavy / display-dependent dependencies so the docs build on a headless
+# CI runner that has no GPU, Qt display, napari or VTK installed.
+autodoc_mock_imports = [
+    'numpy',
+    'PyQt5', 'sip', 'qtpy', 'pyqtgraph',
+    'matplotlib.backends.backend_qt5agg',
+    'matplotlib.backends.backend_qtagg',
+    'pyvista', 'pyvistaqt', 'vtk',
+    'napari', 'magicgui', 'superqt',
+    'ipywidgets', 'IPython',
+]
 
 
 # -- Options for HTML output -------------------------------------------------

@@ -1,8 +1,15 @@
-"""Viewer module.
+"""pyCERR napari viewer.
 
-The "viewer" module defines routines for visualizing scan,
-structure, dose and vector field.
+napari-based visualization of scan, structure, dose and deformation vector
+fields, with the associated magicgui widgets (window/level, structure
+edit/create/export, registration QA mirror-scope, dose colorbar).
 
+Entry points:
+    showNapari(planC, ...)   - open the napari viewer
+    captureToFile(...)       - render axial/sagittal/coronal screenshots to file
+
+For Jupyter/Colab (no Qt/napari) use cerr.viewer.pycerr_nbviewer; for the
+PyQt desktop viewer use cerr.viewer.pycerr_gui.
 """
 
 import importlib
@@ -11,13 +18,9 @@ import pathlib
 import typing
 import warnings
 from typing import Annotated
-import ipywidgets as widgets
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from IPython.display import clear_output
-from IPython.display import display
-from ipywidgets import interactive_output
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
@@ -160,9 +163,24 @@ def initialize_struct_edit_widget() -> FunctionGui:
                                    'structNum': structNum,
                                    'assocScanNum': scanNum,
                                    'isocenter': isocenter} }
-        label.contour = 2
+        label.contour = 0
         return (mask3M, labelDict, "labels")
     return struct_save
+
+
+def get_scan_layers(gui):
+    """Filter Image layers based on the scan dataclass"""
+    if not hasattr(gui, 'viewer'):
+        return []
+
+    scan_layers = []
+
+    for layer in gui.viewer.layers:
+        if isinstance(layer, napari.layers.Image):
+            if layer.metadata.get('dataclass') == 'scan':
+                scan_layers.append(layer)
+
+    return scan_layers
 
 def initialize_struct_create_widget() -> FunctionGui:
     """Creates a magicgui widget for drawing a new structure on a scan.
@@ -176,7 +194,7 @@ def initialize_struct_create_widget() -> FunctionGui:
         FunctionGui: The magicgui ``struct_add`` widget ready to be docked in
             a Napari viewer.
     """
-    @magicgui(image={'label': 'Pick a Scan'}, call_button='Create')
+    @magicgui(image={"widget_type": "Select", 'label': 'Pick a Scan', "choices": get_scan_layers}, call_button='Create')
     def struct_add(image: Image, structure_name = "") -> Labels:
         # do something with whatever layer the user has selected
         # note: it *may* be None! so your function should handle the null case
@@ -1035,6 +1053,8 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
             lowerVal = np.nanpercentile(scanNoBkgdV, 5)
             upperVal = np.nanpercentile(scanNoBkgdV, 95)
             width = 2 * np.nanmax([center - lowerVal, upperVal - center])
+        if len(file_name) > 25:
+            file_name = file_name[:10] + ' ... ' + file_name[-10:]
         scanDisplayStr = file_name + ' (' + scan_name + ')'
         scanWindow = {'name': "--- Select ---",
                       'center': center,
@@ -1646,307 +1666,6 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
     colorbars_dock.parent().findChildren(QTabBar)[2].setCurrentIndex(0)
 
     return viewer, scan_layers, struct_layer, dose_layers, dvf_layer
-
-
-def showMplNb(planC, scanNum=0, structNums=[], doseNum=None,
-              windowPreset=None, windowCenter=0, windowWidth=300,
-              doseColorMap=plt.cm.jet, doseCenter=None, doseWidth=None):
-    """Routine to display interactive plot using matplotlib in a jupyter notebook
-
-    Args:
-        planC (cerr.plan_container.PlanC):
-        scanNum (int): scan index to display from planC.scan
-        structNums (list or int): structure indices to display from planC.structure
-        doseNum (int): dose index to display from planC.dose (default:None)
-        windowPreset (str): optional, string representing preset window.
-            'Abd/Med': (-10, 330),
-            'Head': (45, 125),
-            'Liver': (80, 305),
-            'Lung': (-500, 1500),
-            'Spine': (30, 300),
-            'Vrt/Bone': (400, 1500),
-            'PET SUV': (5, 10)
-        windowCenter (float): optional, defaults to 0 when windowPreset is not specified.
-        windowWidth (float): optional, defaults to 300 when windowPreset is not specified.
-        doseColorMap (cmap): Dose colormap. Default: plt.cm.jet
-
-    Returns:
-        None
-    """
-
-    windowPresetList = [w for w in list(window_dict.keys())]
-    lowerWindowPresetList = [w.lower() for w in windowPresetList]
-
-    # Find whether the preset window exists
-    if windowPreset is not None and windowPreset.lower() in lowerWindowPresetList:
-        presetIndex = lowerWindowPresetList.index(windowPreset.lower())
-        windowCenter = window_dict[windowPresetList[presetIndex]][0]
-        windowWidth = window_dict[windowPresetList[presetIndex]][1]
-
-    def windowImage(image, windowCenter, windowWidth):
-        imgMin = windowCenter - windowWidth // 2
-        imgMax = windowCenter + windowWidth // 2
-        windowedImage = image.copy()
-        windowedImage[windowedImage < imgMin] = imgMin
-        windowedImage[windowedImage > imgMax] = imgMax
-        return windowedImage
-
-    def rotateImage(img):
-        return(list(zip(*img)))
-
-    # def updateView(change):
-    #     # outputViewSelect = widgets.Output()
-    #     # with outputViewSelect:
-    #     #     showSlice(change['new'], 10)
-    #     showSlice(change['new'], 10)
-    #
-    # def updateSliceAxial(change):
-    #     # outputSlcAxial = widgets.Output()
-    #     # with outputSlcAxial:
-    #     #     showSlice('axial', change['new'])
-    #     showSlice('axial', change['new'])
-    #
-    # def updateSliceSagittal(change):
-    #     outputSlcSagittal = widgets.Output()
-    #     with outputSlcSagittal:
-    #         showSlice(change['new'], 'sagittal')
-    #
-    # def updateSliceCoronal(change):
-    #     outputSlcCoronal = widgets.Output()
-    #     with outputSlcCoronal:
-    #         showSlice(change['new'], 'coronal')
-
-    def createWidgets(imgSize, scanNum, doseNum=None):
-
-        viewSelect = widgets.Dropdown(
-            options=['Axial', 'Sagittal', 'Coronal'],
-            value='Axial',
-            description='view',
-            disabled=False
-        )
-
-        if doseNum is not None:
-            doseVisFlag = True
-        else:
-            doseVisFlag = False
-
-        doseAlphaSlider = widgets.FloatSlider(
-            min=0,max=1,value=0.5,
-            step=.02, description="doseAlpha",
-            visible= doseVisFlag)
-
-        sliceSliderAxial = widgets.IntSlider(
-            min=1,max=imgSize[2],value=int(imgSize[2]/2),
-            step=1, description="slcNum")
-
-        sliders = widgets.HBox([viewSelect,sliceSliderAxial, doseAlphaSlider])
-
-        sliceAlphaList = []
-        if not isinstance(scanNum, (np.number, int, float)):
-            for scanNum in scanNum:
-                sliceAlphaList.append(widgets.FloatSlider(
-                min=0,max=1,value=0.5,
-                step=.02, description=f"scan_{scanNum}_Alpha",
-                visible= doseVisFlag))
-            sliders = widgets.VBox([sliders,widgets.HBox(sliceAlphaList)])
-
-        # viewSelect.observe(updateView, names='value')
-        # sliceSliderAxial.observe(updateSliceAxial, names='value')
-
-
-        #outputSlcAxial = widgets.Output()
-
-
-        # sliceSliderSagittal = widgets.IntSlider(min=1,max=imgSize[1],value=int(imgSize[1]/2),
-        #                                         step=1, description="Sagittal")
-        # outputSlcSagittal = widgets.Output()
-        #
-        # sliceSliderCoronal = widgets.IntSlider(min=1,max=imgSize[0],value=int(imgSize[0]/2),
-        #                                        step=1, description="Coronal")
-        # outputSlcCoronal = widgets.Output()
-        #
-        # sliceSliderSagittal.observe(updateSliceSagittal, names='value')
-        # sliceSliderCoronal.observe(updateSliceCoronal, names='value')
-        #
-        # return sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal
-
-        return sliceSliderAxial, viewSelect, doseAlphaSlider, sliders
-
-
-    # Extract scan and mask
-    scan3M = planC.scan[scanNum].getScanArray()
-    xVals, yVals, zVals = planC.scan[scanNum].getScanXYZVals()
-    extentTrans = xVals[0], xVals[-1], yVals[-1], yVals[0]
-    extentSag = yVals[0], yVals[-1], zVals[-1], zVals[0]
-    extentCor = xVals[0], xVals[-1], zVals[-1], zVals[0]
-    imgSiz = np.shape(scan3M)
-
-    if isinstance(doseNum,(np.number,int,float)):
-        dose3M = planC.dose[doseNum].doseArray
-        if doseCenter is not None and doseWidth is not None:
-            minDose = doseCenter - doseWidth // 2
-            maxDose = doseCenter + doseWidth // 2
-        else:
-            maxDose = dose3M.max()
-            minDose = dose3M.min()
-        xDoseVals, yDoseVals, zDoseVals = planC.dose[doseNum].getDoseXYZVals()
-        extentDoseTrans = xDoseVals[0], xDoseVals[-1], yDoseVals[-1], yDoseVals[0]
-        extentDoseSag = yDoseVals[0], yDoseVals[-1], zDoseVals[-1], zDoseVals[0]
-        extentDoseCor = xDoseVals[0], xDoseVals[-1], zDoseVals[-1], zDoseVals[0]
-    else:
-        doseNum = None
-        maxDose = None
-        minDose = None
-
-    masks = list()
-    strNameList = list()
-    strColorList = list()
-    for nStr in range (len(structNums)):
-        mask3M = rs.getStrMask(structNums[nStr],planC)
-        masks.append(mask3M)
-        strNameList.append(planC.structure[structNums[nStr]].structureName)
-        strColorList.append(np.array(planC.structure[structNums[nStr]].structureColor)/255)
-
-    # Create slider widgets
-    imgSize = np.shape(scan3M)
-    #sliceSliderAxial, sliceSliderSagittal, sliceSliderCoronal = createWidgets(imgSize)
-    sliceSliderAxial, viewSelect, doseAlphaSlider, sliders = createWidgets(imgSize, scanNum, doseNum)
-
-    def update_numSlcs(*args):
-        if viewSelect.value == 'Axial':
-            numSlcs = imgSize[2]
-        elif viewSelect.value == 'Sagittal':
-            numSlcs = imgSize[1]
-        else:
-            numSlcs = imgSize[0]
-        sliceSliderAxial.max = numSlcs
-        sliceSliderAxial.value = int(numSlcs / 2)
-
-    viewSelect.observe(update_numSlcs, 'value')
-
-    def showSlice(view, slcNum, doseAlpha):
-
-        clear_output(wait=True)
-        #print(view + ' view slice ' + str(slcNum))
-
-        ax = showSlice.ax
-        if ax is None:
-            fig, ax = plt.subplots(1,1)
-            # # #ax_legend.set_visible(False)
-
-        # colors = ['Oranges', 'Blues', 'Greens','Purples',
-        #           'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu', 'RdYlBu',
-        #           'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']
-        # cmaps = [plt.colormaps[color].copy() for color in colors] * 10
-        #
-        # cm = plt.colormaps['tab20'].copy()
-        # colors = cm.colors * 5
-
-        doseImage = None
-        if view.lower() == 'axial':
-            windowedImage = windowImage(scan3M[: ,: ,slcNum - 1], windowCenter, windowWidth)
-            extent = extentTrans
-            if doseNum is not None and (zDoseVals[0] <= zVals[slcNum-1] <= zDoseVals[-1]):
-                doseSlcNum = np.argmin((zVals[slcNum-1] - zDoseVals)**2)
-                doseImage = dose3M[:,:,doseSlcNum]
-                extentDose = extentDoseTrans
-        elif view.lower() == 'sagittal':
-            windowedImage = rotateImage(windowImage(scan3M[:, slcNum - 1, :], windowCenter, windowWidth))
-            extent = extentSag
-            if doseNum is not None and (xDoseVals[0] <= xVals[slcNum-1] <= xDoseVals[-1]):
-                doseSlcNum = np.argmin((xVals[slcNum-1] - xDoseVals)**2)
-                doseImage = rotateImage(dose3M[:,doseSlcNum,:])
-                extentDose = extentDoseSag
-        elif view.lower() == 'coronal':
-            windowedImage = rotateImage(windowImage(scan3M[slcNum - 1, :, :], windowCenter, windowWidth))
-            extent = extentCor
-            if doseNum is not None and (yDoseVals[-1] <= yVals[slcNum-1] <= yDoseVals[0]):
-                doseSlcNum = np.argmin((yVals[slcNum-1] - yDoseVals)**2)
-                doseImage = rotateImage(dose3M[doseSlcNum,:,:])
-                extentDose = extentDoseCor
-        else:
-            raise ValueError('Invalid view type: ' + view)
-
-        # Display scan
-        im1 = ax.imshow(windowedImage, cmap=plt.cm.gray, alpha=1,
-                    interpolation='nearest', extent=extent)
-        if doseNum is not None and doseImage is not None:
-            imDose = ax.imshow(doseImage, cmap=doseColorMap, alpha=doseAlpha,
-                        interpolation='nearest', extent=extentDose,
-                        vmin=minDose, vmax=maxDose)
-
-        #Display mask
-        numLabel = len(masks)
-        if view.lower() == 'axial':
-            for maskNum in range(0,numLabel,1):
-                #maskCmap = cmaps[maskNum]
-                #maskCmap.set_under('k', alpha=0)
-                mask3M = masks[maskNum]
-                #col = colors[maskNum]
-                col = strColorList[maskNum]
-                if mask3M.any():
-                    im2 = ax.contour(np.flip(np.squeeze(mask3M[:,:,slcNum-1]), axis=0),
-                            levels = [0.5], colors = [col],
-                            extent=extent, linewidths = 2)
-                    # im2 = ax.imshow(mask3M[:,:,slcNum-1],
-                    #             cmap=maskCmap, alpha=1, extent=extent,
-                    #             interpolation='none', clim=[0.5, 1])
-
-        elif view.lower() == 'sagittal':
-            for maskNum in range(0,numLabel,1):
-                #maskCmap = cmaps[maskNum]
-                #maskCmap.set_under('k', alpha=0)
-                mask3M = masks[maskNum]
-                #col = colors[maskNum]
-                col = strColorList[maskNum]
-                if mask3M.any():
-                    im2 = ax.contour(np.flip(rotateImage(mask3M[:,slcNum-1,:]),axis=0),
-                            levels = [0.5], colors = [col],
-                            extent=extent, linewidths = 2)
-                    # im2 = ax.imshow(rotateImage(mask3M[:, slcNum - 1, :]),
-                    #             cmap=maskCmap, alpha=.8, extent=extent,
-                    #             interpolation='none', clim=[0.5, 1])
-
-        elif view.lower() == 'coronal':
-            for maskNum in range(0,numLabel,1):
-                #maskCmap = cmaps[maskNum]
-                #maskCmap.set_under('k', alpha=0)
-                mask3M = masks[maskNum]
-                #col = colors[maskNum]
-                col = strColorList[maskNum]
-                if mask3M.any():
-                    im2 = ax.contour(np.flip(rotateImage(mask3M[slcNum-1,:,:]), axis=0),
-                            levels = [0.5], colors = [col],
-                            extent=extent, linewidths = 2)
-                    # im2 = ax.imshow(rotateImage(mask3M[slcNum - 1, :, :]),
-                    #             cmap=maskCmap, alpha=.8, extent=extent,
-                    #             interpolation='none', clim=[0.5, 1])
-
-        proxy = [plt.Rectangle((0,0),1,1,fc = col) for col in strColorList]
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.legend(strNameList, fontsize=12)
-        if doseImage is not None:
-            cbar = plt.colorbar(imDose, location='left', shrink=0.6)
-            doseName = planC.dose[doseNum].fractionGroupID
-            cbar.set_label(doseName)
-        plt.rcParams["figure.figsize"] = (6, 6)
-        plt.legend(proxy, strNameList, loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
-
-    showSlice.ax = None
-
-    if doseAlphaSlider == None:
-        out = interactive_output(showSlice, {'view':viewSelect, 'slcNum':sliceSliderAxial})
-    else:
-        out = interactive_output(showSlice, {'view':viewSelect, 'slcNum':sliceSliderAxial, 'doseAlpha':doseAlphaSlider})
-
-    display(sliders, out)
-
-    return
-
 
 
 def captureToFile(planC, fileName, scanNums, strNums, doseNums, vectorDict, centerStr, dispOpts=[]):

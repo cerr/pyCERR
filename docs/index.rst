@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 pyCERR documentation
-==================
+====================
 * consistent data structure for radiological imaging metadata and their associations
 * utilities to extract, transform, organize metadata
 * visualization of scan, segmentation, radiotherapy dose, deformation vector field
@@ -20,6 +20,8 @@ pyCERR documentation
    cerr.radiomics
    cerr.registration
    cerr.utils
+   cerr.viewer
+   cerr.imrtp
    tests
 
 Indices and tables

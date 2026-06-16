@@ -7,7 +7,7 @@ if __name__ == "__main__":
 
     import time
     t = time.time()
-    planC = pc.load_dcm_dir(dcm_dir)
+    planC = pc.loadDcmDir(dcm_dir)
     elapsed = time.time() - t
     print(f"Time spent to read dicom into planC = {elapsed/60:.2f} minutes")
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     niiStructFileName = r'\\vpensmph\deasylab2\Aditya\Radiomics_features\nii_import_test\GTV_0617-381906_09-09-2000-87022.nii.gz'
     assocScanNum = 0
     labelsDict = {1: "test"}
-    planC = pc.load_nii_structure(niiStructFileName, assocScanNum, planC, labelsDict)
+    planC = pc.loadNiiStructure(niiStructFileName, assocScanNum, planC, labelsDict)
 
     # Export RTSTRUCT to DICOM
     from cerr.dcm_export import rtstruct_iod
@@ -58,17 +58,17 @@ if __name__ == "__main__":
     import os
     scanNum = 0
     scanNiiName = r'\\path\to\save\nii\scan.nii.gz'
-    planC.scan[scanNum].save_nii(scanNiiName)
+    planC.scan[scanNum].saveNii(scanNiiName)
 
     str_num = 5
     str_name = planC.structure[str_num].structureName
     strNiiName = os.path.join(r'\\path\to\save\nii\structure',str_name+'.nii.gz')
-    planC.structure[str_num].save_nii(strNiiName,planC)
+    planC.structure[str_num].saveNii(strNiiName, planC)
 
     dose_num = 0
     dose_name = 'rtdose'
     doseNiiName = os.path.join(r'path\to\save\nii\dose',dose_name+'.nii.gz')
-    planC.dose[dose_num].save_nii(doseNiiName)
+    planC.dose[dose_num].saveNii(doseNiiName)
 
 
 

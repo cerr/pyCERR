@@ -1,7 +1,7 @@
 from cerr import plan_container as pc
 import cerr.contour.rasterseg as rs
 import cerr.dataclasses.structure as strct
-from cerr.utils.mask import compute_boundingbox
+from cerr.utils.mask import computeBoundingBox
 from cerr.radiomics.preprocess import imgResample3D, getResampledGrid
 
 if __name__ == "__main__":
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     lungNames = ['Lung_IPSI','Lung_Contra','Lung_total']
 
     # Import DICOM metadata to planC
-    planC = pc.load_dcm_dir(dcm_dir)
+    planC = pc.loadDcmDir(dcm_dir)
 
     # Find Lung segmentation to extract ROI for inference
     strNames = [s.structureName.lower() for s in planC.structure]
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         if lung.lower() in strNames:
             structNum = strNames.index(lung.lower())
             mask3M = rs.getStrMask(structNum, planC)
-            strMinr, strMaxr, strMinc, strMaxc, strMins, strMaxs, __ = compute_boundingbox(mask3M)
+            strMinr, strMaxr, strMinc, strMaxc, strMins, strMaxs, __ = computeBoundingBox(mask3M)
             minr = min(minr, strMinr)
             maxr = max(maxr, strMaxr)
             minc = min(minc, strMinc)

@@ -92,6 +92,14 @@ cerr.radiomics.texture\_utils module
    :undoc-members:
    :show-inheritance:
 
+cerr.radiomics.vector\_elasticity module
+----------------------------------------
+
+.. automodule:: cerr.radiomics.vector_elasticity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

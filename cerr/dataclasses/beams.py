@@ -185,18 +185,18 @@ class ControlPointSequence:
     """
 
     BeamLimitingDevicePositionSequence: np.array = field(default_factory=get_empty_np_array)
-    ControlPointIndex: int = 0
-    NominalBeamEnergy: float = 0
-    GantryAngle: float = 0
+    ControlPointIndex: int = np.nan
+    NominalBeamEnergy: float = np.nan
+    GantryAngle: float = np.nan
     GantryRotationDirection: str = ""
-    BeamLimitingDeviceAngle: float = 0
+    BeamLimitingDeviceAngle: float = np.nan
     BeamLimitingDeviceRotationDirection: str = ""
-    PatientSupportAngle: float = 0
-    TableTopEccentricAngle: float = 0
+    PatientSupportAngle: float = np.nan
+    TableTopEccentricAngle: float = np.nan
     TableTopEccentricRotationDirection: str = ""
     IsocenterPosition: np.array = field(default_factory=get_empty_np_array)
-    SourceToSurfaceDistance: float = 0
-    CumulativeMetersetWeight: float = 0
+    SourceToSurfaceDistance: float = np.nan
+    CumulativeMetersetWeight: float = np.nan
 
 @dataclass()
 class RefBeamSeq:

@@ -591,6 +591,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     import os
 
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC(header=headr.Header()) #pc.PlanC()
+    else:
+        planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
+
     # Split string into list of directories
     if isinstance(dcmDir, (str)):
         if os.path.isdir(dcmDir):
@@ -598,8 +605,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         else:
             dcmDir = dcmDir.split()
 
+    fileList = []
     if isinstance(dcmDir, (list, np.ndarray)):
-        fileList = []
         for i,itemInList in enumerate(dcmDir):
             if os.path.isdir(itemInList):
                 for root, _, files in os.walk(itemInList):
@@ -613,12 +620,6 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     df_img = parseDcmHeader(fileList)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
-    if not isinstance(initplanC, PlanC):
-        planC = PlanC(header=headr.Header()) #pc.PlanC()
-    else:
-        planC = initplanC
-        if not isinstance(planC.header, headr.Header):
-            planC.header = headr.Header()
 
     numOrigStructs = len(planC.structure)
     numOrigDoses = len(planC.dose)

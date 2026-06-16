@@ -35,7 +35,7 @@ Run python from the above Anaconda environment and try out the following code sa
 ### import modules for planC and viewer
     import numpy as np
     from cerr import plan_container as pc
-    from cerr import viewer as vwr
+    from cerr import viewer as vwr               # napari API (showNapari, ...)
 
 ### Read DICOM directory contents to planC
     dcmDir = r"\\path\to\Data\dicom\directory"
@@ -71,17 +71,41 @@ Run python from the above Anaconda environment and try out the following code sa
     planC.dose[doseNum].saveNii(doseNiiFileName)
     
 
-### visualize scan, dose and segmentation    
+### visualize scan, dose and segmentation
+pyCERR ships three interchangeable viewers under the `cerr.viewer` sub-package,
+all driven by the same `planC`:
+
+| Viewer | Module | Best for |
+|--------|--------|----------|
+| napari 2D/3D | `cerr.viewer.pycerr_napari` (`showNapari`) | quick interactive review, 3D rendering |
+| PyQt5 desktop | `cerr.viewer.pycerr_gui` (`show`) | CERR-style slice viewer: contouring, registration QA, IMRTP/ROE, scripting API |
+| notebook | `cerr.viewer.pycerr_nbviewer` (`showNB`) | Jupyter / JupyterLab / VS Code / Google Colab |
+
+#### napari viewer
+    from cerr.viewer import showNapari
     scanNumList = [0]
     doseNumList = [0]
     numStructs = len(planC.structure)
     strNumList = np.arange(numStructs)
     displayMode = '2d' # '2d' or '3d'
     vectDict = {}
-    viewer, scan_layer, struct_layer, dose_lyer, dvf_layer = \ 
+    viewer, scan_layer, struct_layer, dose_lyer, dvf_layer = \
                    showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
     	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d')
-        
+
+#### PyQt5 desktop viewer
+    from cerr.viewer import pycerr_gui
+    viewer = pycerr_gui.show(planC)            # opens the CERR-style desktop GUI
+    # ... or launch empty and drag-and-drop a DICOM directory / NIfTI file in.
+    # The viewer exposes a scripting API (set_scan/set_dose/goto_structure,
+    # registration-QA setup, DVH export, save_screenshot, ...); see
+    # cerr/viewer/API_pycerr_gui.md for the full reference.
+
+#### Notebook viewer (Jupyter / Colab)
+    from cerr.viewer import pycerr_nbviewer
+    viewer = pycerr_nbviewer.showNB(planC, scan_nums=[0], struct_nums=strNumList,
+                                     dose_nums=[0])
+
 
 ### Compute DVH-based metrics
     from cerr import dvh
