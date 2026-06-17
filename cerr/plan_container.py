@@ -117,7 +117,8 @@ def addToH5Grp(h5Grp,structDict,key):
         h5py.Group: The updated HDF5 group.
     """
     if isinstance(structDict[key], (str)):
-        h5Grp.attrs[key] = np.string_(structDict[key])
+        # np.bytes_ (np.string_ was removed in NumPy 2.0); read side decodes it.
+        h5Grp.attrs[key] = np.bytes_(structDict[key])
     elif isinstance(structDict[key], (int, float, np.number)):
         h5Grp.attrs[key] = structDict[key]
     elif isinstance(structDict[key], (list, np.ndarray)):
