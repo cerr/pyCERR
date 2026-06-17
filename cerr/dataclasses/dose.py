@@ -225,6 +225,16 @@ class Dose:
         img.SetDirection(direction)
         return img
 
+    def getDoseDict(self):
+        """Return a shallow copy of the Dose instance's attribute dictionary.
+
+        Returns:
+            dict: A dictionary mapping each attribute name to its current value
+            for this ``Dose`` instance. Used for HDF5 serialization.
+        """
+        doseDict = self.__dict__.copy()
+        return doseDict
+
     def saveNii(self, niiFileName):
         """ Routine to save pyCERR Dose object to NifTi file
 
