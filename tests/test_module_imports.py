@@ -45,3 +45,19 @@ def test_viewer_package_unknown_attr_raises():
     import cerr.viewer as viewer
     with pytest.raises(AttributeError):
         _ = viewer.this_attribute_does_not_exist
+
+
+def test_viewer_getattr_defers_submodules():
+    """Submodule names must NOT be served by the lazy __getattr__ proxy.
+
+    If they are, ``from cerr.viewer import pycerr_nbviewer`` makes the import
+    system probe ``hasattr(cerr.viewer, 'pycerr_nbviewer')`` -> __getattr__ ->
+    import pycerr_napari -> probe again -> infinite recursion. The proxy must
+    raise AttributeError for submodules so normal import handles them.
+    (Regression guard; note `from ... import` is what triggers the probe, not
+    importlib.import_module of the full dotted path.)
+    """
+    import cerr.viewer as viewer
+    for sub in ('pycerr_napari', 'pycerr_gui', 'pycerr_nbviewer', 'cerr_colormaps'):
+        with pytest.raises(AttributeError):
+            viewer.__getattr__(sub)
