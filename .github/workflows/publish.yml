@@ -58,6 +58,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          # Don't fail a re-run if this dev version was already uploaded
+          # (TestPyPI filenames are immutable).
+          skip-existing: true
 
   publish-pypi:
     name: Publish to PyPI
