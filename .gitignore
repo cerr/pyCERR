@@ -1,1 +1,48 @@
+# Byte-compiled / optimized / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+wheels/
+*.egg
+*.egg-info/
+.eggs/
+
+# setuptools_scm generates this from a git tag / CI temp file
 cerr/_version.py
+
+# Test & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Sphinx build output
+docs/_build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local test artifacts written to the repo root
+/scan_from_cerr.nii.gz
