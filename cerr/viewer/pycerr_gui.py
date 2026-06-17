@@ -297,12 +297,6 @@ class SliceView(QtWidgets.QWidget):
         self.canvas.mpl_connect("motion_notify_event", self._on_motion)
         self.canvas.mpl_connect("button_press_event", self._on_press)
         self.canvas.mpl_connect("button_release_event", self._on_release)
-        self.canvas.setToolTip(
-            "Scroll: change slice\nDrag (left/middle): pan\n"
-            "Right-drag up/down: zoom in/out\n"
-            "Drag a crosshair line: scroll the other views\n"
-            "Right-click: choose scan/dose/structures, draw ruler\n"
-            "Double-click: reset pan/zoom")
 
     @property
     def is3d(self):
@@ -941,6 +935,23 @@ class DoseColorbarWidget(QtWidgets.QWidget):
 # ---------------------------------------------------------------------------#
 #  Main window
 # ---------------------------------------------------------------------------#
+def _pycerr_version():
+    """Best-effort pyCERR version string for the About dialog."""
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+        try:
+            return version("pycerr")
+        except PackageNotFoundError:
+            pass
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from cerr._version import __version__
+        return __version__
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
 class PyCerrViewer(QtWidgets.QMainWindow):
     def __init__(self, planC=None):
         super().__init__()
@@ -1325,6 +1336,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                          lambda: self.after_load(keep_view=True))
 
         helpM = m.addMenu("&Help")
+        helpM.addAction("&Controls", self.show_controls)
         helpM.addAction("&About", self.show_about)
 
     def _build_ui(self):
@@ -3253,16 +3265,31 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.statusBar().showMessage(
             "ROE opened (shares this viewer's planC).")
 
+    def show_controls(self):
+        QtWidgets.QMessageBox.information(
+            self, "Controls",
+            "Mouse:\n"
+            "  Scroll: change slice\n"
+            "  Left / middle drag: pan\n"
+            "  Right-drag up/down: zoom in/out\n"
+            "  Drag a crosshair line: scroll the other views\n"
+            "  Right-click: choose scan / dose / structures, draw ruler\n"
+            "  Double-click: reset pan/zoom\n\n"
+            "Keyboard:\n"
+            "  Arrow keys (hovered view): change slice\n"
+            "  X: toggle crosshairs     O: orientation labels\n"
+            "  L: lock slices across views     R: reset pan/zoom\n\n"
+            "Tools > DVH for dose-volume histograms.")
+
     def show_about(self):
         QtWidgets.QMessageBox.about(
             self, "About pyCERR Viewer",
-            "pyCERR Viewer - a CERR-style slice viewer built on pyCERR\n"
-            "(plan_container, rasterseg, dvh modules).\n\n"
-            "Scroll / arrow keys (hovered view): change slice | Drag: pan |\n"
-            "Right-drag up/down: zoom |\n"
-            "Right-click: per-view scan/dose/structure menu & ruler |\n"
-            "Double-click: reset view | X: toggle crosshairs | R: reset "
-            "pan/zoom\nTools > DVH for dose-volume histograms.")
+            "<b>pyCERR Viewer</b><br>"
+            f"version {_pycerr_version()}<br><br>"
+            "A CERR-style slice viewer built on pyCERR for visualizing "
+            "scans, segmentations and radiotherapy dose.<br><br>"
+            '<a href="https://github.com/cerr/pyCERR">'
+            "https://github.com/cerr/pyCERR</a>")
 
 
 # ---------------------------------------------------------------------------#
