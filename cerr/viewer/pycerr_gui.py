@@ -1103,6 +1103,29 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         """Center all views on a structure's center of mass."""
         self.goto_struct_center(int(strNum))
 
+    def _view_under_cursor(self):
+        """Return this window's SliceView currently under the mouse, or None."""
+        w = QtWidgets.QApplication.widgetAt(QtGui.QCursor.pos())
+        while w is not None and not isinstance(w, SliceView):
+            w = w.parentWidget()
+        if isinstance(w, SliceView) and self.views.get(w.winId) is w:
+            return w
+        return None
+
+    def eventFilter(self, obj, event):
+        # Arrow keys step the slice of the 2D view under the mouse (hover-based
+        # navigation, independent of which widget has keyboard focus).
+        if event.type() == QtCore.QEvent.KeyPress and event.key() in (
+                Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right):
+            view = self._view_under_cursor()
+            if view is not None and not view.is3d:
+                step = 1 if event.key() in (Qt.Key_Up, Qt.Key_Right) else -1
+                sl = view.slider
+                sl.setValue(int(np.clip(sl.value() + step,
+                                        sl.minimum(), sl.maximum())))
+                return True   # consume so a focused slider/widget doesn't also move
+        return super().eventFilter(obj, event)
+
     def set_crosshairs(self, on):
         self.actXhair.setChecked(bool(on))
 
@@ -1451,6 +1474,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             v.contextRequested.connect(self._show_axis_menu)
             v.rulerChanged.connect(self.on_ruler_changed)
             v.crosshairDragged.connect(self.on_crosshair_dragged)
+
+        # Arrow keys (Up/Down/Left/Right) change the slice of whichever 2D view
+        # is under the mouse, regardless of focus.
+        QtWidgets.QApplication.instance().installEventFilter(self)
 
         # container whose contents are rebuilt by _apply_layout()
         self.viewContainer = QtWidgets.QWidget()
@@ -3231,7 +3258,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self, "About pyCERR Viewer",
             "pyCERR Viewer - a CERR-style slice viewer built on pyCERR\n"
             "(plan_container, rasterseg, dvh modules).\n\n"
-            "Scroll: change slice | Drag: pan | Right-drag up/down: zoom |\n"
+            "Scroll / arrow keys (hovered view): change slice | Drag: pan |\n"
+            "Right-drag up/down: zoom |\n"
             "Right-click: per-view scan/dose/structure menu & ruler |\n"
             "Double-click: reset view | X: toggle crosshairs | R: reset "
             "pan/zoom\nTools > DVH for dose-volume histograms.")
