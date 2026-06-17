@@ -74,6 +74,9 @@ include-package-data = true
 
 [tool.setuptools_scm]
 version_file = "cerr/_version.py"
+# Drop the +g<sha> local segment so dev builds are uploadable to TestPyPI
+# (PyPI rejects local versions). A clean tag still yields e.g. 0.7.0.
+local_scheme = "no-local-version"
 
 [tool.ruff.lint]
 select = ["NPY201"]
