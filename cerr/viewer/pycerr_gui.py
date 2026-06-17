@@ -3149,8 +3149,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.information(
                 self, "DVH", "A dose and at least one structure are required.")
             return
+        # Non-modal (like the other tools): a modal exec_() hangs when the
+        # viewer runs inside an integrated event loop (show() / %gui qt).
         dlg = DvhDialog(self.planC, self)
-        dlg.exec_()
+        self._toolWindows.append(dlg)
+        dlg.show()
 
     def _view_with_orientation(self, orientation):
         """First *visible* view window showing the given orientation."""
