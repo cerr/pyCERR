@@ -34,7 +34,7 @@ dependencies = [
     'shapelysmooth',
     'matplotlib <= 3.9.0',
     'ipywidgets',
-    'surface-distance @ git+https://github.com/google-deepmind/surface-distance.git',
+    'surface-distance',
     'itk-strain',
     # Desktop Qt viewer (cerr.viewer.pycerr_gui): PyQt5 is the Qt binding;
     # pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk is pulled in
@@ -52,6 +52,24 @@ dependencies = [
 napari = [
     "napari[all]",
     "napari-animation"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.exclude-package-data]
+# Test-only datasets (mirrors MANIFEST.in) - keep them out of the wheel.
+# The notebook-facing datasets (radiomics_phantom_dicom, sample_ct,
+# radiomics_settings, convolutional_filter_settings) are retained.
+"cerr.datasets" = [
+    "ibsi_radiomics_dicom/*",
+    "ibsi_radiomics_dicom/**/*",
+    "reference_values_for_tests/*",
+    "reference_values_for_tests/**/*",
+    # head_and_neck is downloaded on demand (fetch_sample_data); keep it out of
+    # the wheel. dosimetric_model_test_data stays bundled (NTCP notebook).
+    "sample_ct/head_and_neck/*",
+    "sample_ct/head_and_neck/**/*",
 ]
 
 [tool.setuptools_scm]

@@ -1,0 +1,79 @@
+name: Publish to PyPI
+
+# Release flow:
+#   * Manual run (Actions -> "Publish to PyPI" -> Run workflow, optionally from a
+#     tag) publishes to TestPyPI - use this as a dry run.
+#   * Pushing a version tag publishes to PyPI, e.g.:
+#       git tag -a v0.7.0 -m "v0.7.0" && git push origin v0.7.0
+# setuptools_scm derives the version from the tag, so the PyPI version matches
+# the tag exactly (v0.7.0 -> 0.7.0).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:          # manual run -> TestPyPI dry run
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history + tags so setuptools_scm sees the tag
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+      - name: Validate metadata and long description
+        run: twine check dist/*
+      - name: Show version being published
+        run: ls -l dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI (dry run)
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # The TestPyPI Trusted Publisher must reference this environment name.
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/pycerr
+    permissions:
+      id-token: write             # OIDC token for Trusted Publishing (no API token)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # The PyPI Trusted Publisher must reference this environment name.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pycerr
+    permissions:
+      id-token: write             # OIDC token for Trusted Publishing (no API token)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

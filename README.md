@@ -42,8 +42,8 @@ viewer); see [visualize scan, dose and segmentation](#visualize-scan-dose-and-se
 
 - **Example notebooks** (grouped by topic): https://github.com/cerr/pyCERR-Notebooks
 - **API reference** — https://pycerr.readthedocs.io (built from `docs/`; build locally with `cd docs && make html`)
-- **Desktop GUI scripting API** — [`cerr/viewer/API_pycerr_gui.md`](cerr/viewer/API_pycerr_gui.md)
-- **Test suite & coverage** — [`tests/README.md`](tests/README.md)
+- **Desktop GUI scripting API** — [`cerr/viewer/API_pycerr_gui.md`](https://github.com/cerr/pyCERR/blob/main/cerr/viewer/API_pycerr_gui.md)
+- **Test suite & coverage** — [`tests/README.md`](https://github.com/cerr/pyCERR/blob/main/tests/README.md)
 
 ## Install Miniconda and Git
 It is recommended to install CERR in an isolated environment such as Anaconda or VENV from GitHub repository. Please refer to 

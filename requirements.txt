@@ -15,5 +15,5 @@ napari[all]
 PyQt5
 pyvista
 pyvistaqt
-surface-distance @ git+https://github.com/google-deepmind/surface-distance.git
+surface-distance
 itk-strain
