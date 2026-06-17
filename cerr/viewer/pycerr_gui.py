@@ -418,8 +418,10 @@ class SliceView(QtWidgets.QWidget):
             ix, iy = self.ax.transData.transform((xv, yv))
         except Exception:  # noqa: BLE001
             return None
-        nearV = abs(event.x - ix) < tol     # near the vertical line
-        nearH = abs(event.y - iy) < tol     # near the horizontal line
+        # Native bool: numpy.bool_ (from the numpy comparison) is rejected by
+        # the PyQt5 crosshairDragged signal's bool arguments.
+        nearV = bool(abs(event.x - ix) < tol)   # near the vertical line
+        nearH = bool(abs(event.y - iy) < tol)   # near the horizontal line
         return (nearV, nearH) if (nearV or nearH) else None
 
     # ------------------------------------------------- contour draw tools ---
