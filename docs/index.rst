@@ -5,11 +5,52 @@
 
 pyCERR documentation
 ====================
-* consistent data structure for radiological imaging metadata and their associations
-* utilities to extract, transform, organize metadata
-* visualization of scan, segmentation, radiotherapy dose, deformation vector field
-* radiomics, texture and radiotherapy dose volume histogram features
-* utilities for AI model training and inference.
+
+pyCERR (Python-based Computational Environment for Radiological Research) stores
+all data for a patient in a single ``PlanC`` container — scans, structures
+(segmentations), dose, treatment plans (beams) and deformations — defined in
+``cerr.plan_container``.
+
+Features
+--------
+
+**Data import / export**
+
+* DICOM import of CT/MR/PT/US/NM scans plus RTSTRUCT, RTDOSE and RTPLAN (``cerr.plan_container.loadDcmDir``)
+* NIfTI import/export of scans, segmentations and dose
+* Full-``PlanC`` HDF5 serialization (``saveToH5`` / ``loadFromH5``)
+* DICOM RTSTRUCT export (``cerr.dcm_export.rtstruct_iod``)
+
+**Segmentation & contours**
+
+* Lazy polygon → binary-mask rasterization (``cerr.contour.rasterseg.getStrMask``)
+* Import label maps / binary masks as structures (``cerr.dataclasses.structure.importStructureMask``)
+
+**Radiomics (IBSI-compliant)**
+
+* Scalar features: morphology, first-order, GLCM / GLRLM / GLSZM / GLDZM / NGTDM / NGLDM (IBSI-1)
+* Convolutional texture / filter-response maps: mean, LoG, Laws, Gabor, wavelet (IBSI-2)
+* ``cerr.radiomics.ibsi1.computeScalarFeatures``
+
+**Dosimetry & outcomes**
+
+* Dose–volume histograms and metrics — Dx, Vx, MOHx, MOCx, mean dose (``cerr.dvh``)
+* Radiotherapy outcome models — NTCP/TCP: LKB, logistic, Cox, Appelt (``cerr.roe``)
+* IMRT planning / beamlet dose calculation (``cerr.imrtp``)
+
+**Image processing**
+
+* Deformable image registration via plastimatch / ANTs (``cerr.registration``)
+* Resampling, intensity preprocessing and masking (``cerr.utils``)
+* Semi-quantitative DCE-MRI features (``cerr.mri_metrics``)
+* Helpers for AI model training / inference (``cerr.utils.ai_pipeline``)
+
+**Visualization** — three interchangeable viewers driven by the same ``planC``
+(``cerr.viewer``):
+
+* ``pycerr_napari`` — napari 2D/3D viewer
+* ``pycerr_gui`` — PyQt5 CERR-style desktop viewer
+* ``pycerr_nbviewer`` — Jupyter / Colab notebook viewer
 
 .. toctree::
    :maxdepth: 2
