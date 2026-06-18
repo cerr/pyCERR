@@ -2,6 +2,24 @@
 
 pyCERR provides convenient data structure for imaging metadata and their associations. Utilities are provided to to extract, transform, organize metadata and visualize results of image processing for image and dosimetry features, image processing for AI model training and inference.
 
+## Quick Start
+Install pyCERR from terminal, preferable within a virtual environment and launch Python.
+````
+pip install pycerr
+python
+````
+
+In Python, load an example dataset and show it in the Viewer
+````
+from cerr import plan_container as pc
+from cerr.viewer.pycerr_gui import show
+from cerr import datasets
+
+dcmDir = datasets.fetch_sample_data('head_and_neck')   # local if present, else downloadsfrom cerr
+planC = pc.loadDcmDir(dcmDir)
+v = show(planC)
+````
+
 ## Features
 
 All data for a patient lives in a single `PlanC` container — scans, structures
@@ -52,9 +70,9 @@ It is recommended to install CERR in an isolated environment such as Anaconda or
 
 ## Install pyCERR
 
-Launch Miniconda terminal, create a Conda environment with Python 3.8 and install CERR. Note that CERR requires Python version >= 3.8 to use Napari Viewer.
+Launch Miniconda terminal, create a Conda environment with Python and install CERR.
 ````
-conda create -y --name pycerr python=3.11
+conda create -y --name pycerr python=3.12
 conda activate pycerr
 pip install "pyCERR[napari] @ git+https://github.com/cerr/pyCERR"
 ````    
