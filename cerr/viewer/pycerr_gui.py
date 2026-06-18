@@ -508,10 +508,20 @@ class SliceView(QtWidgets.QWidget):
             self._brush_circle = None
             self.canvas.draw_idle()
 
+    def _default_cursor(self):
+        """Resting cursor for the current mode, restored after pan/zoom so
+        contouring keeps its pen/brush cursor."""
+        if self.draw_mode:
+            return _contour_cursor(
+                "brush" if self.draw_tool == "brush" else "pen")
+        if self.ruler_mode:
+            return Qt.CrossCursor
+        return Qt.ArrowCursor
+
     def _on_release(self, event):
         if self._xhair_drag is not None:
             self._xhair_drag = None
-            self.canvas.setCursor(Qt.ArrowCursor)
+            self.canvas.setCursor(self._default_cursor())
             return
         if self._qa_drag:
             self._qa_drag = False
@@ -556,15 +566,14 @@ class SliceView(QtWidgets.QWidget):
             self.user_limits = self._rclick[2]
             self.canvas.draw_idle()
             self._pan = self._zoom_drag = self._rclick = None
-            self.canvas.setCursor(Qt.ArrowCursor)
+            self.canvas.setCursor(self._default_cursor())
             self.contextRequested.emit(self.winId)
             return
         self._rclick = None
         if self._pan is not None or self._zoom_drag is not None:
             self._pan = None
             self._zoom_drag = None
-            self.canvas.setCursor(Qt.CrossCursor if self.ruler_mode
-                                  else Qt.ArrowCursor)
+            self.canvas.setCursor(self._default_cursor())
 
     def _do_zoom_drag(self, event):
         y0, ax_x, ax_y, xlim0, ylim0 = self._zoom_drag
@@ -3469,6 +3478,7 @@ class ContourDialog(QtWidgets.QDialog):
         self._undo = []                  # [(sliceIdx, previous 2D mask), ...]
         self._dirty = False
         self._liveIm = None              # axial overlay artist while brushing
+        self._liveContour = None         # live dashed boundary while brushing
 
         lay = QtWidgets.QVBoxLayout(self)
         hint = QtWidgets.QLabel(
@@ -3739,6 +3749,7 @@ class ContourDialog(QtWidgets.QDialog):
         if winId != self.axView.winId:
             return
         self._liveIm = None         # refresh_views clears the axes anyway
+        self._liveContour = None
         self.viewer.refresh_views()
 
     def _live_update_axial(self):
@@ -3752,6 +3763,7 @@ class ContourDialog(QtWidgets.QDialog):
             except Exception:  # noqa: BLE001
                 pass
             self._liveIm = None
+        self._remove_live_contour()
         cslc = self.mask3M[:, :, self._cur_slice()]
         if np.any(cslc):
             # imshow() resets the axes limits to the image extent; preserve the
@@ -3763,9 +3775,25 @@ class ContourDialog(QtWidgets.QDialog):
                 cmap=ListedColormap([self.color]), extent=extent,
                 alpha=0.35, vmin=0, vmax=1, interpolation="nearest",
                 aspect="equal", zorder=9)
+            # live dashed boundary, matching the committed-contour style
+            self._liveContour = view.ax.contour(
+                v.xV, v.yV, cslc.astype(float), levels=[0.5],
+                colors=[self.color], linewidths=1.6, linestyles="--")
             view.ax.set_xlim(xlim)
             view.ax.set_ylim(ylim)
         view.canvas.draw_idle()
+
+    def _remove_live_contour(self):
+        if self._liveContour is not None:
+            try:
+                self._liveContour.remove()
+            except Exception:  # noqa: BLE001
+                try:                       # matplotlib < 3.8
+                    for coll in self._liveContour.collections:
+                        coll.remove()
+                except Exception:  # noqa: BLE001
+                    pass
+            self._liveContour = None
 
     def _on_stroke(self, winId, pts):
         if winId != self.axView.winId or self.mask3M is None:
