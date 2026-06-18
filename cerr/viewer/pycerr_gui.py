@@ -3265,9 +3265,29 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.statusBar().showMessage(
             "ROE opened (shares this viewer's planC).")
 
+    def _show_info(self, title, text, rich=False):
+        """Show a non-modal information box. A modal QMessageBox can hang or
+        fail to appear when the viewer runs inside an integrated event loop
+        (show() / IPython %gui qt), so build and show() it non-modally."""
+        box = QtWidgets.QMessageBox(self)
+        box.setIcon(QtWidgets.QMessageBox.Information)
+        box.setWindowTitle(title)
+        if rich:
+            box.setTextFormat(Qt.RichText)
+        box.setText(text)
+        box.setModal(False)
+        box.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._toolWindows.append(box)
+        box.finished.connect(lambda *_: self._toolWindows.remove(box)
+                             if box in self._toolWindows else None)
+        box.show()
+        box.raise_()
+        box.activateWindow()
+        return box
+
     def show_controls(self):
-        QtWidgets.QMessageBox.information(
-            self, "Controls",
+        self._show_info(
+            "Controls",
             "Mouse:\n"
             "  Scroll: change slice\n"
             "  Left / middle drag: pan\n"
@@ -3282,14 +3302,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             "Tools > DVH for dose-volume histograms.")
 
     def show_about(self):
-        QtWidgets.QMessageBox.about(
-            self, "About pyCERR Viewer",
+        self._show_info(
+            "About pyCERR Viewer",
             "<b>pyCERR Viewer</b><br>"
             f"version {_pycerr_version()}<br><br>"
             "A CERR-style slice viewer built on pyCERR for visualizing "
             "scans, segmentations and radiotherapy dose.<br><br>"
             '<a href="https://github.com/cerr/pyCERR">'
-            "https://github.com/cerr/pyCERR</a>")
+            "https://github.com/cerr/pyCERR</a>",
+            rich=True)
 
 
 # ---------------------------------------------------------------------------#
