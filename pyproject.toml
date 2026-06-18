@@ -32,7 +32,7 @@ dependencies = [
     'scikit-image',
     'PyWavelets',
     'shapelysmooth',
-    'matplotlib <= 3.9.0',
+    'matplotlib >= 3.5',
     'ipywidgets',
     'surface-distance',
     'itk-strain',

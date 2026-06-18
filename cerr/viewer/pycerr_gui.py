@@ -249,7 +249,7 @@ class SliceView(QtWidgets.QWidget):
         super().__init__(parent)
         self.winId = winId
         self.orientation = orientation   # current view type, may be changed
-        self.fig = Figure(facecolor="black", tight_layout=True)
+        self.fig = Figure(facecolor="black", layout="tight")
         self.canvas = FigureCanvas(self.fig)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor("black")
@@ -3326,7 +3326,7 @@ class DvhDialog(QtWidgets.QDialog):
         lw.setFixedWidth(240)
         lay.addWidget(lw)
 
-        self.fig = Figure(tight_layout=True)
+        self.fig = Figure(layout="tight")
         self.canvas = FigureCanvas(self.fig)
         self.ax = self.fig.add_subplot(111)
         lay.addWidget(self.canvas, 1)
