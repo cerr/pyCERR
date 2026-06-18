@@ -1532,6 +1532,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         allBtn.clicked.connect(lambda: self._set_all_structs(True))
         noneBtn.clicked.connect(lambda: self._set_all_structs(False))
         btnRow.addWidget(allBtn), btnRow.addWidget(noneBtn)
+        self.structScanFilterChk = QtWidgets.QCheckBox("Current scan")
+        self.structScanFilterChk.setToolTip(
+            "List only structures associated with the current scan")
+        self.structScanFilterChk.toggled.connect(self._on_struct_scan_filter)
+        btnRow.addWidget(self.structScanFilterChk)
+        btnRow.addStretch(1)
         sl.addLayout(btnRow)
         self.structList = QtWidgets.QListWidget()
         self.structList.itemChanged.connect(lambda *_: self.refresh_views())
@@ -1985,7 +1991,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def _populate_struct_list(self):
         self.structList.blockSignals(True)
         self.structList.clear()
+        curUID = None
+        if getattr(self, "structScanFilterChk", None) is not None \
+                and self.structScanFilterChk.isChecked() \
+                and 0 <= self.scanNum < len(self.planC.scan):
+            curUID = self.planC.scan[self.scanNum].scanUID
         for i, st in enumerate(self.planC.structure):
+            if curUID is not None and st.assocScanUID != curUID:
+                continue            # filtered: not on the current scan
             item = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked)
@@ -1996,6 +2009,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             item.setForeground(QtGui.QColor.fromRgbF(*np.clip(rgb, 0, 1)))
             self.structList.addItem(item)
         self.structList.blockSignals(False)
+
+    def _on_struct_scan_filter(self, *_):
+        """Re-list structures for the current scan-filter setting."""
+        if self.planC is not None and self.planC.structure:
+            self._populate_struct_list()
+            self.refresh_views()
 
     def _set_all_structs(self, on):
         self.structList.blockSignals(True)
@@ -2113,6 +2132,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.maskCache.clear()
         self._pvStructCache.clear()   # surfaces live on the scan grid
         self._load_scan_geometry()
+        if getattr(self, "structScanFilterChk", None) is not None \
+                and self.structScanFilterChk.isChecked():  # filter follows scan
+            self._populate_struct_list()
         self._populate_overlay_rows()   # base scan is excluded from overlays
         if self.regCtl is not None:     # keep QA base in sync with the scan
             self.regCtl.sync_base(idx)
