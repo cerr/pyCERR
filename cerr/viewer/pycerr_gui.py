@@ -1075,6 +1075,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.doseCache = {}          # doseIdx -> (interp, doseMax) | None
         self._pvStructCache = {}     # structNum -> pyvista surface | None
         self._pvDoseCache = {}       # doseIdx -> (isosurface, doseMax) | None
+        self.plane3dOpacity = 0.6    # translucency of the 3D orthogonal planes
         # per-axis overrides (CERR-style axis menu); None = "Auto" -> follow
         # the global panel selection. "dose" may also be -1 (no dose).
         self.axisSel = {w: {"scan": None, "dose": None, "structs": None}
@@ -3054,7 +3055,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                              (VIEW_CORONAL, cor)):
             view._plane_actors[orient] = pl.add_mesh(
                 mesh, cmap="gray", clim=(vmin, max(vmax, vmin + 1e-6)),
-                show_scalar_bar=False)
+                opacity=self.plane3dOpacity, lighting=False,
+                show_scalar_bar=False, render=False)
 
         # colored plane outlines (locators)
         x0, x1 = float(xA[0]), float(xA[-1])
@@ -3071,9 +3073,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         }
         view._outline_actors = {}
         for orient, ptsList in edges.items():
-            view._outline_actors[orient] = pl.add_lines(
-                np.asarray(ptsList, dtype=float),
-                color=PLANE_COLORS[orient], width=2, connected=True)
+            pts = np.asarray(ptsList, dtype=float)
+            poly = pv.PolyData()
+            poly.points = pts
+            poly.lines = np.hstack(([len(pts)], np.arange(len(pts)))).astype(
+                np.int64)
+            view._outline_actors[orient] = pl.add_mesh(
+                poly, color=PLANE_COLORS[orient], line_width=2,
+                pickable=False, show_scalar_bar=False, render=False)
 
         # ---- structure surfaces (follow the Structures checklist) ----
         for strNum in self._axis_structs(view.winId):
@@ -3082,7 +3089,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 pl.add_mesh(surf, color=self._struct_color(strNum),
                             opacity=0.45, smooth_shading=True,
                             pickable=False, show_scalar_bar=False,
-                            name=f"struct{strNum}")
+                            name=f"struct{strNum}", render=False)
 
         # ---- isodose surfaces (follow the Dose combo & alpha slider) ----
         doseIdx = self._axis_dose(view.winId)
@@ -3095,7 +3102,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                             clim=(cbLo, max(cbHi, cbLo + 1e-6)),
                             opacity=min(max(self.doseAlpha, 0.0), 0.6),
                             pickable=False, show_scalar_bar=False,
-                            name=f"isodose{doseIdx}")
+                            name=f"isodose{doseIdx}", render=False)
 
         # ---- IMRTP beam overlays: ONE combined polyline actor (fast) ----
         if self.beams:
@@ -3119,7 +3126,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 pd.cell_data["rgb"] = np.asarray(cellRGB, dtype=np.uint8)
                 pl.add_mesh(pd, scalars="rgb", rgb=True, line_width=2,
                             pickable=False, show_scalar_bar=False,
-                            name="beams")
+                            name="beams", render=False)
 
         # wire the plane-drag hooks once per widget
         if pl.pick_plane is None:
