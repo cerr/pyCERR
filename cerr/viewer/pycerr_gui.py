@@ -1607,14 +1607,64 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self, "Select DICOM directory")
         if not path:
             return
+        self._do_dicom_import(path, f"Importing DICOM from {path} ...",
+                              f"Imported {path}")
+
+    def import_dicom_files(self, fileList):
+        """Import only the given DICOM file(s), not their whole directory -
+        e.g. a dropped RTSTRUCT, so we don't pull in the rest of the folder."""
+        fileList = [f for f in fileList if f]
+        if not fileList:
+            return
+        n = len(fileList)
+        self._do_dicom_import(list(fileList),
+                              f"Importing {n} DICOM file(s) ...",
+                              f"Imported {n} DICOM file(s)")
+
+    def _do_dicom_import(self, source, busyMsg, doneMsg):
+        """Shared DICOM import: source is a directory path or a list of file
+        paths (both accepted by loadDcmDir). Reports skipped duplicates."""
         try:
-            self._busy(f"Importing DICOM from {path} ...")
-            self.planC = pc.loadDcmDir(path, initplanC=self.planC or "")
+            self._busy(busyMsg)
+            before = ((len(self.planC.scan), len(self.planC.structure),
+                       len(self.planC.dose)) if self.planC else (0, 0, 0))
+            import warnings as _warnings
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
+                self.planC = pc.loadDcmDir(source, initplanC=self.planC or "")
             self.after_load()
-            self._done(f"Imported {path}")
+            self._done(doneMsg)
+            self._report_skipped_dups(caught, before)
         except Exception as e:  # noqa: BLE001
             self._done()
             _show_error(self, "Import error", str(e))
+
+    def _report_skipped_dups(self, caught, before):
+        """Surface duplicates skipped by loadDcmDir (per-category, accurate for
+        both fully- and partially-duplicate imports)."""
+        msgs = [str(w.message) for w in caught
+                if "already exists in planC" in str(w.message)]
+        if not msgs:
+            return
+        after = (len(self.planC.scan), len(self.planC.structure),
+                 len(self.planC.dose))
+        lines = []
+        for i, (label, prefix) in enumerate(
+                (("scan", "Scan"), ("structure", "Structure"),
+                 ("dose", "Dose"))):
+            skipped = sum(1 for m in msgs if m.startswith(prefix))
+            if skipped == 0:
+                continue
+            if after[i] - before[i] == 0:
+                lines.append(f"No {label}s were imported as they already "
+                             f"exist in planC.")
+            else:
+                lines.append(f"{skipped} {label}{'' if skipped == 1 else 's'} "
+                             f"already exist in planC and "
+                             f"{'was' if skipped == 1 else 'were'} not "
+                             f"imported.")
+        if lines:
+            _show_info(self, "Import", "\n".join(lines))
 
     # ----------------------------------------------------- drag & drop ------
     def dragEnterEvent(self, event):
@@ -1629,8 +1679,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         paths = [u.toLocalFile() for u in event.mimeData().urls()
                  if u.toLocalFile()]
         event.acceptProposedAction()
-        # load scans/plans before dose/structure NIfTIs that depend on them
-        for p in sorted(paths, key=self._drop_priority):
+        # Dropped DICOM *files* are imported as exactly those files (e.g. a
+        # single RTSTRUCT), NOT their whole folder - dropping one structure
+        # file must not pull in the scan series sitting next to it. Dropped
+        # *directories* still import the whole directory.
+        dcmFiles, dirs, others = [], [], []
+        for p in paths:
+            if os.path.isdir(p):
+                dirs.append(p)
+            elif os.path.isfile(p) and p.lower().endswith(".dcm"):
+                dcmFiles.append(p)
+            else:
+                others.append(p)
+        # directories (scans) first, then the dropped DICOM files (structures/
+        # doses that reference them), then dose/structure NIfTIs
+        for d in dirs:
+            self.load_path(d)
+        if dcmFiles:
+            self.import_dicom_files(dcmFiles)
+        for p in sorted(others, key=self._drop_priority):
             self.load_path(p)
 
     @staticmethod
@@ -1645,8 +1712,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def load_path(self, path):
         """Load a dropped/opened path: a DICOM directory, a NIfTI file
         (.nii/.nii.gz - scan, or dose/structure by name heuristic when a scan
-        is loaded), a single DICOM file (its folder is imported), or a .pkl
-        plan container."""
+        is loaded), a single DICOM file (only that file is imported), or a
+        .pkl plan container."""
         path = str(path)
         low = path.lower()
         try:
@@ -1664,7 +1731,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             elif low.endswith((".nii", ".nii.gz")):
                 self._load_nii(path)
             elif low.endswith(".dcm"):
-                self.import_dicom(os.path.dirname(path))
+                self.import_dicom_files([path])
             else:
                 _show_info(
                     self, "Open", f"Unsupported file type:\n{path}")
