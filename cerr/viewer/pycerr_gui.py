@@ -185,6 +185,7 @@ if HAS_PYVISTA:
         still zooms via VTK's trackball style) and lets the owner take
         over left-drags for plane dragging via the pick/drag hooks."""
         rightClicked = QtCore.pyqtSignal()
+        doubleClicked = QtCore.pyqtSignal()
 
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -205,6 +206,13 @@ if HAS_PYVISTA:
             if ev.button() == Qt.RightButton:
                 self._rpos = ev.pos()
             super().mousePressEvent(ev)
+
+        def mouseDoubleClickEvent(self, ev):
+            # double-click resets the 3D camera to the default framing
+            if ev.button() == Qt.LeftButton and not self._plane_dragging:
+                self.doubleClicked.emit()
+                return
+            super().mouseDoubleClickEvent(ev)
 
         def mouseMoveEvent(self, ev):
             if self._plane_dragging:
@@ -316,6 +324,7 @@ class SliceView(QtWidgets.QWidget):
                 self.vtk_widget.set_background("black")
                 self.vtk_widget.rightClicked.connect(
                     lambda: self.contextRequested.emit(self.winId))
+                self.vtk_widget.doubleClicked.connect(self.reset_view)
                 self.layout().insertWidget(1, self.vtk_widget, stretch=1)
             self.canvas.hide()
             self.vtk_widget.show()
@@ -1580,7 +1589,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         for v in self.views.values():
             v.sliceChanged.connect(self.on_slice_changed)
             v.cursorMoved.connect(self.on_cursor_moved)
-            v.viewReset.connect(lambda winId: self.refresh_views(only=winId))
+            v.viewReset.connect(self._on_view_reset)
             v.contextRequested.connect(self._show_axis_menu)
             v.rulerChanged.connect(self.on_ruler_changed)
             v.crosshairDragged.connect(self.on_crosshair_dragged)
@@ -2911,6 +2920,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         for wid in self.activeWins:
             if self.views[wid].is3d:
                 self.refresh_views(only=wid)
+
+    def _on_view_reset(self, winId):
+        """Double-click reset: clear 2D pan/zoom, or restore the 3D camera to
+        its default framing, then re-render the affected view."""
+        view = self.views.get(winId)
+        if view is not None and getattr(view, "is3d", False):
+            view._vtk_cam_set = False     # re-applied by _render_3d_vtk
+        self.refresh_views(only=winId)
 
     def _render_3d(self, view):
         if view.uses_vtk:
