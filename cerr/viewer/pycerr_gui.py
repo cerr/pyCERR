@@ -888,7 +888,8 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         bb.accepted.connect(dlg.accept)
         bb.rejected.connect(dlg.reject)
         form.addRow(bb)
-        if dlg.exec_() == QtWidgets.QDialog.Accepted:
+
+        def _apply():
             eps = self.axisMax * 1e-3
             cbLo, cbHi = spins[0].value(), spins[1].value()
             dLo, dHi = spins[2].value(), spins[3].value()
@@ -896,6 +897,12 @@ class DoseColorbarWidget(QtWidgets.QWidget):
             self.dispRange = [min(dLo, dHi - eps), max(dHi, dLo + eps)]
             self.update()
             self.rangesChanged.emit()
+        # Non-modal (a modal exec_ hangs in an integrated event loop): apply on OK.
+        dlg.accepted.connect(_apply)
+        dlg.setModal(False)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        dlg.show()
+        dlg.raise_()
 
     def _sync_disp_to_cbar(self):
         self.dispRange = list(self.cbarRange)
@@ -950,6 +957,38 @@ def _pycerr_version():
         return __version__
     except Exception:  # noqa: BLE001
         return "unknown"
+
+
+def _nonmodal_box(parent, title, text, icon, rich=False):
+    """Build and show() a non-modal QMessageBox. Modal message boxes can hang
+    or fail to appear when the viewer runs inside an integrated event loop
+    (show() / IPython %gui qt). The Qt parent keeps the box alive; it deletes
+    itself on close."""
+    box = QtWidgets.QMessageBox(parent)
+    box.setIcon(icon)
+    box.setWindowTitle(title)
+    if rich:
+        box.setTextFormat(Qt.RichText)
+    box.setText(text)
+    box.setModal(False)
+    box.setAttribute(Qt.WA_DeleteOnClose, True)
+    box.show()
+    box.raise_()
+    box.activateWindow()
+    return box
+
+
+def _show_info(parent, title, text, rich=False):
+    return _nonmodal_box(parent, title, text,
+                         QtWidgets.QMessageBox.Information, rich)
+
+
+def _show_warning(parent, title, text):
+    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Warning)
+
+
+def _show_error(parent, title, text):
+    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Critical)
 
 
 class PyCerrViewer(QtWidgets.QMainWindow):
@@ -1527,7 +1566,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._done(f"Imported {path}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
+            _show_error(self, "Import error", str(e))
 
     # ----------------------------------------------------- drag & drop ------
     def dragEnterEvent(self, event):
@@ -1579,11 +1618,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             elif low.endswith(".dcm"):
                 self.import_dicom(os.path.dirname(path))
             else:
-                QtWidgets.QMessageBox.information(
+                _show_info(
                     self, "Open", f"Unsupported file type:\n{path}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Load error", str(e))
+            _show_error(self, "Load error", str(e))
 
     def _load_nii(self, path):
         """Load a NIfTI as scan / dose / structure (by filename heuristic)."""
@@ -1620,11 +1659,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._done(f"Loaded {f}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
+            _show_error(self, "Import error", str(e))
 
     def import_nii_dose(self):
         if self.planC is None or not self.planC.scan:
-            QtWidgets.QMessageBox.information(self, "pyCERR",
+            _show_info(self, "pyCERR",
                                               "Load a scan first.")
             return
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -1638,11 +1677,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._done(f"Loaded dose {f}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
+            _show_error(self, "Import error", str(e))
 
     def import_nii_struct(self):
         if self.planC is None or not self.planC.scan:
-            QtWidgets.QMessageBox.information(self, "pyCERR",
+            _show_info(self, "pyCERR",
                                               "Load a scan first.")
             return
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -1656,7 +1695,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._done(f"Loaded structures from {f}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
+            _show_error(self, "Import error", str(e))
 
     def open_pkl(self):
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -1674,7 +1713,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._done(f"Loaded {f}")
         except Exception as e:  # noqa: BLE001
             self._done()
-            QtWidgets.QMessageBox.critical(self, "Load error", str(e))
+            _show_error(self, "Load error", str(e))
 
     def save_pkl(self):
         if self.planC is None:
@@ -1689,7 +1728,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 pickle.dump(self.planC, fh)
             self.statusBar().showMessage(f"Saved {f}")
         except Exception as e:  # noqa: BLE001
-            QtWidgets.QMessageBox.critical(self, "Save error", str(e))
+            _show_error(self, "Save error", str(e))
 
     # ----------------------------------------------------------- loading ----
     def after_load(self, keep_view=False):
@@ -3185,7 +3224,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     # ----------------------------------------------------------- DVH tool ---
     def show_dvh_dialog(self):
         if self.planC is None or not self.planC.structure or not self.planC.dose:
-            QtWidgets.QMessageBox.information(
+            _show_info(
                 self, "DVH", "A dose and at least one structure are required.")
             return
         # Non-modal (like the other tools): a modal exec_() hangs when the
@@ -3204,11 +3243,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def show_contour_dialog(self):
         """Open the CERR-style contouring tools (draw on the axial view)."""
         if self.planC is None or not self.planC.scan:
-            QtWidgets.QMessageBox.information(self, "Contouring",
+            _show_info(self, "Contouring",
                                               "Load a scan first.")
             return
         if self._view_with_orientation(VIEW_AXIAL) is None:
-            QtWidgets.QMessageBox.information(
+            _show_info(
                 self, "Contouring",
                 "Set one of the views to Axial first (right-click > View).")
             return
@@ -3223,7 +3262,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         """Open the registration QA tool (Mirrorscope / Side-by-side /
         Alternate grid / Toggle), cf. the napari QA modes in cerr.viewer."""
         if self.planC is None or len(self.planC.scan) < 2:
-            QtWidgets.QMessageBox.information(
+            _show_info(
                 self, "Registration QA",
                 "At least two scans are required to compare.")
             return
@@ -3237,14 +3276,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def show_imrtp_gui(self):
         """Open the IMRTP beamlet-dose GUI (cerr.imrtp.imrtp_gui) non-blocking."""
         if self.planC is None or not self.planC.scan:
-            QtWidgets.QMessageBox.information(self, "IMRTP",
+            _show_info(self, "IMRTP",
                                               "Load a scan first.")
             return
         try:
             from cerr.imrtp.imrtp_gui import IMRTPGui
             win = IMRTPGui(self.planC, block=False, viewer=self)
         except Exception as e:  # noqa: BLE001
-            QtWidgets.QMessageBox.critical(
+            _show_error(
                 self, "IMRTP", f"Could not open the IMRTP GUI:\n{e}")
             return
         self._toolWindows.append(win)
@@ -3258,36 +3297,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             from cerr.roe.roe_gui import launch as roe_launch
             win = roe_launch(self.planC)
         except Exception as e:  # noqa: BLE001
-            QtWidgets.QMessageBox.critical(
+            _show_error(
                 self, "ROE", f"Could not open the ROE GUI:\n{e}")
             return
         self._toolWindows.append(win)
         self.statusBar().showMessage(
             "ROE opened (shares this viewer's planC).")
 
-    def _show_info(self, title, text, rich=False):
-        """Show a non-modal information box. A modal QMessageBox can hang or
-        fail to appear when the viewer runs inside an integrated event loop
-        (show() / IPython %gui qt), so build and show() it non-modally."""
-        box = QtWidgets.QMessageBox(self)
-        box.setIcon(QtWidgets.QMessageBox.Information)
-        box.setWindowTitle(title)
-        if rich:
-            box.setTextFormat(Qt.RichText)
-        box.setText(text)
-        box.setModal(False)
-        box.setAttribute(Qt.WA_DeleteOnClose, True)
-        self._toolWindows.append(box)
-        box.finished.connect(lambda *_: self._toolWindows.remove(box)
-                             if box in self._toolWindows else None)
-        box.show()
-        box.raise_()
-        box.activateWindow()
-        return box
-
     def show_controls(self):
-        self._show_info(
-            "Controls",
+        _show_info(
+            self, "Controls",
             "Mouse:\n"
             "  Scroll: change slice\n"
             "  Left / middle drag: pan\n"
@@ -3302,8 +3321,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             "Tools > DVH for dose-volume histograms.")
 
     def show_about(self):
-        self._show_info(
-            "About pyCERR Viewer",
+        _show_info(
+            self, "About pyCERR Viewer",
             "<b>pyCERR Viewer</b><br>"
             f"version {_pycerr_version()}<br><br>"
             "A CERR-style slice viewer built on pyCERR for visualizing "
@@ -3570,12 +3589,28 @@ class ContourDialog(QtWidgets.QDialog):
         self.structCombo.blockSignals(False)
 
     def _on_struct_selected(self, idx):
-        if self._dirty and QtWidgets.QMessageBox.question(
-                self, "Contouring", "Discard unsaved edits?",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No) \
-                != QtWidgets.QMessageBox.Yes:
-            self._populate_structs(self.structNum)
+        if self._dirty:
+            box = QtWidgets.QMessageBox(self)
+            box.setIcon(QtWidgets.QMessageBox.Question)
+            box.setWindowTitle("Contouring")
+            box.setText("Discard unsaved edits?")
+            box.setStandardButtons(
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            box.setModal(False)
+            box.setAttribute(Qt.WA_DeleteOnClose, True)
+
+            def _on_done(btn):
+                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+                    self._apply_struct_selection(idx)
+                else:
+                    self._populate_structs(self.structNum)   # revert combo
+            box.buttonClicked.connect(_on_done)
+            box.show()
+            box.raise_()
             return
+        self._apply_struct_selection(idx)
+
+    def _apply_struct_selection(self, idx):
         planC = self.viewer.planC
         shape = self.viewer.scan3M.shape
         self._undo = []
@@ -3596,7 +3631,7 @@ class ContourDialog(QtWidgets.QDialog):
             strNum = idx - 1
             mask = self.viewer._struct_mask(strNum)
             if mask is None or mask.shape != shape:
-                QtWidgets.QMessageBox.warning(
+                _show_warning(
                     self, "Contouring",
                     "This structure is not defined on the current scan grid; "
                     "starting from an empty mask instead.")
@@ -3743,7 +3778,7 @@ class ContourDialog(QtWidgets.QDialog):
     # --------------------------------------------------------------- save ---
     def save(self):
         if self.mask3M is None or not np.any(self.mask3M):
-            QtWidgets.QMessageBox.information(
+            _show_info(
                 self, "Contouring", "The mask is empty - draw something first.")
             return
         name = self.nameEdit.text().strip() or "ROI"
@@ -3763,16 +3798,29 @@ class ContourDialog(QtWidgets.QDialog):
             v._done(f"Saved structure '{name}'.")
         except Exception as e:  # noqa: BLE001
             v._done()
-            QtWidgets.QMessageBox.critical(self, "Contouring",
+            _show_error(self, "Contouring",
                                            f"Could not save structure:\n{e}")
 
     # -------------------------------------------------------------- close ---
     def closeEvent(self, event):
-        if self._dirty and QtWidgets.QMessageBox.question(
-                self, "Contouring", "Discard unsaved edits?",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No) \
-                != QtWidgets.QMessageBox.Yes:
-            event.ignore()
+        if self._dirty and not getattr(self, "_force_close", False):
+            box = QtWidgets.QMessageBox(self)
+            box.setIcon(QtWidgets.QMessageBox.Question)
+            box.setWindowTitle("Contouring")
+            box.setText("Discard unsaved edits?")
+            box.setStandardButtons(
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            box.setModal(False)
+            box.setAttribute(Qt.WA_DeleteOnClose, True)
+
+            def _on_done(btn):
+                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+                    self._force_close = True
+                    self.close()
+            box.buttonClicked.connect(_on_done)
+            box.show()
+            box.raise_()
+            event.ignore()           # wait for the (non-modal) answer
             return
         self._detach(self.axView)
         self.viewer.contourCtl = None
