@@ -9,7 +9,6 @@ authors = [
   { name="Aditya P. Apte", email="aptea@mskcc.org" },
   { name="Aditi Iyer", email="iyera@mskcc.org" },
   { name="Eve LoCastro", email="locastre@mskcc.org" },
-  { name="CERR User community", email="cerr-forum@googlegroups.com"},
   { name="Joseph O. Deasy", email="deasyj@mskcc.org" }
 ]
 description = "A Computational Environment for Radiological Research"
