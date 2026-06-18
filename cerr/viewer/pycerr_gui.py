@@ -275,6 +275,7 @@ class SliceView(QtWidgets.QWidget):
         self._ruler_drag = False
         self._ruler_line = None      # artists, recreated after ax.clear()
         self._ruler_text = None
+        self._scanIm = None          # persistent base-scan image (set_data reuse)
         self.draw_mode = False       # contouring active on this view
         self.draw_tool = "freehand"  # "freehand" | "polygon" | "brush"
         self.brush_radius = 0.5      # cm (data units)
@@ -2663,6 +2664,23 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             pts = (np.full_like(H, self.yV[k]), H, V)
         return np.stack([p.ravel() for p in pts], axis=-1), H.shape
 
+    @staticmethod
+    def _clear_dynamic(ax, keep=None):
+        """Remove every artist from ax except `keep` (the persistent base-scan
+        image). Lets us reuse that image via set_data instead of recreating it
+        with imshow each frame - roughly halves the per-frame render cost."""
+        for coll in list(ax.collections):
+            coll.remove()
+        for ln in list(ax.lines):
+            ln.remove()
+        for txt in list(ax.texts):
+            txt.remove()
+        for im in list(ax.images):
+            if im is not keep:
+                im.remove()
+        for p in list(ax.patches):
+            p.remove()
+
     def refresh_views(self, only=None):
         if self.planC is None or not self.planC.scan:
             return
@@ -2676,20 +2694,35 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._render_3d(view)
                 continue
             ax = view.ax
-            ax.clear()
-            ax.set_facecolor("black")
             img, extent, hV, vV, slicer = self._slice_data(orient)
             baseIdx = self._axis_scan(orient)
             regComp = None
             if self.regCtl is not None:
                 regComp = self.regCtl.compose_slice(orient, img, hV, vV)
+            # Reuse the base-scan image via set_data (the common case) instead
+            # of recreating it with imshow every frame; clear only the rest.
+            useBase = regComp is None and baseIdx == self.scanNum
+            scanIm = view._scanIm if getattr(view, "_scanIm", None) is not None \
+                and view._scanIm.axes is ax else None
+            self._clear_dynamic(ax, scanIm if useBase else None)
+            ax.set_facecolor("black")
+            if not useBase:
+                view._scanIm = None
             if regComp is not None:    # RGB composite from the QA tool
                 ax.imshow(regComp, extent=extent, interpolation="nearest",
                           aspect="equal")
-            elif baseIdx == self.scanNum:
-                ax.imshow(img, cmap=self.scanCmap, vmin=vmin, vmax=vmax,
-                          extent=extent, interpolation="nearest",
-                          aspect="equal", alpha=self.scanAlpha)
+            elif useBase:
+                if scanIm is None:
+                    view._scanIm = ax.imshow(
+                        img, cmap=self.scanCmap, vmin=vmin, vmax=vmax,
+                        extent=extent, interpolation="nearest",
+                        aspect="equal", alpha=self.scanAlpha)
+                else:
+                    scanIm.set_data(img)
+                    scanIm.set_clim(vmin, vmax)
+                    scanIm.set_cmap(self.scanCmap)
+                    scanIm.set_alpha(self.scanAlpha)
+                    scanIm.set_extent(extent)
             else:
                 # per-axis scan override: resample onto the reference grid
                 res = self._overlay_interp(baseIdx)
