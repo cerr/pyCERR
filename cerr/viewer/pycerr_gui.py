@@ -2021,11 +2021,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     # ----------------------------------------------------------- layouts ----
     def set_layout(self, name):
         """Switch the arrangement of view windows (View > Layout)."""
-        if self.contourCtl is not None and self.contourCtl.isVisible():
-            self.statusBar().showMessage(
-                "Close the Contouring panel before changing the layout.")
-            return
         self._apply_layout(name)
+        # Keep the contouring tool working across the layout change instead of
+        # blocking it: re-bind to the new layout's axial view.
+        if self.contourCtl is not None and self.contourCtl.isVisible():
+            self.contourCtl.rebind_after_layout()
 
     def _apply_layout(self, name):
         prevActive = set(self.activeWins)
@@ -3473,7 +3473,14 @@ class ContourDialog(QtWidgets.QDialog):
 
         # bind to the window currently showing the axial view
         self.axView = viewer._view_with_orientation(VIEW_AXIAL)
-        axView = self.axView
+        self._attach(self.axView)
+        viewer.contourCtl = self
+        self._on_mode_changed()
+
+    def _attach(self, axView):
+        """Start contouring on an axial view (cursor + draw signals)."""
+        if axView is None:
+            return
         axView.draw_mode = True
         axView.canvas.setCursor(Qt.CrossCursor)
         axView.strokeFinished.connect(self._on_stroke)
@@ -3481,7 +3488,41 @@ class ContourDialog(QtWidgets.QDialog):
         axView.brushDone.connect(self._on_brush_done)
         # changing slice mid-polygon would mix slices: drop the open polygon
         axView.sliceChanged.connect(self._on_axial_slice_changed)
-        viewer.contourCtl = self
+
+    def _detach(self, axView):
+        """Stop contouring on a view (undo what _attach did)."""
+        if axView is None:
+            return
+        axView.draw_mode = False
+        axView.clear_draw_artists()
+        axView.canvas.setCursor(Qt.ArrowCursor)
+        for sig, slot in ((axView.strokeFinished, self._on_stroke),
+                          (axView.brushStroke, self._on_brush_stroke),
+                          (axView.brushDone, self._on_brush_done),
+                          (axView.sliceChanged, self._on_axial_slice_changed)):
+            try:
+                sig.disconnect(slot)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def rebind_after_layout(self):
+        """Re-attach to the current layout's axial view after a layout change,
+        so contouring keeps working instead of blocking the layout change."""
+        newAx = self.viewer._view_with_orientation(VIEW_AXIAL)
+        if newAx is self.axView:
+            if newAx is not None:        # same view, just re-parented
+                newAx.draw_mode = True
+                newAx.canvas.setCursor(Qt.CrossCursor)
+                self._on_mode_changed()
+            return
+        self._detach(self.axView)
+        self.axView = newAx
+        if newAx is None:
+            self.viewer.statusBar().showMessage(
+                "No axial view in this layout - set a view to Axial to "
+                "continue contouring.")
+            return
+        self._attach(newAx)
         self._on_mode_changed()
 
     def _on_axial_slice_changed(self, *_):
@@ -3712,19 +3753,7 @@ class ContourDialog(QtWidgets.QDialog):
                 != QtWidgets.QMessageBox.Yes:
             event.ignore()
             return
-        axView = self.axView
-        axView.draw_mode = False
-        axView.clear_draw_artists()
-        axView.canvas.setCursor(Qt.ArrowCursor)
-        for sig, slot in ((axView.strokeFinished, self._on_stroke),
-                          (axView.brushStroke, self._on_brush_stroke),
-                          (axView.brushDone, self._on_brush_done),
-                          (axView.sliceChanged,
-                           self._on_axial_slice_changed)):
-            try:
-                sig.disconnect(slot)
-            except Exception:  # noqa: BLE001
-                pass
+        self._detach(self.axView)
         self.viewer.contourCtl = None
         self.viewer.refresh_views()
         event.accept()
