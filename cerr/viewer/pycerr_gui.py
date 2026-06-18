@@ -2608,7 +2608,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                           aspect="equal")
 
             # ---- structure contours ----
+            ctl = self.contourCtl
+            editStrNum = (ctl.structNum if ctl is not None and ctl.isVisible()
+                          else None)
             for strNum in self._axis_structs(orient):
+                if strNum == editStrNum:
+                    continue   # being edited: shown via the live overlay below
                 mask = self._struct_mask(strNum)
                 if mask is None or mask.shape != self.scan3M.shape:
                     continue
@@ -2623,18 +2628,24 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                     self._draw_contour_dots(ax, cs, color)
 
             # ---- live contouring overlay (working mask being edited) ----
-            ctl = self.contourCtl
             if ctl is not None and ctl.isVisible() and ctl.mask3M is not None \
                     and ctl.mask3M.shape == self.scan3M.shape:
                 cslc = slicer(ctl.mask3M)
+                im = cs = None
                 if np.any(cslc):
-                    ax.imshow(np.ma.masked_where(~cslc, cslc.astype(float)),
-                              cmap=ListedColormap([ctl.color]), extent=extent,
-                              alpha=0.35, vmin=0, vmax=1,
-                              interpolation="nearest", aspect="equal")
-                    ax.contour(hV, vV, cslc.astype(float), levels=[0.5],
-                               colors=[ctl.color], linewidths=1.6,
-                               linestyles="--")
+                    im = ax.imshow(
+                        np.ma.masked_where(~cslc, cslc.astype(float)),
+                        cmap=ListedColormap([ctl.color]), extent=extent,
+                        alpha=0.35, vmin=0, vmax=1,
+                        interpolation="nearest", aspect="equal")
+                    cs = ax.contour(hV, vV, cslc.astype(float), levels=[0.5],
+                                    colors=[ctl.color], linewidths=1.6,
+                                    linestyles="--")
+                if view is ctl.axView:
+                    # the live updater owns the axial overlay, so each brush
+                    # step removes and redraws it (no stale boundary on erase)
+                    ctl._liveIm = im
+                    ctl._liveContour = cs
 
             # ---- registration QA split/lens guides ----
             if regComp is not None:
@@ -3890,7 +3901,10 @@ class ContourDialog(QtWidgets.QDialog):
             def _on_done(btn):
                 if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
                     self._force_close = True
-                    self.close()
+                    # defer: let the message box finish closing itself first,
+                    # then close the panel (closing it now, mid button-click,
+                    # deletes the box before it dismisses).
+                    QtCore.QTimer.singleShot(0, self.close)
             box.buttonClicked.connect(_on_done)
             box.show()
             box.raise_()
