@@ -3661,12 +3661,14 @@ class ContourDialog(QtWidgets.QDialog):
             box.setModal(False)
             box.setAttribute(Qt.WA_DeleteOnClose, True)
 
-            def _on_done(btn):
-                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
+
+            def _on_finished(_):
+                if box.clickedButton() is yesBtn:
                     self._apply_struct_selection(idx)
                 else:
                     self._populate_structs(self.structNum)   # revert combo
-            box.buttonClicked.connect(_on_done)
+            box.finished.connect(_on_finished)
             box.show()
             box.raise_()
             return
@@ -3839,14 +3841,21 @@ class ContourDialog(QtWidgets.QDialog):
         self._dirty = True
         self.viewer.refresh_views()
 
-    def copy_adjacent(self, offset):
-        """Replace the current slice mask with the superior(+1)/inferior(-1)
-        neighbor's (CERR's copy sup/inf)."""
+    def copy_adjacent(self, direction):
+        """Copy the superior(+1)/inferior(-1) neighbor slice's mask onto the
+        current slice (CERR's copy sup/inf). Superior/inferior follow the scan's
+        z direction (+z = inferior in pyCERR coords), not a fixed slice order."""
         if self.mask3M is None:
             return
         k = self._cur_slice()
-        src = k + offset
-        if not 0 <= src < self.mask3M.shape[2]:
+        nSlc = self.mask3M.shape[2]
+        zV = self.viewer.zV
+        # Index step toward the more-inferior (larger z) neighbor; superior is
+        # the opposite step.
+        infStep = 1 if (len(zV) < 2 or zV[-1] >= zV[0]) else -1
+        step = -infStep if direction > 0 else infStep    # +direction = superior
+        src = k + step
+        if not 0 <= src < nSlc:
             return
         self._push_undo(k)
         self.mask3M[:, :, k] = self.mask3M[:, :, src]
@@ -3898,14 +3907,15 @@ class ContourDialog(QtWidgets.QDialog):
             box.setModal(False)
             box.setAttribute(Qt.WA_DeleteOnClose, True)
 
-            def _on_done(btn):
-                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
+
+            def _on_finished(_):
+                # finished fires after the box has dismissed, so closing the
+                # panel here is safe (no re-entrancy with the box's own close).
+                if box.clickedButton() is yesBtn:
                     self._force_close = True
-                    # defer: let the message box finish closing itself first,
-                    # then close the panel (closing it now, mid button-click,
-                    # deletes the box before it dismisses).
-                    QtCore.QTimer.singleShot(0, self.close)
-            box.buttonClicked.connect(_on_done)
+                    self.close()
+            box.finished.connect(_on_finished)
             box.show()
             box.raise_()
             event.ignore()           # wait for the (non-modal) answer
