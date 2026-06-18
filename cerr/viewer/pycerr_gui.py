@@ -1371,6 +1371,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.actNiiStr = fileM.addAction("Import NIfTI &structure(s)...",
                                          self.import_nii_struct)
         fileM.addSeparator()
+        exportM = fileM.addMenu("&Export")
+        self.actExpScan = exportM.addAction("Scan to NIfTI...",
+                                            self.export_scan_nii)
+        self.actExpDose = exportM.addAction("Dose to NIfTI...",
+                                            self.export_dose_nii)
+        self.actExpStrNii = exportM.addAction("Structure(s) to NIfTI...",
+                                              self.export_struct_nii)
+        self.actExpStrDcm = exportM.addAction(
+            "Structure(s) to DICOM RTSTRUCT...", self.export_struct_dicom)
+        fileM.addSeparator()
         fileM.addAction("&Open planC (.pkl)...", self.open_pkl)
         fileM.addAction("&Save planC (.pkl)...", self.save_pkl)
         fileM.addSeparator()
@@ -1844,6 +1854,31 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.statusBar().showMessage(f"Saved {f}")
         except Exception as e:  # noqa: BLE001
             _show_error(self, "Save error", str(e))
+
+    # ------------------------------------------------------------ export ----
+    def export_scan_nii(self):
+        if self.planC is None or not self.planC.scan:
+            _show_info(self, "Export scan", "No scan to export.")
+            return
+        ScanDoseExportDialog(self, "scan").show()
+
+    def export_dose_nii(self):
+        if self.planC is None or not self.planC.dose:
+            _show_info(self, "Export dose", "No dose to export.")
+            return
+        ScanDoseExportDialog(self, "dose").show()
+
+    def export_struct_nii(self):
+        if self.planC is None or not self.planC.structure:
+            _show_info(self, "Export structures", "No structures to export.")
+            return
+        StructureExportDialog(self, "nii").show()
+
+    def export_struct_dicom(self):
+        if self.planC is None or not self.planC.structure:
+            _show_info(self, "Export structures", "No structures to export.")
+            return
+        StructureExportDialog(self, "dicom").show()
 
     # ----------------------------------------------------------- loading ----
     def after_load(self, keep_view=False):
@@ -3991,6 +4026,186 @@ class ContourDialog(QtWidgets.QDialog):
         self.viewer.contourCtl = None
         self.viewer.refresh_views()
         event.accept()
+
+
+# ---------------------------------------------------------------------------#
+#  Scan / dose export tool: pick one scan (or dose) and write it to NIfTI.
+# ---------------------------------------------------------------------------#
+class ScanDoseExportDialog(QtWidgets.QDialog):
+    """Non-modal dialog to export one scan or dose to a NIfTI file."""
+
+    def __init__(self, viewer, kind):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.kind = kind                     # "scan" or "dose"
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle(f"Export {kind} to NIfTI")
+
+        lay = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        self.combo = QtWidgets.QComboBox()
+        if kind == "scan":
+            for i, s in enumerate(viewer.planC.scan):
+                mod = getattr(s.scanInfo[0], "imageType", "scan")
+                self.combo.addItem(f"{i}: {mod}")
+            cur = viewer.scanNum
+        else:
+            for i, d in enumerate(viewer.planC.dose):
+                self.combo.addItem(
+                    f"{i}: {getattr(d, 'fractionGroupID', 'dose')}")
+            cur = viewer.doseNum
+        if 0 <= cur < self.combo.count():
+            self.combo.setCurrentIndex(cur)
+        form.addRow(f"{kind.capitalize()}:", self.combo)
+        lay.addLayout(form)
+
+        btnRow = QtWidgets.QHBoxLayout()
+        btnRow.addStretch(1)
+        expBtn = QtWidgets.QPushButton("Export...")
+        expBtn.setDefault(True)
+        closeBtn = QtWidgets.QPushButton("Close")
+        expBtn.clicked.connect(self._export)
+        closeBtn.clicked.connect(self.close)
+        btnRow.addWidget(expBtn)
+        btnRow.addWidget(closeBtn)
+        lay.addLayout(btnRow)
+
+    def _export(self):
+        idx = self.combo.currentIndex()
+        if idx < 0:
+            return
+        f, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, f"Export {self.kind} to NIfTI",
+            filter="NIfTI (*.nii.gz *.nii)")
+        if not f:
+            return
+        try:
+            obj = (self.viewer.planC.scan if self.kind == "scan"
+                   else self.viewer.planC.dose)[idx]
+            obj.saveNii(f)
+            self.viewer.statusBar().showMessage(
+                f"Exported {self.kind} {idx} to {f}")
+            self.close()
+        except Exception as e:  # noqa: BLE001
+            _show_error(self, "Export error", str(e))
+
+
+# ---------------------------------------------------------------------------#
+#  Structure export tool: pick structures and write them to a single NIfTI
+#  (label map / 4D stack) or a single DICOM RTSTRUCT file.
+# ---------------------------------------------------------------------------#
+class StructureExportDialog(QtWidgets.QDialog):
+    """Non-modal dialog to export selected structures to NIfTI or DICOM."""
+
+    def __init__(self, viewer, fmt):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.fmt = fmt                       # "nii" or "dicom"
+        isNii = fmt == "nii"
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle("Export structures to "
+                            + ("NIfTI" if isNii else "DICOM RTSTRUCT"))
+
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.addWidget(QtWidgets.QLabel("Select structures to export:"))
+        self.listW = QtWidgets.QListWidget()
+        for i, st in enumerate(viewer.planC.structure):
+            it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Checked)
+            it.setData(Qt.UserRole, i)
+            self.listW.addItem(it)
+        lay.addWidget(self.listW, 1)
+
+        selRow = QtWidgets.QHBoxLayout()
+        bAll = QtWidgets.QPushButton("Select all")
+        bNone = QtWidgets.QPushButton("Select none")
+        bAll.clicked.connect(lambda: self._set_all(Qt.Checked))
+        bNone.clicked.connect(lambda: self._set_all(Qt.Unchecked))
+        selRow.addWidget(bAll)
+        selRow.addWidget(bNone)
+        selRow.addStretch(1)
+        lay.addLayout(selRow)
+
+        if isNii:
+            self.sepChk = QtWidgets.QCheckBox(
+                "Separate binary mask per structure (4D); "
+                "otherwise one label map")
+            lay.addWidget(self.sepChk)
+
+        btnRow = QtWidgets.QHBoxLayout()
+        btnRow.addStretch(1)
+        expBtn = QtWidgets.QPushButton("Export...")
+        expBtn.setDefault(True)
+        closeBtn = QtWidgets.QPushButton("Close")
+        expBtn.clicked.connect(self._export)
+        closeBtn.clicked.connect(self.close)
+        btnRow.addWidget(expBtn)
+        btnRow.addWidget(closeBtn)
+        lay.addLayout(btnRow)
+
+    def _set_all(self, state):
+        for i in range(self.listW.count()):
+            self.listW.item(i).setCheckState(state)
+
+    def _selected(self):
+        return [self.listW.item(i).data(Qt.UserRole)
+                for i in range(self.listW.count())
+                if self.listW.item(i).checkState() == Qt.Checked]
+
+    def _same_scan(self, strNumV):
+        """All selected structures must share one associated scan."""
+        scans = {self.viewer.planC.structure[s].getStructureAssociatedScan(
+                     self.viewer.planC) for s in strNumV}
+        return len(scans) == 1
+
+    def _export(self):
+        strNumV = self._selected()
+        if not strNumV:
+            _show_info(self, "Export", "Select at least one structure.")
+            return
+        if not self._same_scan(strNumV):
+            _show_warning(
+                self, "Export",
+                "Selected structures are associated with different scans.\n"
+                "Please export structures from a single scan at a time.")
+            return
+        planC = self.viewer.planC
+        if self.fmt == "nii":
+            f, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Export structures to NIfTI",
+                filter="NIfTI (*.nii.gz *.nii)")
+            if not f:
+                return
+            try:
+                # getLabelMap matches by structure name -> integer label.
+                labelDict = {planC.structure[s].structureName: i + 1
+                             for i, s in enumerate(strNumV)}
+                dim = 4 if (hasattr(self, "sepChk")
+                            and self.sepChk.isChecked()) else 3
+                pc.saveNiiStructure(f, labelDict, planC, strNumV, dim=dim)
+                self.viewer.statusBar().showMessage(
+                    f"Exported {len(strNumV)} structure(s) to {f}")
+                self.close()
+            except Exception as e:  # noqa: BLE001
+                _show_error(self, "Export error", str(e))
+        else:
+            f, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Export structures to RTSTRUCT",
+                filter="DICOM (*.dcm)")
+            if not f:
+                return
+            try:
+                from cerr.dcm_export import rtstruct_iod
+                rtstruct_iod.create(strNumV, f, planC,
+                                    {"seriesDescription": "Exported from pyCERR"})
+                self.viewer.statusBar().showMessage(
+                    f"Exported {len(strNumV)} structure(s) to {f}")
+                self.close()
+            except Exception as e:  # noqa: BLE001
+                _show_error(self, "Export error", str(e))
 
 
 # ---------------------------------------------------------------------------#
