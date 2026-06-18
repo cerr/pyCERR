@@ -484,6 +484,7 @@ class SliceView(QtWidgets.QWidget):
             self.canvas.draw_idle()
 
     def _update_brush_cursor(self, x, y):
+        xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
         if self._brush_circle is None or self._brush_circle.axes is not self.ax:
             self._brush_circle = mpatches.Circle(
                 (x, y), self.brush_radius, fill=False, color="#ff66ff",
@@ -492,6 +493,8 @@ class SliceView(QtWidgets.QWidget):
         else:
             self._brush_circle.center = (x, y)
             self._brush_circle.set_radius(self.brush_radius)
+        self.ax.set_xlim(xlim)        # keep the view fixed while brushing
+        self.ax.set_ylim(ylim)
         self.canvas.draw_idle()
 
     def clear_draw_artists(self):
@@ -3713,12 +3716,17 @@ class ContourDialog(QtWidgets.QDialog):
             self._liveIm = None
         cslc = self.mask3M[:, :, self._cur_slice()]
         if np.any(cslc):
+            # imshow() resets the axes limits to the image extent; preserve the
+            # current pan/zoom so brushing doesn't shift the view.
+            xlim, ylim = view.ax.get_xlim(), view.ax.get_ylim()
             extent = [v.xV[0], v.xV[-1], v.yV[-1], v.yV[0]]
             self._liveIm = view.ax.imshow(
                 np.ma.masked_where(~cslc, cslc.astype(float)),
                 cmap=ListedColormap([self.color]), extent=extent,
                 alpha=0.35, vmin=0, vmax=1, interpolation="nearest",
                 aspect="equal", zorder=9)
+            view.ax.set_xlim(xlim)
+            view.ax.set_ylim(ylim)
         view.canvas.draw_idle()
 
     def _on_stroke(self, winId, pts):
