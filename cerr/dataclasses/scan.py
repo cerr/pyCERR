@@ -339,15 +339,30 @@ class Scan:
         # slice_normal = slice_normal.reshape((1,3))
         # zDiff = np.matmul(slice_normal, self.scanInfo[1].imagePositionPatient) - np.matmul(slice_normal, self.scanInfo[0].imagePositionPatient)
         # ippDiffV = self.scanInfo[1].imagePositionPatient - self.scanInfo[0].imagePositionPatient
-        if flipSliceOrderFlag(self): # np.all(np.sign(zDiff) < 0):
-            info1 = self.scanInfo[-1]
-            info2 = self.scanInfo[-2]
-        else:
+        if len(self.scanInfo) < 2:
+            # Single-slice scan: no neighbouring slice to difference, so derive
+            # the slice spacing from the nominal slice thickness projected along
+            # the slice normal (row cosine x column cosine).
             info1 = self.scanInfo[0]
-            info2 = self.scanInfo[1]
-        pos1V = info1.imagePositionPatient / 10  # cm
-        pos2V = info2.imagePositionPatient / 10  # cm
-        deltaPosV = pos2V - pos1V
+            pos1V = info1.imagePositionPatient / 10  # cm
+            ori = info1.imageOrientationPatient
+            sliceNormal = ori[[1, 2, 0]] * ori[[5, 3, 4]] \
+                - ori[[2, 0, 1]] * ori[[4, 5, 3]]
+            sliceThickness = info1.sliceThickness
+            if sliceThickness is None or np.isnan(sliceThickness) \
+                    or sliceThickness == 0:
+                sliceThickness = 1.0  # mm fallback when (0018,0050) is absent
+            deltaPosV = sliceNormal * (sliceThickness / 10)  # cm
+        else:
+            if flipSliceOrderFlag(self): # np.all(np.sign(zDiff) < 0):
+                info1 = self.scanInfo[-1]
+                info2 = self.scanInfo[-2]
+            else:
+                info1 = self.scanInfo[0]
+                info2 = self.scanInfo[1]
+            pos1V = info1.imagePositionPatient / 10  # cm
+            pos2V = info2.imagePositionPatient / 10  # cm
+            deltaPosV = pos2V - pos1V
         pixelSpacing = [info1.grid2Units, info1.grid1Units]
 
         # Transformation for DICOM Image to DICOM physical coordinates
@@ -375,7 +390,10 @@ class Scan:
         xs, ys, zs = self.getScanXYZVals()
         dx = xs[1] - xs[0]
         dy = ys[1] - ys[0]
-        slice_distance = zs[1] - zs[0]
+        if len(zs) > 1:
+            slice_distance = zs[1] - zs[0]
+        else:
+            slice_distance = float(np.linalg.norm(deltaPosV))  # single slice
         # Transformation for DICOM Image to CERR physical coordinates
         # DICOM 1st slice is CERR's last slice (i.e. zs[-1]
         if flipSliceOrderFlag(self): #np.all(np.sign(zDiff) < 0):
@@ -713,6 +731,10 @@ def flipSliceOrderFlag(scan):
         bool: True when dot product of slice normal and imagePositionPatient increases with slice order
 
     """
+
+    # A single-slice scan has no slice order to flip.
+    if len(scan.scanInfo) < 2:
+        return False
 
     dcmImgOri = scan.scanInfo[0].imageOrientationPatient
     slice_normal = dcmImgOri[[1,2,0]] * dcmImgOri[[5,3,4]] \
