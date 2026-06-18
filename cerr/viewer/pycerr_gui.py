@@ -962,6 +962,42 @@ def _pycerr_version():
         return "unknown"
 
 
+_CONTOUR_CURSORS = {}
+
+
+def _contour_cursor(kind):
+    """Cached custom contouring cursor: 'pen' (freehand / polygon) or 'brush'
+    (disk/ball mode). Drawn with a white halo for visibility; the hotspot is at
+    the drawing tip (lower-left)."""
+    cur = _CONTOUR_CURSORS.get(kind)
+    if cur is not None:
+        return cur
+    pm = QtGui.QPixmap(24, 24)
+    pm.fill(Qt.transparent)
+    p = QtGui.QPainter(pm)
+    p.setRenderHint(QtGui.QPainter.Antialiasing)
+    halo = QtGui.QPen(QtGui.QColor("white"), 3.4, Qt.SolidLine, Qt.RoundCap)
+    ink = QtGui.QPen(QtGui.QColor("black"), 1.6, Qt.SolidLine, Qt.RoundCap)
+    for pen in (halo, ink):                       # the shaft (handle / body)
+        p.setPen(pen)
+        p.drawLine(7, 17, 20, 4)
+    p.setPen(QtGui.QPen(QtGui.QColor("white"), 0.8))
+    if kind == "brush":                           # blunt, flared bristle head
+        p.setBrush(QtGui.QColor("#3a3a3a"))
+        p.drawPolygon(QtGui.QPolygon([
+            QtCore.QPoint(2, 22), QtCore.QPoint(8, 14),
+            QtCore.QPoint(11, 17), QtCore.QPoint(5, 23)]))
+    else:                                         # pointed pen nib
+        p.setBrush(QtGui.QColor("black"))
+        p.drawPolygon(QtGui.QPolygon([
+            QtCore.QPoint(3, 21), QtCore.QPoint(9, 15),
+            QtCore.QPoint(6, 13)]))
+    p.end()
+    cur = QtGui.QCursor(pm, 4, 20)                 # hotspot at the tip
+    _CONTOUR_CURSORS[kind] = cur
+    return cur
+
+
 def _nonmodal_box(parent, title, text, icon, rich=False):
     """Build and show() a non-modal QMessageBox. Modal message boxes can hang
     or fail to appear when the viewer runs inside an integrated event loop
@@ -3580,6 +3616,8 @@ class ContourDialog(QtWidgets.QDialog):
         axView.draw_tool = ("polygon" if self.polyBtn.isChecked()
                             else "brush" if self.brushBtn.isChecked()
                             else "freehand")
+        axView.canvas.setCursor(
+            _contour_cursor("brush" if axView.draw_tool == "brush" else "pen"))
 
     # ----------------------------------------------------- structure setup --
     def _populate_structs(self, current=None):
