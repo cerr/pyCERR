@@ -53,7 +53,7 @@ napari = [
     "napari-animation"
 ]
 model_installer = [
-    "model_installer @ git+https://github.com/cerr/model_installer.git",
+    "model_installer @ git+https://github.com/aditiiyer/model_installer.git",
 ]
 
 [tool.setuptools]
