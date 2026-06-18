@@ -19,3 +19,22 @@ def test_scan_export_import():
     scanArrayDcm = planC.scan[scanNum].getScanArray()
     scanArrayNii = planC.scan[scanNum+1].getScanArray()
     np.testing.assert_almost_equal(scanArrayDcm, scanArrayNii)
+
+
+def test_dose_export_import(tmp_path):
+    # pyCERR has no DICOM RTDOSE export; NIfTI is the supported dose export.
+    planC = pc.loadDcmDir(dcm_dir)
+    nRows, nCols, nSlc = planC.scan[0].getScanSize()
+    xV, yV, zV = planC.scan[0].getScanXYZVals()
+    # Non-uniform dose (ramp across columns) to exercise array fidelity.
+    ramp = np.linspace(0.0, 60.0, nCols, dtype=float)
+    dose3M = np.broadcast_to(ramp[None, :, None], (nRows, nCols, nSlc)).copy()
+    planC = pc.importDoseArray(dose3M, xV, yV, zV, planC, 0)
+
+    doseNiiFile = str(tmp_path / 'dose_from_cerr.nii.gz')
+    planC.dose[0].saveNii(doseNiiFile)
+    planC = pc.loadNiiDose(doseNiiFile, 0, planC)
+
+    doseDcm = planC.dose[0].doseArray
+    doseNii = planC.dose[1].doseArray
+    np.testing.assert_allclose(doseNii, doseDcm, rtol=1e-3, atol=1e-3)

@@ -1,0 +1,11 @@
+# Test-only datasets: not used by pyCERR-Notebooks, excluded from the
+# distribution to keep the package size down. They remain in the git repo for
+# the test suite (which runs from a source checkout, not the installed wheel).
+prune cerr/datasets/ibsi_radiomics_dicom
+prune cerr/datasets/reference_values_for_tests
+
+# Large sample CT: downloaded on demand via cerr.datasets.fetch_sample_data().
+prune cerr/datasets/sample_ct/head_and_neck
+
+# Never ship caches / compiled files
+global-exclude __pycache__ *.py[cod]

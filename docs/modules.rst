@@ -1,9 +1,7 @@
-pyCERR
-======
+cerr
+====
 
 .. toctree::
    :maxdepth: 4
 
    cerr
-   setup
-   tests

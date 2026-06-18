@@ -9,7 +9,7 @@ cerr.dataclasses.beams module
 
 .. automodule:: cerr.dataclasses.beams
    :members:
-   :exclude-members: json_serialize
+   :undoc-members:
    :show-inheritance:
 
 cerr.dataclasses.deform module
@@ -25,7 +25,7 @@ cerr.dataclasses.dose module
 
 .. automodule:: cerr.dataclasses.dose
    :members:
-   :exclude-members: json_serialize
+   :undoc-members:
    :show-inheritance:
 
 cerr.dataclasses.header module
@@ -33,6 +33,15 @@ cerr.dataclasses.header module
 
 .. automodule:: cerr.dataclasses.header
    :members:
+   :undoc-members:
+   :show-inheritance:
+
+cerr.dataclasses.imrt module
+----------------------------
+
+.. automodule:: cerr.dataclasses.imrt
+   :members:
+   :undoc-members:
    :show-inheritance:
 
 cerr.dataclasses.scan module
@@ -40,7 +49,7 @@ cerr.dataclasses.scan module
 
 .. automodule:: cerr.dataclasses.scan
    :members:
-   :exclude-members: json_serialize
+   :undoc-members:
    :show-inheritance:
 
 cerr.dataclasses.scan\_info module
@@ -48,6 +57,7 @@ cerr.dataclasses.scan\_info module
 
 .. automodule:: cerr.dataclasses.scan_info
    :members:
+   :undoc-members:
    :show-inheritance:
 
 cerr.dataclasses.structure module
@@ -55,8 +65,7 @@ cerr.dataclasses.structure module
 
 .. automodule:: cerr.dataclasses.structure
    :members:
-   :exclude-members: jsonSerializeSegment, jsonSerializeContour,
-                     jsonSerializeStruct, getJsonList
+   :undoc-members:
    :show-inheritance:
 
 Module contents
@@ -64,4 +73,5 @@ Module contents
 
 .. automodule:: cerr.dataclasses
    :members:
+   :undoc-members:
    :show-inheritance:

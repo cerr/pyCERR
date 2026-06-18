@@ -12,6 +12,14 @@ cerr.utils.ai\_pipeline module
    :undoc-members:
    :show-inheritance:
 
+cerr.utils.custom\_colormaps module
+-----------------------------------
+
+.. automodule:: cerr.utils.custom_colormaps
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 cerr.utils.image\_proc module
 -----------------------------
 

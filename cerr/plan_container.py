@@ -117,7 +117,8 @@ def addToH5Grp(h5Grp,structDict,key):
         h5py.Group: The updated HDF5 group.
     """
     if isinstance(structDict[key], (str)):
-        h5Grp.attrs[key] = np.string_(structDict[key])
+        # np.bytes_ (np.string_ was removed in NumPy 2.0); read side decodes it.
+        h5Grp.attrs[key] = np.bytes_(structDict[key])
     elif isinstance(structDict[key], (int, float, np.number)):
         h5Grp.attrs[key] = structDict[key]
     elif isinstance(structDict[key], (list, np.ndarray)):
@@ -242,7 +243,7 @@ def loadFromH5(h5File, initplanC=''):
             planC = loadH5Strucutre(structGrp, planC)
         if 'dose' in f['planC']:
             doseGrp = f['planC']['dose']
-            #planC = loadH5Dose(doseGrp, planC)
+            planC = loadH5Dose(doseGrp, planC)
     return planC
 
 def saveH5Header(headerGrp, planC):
@@ -307,11 +308,20 @@ def saveH5Dose(structGrp, structNumV, planC):
             objects to export.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
 
-    Note:
-        This function is not yet implemented.
+    Returns:
+        h5py.Group: The updated HDF5 dose group.
     """
     # Routine to write dose attributes from planC to H5 group
-    pass
+    doseCount = 0
+    for doseNum in structNumV:
+        doseDict = planC.dose[doseNum].getDoseDict()
+        itemGrpName = 'Item_' + str(doseCount)
+        doseCount += 1
+        doseItem = structGrp.create_group(itemGrpName)
+        keys = list(doseDict.keys())
+        for key in keys:
+            doseItem = addToH5Grp(doseItem, doseDict, key)
+    return structGrp
 
 def saveH5Deform(deformGrp, deformNumV, planC):
     """Write selected deformation objects from planC into an HDF5 group.
@@ -514,6 +524,34 @@ def loadH5Deform(deformGrp, planC):
     return planC
 
 
+def loadH5Dose(doseGrp, planC):
+    """Load dose objects from an HDF5 group into planC, skipping duplicates.
+
+    Each ``Item_N`` sub-group in ``doseGrp`` is deserialised into a
+    :class:`cerr.dataclasses.dose.Dose` object.  Dose objects whose ``doseUID``
+    already exists in ``planC.dose`` are skipped with a warning.
+
+    Args:
+        doseGrp (h5py.Group): The HDF5 group containing serialised dose items.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to update.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with doses appended.
+    """
+    doseUIDs = [d.doseUID for d in planC.dose]
+    doseItems = getSortedItems(list(doseGrp.keys()))
+    for doseItem in doseItems:
+        doseObj = rtds.Dose()
+        if doseGrp[doseItem].attrs['doseUID'] in doseUIDs:
+            warnings.warn("Dose " + doseGrp[doseItem].attrs['doseUID'] + " not imported from H5 as it already exists in planC")
+            continue
+        # populate dose fields
+        doseObj = readAttribsAndDsets(doseObj, doseGrp[doseItem])
+        planC.dose.append(doseObj)
+
+    return planC
+
+
 def loadH5Strucutre(structGrp, planC):
     """Load structure objects from an HDF5 group into planC, skipping duplicates.
 
@@ -579,9 +617,11 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     Args:
         dcmDir (str): absolute path to directory containing dicom files
         opts (dict): dictionary of import options. Currently supported options are:
-                     'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
-                     'groupByAcquisitionNumber': Choose from True, False (default)
-                    e.g.  opts = {'suvType': 'LBM', 'groupByAcquisitionNumber': True}
+
+                     * 'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
+                     * 'groupByAcquisitionNumber': Choose from True, False (default)
+
+                     e.g. ``opts = {'suvType': 'LBM', 'groupByAcquisitionNumber': True}``
         initplanC (PlanC): An instance of PlanC to add the metadata. If not specified, metadata is added to an empty PlanC instance
 
     Returns:
@@ -591,6 +631,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     import os
 
+    if not isinstance(initplanC, PlanC):
+        planC = PlanC(header=headr.Header()) #pc.PlanC()
+    else:
+        planC = initplanC
+        if not isinstance(planC.header, headr.Header):
+            planC.header = headr.Header()
+
     # Split string into list of directories
     if isinstance(dcmDir, (str)):
         if os.path.isdir(dcmDir):
@@ -598,8 +645,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         else:
             dcmDir = dcmDir.split()
 
+    fileList = []
     if isinstance(dcmDir, (list, np.ndarray)):
-        fileList = []
         for i,itemInList in enumerate(dcmDir):
             if os.path.isdir(itemInList):
                 for root, _, files in os.walk(itemInList):
@@ -613,12 +660,6 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     df_img = parseDcmHeader(fileList)
     #pt_groups = df_img.groupby(by=["PatientName","PatientID","Modality"])
     # Ignore fileName column from grouping
-    if not isinstance(initplanC, PlanC):
-        planC = PlanC(header=headr.Header()) #pc.PlanC()
-    else:
-        planC = initplanC
-        if not isinstance(planC.header, headr.Header):
-            planC.header = headr.Header()
 
     numOrigStructs = len(planC.structure)
     numOrigDoses = len(planC.dose)
