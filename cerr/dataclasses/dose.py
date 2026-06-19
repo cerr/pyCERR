@@ -149,6 +149,7 @@ class Dose:
     associatedScan: int = np.nan
     transM: np.array = field(default_factory=get_empty_np_array)
     doseUID: str = ""
+    sopInstanceUID: str = ""     # DICOM SOPInstanceUID (stable; for dedup)
     assocScanUID: str = ""
     assocBeamUID: str = ""
     doseFileName: str = ''
@@ -546,6 +547,8 @@ def loadDose(file_list):
 
             # #dose_meta.refStructSetSopInstanceUID
             dose_meta.doseUID = uid.createUID("dose")
+            if hasattr(ds, "SOPInstanceUID"):
+                dose_meta.sopInstanceUID = str(ds.SOPInstanceUID)
 
             dose_list.append(dose_meta)
 

@@ -185,6 +185,7 @@ if HAS_PYVISTA:
         still zooms via VTK's trackball style) and lets the owner take
         over left-drags for plane dragging via the pick/drag hooks."""
         rightClicked = QtCore.pyqtSignal()
+        doubleClicked = QtCore.pyqtSignal()
 
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -205,6 +206,13 @@ if HAS_PYVISTA:
             if ev.button() == Qt.RightButton:
                 self._rpos = ev.pos()
             super().mousePressEvent(ev)
+
+        def mouseDoubleClickEvent(self, ev):
+            # double-click resets the 3D camera to the default framing
+            if ev.button() == Qt.LeftButton and not self._plane_dragging:
+                self.doubleClicked.emit()
+                return
+            super().mouseDoubleClickEvent(ev)
 
         def mouseMoveEvent(self, ev):
             if self._plane_dragging:
@@ -267,6 +275,7 @@ class SliceView(QtWidgets.QWidget):
         self._ruler_drag = False
         self._ruler_line = None      # artists, recreated after ax.clear()
         self._ruler_text = None
+        self._scanIm = None          # persistent base-scan image (set_data reuse)
         self.draw_mode = False       # contouring active on this view
         self.draw_tool = "freehand"  # "freehand" | "polygon" | "brush"
         self.brush_radius = 0.5      # cm (data units)
@@ -316,6 +325,7 @@ class SliceView(QtWidgets.QWidget):
                 self.vtk_widget.set_background("black")
                 self.vtk_widget.rightClicked.connect(
                     lambda: self.contextRequested.emit(self.winId))
+                self.vtk_widget.doubleClicked.connect(self.reset_view)
                 self.layout().insertWidget(1, self.vtk_widget, stretch=1)
             self.canvas.hide()
             self.vtk_widget.show()
@@ -1075,6 +1085,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.doseCache = {}          # doseIdx -> (interp, doseMax) | None
         self._pvStructCache = {}     # structNum -> pyvista surface | None
         self._pvDoseCache = {}       # doseIdx -> (isosurface, doseMax) | None
+        self.plane3dOpacity = 0.6    # translucency of the 3D orthogonal planes
         # per-axis overrides (CERR-style axis menu); None = "Auto" -> follow
         # the global panel selection. "dose" may also be -1 (no dose).
         self.axisSel = {w: {"scan": None, "dose": None, "structs": None}
@@ -1371,6 +1382,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.actNiiStr = fileM.addAction("Import NIfTI &structure(s)...",
                                          self.import_nii_struct)
         fileM.addSeparator()
+        exportM = fileM.addMenu("&Export")
+        self.actExpScan = exportM.addAction("Scan to NIfTI...",
+                                            self.export_scan_nii)
+        self.actExpDose = exportM.addAction("Dose to NIfTI...",
+                                            self.export_dose_nii)
+        self.actExpStrNii = exportM.addAction("Structure(s) to NIfTI...",
+                                              self.export_struct_nii)
+        self.actExpStrDcm = exportM.addAction(
+            "Structure(s) to DICOM RTSTRUCT...", self.export_struct_dicom)
+        fileM.addSeparator()
         fileM.addAction("&Open planC (.pkl)...", self.open_pkl)
         fileM.addAction("&Save planC (.pkl)...", self.save_pkl)
         fileM.addSeparator()
@@ -1512,6 +1533,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         allBtn.clicked.connect(lambda: self._set_all_structs(True))
         noneBtn.clicked.connect(lambda: self._set_all_structs(False))
         btnRow.addWidget(allBtn), btnRow.addWidget(noneBtn)
+        self.structScanFilterChk = QtWidgets.QCheckBox("Current scan")
+        self.structScanFilterChk.setToolTip(
+            "List only structures associated with the current scan")
+        self.structScanFilterChk.toggled.connect(self._on_struct_scan_filter)
+        btnRow.addWidget(self.structScanFilterChk)
+        btnRow.addStretch(1)
         sl.addLayout(btnRow)
         self.structList = QtWidgets.QListWidget()
         self.structList.itemChanged.connect(lambda *_: self.refresh_views())
@@ -1569,7 +1596,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         for v in self.views.values():
             v.sliceChanged.connect(self.on_slice_changed)
             v.cursorMoved.connect(self.on_cursor_moved)
-            v.viewReset.connect(lambda winId: self.refresh_views(only=winId))
+            v.viewReset.connect(self._on_view_reset)
             v.contextRequested.connect(self._show_axis_menu)
             v.rulerChanged.connect(self.on_ruler_changed)
             v.crosshairDragged.connect(self.on_crosshair_dragged)
@@ -1607,14 +1634,64 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self, "Select DICOM directory")
         if not path:
             return
+        self._do_dicom_import(path, f"Importing DICOM from {path} ...",
+                              f"Imported {path}")
+
+    def import_dicom_files(self, fileList):
+        """Import only the given DICOM file(s), not their whole directory -
+        e.g. a dropped RTSTRUCT, so we don't pull in the rest of the folder."""
+        fileList = [f for f in fileList if f]
+        if not fileList:
+            return
+        n = len(fileList)
+        self._do_dicom_import(list(fileList),
+                              f"Importing {n} DICOM file(s) ...",
+                              f"Imported {n} DICOM file(s)")
+
+    def _do_dicom_import(self, source, busyMsg, doneMsg):
+        """Shared DICOM import: source is a directory path or a list of file
+        paths (both accepted by loadDcmDir). Reports skipped duplicates."""
         try:
-            self._busy(f"Importing DICOM from {path} ...")
-            self.planC = pc.loadDcmDir(path, initplanC=self.planC or "")
+            self._busy(busyMsg)
+            before = ((len(self.planC.scan), len(self.planC.structure),
+                       len(self.planC.dose)) if self.planC else (0, 0, 0))
+            import warnings as _warnings
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
+                self.planC = pc.loadDcmDir(source, initplanC=self.planC or "")
             self.after_load()
-            self._done(f"Imported {path}")
+            self._done(doneMsg)
+            self._report_skipped_dups(caught, before)
         except Exception as e:  # noqa: BLE001
             self._done()
             _show_error(self, "Import error", str(e))
+
+    def _report_skipped_dups(self, caught, before):
+        """Surface duplicates skipped by loadDcmDir (per-category, accurate for
+        both fully- and partially-duplicate imports)."""
+        msgs = [str(w.message) for w in caught
+                if "already exists in planC" in str(w.message)]
+        if not msgs:
+            return
+        after = (len(self.planC.scan), len(self.planC.structure),
+                 len(self.planC.dose))
+        lines = []
+        for i, (label, prefix) in enumerate(
+                (("scan", "Scan"), ("structure", "Structure"),
+                 ("dose", "Dose"))):
+            skipped = sum(1 for m in msgs if m.startswith(prefix))
+            if skipped == 0:
+                continue
+            if after[i] - before[i] == 0:
+                lines.append(f"No {label}s were imported as they already "
+                             f"exist in planC.")
+            else:
+                lines.append(f"{skipped} {label}{'' if skipped == 1 else 's'} "
+                             f"already exist in planC and "
+                             f"{'was' if skipped == 1 else 'were'} not "
+                             f"imported.")
+        if lines:
+            _show_info(self, "Import", "\n".join(lines))
 
     # ----------------------------------------------------- drag & drop ------
     def dragEnterEvent(self, event):
@@ -1629,8 +1706,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         paths = [u.toLocalFile() for u in event.mimeData().urls()
                  if u.toLocalFile()]
         event.acceptProposedAction()
-        # load scans/plans before dose/structure NIfTIs that depend on them
-        for p in sorted(paths, key=self._drop_priority):
+        # Dropped DICOM *files* are imported as exactly those files (e.g. a
+        # single RTSTRUCT), NOT their whole folder - dropping one structure
+        # file must not pull in the scan series sitting next to it. Dropped
+        # *directories* still import the whole directory.
+        dcmFiles, dirs, others = [], [], []
+        for p in paths:
+            if os.path.isdir(p):
+                dirs.append(p)
+            elif os.path.isfile(p) and p.lower().endswith(".dcm"):
+                dcmFiles.append(p)
+            else:
+                others.append(p)
+        # directories (scans) first, then the dropped DICOM files (structures/
+        # doses that reference them), then dose/structure NIfTIs
+        for d in dirs:
+            self.load_path(d)
+        if dcmFiles:
+            self.import_dicom_files(dcmFiles)
+        for p in sorted(others, key=self._drop_priority):
             self.load_path(p)
 
     @staticmethod
@@ -1645,8 +1739,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def load_path(self, path):
         """Load a dropped/opened path: a DICOM directory, a NIfTI file
         (.nii/.nii.gz - scan, or dose/structure by name heuristic when a scan
-        is loaded), a single DICOM file (its folder is imported), or a .pkl
-        plan container."""
+        is loaded), a single DICOM file (only that file is imported), or a
+        .pkl plan container."""
         path = str(path)
         low = path.lower()
         try:
@@ -1664,7 +1758,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             elif low.endswith((".nii", ".nii.gz")):
                 self._load_nii(path)
             elif low.endswith(".dcm"):
-                self.import_dicom(os.path.dirname(path))
+                self.import_dicom_files([path])
             else:
                 _show_info(
                     self, "Open", f"Unsupported file type:\n{path}")
@@ -1778,6 +1872,31 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         except Exception as e:  # noqa: BLE001
             _show_error(self, "Save error", str(e))
 
+    # ------------------------------------------------------------ export ----
+    def export_scan_nii(self):
+        if self.planC is None or not self.planC.scan:
+            _show_info(self, "Export scan", "No scan to export.")
+            return
+        ScanDoseExportDialog(self, "scan").show()
+
+    def export_dose_nii(self):
+        if self.planC is None or not self.planC.dose:
+            _show_info(self, "Export dose", "No dose to export.")
+            return
+        ScanDoseExportDialog(self, "dose").show()
+
+    def export_struct_nii(self):
+        if self.planC is None or not self.planC.structure:
+            _show_info(self, "Export structures", "No structures to export.")
+            return
+        StructureExportDialog(self, "nii").show()
+
+    def export_struct_dicom(self):
+        if self.planC is None or not self.planC.structure:
+            _show_info(self, "Export structures", "No structures to export.")
+            return
+        StructureExportDialog(self, "dicom").show()
+
     # ----------------------------------------------------------- loading ----
     def after_load(self, keep_view=False):
         """Refresh combo boxes / lists after planC changes."""
@@ -1873,7 +1992,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def _populate_struct_list(self):
         self.structList.blockSignals(True)
         self.structList.clear()
+        curUID = None
+        if getattr(self, "structScanFilterChk", None) is not None \
+                and self.structScanFilterChk.isChecked() \
+                and 0 <= self.scanNum < len(self.planC.scan):
+            curUID = self.planC.scan[self.scanNum].scanUID
         for i, st in enumerate(self.planC.structure):
+            if curUID is not None and st.assocScanUID != curUID:
+                continue            # filtered: not on the current scan
             item = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked)
@@ -1884,6 +2010,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             item.setForeground(QtGui.QColor.fromRgbF(*np.clip(rgb, 0, 1)))
             self.structList.addItem(item)
         self.structList.blockSignals(False)
+
+    def _on_struct_scan_filter(self, *_):
+        """Re-list structures for the current scan-filter setting."""
+        if self.planC is not None and self.planC.structure:
+            self._populate_struct_list()
+            self.refresh_views()
 
     def _set_all_structs(self, on):
         self.structList.blockSignals(True)
@@ -2001,6 +2133,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.maskCache.clear()
         self._pvStructCache.clear()   # surfaces live on the scan grid
         self._load_scan_geometry()
+        if getattr(self, "structScanFilterChk", None) is not None \
+                and self.structScanFilterChk.isChecked():  # filter follows scan
+            self._populate_struct_list()
         self._populate_overlay_rows()   # base scan is excluded from overlays
         if self.regCtl is not None:     # keep QA base in sync with the scan
             self.regCtl.sync_base(idx)
@@ -2529,6 +2664,23 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             pts = (np.full_like(H, self.yV[k]), H, V)
         return np.stack([p.ravel() for p in pts], axis=-1), H.shape
 
+    @staticmethod
+    def _clear_dynamic(ax, keep=None):
+        """Remove every artist from ax except `keep` (the persistent base-scan
+        image). Lets us reuse that image via set_data instead of recreating it
+        with imshow each frame - roughly halves the per-frame render cost."""
+        for coll in list(ax.collections):
+            coll.remove()
+        for ln in list(ax.lines):
+            ln.remove()
+        for txt in list(ax.texts):
+            txt.remove()
+        for im in list(ax.images):
+            if im is not keep:
+                im.remove()
+        for p in list(ax.patches):
+            p.remove()
+
     def refresh_views(self, only=None):
         if self.planC is None or not self.planC.scan:
             return
@@ -2542,20 +2694,35 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._render_3d(view)
                 continue
             ax = view.ax
-            ax.clear()
-            ax.set_facecolor("black")
             img, extent, hV, vV, slicer = self._slice_data(orient)
             baseIdx = self._axis_scan(orient)
             regComp = None
             if self.regCtl is not None:
                 regComp = self.regCtl.compose_slice(orient, img, hV, vV)
+            # Reuse the base-scan image via set_data (the common case) instead
+            # of recreating it with imshow every frame; clear only the rest.
+            useBase = regComp is None and baseIdx == self.scanNum
+            scanIm = view._scanIm if getattr(view, "_scanIm", None) is not None \
+                and view._scanIm.axes is ax else None
+            self._clear_dynamic(ax, scanIm if useBase else None)
+            ax.set_facecolor("black")
+            if not useBase:
+                view._scanIm = None
             if regComp is not None:    # RGB composite from the QA tool
                 ax.imshow(regComp, extent=extent, interpolation="nearest",
                           aspect="equal")
-            elif baseIdx == self.scanNum:
-                ax.imshow(img, cmap=self.scanCmap, vmin=vmin, vmax=vmax,
-                          extent=extent, interpolation="nearest",
-                          aspect="equal", alpha=self.scanAlpha)
+            elif useBase:
+                if scanIm is None:
+                    view._scanIm = ax.imshow(
+                        img, cmap=self.scanCmap, vmin=vmin, vmax=vmax,
+                        extent=extent, interpolation="nearest",
+                        aspect="equal", alpha=self.scanAlpha)
+                else:
+                    scanIm.set_data(img)
+                    scanIm.set_clim(vmin, vmax)
+                    scanIm.set_cmap(self.scanCmap)
+                    scanIm.set_alpha(self.scanAlpha)
+                    scanIm.set_extent(extent)
             else:
                 # per-axis scan override: resample onto the reference grid
                 res = self._overlay_interp(baseIdx)
@@ -2809,6 +2976,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             if self.views[wid].is3d:
                 self.refresh_views(only=wid)
 
+    def _on_view_reset(self, winId):
+        """Double-click reset: clear 2D pan/zoom, or restore the 3D camera to
+        its default framing, then re-render the affected view."""
+        view = self.views.get(winId)
+        if view is not None and getattr(view, "is3d", False):
+            view._vtk_cam_set = False     # re-applied by _render_3d_vtk
+        self.refresh_views(only=winId)
+
     def _render_3d(self, view):
         if view.uses_vtk:
             self._render_3d_vtk(view)
@@ -2952,7 +3127,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                              (VIEW_CORONAL, cor)):
             view._plane_actors[orient] = pl.add_mesh(
                 mesh, cmap="gray", clim=(vmin, max(vmax, vmin + 1e-6)),
-                show_scalar_bar=False)
+                opacity=self.plane3dOpacity, lighting=False,
+                show_scalar_bar=False, render=False)
 
         # colored plane outlines (locators)
         x0, x1 = float(xA[0]), float(xA[-1])
@@ -2969,9 +3145,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         }
         view._outline_actors = {}
         for orient, ptsList in edges.items():
-            view._outline_actors[orient] = pl.add_lines(
-                np.asarray(ptsList, dtype=float),
-                color=PLANE_COLORS[orient], width=2, connected=True)
+            pts = np.asarray(ptsList, dtype=float)
+            poly = pv.PolyData()
+            poly.points = pts
+            poly.lines = np.hstack(([len(pts)], np.arange(len(pts)))).astype(
+                np.int64)
+            view._outline_actors[orient] = pl.add_mesh(
+                poly, color=PLANE_COLORS[orient], line_width=2,
+                pickable=False, show_scalar_bar=False, render=False)
 
         # ---- structure surfaces (follow the Structures checklist) ----
         for strNum in self._axis_structs(view.winId):
@@ -2980,7 +3161,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 pl.add_mesh(surf, color=self._struct_color(strNum),
                             opacity=0.45, smooth_shading=True,
                             pickable=False, show_scalar_bar=False,
-                            name=f"struct{strNum}")
+                            name=f"struct{strNum}", render=False)
 
         # ---- isodose surfaces (follow the Dose combo & alpha slider) ----
         doseIdx = self._axis_dose(view.winId)
@@ -2993,7 +3174,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                             clim=(cbLo, max(cbHi, cbLo + 1e-6)),
                             opacity=min(max(self.doseAlpha, 0.0), 0.6),
                             pickable=False, show_scalar_bar=False,
-                            name=f"isodose{doseIdx}")
+                            name=f"isodose{doseIdx}", render=False)
 
         # ---- IMRTP beam overlays: ONE combined polyline actor (fast) ----
         if self.beams:
@@ -3017,7 +3198,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 pd.cell_data["rgb"] = np.asarray(cellRGB, dtype=np.uint8)
                 pl.add_mesh(pd, scalars="rgb", rgb=True, line_width=2,
                             pickable=False, show_scalar_bar=False,
-                            name="beams")
+                            name="beams", render=False)
 
         # wire the plane-drag hooks once per widget
         if pl.pick_plane is None:
@@ -3661,12 +3842,14 @@ class ContourDialog(QtWidgets.QDialog):
             box.setModal(False)
             box.setAttribute(Qt.WA_DeleteOnClose, True)
 
-            def _on_done(btn):
-                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
+
+            def _on_finished(_):
+                if box.clickedButton() is yesBtn:
                     self._apply_struct_selection(idx)
                 else:
                     self._populate_structs(self.structNum)   # revert combo
-            box.buttonClicked.connect(_on_done)
+            box.finished.connect(_on_finished)
             box.show()
             box.raise_()
             return
@@ -3839,14 +4022,21 @@ class ContourDialog(QtWidgets.QDialog):
         self._dirty = True
         self.viewer.refresh_views()
 
-    def copy_adjacent(self, offset):
-        """Replace the current slice mask with the superior(+1)/inferior(-1)
-        neighbor's (CERR's copy sup/inf)."""
+    def copy_adjacent(self, direction):
+        """Copy the superior(+1)/inferior(-1) neighbor slice's mask onto the
+        current slice (CERR's copy sup/inf). Superior/inferior follow the scan's
+        z direction (+z = inferior in pyCERR coords), not a fixed slice order."""
         if self.mask3M is None:
             return
         k = self._cur_slice()
-        src = k + offset
-        if not 0 <= src < self.mask3M.shape[2]:
+        nSlc = self.mask3M.shape[2]
+        zV = self.viewer.zV
+        # Index step toward the more-inferior (larger z) neighbor; superior is
+        # the opposite step.
+        infStep = 1 if (len(zV) < 2 or zV[-1] >= zV[0]) else -1
+        step = -infStep if direction > 0 else infStep    # +direction = superior
+        src = k + step
+        if not 0 <= src < nSlc:
             return
         self._push_undo(k)
         self.mask3M[:, :, k] = self.mask3M[:, :, src]
@@ -3898,14 +4088,15 @@ class ContourDialog(QtWidgets.QDialog):
             box.setModal(False)
             box.setAttribute(Qt.WA_DeleteOnClose, True)
 
-            def _on_done(btn):
-                if box.standardButton(btn) == QtWidgets.QMessageBox.Yes:
+            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
+
+            def _on_finished(_):
+                # finished fires after the box has dismissed, so closing the
+                # panel here is safe (no re-entrancy with the box's own close).
+                if box.clickedButton() is yesBtn:
                     self._force_close = True
-                    # defer: let the message box finish closing itself first,
-                    # then close the panel (closing it now, mid button-click,
-                    # deletes the box before it dismisses).
-                    QtCore.QTimer.singleShot(0, self.close)
-            box.buttonClicked.connect(_on_done)
+                    self.close()
+            box.finished.connect(_on_finished)
             box.show()
             box.raise_()
             event.ignore()           # wait for the (non-modal) answer
@@ -3914,6 +4105,186 @@ class ContourDialog(QtWidgets.QDialog):
         self.viewer.contourCtl = None
         self.viewer.refresh_views()
         event.accept()
+
+
+# ---------------------------------------------------------------------------#
+#  Scan / dose export tool: pick one scan (or dose) and write it to NIfTI.
+# ---------------------------------------------------------------------------#
+class ScanDoseExportDialog(QtWidgets.QDialog):
+    """Non-modal dialog to export one scan or dose to a NIfTI file."""
+
+    def __init__(self, viewer, kind):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.kind = kind                     # "scan" or "dose"
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle(f"Export {kind} to NIfTI")
+
+        lay = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        self.combo = QtWidgets.QComboBox()
+        if kind == "scan":
+            for i, s in enumerate(viewer.planC.scan):
+                mod = getattr(s.scanInfo[0], "imageType", "scan")
+                self.combo.addItem(f"{i}: {mod}")
+            cur = viewer.scanNum
+        else:
+            for i, d in enumerate(viewer.planC.dose):
+                self.combo.addItem(
+                    f"{i}: {getattr(d, 'fractionGroupID', 'dose')}")
+            cur = viewer.doseNum
+        if 0 <= cur < self.combo.count():
+            self.combo.setCurrentIndex(cur)
+        form.addRow(f"{kind.capitalize()}:", self.combo)
+        lay.addLayout(form)
+
+        btnRow = QtWidgets.QHBoxLayout()
+        btnRow.addStretch(1)
+        expBtn = QtWidgets.QPushButton("Export...")
+        expBtn.setDefault(True)
+        closeBtn = QtWidgets.QPushButton("Close")
+        expBtn.clicked.connect(self._export)
+        closeBtn.clicked.connect(self.close)
+        btnRow.addWidget(expBtn)
+        btnRow.addWidget(closeBtn)
+        lay.addLayout(btnRow)
+
+    def _export(self):
+        idx = self.combo.currentIndex()
+        if idx < 0:
+            return
+        f, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, f"Export {self.kind} to NIfTI",
+            filter="NIfTI (*.nii.gz *.nii)")
+        if not f:
+            return
+        try:
+            obj = (self.viewer.planC.scan if self.kind == "scan"
+                   else self.viewer.planC.dose)[idx]
+            obj.saveNii(f)
+            self.viewer.statusBar().showMessage(
+                f"Exported {self.kind} {idx} to {f}")
+            self.close()
+        except Exception as e:  # noqa: BLE001
+            _show_error(self, "Export error", str(e))
+
+
+# ---------------------------------------------------------------------------#
+#  Structure export tool: pick structures and write them to a single NIfTI
+#  (label map / 4D stack) or a single DICOM RTSTRUCT file.
+# ---------------------------------------------------------------------------#
+class StructureExportDialog(QtWidgets.QDialog):
+    """Non-modal dialog to export selected structures to NIfTI or DICOM."""
+
+    def __init__(self, viewer, fmt):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.fmt = fmt                       # "nii" or "dicom"
+        isNii = fmt == "nii"
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle("Export structures to "
+                            + ("NIfTI" if isNii else "DICOM RTSTRUCT"))
+
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.addWidget(QtWidgets.QLabel("Select structures to export:"))
+        self.listW = QtWidgets.QListWidget()
+        for i, st in enumerate(viewer.planC.structure):
+            it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Checked)
+            it.setData(Qt.UserRole, i)
+            self.listW.addItem(it)
+        lay.addWidget(self.listW, 1)
+
+        selRow = QtWidgets.QHBoxLayout()
+        bAll = QtWidgets.QPushButton("Select all")
+        bNone = QtWidgets.QPushButton("Select none")
+        bAll.clicked.connect(lambda: self._set_all(Qt.Checked))
+        bNone.clicked.connect(lambda: self._set_all(Qt.Unchecked))
+        selRow.addWidget(bAll)
+        selRow.addWidget(bNone)
+        selRow.addStretch(1)
+        lay.addLayout(selRow)
+
+        if isNii:
+            self.sepChk = QtWidgets.QCheckBox(
+                "Separate binary mask per structure (4D); "
+                "otherwise one label map")
+            lay.addWidget(self.sepChk)
+
+        btnRow = QtWidgets.QHBoxLayout()
+        btnRow.addStretch(1)
+        expBtn = QtWidgets.QPushButton("Export...")
+        expBtn.setDefault(True)
+        closeBtn = QtWidgets.QPushButton("Close")
+        expBtn.clicked.connect(self._export)
+        closeBtn.clicked.connect(self.close)
+        btnRow.addWidget(expBtn)
+        btnRow.addWidget(closeBtn)
+        lay.addLayout(btnRow)
+
+    def _set_all(self, state):
+        for i in range(self.listW.count()):
+            self.listW.item(i).setCheckState(state)
+
+    def _selected(self):
+        return [self.listW.item(i).data(Qt.UserRole)
+                for i in range(self.listW.count())
+                if self.listW.item(i).checkState() == Qt.Checked]
+
+    def _same_scan(self, strNumV):
+        """All selected structures must share one associated scan."""
+        scans = {self.viewer.planC.structure[s].getStructureAssociatedScan(
+                     self.viewer.planC) for s in strNumV}
+        return len(scans) == 1
+
+    def _export(self):
+        strNumV = self._selected()
+        if not strNumV:
+            _show_info(self, "Export", "Select at least one structure.")
+            return
+        if not self._same_scan(strNumV):
+            _show_warning(
+                self, "Export",
+                "Selected structures are associated with different scans.\n"
+                "Please export structures from a single scan at a time.")
+            return
+        planC = self.viewer.planC
+        if self.fmt == "nii":
+            f, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Export structures to NIfTI",
+                filter="NIfTI (*.nii.gz *.nii)")
+            if not f:
+                return
+            try:
+                # getLabelMap matches by structure name -> integer label.
+                labelDict = {planC.structure[s].structureName: i + 1
+                             for i, s in enumerate(strNumV)}
+                dim = 4 if (hasattr(self, "sepChk")
+                            and self.sepChk.isChecked()) else 3
+                pc.saveNiiStructure(f, labelDict, planC, strNumV, dim=dim)
+                self.viewer.statusBar().showMessage(
+                    f"Exported {len(strNumV)} structure(s) to {f}")
+                self.close()
+            except Exception as e:  # noqa: BLE001
+                _show_error(self, "Export error", str(e))
+        else:
+            f, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Export structures to RTSTRUCT",
+                filter="DICOM (*.dcm)")
+            if not f:
+                return
+            try:
+                from cerr.dcm_export import rtstruct_iod
+                rtstruct_iod.create(strNumV, f, planC,
+                                    {"seriesDescription": "Exported from pyCERR"})
+                self.viewer.statusBar().showMessage(
+                    f"Exported {len(strNumV)} structure(s) to {f}")
+                self.close()
+            except Exception as e:  # noqa: BLE001
+                _show_error(self, "Export error", str(e))
 
 
 # ---------------------------------------------------------------------------#

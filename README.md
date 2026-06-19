@@ -2,6 +2,24 @@
 
 pyCERR provides convenient data structure for imaging metadata and their associations. Utilities are provided to to extract, transform, organize metadata and visualize results of image processing for image and dosimetry features, image processing for AI model training and inference.
 
+## Quick Start
+Install pyCERR from terminal, preferable within a virtual environment and launch Python.
+````
+pip install pycerr
+python
+````
+
+In Python, load an example dataset and show it in the Viewer
+````
+from cerr import plan_container as pc
+from cerr.viewer.pycerr_gui import show
+from cerr import datasets
+
+dcmDir = datasets.fetch_sample_data('head_and_neck')   # local if present, else downloadsfrom cerr
+planC = pc.loadDcmDir(dcmDir)
+v = show(planC)
+````
+
 ## Features
 
 All data for a patient lives in a single `PlanC` container — scans, structures
@@ -52,9 +70,9 @@ It is recommended to install CERR in an isolated environment such as Anaconda or
 
 ## Install pyCERR
 
-Launch Miniconda terminal, create a Conda environment with Python 3.8 and install CERR. Note that CERR requires Python version >= 3.8 to use Napari Viewer.
+Launch Miniconda terminal, create a Conda environment with Python and install CERR.
 ````
-conda create -y --name pycerr python=3.11
+conda create -y --name pycerr python=3.12
 conda activate pycerr
 pip install "pyCERR[napari] @ git+https://github.com/cerr/pyCERR"
 ````    
@@ -75,7 +93,7 @@ git clone https://github.com/cerr/pyCERR-Notebooks.git
 
 Run python from the above Anaconda environment and try out the following code samples.
 
-### import modules for planC and viewer
+### Import modules for planC and viewer
     import numpy as np
     from cerr import plan_container as pc
     from cerr.viewer import pycerr_napari        # napari API (pycerr_napari.showNapari, ...)
@@ -99,6 +117,14 @@ Run python from the above Anaconda environment and try out the following code sa
     assocScanNum = 0
     labelDict = {1: 'GTV_P', 2: 'GTV_N'}
     planC = pc.loadNiiStructure(niiFileName, assocScanNum, planC, labelDict)
+
+### Export Structures to DICOM
+    from cerr.dcm_export import rtstruct_iod
+
+    structDcmFileName = r"\\path\to\Data\structure.dcm"
+    structNums = [0,2,3]
+    exportOpts = {'seriesDescription': "Exported by pyCERR"}
+    rtstruct_iod.create(structNums,structDcmFileName,planC,exportOpts)
 
 ### Export Scan, Structure and Dose to NifTi
     scanNiiFileName = r"\\path\to\Data\scan.nii.gz"
@@ -124,17 +150,6 @@ all driven by the same `planC`:
 | PyQt5 desktop | `cerr.viewer.pycerr_gui` (`show`) | CERR-style slice viewer: contouring, registration QA, IMRTP/ROE, scripting API |
 | notebook | `cerr.viewer.pycerr_nbviewer` (`showNB`) | Jupyter / JupyterLab / VS Code / Google Colab |
 
-#### napari viewer
-    from cerr.viewer import pycerr_napari
-    scanNumList = [0]
-    doseNumList = [0]
-    numStructs = len(planC.structure)
-    strNumList = np.arange(numStructs)
-    displayMode = '2d' # '2d' or '3d'
-    vectDict = {}
-    viewer, scan_layer, struct_layer, dose_lyer, dvf_layer = \
-                   pycerr_napari.showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
-    	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d')
 
 #### PyQt5 desktop viewer
     from cerr.viewer import pycerr_gui
@@ -149,6 +164,17 @@ all driven by the same `planC`:
     viewer = pycerr_nbviewer.showNB(planC, scan_nums=[0], struct_nums=strNumList,
                                      dose_nums=[0])
 
+#### napari viewer
+    from cerr.viewer import pycerr_napari
+    scanNumList = [0]
+    doseNumList = [0]
+    numStructs = len(planC.structure)
+    strNumList = np.arange(numStructs)
+    displayMode = '2d' # '2d' or '3d'
+    vectDict = {}
+    viewer, scan_layer, struct_layer, dose_lyer, dvf_layer = \
+                   pycerr_napari.showNapari(planC, scan_nums=scanNumList, struct_nums=strNumList,\
+    	       dose_nums=doseNumList, vectors_dict=vectDict, displayMode = '2d')
 
 ### Compute DVH-based metrics
     from cerr import dvh

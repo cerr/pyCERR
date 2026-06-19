@@ -663,6 +663,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     numOrigStructs = len(planC.structure)
     numOrigDoses = len(planC.dose)
+    # Stable DICOM UIDs of objects already in planC, used to skip re-imports of
+    # the same series/object (cf. the H5 loaders). Scans share an intra-import
+    # series UID legitimately (multi-volume), so compare new scans only against
+    # those already present before this call - not against each other.
+    origScanUIDs = [s.scanUID for s in planC.scan]
+    origStructSopUIDs = [s.structSetSopInstanceUID for s in planC.structure]
+    origDoseSopUIDs = [getattr(d, 'sopInstanceUID', '') for d in planC.dose]
 
     if 'groupByAcquisitionNumber' in opts and opts['groupByAcquisitionNumber'] == True:
         pt_groups = df_img.groupby(by=df_img.columns.to_list()[:-1],dropna=False)
@@ -679,11 +686,26 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         if modality in ["CT","PT", "MR", "NM"]:
             # populate scan attributes
             scan_meta = populatePlanCField('scan', files, opts)
-            planC.scan.extend(scan_meta)
+            kept = []
+            for s in scan_meta:
+                if s.scanUID in origScanUIDs:
+                    warnings.warn("Scan " + str(s.scanUID) + " not imported "
+                                  "from DICOM as it already exists in planC")
+                else:
+                    kept.append(s)
+            planC.scan.extend(kept)
         elif modality in ["RTSTRUCT", "SEG"]:
             # populate structure attributes
             struct_meta = populatePlanCField('structure', files)
-            planC.structure.extend(struct_meta)
+            kept = []
+            for s in struct_meta:
+                sop = s.structSetSopInstanceUID
+                if sop and sop in origStructSopUIDs:
+                    warnings.warn("Structure " + str(sop) + " not imported "
+                                  "from DICOM as it already exists in planC")
+                else:
+                    kept.append(s)
+            planC.structure.extend(kept)
         elif modality == "RTPLAN":
             # populate beams attributes
             beams_meta = populatePlanCField('beams', files)
@@ -691,7 +713,15 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         elif modality == "RTDOSE":
             # populate dose attributes
             dose_meta = populatePlanCField('dose', files)
-            planC.dose.extend(dose_meta)
+            kept = []
+            for dmeta in dose_meta:
+                sop = getattr(dmeta, 'sopInstanceUID', '')
+                if sop and sop in origDoseSopUIDs:
+                    warnings.warn("Dose " + str(sop) + " not imported "
+                                  "from DICOM as it already exists in planC")
+                else:
+                    kept.append(dmeta)
+            planC.dose.extend(kept)
         else:
             print("Modality " + modality + " not supported")
 
@@ -755,7 +785,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         if beamNum is not None:
             planC.dose[dose_num].fractionGroupID = planC.beams[beamNum].RTPlanLabel
         assocScanNum = scn.getScanNumFromUID(planC.dose[dose_num].assocScanUID, planC)
-        planC.dose[dose_num].cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
+        if assocScanNum is not None:
+            planC.dose[dose_num].cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
 
     return planC
 
