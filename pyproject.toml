@@ -52,6 +52,9 @@ napari = [
     "napari[all]",
     "napari-animation"
 ]
+model_installer = [
+    "model_installer @ git+https://github.com/cerr/model_installer.git",
+]
 
 [tool.setuptools]
 include-package-data = true
