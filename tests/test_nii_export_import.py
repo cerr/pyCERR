@@ -38,3 +38,26 @@ def test_dose_export_import(tmp_path):
     doseDcm = planC.dose[0].doseArray
     doseNii = planC.dose[1].doseArray
     np.testing.assert_allclose(doseNii, doseDcm, rtol=1e-3, atol=1e-3)
+
+
+def test_structure_export_import(tmp_path):
+    # NIfTI structure (label-map) export/import - the File > Export structure
+    # path (saveNiiStructure / loadNiiStructure).
+    from cerr.contour import rasterseg as rs
+    planC = pc.loadDcmDir(dcm_dir)
+    assert len(planC.structure) >= 1
+    strNum = 0
+    name = planC.structure[strNum].structureName
+    origMask = rs.getStrMask(strNum, planC).astype(bool)
+
+    strNiiFile = str(tmp_path / 'struct_from_cerr.nii.gz')
+    pc.saveNiiStructure(strNiiFile, {name: 1}, planC, [strNum])
+
+    nStruct0 = len(planC.structure)
+    planC = pc.loadNiiStructure(strNiiFile, 0, planC, {name: 1})
+    assert len(planC.structure) > nStruct0
+
+    newMask = rs.getStrMask(nStruct0, planC).astype(bool)
+    inter = int(np.logical_and(origMask, newMask).sum())
+    dice = 2.0 * inter / (int(origMask.sum()) + int(newMask.sum()))
+    assert dice > 0.98
