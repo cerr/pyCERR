@@ -523,7 +523,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     peakIdxV = np.zeros(nVox, dtype=int)
     peakIdxV[~skipIdxV] = (locatePeak(procSlcSigM[~skipIdxV, :], smoothFlag=True)).astype(int)
     PEv = procSlcSigM[np.arange(nVox), peakIdxV]
-    TTPv = procTimeV[peakIdxV]  # Time-to-peak
+    TTPv = procTimeV[peakIdxV]  # Time-to-peak (min)
     TTPv[nanIdxV] = np.nan
 
     # Half-peak
@@ -533,7 +533,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
         SHPcolIdx[vox] = np.argmin(np.abs(procSlcSigM[vox, :peakIdxV[vox] + 1] - halfMaxSig[vox, np.newaxis]))
     SHPv = procSlcSigM[np.arange(nVox), SHPcolIdx]  # Value (relative enhancement or concentration) at half-peak
     SHPv[nanIdxV] = np.nan
-    TTHPv = procTimeV[SHPcolIdx]  # Time to half-peak
+    TTHPv = procTimeV[SHPcolIdx]  # Time to half-peak (min)
     TTHPv[nanIdxV] = np.nan
 
     # Wash-in slope
@@ -549,6 +549,11 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
         WOSv = (PEv - RSEendV) / (TTPv + EPS - Tend)
         WOSv[peakAtEndIdx] = np.nan  # Not defined
     WOSv[nanIdxV] = np.nan
+
+    # Time halfway between peak and end of acquisition
+    midTime = 0.5 * (TTPv + Tend)
+    TMWv = procTimeV[np.argmin(abs(procTimeV - midTime))]
+    TMWv[peakAtEndIdx] = np.nan
 
     # Wash-in/out gradients
     # Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
@@ -613,6 +618,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
                    'SignalAtHalfPeak': SHPv,
                    'TimeToPeak': TTPv,
                    'TimeToHalfPeak': TTHPv,
+                   'MidWashoutTime': TMWv,
                    'SignalEnhancementRatio': SERv,
                    'WashInSlope': WISv,
                    'WashOutSlope': WOSv,
