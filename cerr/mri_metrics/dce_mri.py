@@ -308,12 +308,12 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
                 normScan4M[:, :, slc, :] = normSig3M
             elif method == 'CC':
                 # Return contrast concentration
-                slcTimeSeq3M = normScan4M[:, :, slc, :]
-                nRows, nCols, nTimePts = slcTimeSeq3M.shape
-                flatSlcM = slcTimeSeq3M.reshape(nRows * nCols, nTimePts)
-                for t in range(flatSlcM.shape[1]):
-                    flatConcM = intToConc(flatSlcM[:, t], concDict)
-                    normScan4M[:, :, slc, :] = flatConcM.reshape(nRows, nCols, nTimePts)
+                nRows, nCols, nTimePts = normSig3M.shape
+                flatSlcM = normSig3M.reshape(nRows * nCols, nTimePts)
+                flatConcM = np.zeros_like(flatSlcM)
+                for t in range(nTimePts):
+                    flatConcM[:, t] = intToConc(flatSlcM[:, t], concDict)  # (nRows*nCols,) per time pt
+                normScan4M[:, :, slc, :] = flatConcM.reshape(nRows, nCols, nTimePts)
             else:
                 raise ValueError("Method {} not supported.".format(method))
 
@@ -721,8 +721,8 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
 
 
 def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothDict=None,
-                              sigType='RSE', concDict={}, temporalSmoothFlag=False, resampFlag=False,
-                              plotDict = {}):
+                              sigType='RSE', concDict=None, temporalSmoothFlag=False, resampFlag=False,
+                              plotDict=None):
     """calcROImeanUptakeFeatures
         Compute non-parametric uptake features from the ROI-average signal (RSE or CC).
 
@@ -744,7 +744,7 @@ def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmo
                                      smooth curves following peak.
             resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
-            plotDict (dict): [optional, default:{}] Display sample plots showing computed features (interactive)
+            plotDict (dict): [optional, default:None] Display sample plots showing computed features (interactive)
 
         Returns:
             featureDict (dict): Dictionary of semi-quantitative features computed on the ROI-mean curve.
@@ -756,7 +756,7 @@ def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmo
         userInputTime = timeV
 
     # Load DCE series or pre-computed concentration maps
-    if len(concDict) > 0 and 'concMapIdx' in concDict:
+    if concDict is not None and 'concMapIdx' in concDict:
         usePrecomputedCC = True
         sigType = 'CC'
         concScanIdxV = concDict['concMapIdx']
@@ -780,6 +780,14 @@ def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmo
     meanSigV = np.mean(scanArr4M[mask3M, :], axis=0)
     meanSmoothSigV = np.mean(smoothScanArr4M[mask3M, :], axis=0)
 
+    # Interactively determine BAT if not provided
+    if basePts is None:
+        basePts = getStartofUptakeFromMeanSignal(meanSmoothSigV)
+        if basePts is None:
+            raise ValueError("Start of uptake (basePts) could not be determined from user input.")
+    if basePts == 0:
+        raise ValueError("Please provide a basePts value > 0 that identifies the start of uptake.")
+
     # Normalize
     meanBaseline = np.mean(meanSmoothSigV[0:basePts])  # Mean signal pre-BAT
     if meanBaseline == 0:
@@ -801,12 +809,12 @@ def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmo
             procInputM = procInputM[:, basePts:]
     elif sigType == 'RSE':
         normMeanUptakeV = normMeanSigV[basePts:]
-        procInputM = normMeanUptakeV[np.newaxis, :]  # RSE = S/S0 - 1
+        procInputM = normMeanUptakeV[np.newaxis, :]
     else:
         raise ValueError(f"sigType '{sigType}' not supported.")
 
     # Smoothing + resampling
-    origSigM = procInputM.copy()    # for plotting
+    origSigM = procInputM.copy() if sigType != 'RSE' else procInputM.copy() - 1 # RSE = S/S0 - 1
     origTimeV = uptakeTimeV.copy()
     procSigM, procTimeV = smoothResample(procInputM, uptakeTimeV,
                                          temporalSmoothFlag=temporalSmoothFlag,
@@ -820,7 +828,7 @@ def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmo
     baselineV = np.array([meanBaseline])  # (1,)
     featureDict, _ = semiQuantFeatures(convSigM, procTimeV, baselineV, sigType=sigType)
 
-    if 'display' in plotDict and plotDict['display']:
+    if plotDict is not None and 'display' in plotDict and plotDict['display']:
         plotSampleFeatures(origSigM, convSigM, origTimeV, procTimeV, featureDict, skipIdxV=None,
                           numPlots=1, savePath=plotDict['savepath'],
                           prefix=plotDict['prefix']+'_roi_mean')
@@ -849,6 +857,8 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
     """
     #voxIdxV = rng.integers(low=0, high=procSlcSigM.shape[0], size=numPlots)
     allIdxV = set(range(0, procSlcSigM.shape[0]))
+    if skipIdxV is None:
+        skipIdxV = np.zeros(procSlcSigM.shape[0], dtype=bool)
     validIdxV = list(allIdxV - set(np.where(skipIdxV)[0]))
     voxIdxV = random.sample(validIdxV, numPlots)
 
