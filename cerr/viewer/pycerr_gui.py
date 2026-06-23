@@ -306,6 +306,7 @@ class SliceView(QtWidgets.QWidget):
         self.canvas.mpl_connect("motion_notify_event", self._on_motion)
         self.canvas.mpl_connect("button_press_event", self._on_press)
         self.canvas.mpl_connect("button_release_event", self._on_release)
+        self.canvas.mpl_connect("axes_leave_event", self._on_axes_leave)
 
     @property
     def is3d(self):
@@ -497,8 +498,8 @@ class SliceView(QtWidgets.QWidget):
         xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
         if self._brush_circle is None or self._brush_circle.axes is not self.ax:
             self._brush_circle = mpatches.Circle(
-                (x, y), self.brush_radius, fill=False, color="#ff66ff",
-                lw=1.0, ls=":", zorder=12)
+                (x, y), self.brush_radius, facecolor=(1.0, 0.4, 1.0, 0.25),
+                edgecolor=(1.0, 0.3, 1.0, 0.95), lw=2.0, zorder=15)
             self.ax.add_patch(self._brush_circle)
         else:
             self._brush_circle.center = (x, y)
@@ -506,6 +507,17 @@ class SliceView(QtWidgets.QWidget):
         self.ax.set_xlim(xlim)        # keep the view fixed while brushing
         self.ax.set_ylim(ylim)
         self.canvas.draw_idle()
+
+    def _on_axes_leave(self, _event):
+        # drop the brush-size preview when the cursor leaves the image, so it
+        # doesn't linger at the edge (only while not mid-stroke)
+        if self._stroke is None and self._brush_circle is not None:
+            try:
+                self._brush_circle.remove()
+            except Exception:  # noqa: BLE001
+                pass
+            self._brush_circle = None
+            self.canvas.draw_idle()
 
     def clear_draw_artists(self):
         """Remove transient contouring previews (polygon, brush cursor)."""
@@ -3744,8 +3756,7 @@ class ContourDialog(QtWidgets.QDialog):
                                QtWidgets.QDialogButtonBox.ApplyRole)
         bb.addButton(QtWidgets.QDialogButtonBox.Close)
         saveBtn.clicked.connect(self.save)
-        bb.rejected.connect(self.close)
-        bb.button(QtWidgets.QDialogButtonBox.Close).clicked.connect(self.close)
+        bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
 
         self._populate_structs()
@@ -3833,27 +3844,57 @@ class ContourDialog(QtWidgets.QDialog):
 
     def _on_struct_selected(self, idx):
         if self._dirty:
-            box = QtWidgets.QMessageBox(self)
-            box.setIcon(QtWidgets.QMessageBox.Question)
-            box.setWindowTitle("Contouring")
-            box.setText("Discard unsaved edits?")
-            box.setStandardButtons(
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-            box.setModal(False)
-            box.setAttribute(Qt.WA_DeleteOnClose, True)
-
-            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
-
-            def _on_finished(_):
-                if box.clickedButton() is yesBtn:
-                    self._apply_struct_selection(idx)
-                else:
-                    self._populate_structs(self.structNum)   # revert combo
-            box.finished.connect(_on_finished)
-            box.show()
-            box.raise_()
+            self._confirm_discard(
+                onYes=lambda: self._apply_struct_selection(idx),
+                onNo=lambda: self._populate_structs(self.structNum))
             return
         self._apply_struct_selection(idx)
+
+    def _confirm_discard(self, onYes, onNo=None):
+        """"Discard unsaved edits?" confirmation (modal QDialog shown via
+        show(), so it grabs focus yet stays non-blocking). A guard ensures only
+        one prompt is ever open, so repeated triggers cannot stack dialogs.
+        """
+        if getattr(self, "_discardDlg", None) is not None:
+            self._discardDlg.raise_()
+            self._discardDlg.activateWindow()
+            return
+        dlg = QtWidgets.QDialog(self)
+        self._discardDlg = dlg
+        dlg.destroyed.connect(lambda *_: setattr(self, "_discardDlg", None))
+        dlg.setWindowTitle("Contouring")
+        # Modal (but shown via show(), not exec_): grabs input focus so the
+        # FIRST click lands on a button - a non-modal dialog needs one click to
+        # activate the window and a second to press the button. show() keeps it
+        # non-blocking, so it is safe in the %gui qt notebook event loop too.
+        dlg.setModal(True)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        lay.addWidget(QtWidgets.QLabel("Discard unsaved edits?"))
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        yesBtn = QtWidgets.QPushButton("Yes")
+        noBtn = QtWidgets.QPushButton("No")
+        noBtn.setDefault(True)
+        row.addWidget(yesBtn)
+        row.addWidget(noBtn)
+        lay.addLayout(row)
+
+        def _yes():
+            dlg.close()
+            if onYes is not None:
+                QtCore.QTimer.singleShot(0, onYes)
+
+        def _no():
+            dlg.close()
+            if onNo is not None:
+                QtCore.QTimer.singleShot(0, onNo)
+
+        yesBtn.clicked.connect(_yes)
+        noBtn.clicked.connect(_no)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _apply_struct_selection(self, idx):
         planC = self.viewer.planC
@@ -4079,26 +4120,10 @@ class ContourDialog(QtWidgets.QDialog):
     # -------------------------------------------------------------- close ---
     def closeEvent(self, event):
         if self._dirty and not getattr(self, "_force_close", False):
-            box = QtWidgets.QMessageBox(self)
-            box.setIcon(QtWidgets.QMessageBox.Question)
-            box.setWindowTitle("Contouring")
-            box.setText("Discard unsaved edits?")
-            box.setStandardButtons(
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-            box.setModal(False)
-            box.setAttribute(Qt.WA_DeleteOnClose, True)
-
-            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
-
-            def _on_finished(_):
-                # finished fires after the box has dismissed, so closing the
-                # panel here is safe (no re-entrancy with the box's own close).
-                if box.clickedButton() is yesBtn:
-                    self._force_close = True
-                    self.close()
-            box.finished.connect(_on_finished)
-            box.show()
-            box.raise_()
+            def _yes():
+                self._force_close = True
+                self.close()
+            self._confirm_discard(onYes=_yes)
             event.ignore()           # wait for the (non-modal) answer
             return
         self._detach(self.axView)
