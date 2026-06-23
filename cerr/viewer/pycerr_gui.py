@@ -279,6 +279,7 @@ class SliceView(QtWidgets.QWidget):
         self.draw_mode = False       # contouring active on this view
         self.draw_tool = "freehand"  # "freehand" | "polygon" | "brush"
         self.brush_radius = 0.5      # cm (data units)
+        self.brush_erase = False     # tints the brush ball (draw vs erase)
         self._stroke = None          # [(x, y), ...] while drag-drawing
         self._stroke_line = None
         self._poly = None            # clicked vertices in polygon mode
@@ -496,14 +497,20 @@ class SliceView(QtWidgets.QWidget):
 
     def _update_brush_cursor(self, x, y):
         xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
+        if self.brush_erase:          # reddish pink for erase
+            edge, face = (1.0, 0.25, 0.45, 0.95), (1.0, 0.25, 0.45, 0.22)
+        else:                         # aqua green for draw
+            edge, face = (0.0, 0.85, 0.6, 0.95), (0.0, 0.85, 0.6, 0.22)
         if self._brush_circle is None or self._brush_circle.axes is not self.ax:
             self._brush_circle = mpatches.Circle(
-                (x, y), self.brush_radius, facecolor=(1.0, 0.4, 1.0, 0.25),
-                edgecolor=(1.0, 0.3, 1.0, 0.95), lw=2.0, zorder=15)
+                (x, y), self.brush_radius, facecolor=face, edgecolor=edge,
+                lw=2.0, zorder=15)
             self.ax.add_patch(self._brush_circle)
         else:
             self._brush_circle.center = (x, y)
             self._brush_circle.set_radius(self.brush_radius)
+            self._brush_circle.set_facecolor(face)
+            self._brush_circle.set_edgecolor(edge)
         self.ax.set_xlim(xlim)        # keep the view fixed while brushing
         self.ax.set_ylim(ylim)
         self.canvas.draw_idle()
@@ -1595,6 +1602,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         dl.addLayout(aRow)
         pl.addWidget(grpDose)
 
+        grp3D = QtWidgets.QGroupBox("3D view")
+        tl = QtWidgets.QVBoxLayout(grp3D)
+        pRow = QtWidgets.QHBoxLayout()
+        pRow.addWidget(QtWidgets.QLabel("Plane opacity:"))
+        self.planeOpacitySlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.planeOpacitySlider.setRange(0, 100)
+        self.planeOpacitySlider.setValue(int(round(self.plane3dOpacity * 100)))
+        self.planeOpacitySlider.setToolTip(
+            "Transparency of the orthogonal cutting planes in the 3D view")
+        self.planeOpacitySlider.valueChanged.connect(self.on_plane_opacity)
+        pRow.addWidget(self.planeOpacitySlider)
+        tl.addLayout(pRow)
+        pl.addWidget(grp3D)
+
         h.addWidget(panel)
 
         # ------- right: view windows (each can show any orientation) -------
@@ -2161,6 +2182,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def on_alpha(self, val):
         self.doseAlpha = val / 100.0
         self.refresh_views()
+
+    def on_plane_opacity(self, val):
+        # opacity of the 3D orthogonal cutting planes (3D views only)
+        self.plane3dOpacity = val / 100.0
+        self._refresh_3d_views()
 
     def on_scan_cmap(self, name):
         self.scanCmap = name
@@ -3683,6 +3709,7 @@ class ContourDialog(QtWidgets.QDialog):
         self._dirty = False
         self._liveIm = None              # axial overlay artist while brushing
         self._liveContour = None         # live dashed boundary while brushing
+        self._lastLiveContourT = 0.0     # throttle for the live boundary
 
         lay = QtWidgets.QVBoxLayout(self)
         hint = QtWidgets.QLabel(
@@ -3706,6 +3733,7 @@ class ContourDialog(QtWidgets.QDialog):
         self._actionGrp = QtWidgets.QButtonGroup(self)
         self._actionGrp.addButton(self.drawBtn)
         self._actionGrp.addButton(self.eraseBtn)
+        self.drawBtn.toggled.connect(self._on_mode_changed)  # recolor the ball
         toolRow.addWidget(self.drawBtn)
         toolRow.addWidget(self.eraseBtn)
         lay.addLayout(toolRow)
@@ -3826,11 +3854,15 @@ class ContourDialog(QtWidgets.QDialog):
         if not self.brushBtn.isChecked():
             axView.clear_draw_artists()
         axView.brush_radius = self.brushSpin.value()
+        axView.brush_erase = self.eraseBtn.isChecked()
         axView.draw_tool = ("polygon" if self.polyBtn.isChecked()
                             else "brush" if self.brushBtn.isChecked()
                             else "freehand")
         axView.canvas.setCursor(
             _contour_cursor("brush" if axView.draw_tool == "brush" else "pen"))
+        if axView.draw_tool == "brush" and axView._brush_circle is not None:
+            cx, cy = axView._brush_circle.center   # recolor on-screen ball now
+            axView._update_brush_cursor(cx, cy)
 
     # ----------------------------------------------------- structure setup --
     def _populate_structs(self, current=None):
@@ -3971,6 +4003,7 @@ class ContourDialog(QtWidgets.QDialog):
         k = self._cur_slice()
         if isStart:
             self._push_undo(k)      # one undo entry per drag
+            self._lastLiveContourT = 0.0   # draw the boundary on the first step
         region = self._brush_region(pts)
         if self.eraseBtn.isChecked():
             self.mask3M[:, :, k] &= ~region
@@ -3988,32 +4021,40 @@ class ContourDialog(QtWidgets.QDialog):
         self.viewer.refresh_views()
 
     def _live_update_axial(self):
-        """Cheap live overlay update on the axial view only (no dose/contour
-        recomputation), so brushing stays responsive."""
+        """Cheap live overlay update on the axial view only, so brushing stays
+        responsive. The filled overlay is reused via set_data every step, while
+        the dashed boundary (an expensive marching-squares contour) is throttled
+        - it is fully redrawn on release in _on_brush_done."""
         v = self.viewer
         view = self.axView
-        if self._liveIm is not None:
-            try:
-                self._liveIm.remove()
-            except Exception:  # noqa: BLE001
-                pass
-            self._liveIm = None
-        self._remove_live_contour()
         cslc = self.mask3M[:, :, self._cur_slice()]
-        if np.any(cslc):
-            # imshow() resets the axes limits to the image extent; preserve the
-            # current pan/zoom so brushing doesn't shift the view.
+        extent = [v.xV[0], v.xV[-1], v.yV[-1], v.yV[0]]
+        data = np.ma.masked_where(~cslc, cslc.astype(float))
+
+        # --- filled overlay: reuse the artist (set_data) instead of recreating
+        if self._liveIm is None or self._liveIm.axes is not view.ax:
+            # imshow() resets the axes limits; preserve the current pan/zoom.
             xlim, ylim = view.ax.get_xlim(), view.ax.get_ylim()
-            extent = [v.xV[0], v.xV[-1], v.yV[-1], v.yV[0]]
             self._liveIm = view.ax.imshow(
-                np.ma.masked_where(~cslc, cslc.astype(float)),
-                cmap=ListedColormap([self.color]), extent=extent,
+                data, cmap=ListedColormap([self.color]), extent=extent,
                 alpha=0.35, vmin=0, vmax=1, interpolation="nearest",
                 aspect="equal", zorder=9)
-            # live dashed boundary, matching the committed-contour style
-            self._liveContour = view.ax.contour(
-                v.xV, v.yV, cslc.astype(float), levels=[0.5],
-                colors=[self.color], linewidths=1.6, linestyles="--")
+            view.ax.set_xlim(xlim)
+            view.ax.set_ylim(ylim)
+        else:
+            self._liveIm.set_data(data)
+
+        # --- dashed boundary: throttled (recomputing ax.contour every motion
+        # event is the dominant cost). At most ~20 redraws/s while dragging.
+        now = time.monotonic()
+        if now - self._lastLiveContourT > 0.05:
+            self._lastLiveContourT = now
+            xlim, ylim = view.ax.get_xlim(), view.ax.get_ylim()
+            self._remove_live_contour()
+            if np.any(cslc):
+                self._liveContour = view.ax.contour(
+                    v.xV, v.yV, cslc.astype(float), levels=[0.5],
+                    colors=[self.color], linewidths=1.6, linestyles="--")
             view.ax.set_xlim(xlim)
             view.ax.set_ylim(ylim)
         view.canvas.draw_idle()
