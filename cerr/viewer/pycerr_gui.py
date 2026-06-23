@@ -4394,8 +4394,7 @@ class RegQaDialog(QtWidgets.QDialog):
         lay.addWidget(hint)
 
         bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
-        bb.rejected.connect(self.close)
-        bb.button(QtWidgets.QDialogButtonBox.Close).clicked.connect(self.close)
+        bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
 
         sc = QtWidgets.QShortcut(QtGui.QKeySequence("T"), self)
