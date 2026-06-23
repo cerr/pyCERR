@@ -112,17 +112,33 @@ from cerr import dvh as cerrDvh  # noqa: E402
 # CERR dose colormaps (ported from MATLAB CERR's CERRColorMap.m).
 # Keep cerr_colormaps.py next to this file; falls back to jet if missing.
 try:
-    from cerr_colormaps import CERR_COLORMAP_NAMES, get_cmap as cerr_get_cmap, \
-        get_lut as cerr_get_lut
+    from cerr.viewer.cerr_colormaps import CERR_COLORMAP_NAMES, \
+        get_cmap as _cerr_get_cmap, get_lut as _cerr_get_lut
 except ImportError:  # pragma: no cover
-    CERR_COLORMAP_NAMES = ["jet"]
+    CERR_COLORMAP_NAMES = []
+    _cerr_get_cmap = _cerr_get_lut = None
 
-    def cerr_get_cmap(_name):
-        return plt.get_cmap("jet")
+# Familiar matplotlib colormaps offered for dose alongside CERR's own maps.
+_MPL_DOSE_CMAPS = ["jet", "turbo", "rainbow", "viridis", "hot", "cool"]
+DOSE_CMAP_NAMES = _MPL_DOSE_CMAPS + [c for c in CERR_COLORMAP_NAMES
+                                     if c not in _MPL_DOSE_CMAPS]
+# CERR's default dose colormap, falling back to jet if it is unavailable.
+DEFAULT_DOSE_CMAP = "starinterp" if "starinterp" in CERR_COLORMAP_NAMES \
+    else "jet"
 
-    def cerr_get_lut(_name, n=256):
-        return (plt.get_cmap("jet")(np.linspace(0, 1, n))[:, :3] * 255
-                ).astype(np.uint8)
+
+def cerr_get_cmap(name):
+    """Colormap by name: a CERR colormap when available, else matplotlib."""
+    if _cerr_get_cmap is not None and name in CERR_COLORMAP_NAMES:
+        return _cerr_get_cmap(name)
+    return plt.get_cmap(name)
+
+
+def cerr_get_lut(name, n=256):
+    if _cerr_get_lut is not None and name in CERR_COLORMAP_NAMES:
+        return _cerr_get_lut(name, n)
+    return (plt.get_cmap(name)(np.linspace(0, 1, n))[:, :3] * 255
+            ).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------#
@@ -754,8 +770,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         self.cbarRange = [0.0, 1.0]      # colormap mapping range
         self.dispRange = [0.0, 1.0]      # dose display (mask) range
         self._drag = None                # ("cbar"|"disp", 0|1) while dragging
-        self.cmapName = "starinterp" if "starinterp" in CERR_COLORMAP_NAMES \
-            else CERR_COLORMAP_NAMES[0]  # CERR's default doseColormap
+        self.cmapName = DEFAULT_DOSE_CMAP   # selectable from the Dose panel
         self._set_cmap(self.cmapName)
         self.setToolTip("Dose colorbar\n"
                         "Yellow (left) handles: colorbar/colormap range\n"
@@ -877,7 +892,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
 
         cmapMenu = menu.addMenu("Colormap")
         grp = QtWidgets.QActionGroup(cmapMenu)
-        for name in CERR_COLORMAP_NAMES:
+        for name in DOSE_CMAP_NAMES:
             act = cmapMenu.addAction(name)
             act.setCheckable(True)
             act.setChecked(name == self.cmapName)
@@ -1592,6 +1607,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.doseCombo = QtWidgets.QComboBox()
         self.doseCombo.currentIndexChanged.connect(self.on_dose_changed)
         dl.addWidget(self.doseCombo)
+        cmapRow = QtWidgets.QHBoxLayout()
+        cmapRow.addWidget(QtWidgets.QLabel("Colormap:"))
+        self.doseCmapCombo = QtWidgets.QComboBox()
+        self.doseCmapCombo.addItems(DOSE_CMAP_NAMES)
+        self.doseCmapCombo.setCurrentText(DEFAULT_DOSE_CMAP)
+        self.doseCmapCombo.setToolTip("Dose colorwash colormap")
+        self.doseCmapCombo.currentTextChanged.connect(self.on_dose_cmap)
+        cmapRow.addWidget(self.doseCmapCombo, 1)
+        dl.addLayout(cmapRow)
         aRow = QtWidgets.QHBoxLayout()
         aRow.addWidget(QtWidgets.QLabel("Colorwash alpha:"))
         self.alphaSlider = QtWidgets.QSlider(Qt.Horizontal)
@@ -1647,7 +1671,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         # standalone dose colorbar (hidden until a dose is selected)
         self.colorbar = DoseColorbarWidget()
-        self.colorbar.rangesChanged.connect(lambda: self.refresh_views())
+        self.colorbar.rangesChanged.connect(self._on_colorbar_ranges_changed)
         self.colorbar.setVisible(False)
         h.addWidget(self.colorbar)
 
@@ -2187,6 +2211,24 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # opacity of the 3D orthogonal cutting planes (3D views only)
         self.plane3dOpacity = val / 100.0
         self._refresh_3d_views()
+
+    def on_dose_cmap(self, name):
+        """Set the dose colorwash colormap from the panel combo."""
+        if not name:
+            return
+        self.colorbar._set_cmap(name)
+        self.colorbar.update()        # repaint the colorbar gradient
+        self.refresh_views()
+
+    def _on_colorbar_ranges_changed(self):
+        # keep the panel combo in sync when the colormap (or ranges) is changed
+        # via the colorbar's right-click menu, then re-render.
+        if hasattr(self, "doseCmapCombo") and \
+                self.doseCmapCombo.currentText() != self.colorbar.cmapName:
+            self.doseCmapCombo.blockSignals(True)
+            self.doseCmapCombo.setCurrentText(self.colorbar.cmapName)
+            self.doseCmapCombo.blockSignals(False)
+        self.refresh_views()
 
     def on_scan_cmap(self, name):
         self.scanCmap = name
