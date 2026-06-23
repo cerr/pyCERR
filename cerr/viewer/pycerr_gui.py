@@ -1473,6 +1473,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                          self.show_imrtp_gui)
         toolsM.addAction("&ROE (Radiotherapy Outcomes Explorer)...",
                          self.show_roe_gui)
+        toolsM.addAction("&urOMT (fluid transport on longitudinal scans)...",
+                         self.show_uromt_dialog)
         toolsM.addSeparator()
         toolsM.addAction("Re&fresh from planC",
                          lambda: self.after_load(keep_view=True))
@@ -3624,6 +3626,22 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.statusBar().showMessage(
             "ROE opened (shares this viewer's planC).")
 
+    def show_uromt_dialog(self):
+        """Open the urOMT (fluid transport) tool - runs the cerr.uromt pipeline
+        on the longitudinal scans in planC using a structure as the ROI."""
+        if self.planC is None or len(self.planC.scan) < 2:
+            _show_info(self, "urOMT",
+                       "urOMT needs at least two co-registered longitudinal "
+                       "scans (time points) in planC.")
+            return
+        if not self.planC.structure:
+            _show_info(self, "urOMT",
+                       "Load or draw an ROI structure first.")
+            return
+        dlg = UROMTDialog(self)
+        self._toolWindows.append(dlg)
+        dlg.show()
+
     def show_controls(self):
         _show_info(
             self, "Controls",
@@ -4393,6 +4411,121 @@ class StructureExportDialog(QtWidgets.QDialog):
                 self.close()
             except Exception as e:  # noqa: BLE001
                 _show_error(self, "Export error", str(e))
+
+
+# ---------------------------------------------------------------------------#
+#  urOMT tool: run the cerr.uromt fluid-transport pipeline (Part 1 + Part 2)
+#  on the longitudinal scans in planC, with a structure as the ROI. The
+#  optimization runs in a background thread so the GUI stays responsive.
+# ---------------------------------------------------------------------------#
+class _UROMTWorker(QtCore.QThread):
+    progress = QtCore.pyqtSignal(float, str)
+    done = QtCore.pyqtSignal(object)
+    failed = QtCore.pyqtSignal(str)
+
+    def __init__(self, planC, scanNumV, structNum, settingsFile, parent=None):
+        super().__init__(parent)
+        self.planC = planC
+        self.scanNumV = scanNumV
+        self.structNum = structNum
+        self.settingsFile = settingsFile
+
+    def run(self):
+        try:
+            from cerr.uromt import buildConfig, prepareData
+            from cerr.uromt.solver import runUROMT
+            cfg = buildConfig(self.scanNumV, self.structNum, self.settingsFile)
+            cfg = prepareData(cfg, self.planC)
+            res = runUROMT(
+                cfg, statusCallback=lambda f, m: self.progress.emit(f, m))
+            self.done.emit(res)
+        except Exception as e:  # noqa: BLE001
+            self.failed.emit(str(e))
+
+
+class UROMTDialog(QtWidgets.QDialog):
+    """Non-modal urOMT launcher: pick the ROI structure and a model-settings
+    JSON, run on all scans (as ordered time points). Results are stored on the
+    viewer as ``viewer.uromtResult``."""
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.worker = None
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle("urOMT - fluid transport")
+
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.addWidget(QtWidgets.QLabel(
+            "Runs urOMT on all %d scans as longitudinal time points\n"
+            "(they must be co-registered onto one grid)."
+            % len(viewer.planC.scan)))
+
+        form = QtWidgets.QFormLayout()
+        self.structCombo = QtWidgets.QComboBox()
+        for i, st in enumerate(viewer.planC.structure):
+            self.structCombo.addItem("%d: %s" % (i, st.structureName), i)
+        form.addRow("ROI structure:", self.structCombo)
+
+        from cerr.uromt.config import _DEFAULT_SETTINGS
+        self.settingsEdit = QtWidgets.QLineEdit(_DEFAULT_SETTINGS)
+        browse = QtWidgets.QPushButton("Browse...")
+        browse.clicked.connect(self._browse)
+        srow = QtWidgets.QHBoxLayout()
+        srow.addWidget(self.settingsEdit, 1)
+        srow.addWidget(browse)
+        form.addRow("Model settings:", srow)
+        lay.addLayout(form)
+
+        self.progress = QtWidgets.QLabel("")
+        lay.addWidget(self.progress)
+
+        btnRow = QtWidgets.QHBoxLayout()
+        btnRow.addStretch(1)
+        self.runBtn = QtWidgets.QPushButton("Run")
+        self.runBtn.setDefault(True)
+        self.runBtn.clicked.connect(self._run)
+        closeBtn = QtWidgets.QPushButton("Close")
+        closeBtn.clicked.connect(self.close)
+        btnRow.addWidget(self.runBtn)
+        btnRow.addWidget(closeBtn)
+        lay.addLayout(btnRow)
+
+    def _browse(self):
+        f, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "urOMT model settings", filter="JSON (*.json)")
+        if f:
+            self.settingsEdit.setText(f)
+
+    def _run(self):
+        structNum = self.structCombo.currentData()
+        scanNumV = list(range(len(self.viewer.planC.scan)))
+        self.runBtn.setEnabled(False)
+        self.progress.setText("Starting urOMT ...")
+        self.worker = _UROMTWorker(self.viewer.planC, scanNumV, structNum,
+                                   self.settingsEdit.text() or None, self)
+        self.worker.progress.connect(
+            lambda f, m: self.progress.setText("[%3.0f%%] %s" % (100 * f, m)))
+        self.worker.done.connect(self._finished)
+        self.worker.failed.connect(self._error)
+        self.worker.start()
+
+    def _finished(self, res):
+        self.viewer.uromtResult = res
+        self.runBtn.setEnabled(True)
+        nIv = len(res["u"])
+        self.progress.setText("Done: %d interval(s); results in "
+                              "viewer.uromtResult" % nIv)
+        _show_info(self.viewer, "urOMT",
+                   "urOMT finished: %d time interval(s) solved on a %s ROI "
+                   "grid.\nVelocity/source fields are stored on the viewer as "
+                   "viewer.uromtResult." % (nIv, "x".join(map(str, res["n"]))))
+
+    def _error(self, msg):
+        self.runBtn.setEnabled(True)
+        self.progress.setText("Failed.")
+        _show_error(self, "urOMT error", msg)
 
 
 # ---------------------------------------------------------------------------#

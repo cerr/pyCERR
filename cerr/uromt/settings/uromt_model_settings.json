@@ -1,0 +1,41 @@
+{
+    "_comment": "urOMT model/algorithm settings. Data settings (scans, mask, voxel spacing, domain size) are read directly from planC and are NOT stored here. Mirrors cfg fields (b) from the MATLAB getParams.m.",
+
+    "sigma": 2e-3,
+    "dt": 0.4,
+    "nt": 10,
+    "alpha": 9000.0,
+    "beta": 5000.0,
+    "niter_pcg": 60,
+    "maxUiter": 6,
+    "dTri": 1,
+    "reinitR": 0,
+    "smooth": 1,
+    "do_resize": 0,
+    "size_factor": 1.0,
+
+    "spacing": null,
+
+    "time": {
+        "first_time": 1,
+        "last_time": null,
+        "time_jump": 1
+    },
+
+    "_field_doc": {
+        "sigma": "diffusion coefficient (Gaussian bandwidth) in the advection-diffusion PDE",
+        "dt": "time-step size for the inner numerical integration",
+        "nt": "number of inner time sub-steps between two consecutive image frames",
+        "alpha": "weight on the source-term penalty (Gamma2)",
+        "beta": "weight on the final-image fidelity term (Gamma3)",
+        "niter_pcg": "max iterations for the (P)CG Hessian/diffusion solves",
+        "maxUiter": "outer optimization iterations per time interval",
+        "dTri": "boundary condition for advection: 1='closed', 3='open'",
+        "reinitR": "0=initialize each interval with the previous evolved density (consecutive); 1=reset to the measured frame",
+        "smooth": "number of smoothing iterations applied to each frame (0=off)",
+        "do_resize": "1=resize each frame/mask by size_factor",
+        "size_factor": "resize multiplier when do_resize=1",
+        "spacing": "voxel spacing [dx,dy,dz] override; null=use planC scan geometry",
+        "time": "1-based selection into the supplied scan list: first_time:time_jump:last_time (last_time=null -> last scan)"
+    }
+}
