@@ -112,17 +112,33 @@ from cerr import dvh as cerrDvh  # noqa: E402
 # CERR dose colormaps (ported from MATLAB CERR's CERRColorMap.m).
 # Keep cerr_colormaps.py next to this file; falls back to jet if missing.
 try:
-    from cerr_colormaps import CERR_COLORMAP_NAMES, get_cmap as cerr_get_cmap, \
-        get_lut as cerr_get_lut
+    from cerr.viewer.cerr_colormaps import CERR_COLORMAP_NAMES, \
+        get_cmap as _cerr_get_cmap, get_lut as _cerr_get_lut
 except ImportError:  # pragma: no cover
-    CERR_COLORMAP_NAMES = ["jet"]
+    CERR_COLORMAP_NAMES = []
+    _cerr_get_cmap = _cerr_get_lut = None
 
-    def cerr_get_cmap(_name):
-        return plt.get_cmap("jet")
+# Familiar matplotlib colormaps offered for dose alongside CERR's own maps.
+_MPL_DOSE_CMAPS = ["jet", "turbo", "rainbow", "viridis", "hot", "cool"]
+DOSE_CMAP_NAMES = _MPL_DOSE_CMAPS + [c for c in CERR_COLORMAP_NAMES
+                                     if c not in _MPL_DOSE_CMAPS]
+# CERR's default dose colormap, falling back to jet if it is unavailable.
+DEFAULT_DOSE_CMAP = "starinterp" if "starinterp" in CERR_COLORMAP_NAMES \
+    else "jet"
 
-    def cerr_get_lut(_name, n=256):
-        return (plt.get_cmap("jet")(np.linspace(0, 1, n))[:, :3] * 255
-                ).astype(np.uint8)
+
+def cerr_get_cmap(name):
+    """Colormap by name: a CERR colormap when available, else matplotlib."""
+    if _cerr_get_cmap is not None and name in CERR_COLORMAP_NAMES:
+        return _cerr_get_cmap(name)
+    return plt.get_cmap(name)
+
+
+def cerr_get_lut(name, n=256):
+    if _cerr_get_lut is not None and name in CERR_COLORMAP_NAMES:
+        return _cerr_get_lut(name, n)
+    return (plt.get_cmap(name)(np.linspace(0, 1, n))[:, :3] * 255
+            ).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------#
@@ -279,6 +295,7 @@ class SliceView(QtWidgets.QWidget):
         self.draw_mode = False       # contouring active on this view
         self.draw_tool = "freehand"  # "freehand" | "polygon" | "brush"
         self.brush_radius = 0.5      # cm (data units)
+        self.brush_erase = False     # tints the brush ball (draw vs erase)
         self._stroke = None          # [(x, y), ...] while drag-drawing
         self._stroke_line = None
         self._poly = None            # clicked vertices in polygon mode
@@ -306,6 +323,7 @@ class SliceView(QtWidgets.QWidget):
         self.canvas.mpl_connect("motion_notify_event", self._on_motion)
         self.canvas.mpl_connect("button_press_event", self._on_press)
         self.canvas.mpl_connect("button_release_event", self._on_release)
+        self.canvas.mpl_connect("axes_leave_event", self._on_axes_leave)
 
     @property
     def is3d(self):
@@ -495,17 +513,34 @@ class SliceView(QtWidgets.QWidget):
 
     def _update_brush_cursor(self, x, y):
         xlim, ylim = self.ax.get_xlim(), self.ax.get_ylim()
+        if self.brush_erase:          # reddish pink for erase
+            edge, face = (1.0, 0.25, 0.45, 0.95), (1.0, 0.25, 0.45, 0.22)
+        else:                         # aqua green for draw
+            edge, face = (0.0, 0.85, 0.6, 0.95), (0.0, 0.85, 0.6, 0.22)
         if self._brush_circle is None or self._brush_circle.axes is not self.ax:
             self._brush_circle = mpatches.Circle(
-                (x, y), self.brush_radius, fill=False, color="#ff66ff",
-                lw=1.0, ls=":", zorder=12)
+                (x, y), self.brush_radius, facecolor=face, edgecolor=edge,
+                lw=2.0, zorder=15)
             self.ax.add_patch(self._brush_circle)
         else:
             self._brush_circle.center = (x, y)
             self._brush_circle.set_radius(self.brush_radius)
+            self._brush_circle.set_facecolor(face)
+            self._brush_circle.set_edgecolor(edge)
         self.ax.set_xlim(xlim)        # keep the view fixed while brushing
         self.ax.set_ylim(ylim)
         self.canvas.draw_idle()
+
+    def _on_axes_leave(self, _event):
+        # drop the brush-size preview when the cursor leaves the image, so it
+        # doesn't linger at the edge (only while not mid-stroke)
+        if self._stroke is None and self._brush_circle is not None:
+            try:
+                self._brush_circle.remove()
+            except Exception:  # noqa: BLE001
+                pass
+            self._brush_circle = None
+            self.canvas.draw_idle()
 
     def clear_draw_artists(self):
         """Remove transient contouring previews (polygon, brush cursor)."""
@@ -735,8 +770,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         self.cbarRange = [0.0, 1.0]      # colormap mapping range
         self.dispRange = [0.0, 1.0]      # dose display (mask) range
         self._drag = None                # ("cbar"|"disp", 0|1) while dragging
-        self.cmapName = "starinterp" if "starinterp" in CERR_COLORMAP_NAMES \
-            else CERR_COLORMAP_NAMES[0]  # CERR's default doseColormap
+        self.cmapName = DEFAULT_DOSE_CMAP   # selectable from the Dose panel
         self._set_cmap(self.cmapName)
         self.setToolTip("Dose colorbar\n"
                         "Yellow (left) handles: colorbar/colormap range\n"
@@ -858,7 +892,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
 
         cmapMenu = menu.addMenu("Colormap")
         grp = QtWidgets.QActionGroup(cmapMenu)
-        for name in CERR_COLORMAP_NAMES:
+        for name in DOSE_CMAP_NAMES:
             act = cmapMenu.addAction(name)
             act.setCheckable(True)
             act.setChecked(name == self.cmapName)
@@ -1573,6 +1607,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.doseCombo = QtWidgets.QComboBox()
         self.doseCombo.currentIndexChanged.connect(self.on_dose_changed)
         dl.addWidget(self.doseCombo)
+        cmapRow = QtWidgets.QHBoxLayout()
+        cmapRow.addWidget(QtWidgets.QLabel("Colormap:"))
+        self.doseCmapCombo = QtWidgets.QComboBox()
+        self.doseCmapCombo.addItems(DOSE_CMAP_NAMES)
+        self.doseCmapCombo.setCurrentText(DEFAULT_DOSE_CMAP)
+        self.doseCmapCombo.setToolTip("Dose colorwash colormap")
+        self.doseCmapCombo.currentTextChanged.connect(self.on_dose_cmap)
+        cmapRow.addWidget(self.doseCmapCombo, 1)
+        dl.addLayout(cmapRow)
         aRow = QtWidgets.QHBoxLayout()
         aRow.addWidget(QtWidgets.QLabel("Colorwash alpha:"))
         self.alphaSlider = QtWidgets.QSlider(Qt.Horizontal)
@@ -1582,6 +1625,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         aRow.addWidget(self.alphaSlider)
         dl.addLayout(aRow)
         pl.addWidget(grpDose)
+
+        grp3D = QtWidgets.QGroupBox("3D view")
+        tl = QtWidgets.QVBoxLayout(grp3D)
+        pRow = QtWidgets.QHBoxLayout()
+        pRow.addWidget(QtWidgets.QLabel("Plane opacity:"))
+        self.planeOpacitySlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.planeOpacitySlider.setRange(0, 100)
+        self.planeOpacitySlider.setValue(int(round(self.plane3dOpacity * 100)))
+        self.planeOpacitySlider.setToolTip(
+            "Transparency of the orthogonal cutting planes in the 3D view")
+        self.planeOpacitySlider.valueChanged.connect(self.on_plane_opacity)
+        pRow.addWidget(self.planeOpacitySlider)
+        tl.addLayout(pRow)
+        pl.addWidget(grp3D)
 
         h.addWidget(panel)
 
@@ -1614,7 +1671,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         # standalone dose colorbar (hidden until a dose is selected)
         self.colorbar = DoseColorbarWidget()
-        self.colorbar.rangesChanged.connect(lambda: self.refresh_views())
+        self.colorbar.rangesChanged.connect(self._on_colorbar_ranges_changed)
         self.colorbar.setVisible(False)
         h.addWidget(self.colorbar)
 
@@ -2148,6 +2205,29 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def on_alpha(self, val):
         self.doseAlpha = val / 100.0
+        self.refresh_views()
+
+    def on_plane_opacity(self, val):
+        # opacity of the 3D orthogonal cutting planes (3D views only)
+        self.plane3dOpacity = val / 100.0
+        self._refresh_3d_views()
+
+    def on_dose_cmap(self, name):
+        """Set the dose colorwash colormap from the panel combo."""
+        if not name:
+            return
+        self.colorbar._set_cmap(name)
+        self.colorbar.update()        # repaint the colorbar gradient
+        self.refresh_views()
+
+    def _on_colorbar_ranges_changed(self):
+        # keep the panel combo in sync when the colormap (or ranges) is changed
+        # via the colorbar's right-click menu, then re-render.
+        if hasattr(self, "doseCmapCombo") and \
+                self.doseCmapCombo.currentText() != self.colorbar.cmapName:
+            self.doseCmapCombo.blockSignals(True)
+            self.doseCmapCombo.setCurrentText(self.colorbar.cmapName)
+            self.doseCmapCombo.blockSignals(False)
         self.refresh_views()
 
     def on_scan_cmap(self, name):
@@ -3671,6 +3751,7 @@ class ContourDialog(QtWidgets.QDialog):
         self._dirty = False
         self._liveIm = None              # axial overlay artist while brushing
         self._liveContour = None         # live dashed boundary while brushing
+        self._lastLiveContourT = 0.0     # throttle for the live boundary
 
         lay = QtWidgets.QVBoxLayout(self)
         hint = QtWidgets.QLabel(
@@ -3694,6 +3775,7 @@ class ContourDialog(QtWidgets.QDialog):
         self._actionGrp = QtWidgets.QButtonGroup(self)
         self._actionGrp.addButton(self.drawBtn)
         self._actionGrp.addButton(self.eraseBtn)
+        self.drawBtn.toggled.connect(self._on_mode_changed)  # recolor the ball
         toolRow.addWidget(self.drawBtn)
         toolRow.addWidget(self.eraseBtn)
         lay.addLayout(toolRow)
@@ -3744,8 +3826,7 @@ class ContourDialog(QtWidgets.QDialog):
                                QtWidgets.QDialogButtonBox.ApplyRole)
         bb.addButton(QtWidgets.QDialogButtonBox.Close)
         saveBtn.clicked.connect(self.save)
-        bb.rejected.connect(self.close)
-        bb.button(QtWidgets.QDialogButtonBox.Close).clicked.connect(self.close)
+        bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
 
         self._populate_structs()
@@ -3815,11 +3896,15 @@ class ContourDialog(QtWidgets.QDialog):
         if not self.brushBtn.isChecked():
             axView.clear_draw_artists()
         axView.brush_radius = self.brushSpin.value()
+        axView.brush_erase = self.eraseBtn.isChecked()
         axView.draw_tool = ("polygon" if self.polyBtn.isChecked()
                             else "brush" if self.brushBtn.isChecked()
                             else "freehand")
         axView.canvas.setCursor(
             _contour_cursor("brush" if axView.draw_tool == "brush" else "pen"))
+        if axView.draw_tool == "brush" and axView._brush_circle is not None:
+            cx, cy = axView._brush_circle.center   # recolor on-screen ball now
+            axView._update_brush_cursor(cx, cy)
 
     # ----------------------------------------------------- structure setup --
     def _populate_structs(self, current=None):
@@ -3833,27 +3918,57 @@ class ContourDialog(QtWidgets.QDialog):
 
     def _on_struct_selected(self, idx):
         if self._dirty:
-            box = QtWidgets.QMessageBox(self)
-            box.setIcon(QtWidgets.QMessageBox.Question)
-            box.setWindowTitle("Contouring")
-            box.setText("Discard unsaved edits?")
-            box.setStandardButtons(
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-            box.setModal(False)
-            box.setAttribute(Qt.WA_DeleteOnClose, True)
-
-            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
-
-            def _on_finished(_):
-                if box.clickedButton() is yesBtn:
-                    self._apply_struct_selection(idx)
-                else:
-                    self._populate_structs(self.structNum)   # revert combo
-            box.finished.connect(_on_finished)
-            box.show()
-            box.raise_()
+            self._confirm_discard(
+                onYes=lambda: self._apply_struct_selection(idx),
+                onNo=lambda: self._populate_structs(self.structNum))
             return
         self._apply_struct_selection(idx)
+
+    def _confirm_discard(self, onYes, onNo=None):
+        """"Discard unsaved edits?" confirmation (modal QDialog shown via
+        show(), so it grabs focus yet stays non-blocking). A guard ensures only
+        one prompt is ever open, so repeated triggers cannot stack dialogs.
+        """
+        if getattr(self, "_discardDlg", None) is not None:
+            self._discardDlg.raise_()
+            self._discardDlg.activateWindow()
+            return
+        dlg = QtWidgets.QDialog(self)
+        self._discardDlg = dlg
+        dlg.destroyed.connect(lambda *_: setattr(self, "_discardDlg", None))
+        dlg.setWindowTitle("Contouring")
+        # Modal (but shown via show(), not exec_): grabs input focus so the
+        # FIRST click lands on a button - a non-modal dialog needs one click to
+        # activate the window and a second to press the button. show() keeps it
+        # non-blocking, so it is safe in the %gui qt notebook event loop too.
+        dlg.setModal(True)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        lay.addWidget(QtWidgets.QLabel("Discard unsaved edits?"))
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        yesBtn = QtWidgets.QPushButton("Yes")
+        noBtn = QtWidgets.QPushButton("No")
+        noBtn.setDefault(True)
+        row.addWidget(yesBtn)
+        row.addWidget(noBtn)
+        lay.addLayout(row)
+
+        def _yes():
+            dlg.close()
+            if onYes is not None:
+                QtCore.QTimer.singleShot(0, onYes)
+
+        def _no():
+            dlg.close()
+            if onNo is not None:
+                QtCore.QTimer.singleShot(0, onNo)
+
+        yesBtn.clicked.connect(_yes)
+        noBtn.clicked.connect(_no)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _apply_struct_selection(self, idx):
         planC = self.viewer.planC
@@ -3930,6 +4045,7 @@ class ContourDialog(QtWidgets.QDialog):
         k = self._cur_slice()
         if isStart:
             self._push_undo(k)      # one undo entry per drag
+            self._lastLiveContourT = 0.0   # draw the boundary on the first step
         region = self._brush_region(pts)
         if self.eraseBtn.isChecked():
             self.mask3M[:, :, k] &= ~region
@@ -3947,32 +4063,40 @@ class ContourDialog(QtWidgets.QDialog):
         self.viewer.refresh_views()
 
     def _live_update_axial(self):
-        """Cheap live overlay update on the axial view only (no dose/contour
-        recomputation), so brushing stays responsive."""
+        """Cheap live overlay update on the axial view only, so brushing stays
+        responsive. The filled overlay is reused via set_data every step, while
+        the dashed boundary (an expensive marching-squares contour) is throttled
+        - it is fully redrawn on release in _on_brush_done."""
         v = self.viewer
         view = self.axView
-        if self._liveIm is not None:
-            try:
-                self._liveIm.remove()
-            except Exception:  # noqa: BLE001
-                pass
-            self._liveIm = None
-        self._remove_live_contour()
         cslc = self.mask3M[:, :, self._cur_slice()]
-        if np.any(cslc):
-            # imshow() resets the axes limits to the image extent; preserve the
-            # current pan/zoom so brushing doesn't shift the view.
+        extent = [v.xV[0], v.xV[-1], v.yV[-1], v.yV[0]]
+        data = np.ma.masked_where(~cslc, cslc.astype(float))
+
+        # --- filled overlay: reuse the artist (set_data) instead of recreating
+        if self._liveIm is None or self._liveIm.axes is not view.ax:
+            # imshow() resets the axes limits; preserve the current pan/zoom.
             xlim, ylim = view.ax.get_xlim(), view.ax.get_ylim()
-            extent = [v.xV[0], v.xV[-1], v.yV[-1], v.yV[0]]
             self._liveIm = view.ax.imshow(
-                np.ma.masked_where(~cslc, cslc.astype(float)),
-                cmap=ListedColormap([self.color]), extent=extent,
+                data, cmap=ListedColormap([self.color]), extent=extent,
                 alpha=0.35, vmin=0, vmax=1, interpolation="nearest",
                 aspect="equal", zorder=9)
-            # live dashed boundary, matching the committed-contour style
-            self._liveContour = view.ax.contour(
-                v.xV, v.yV, cslc.astype(float), levels=[0.5],
-                colors=[self.color], linewidths=1.6, linestyles="--")
+            view.ax.set_xlim(xlim)
+            view.ax.set_ylim(ylim)
+        else:
+            self._liveIm.set_data(data)
+
+        # --- dashed boundary: throttled (recomputing ax.contour every motion
+        # event is the dominant cost). At most ~20 redraws/s while dragging.
+        now = time.monotonic()
+        if now - self._lastLiveContourT > 0.05:
+            self._lastLiveContourT = now
+            xlim, ylim = view.ax.get_xlim(), view.ax.get_ylim()
+            self._remove_live_contour()
+            if np.any(cslc):
+                self._liveContour = view.ax.contour(
+                    v.xV, v.yV, cslc.astype(float), levels=[0.5],
+                    colors=[self.color], linewidths=1.6, linestyles="--")
             view.ax.set_xlim(xlim)
             view.ax.set_ylim(ylim)
         view.canvas.draw_idle()
@@ -4079,26 +4203,10 @@ class ContourDialog(QtWidgets.QDialog):
     # -------------------------------------------------------------- close ---
     def closeEvent(self, event):
         if self._dirty and not getattr(self, "_force_close", False):
-            box = QtWidgets.QMessageBox(self)
-            box.setIcon(QtWidgets.QMessageBox.Question)
-            box.setWindowTitle("Contouring")
-            box.setText("Discard unsaved edits?")
-            box.setStandardButtons(
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-            box.setModal(False)
-            box.setAttribute(Qt.WA_DeleteOnClose, True)
-
-            yesBtn = box.button(QtWidgets.QMessageBox.Yes)
-
-            def _on_finished(_):
-                # finished fires after the box has dismissed, so closing the
-                # panel here is safe (no re-entrancy with the box's own close).
-                if box.clickedButton() is yesBtn:
-                    self._force_close = True
-                    self.close()
-            box.finished.connect(_on_finished)
-            box.show()
-            box.raise_()
+            def _yes():
+                self._force_close = True
+                self.close()
+            self._confirm_discard(onYes=_yes)
             event.ignore()           # wait for the (non-modal) answer
             return
         self._detach(self.axView)
@@ -4369,8 +4477,7 @@ class RegQaDialog(QtWidgets.QDialog):
         lay.addWidget(hint)
 
         bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
-        bb.rejected.connect(self.close)
-        bb.button(QtWidgets.QDialogButtonBox.Close).clicked.connect(self.close)
+        bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
 
         sc = QtWidgets.QShortcut(QtGui.QKeySequence("T"), self)
