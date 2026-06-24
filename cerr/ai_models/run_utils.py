@@ -18,26 +18,30 @@ def main(modelNum, installDir, mode, userInputs):
     """
     installPath = Path(installDir)
     modelName = validateModelNum(modelNum)
-    runSpec = (installPath / modelName / 'run_spec.yaml')
-    envPath = (installPath / modelName / '.venv')
-    cmd = buildCommand(envPath, runSpec, mode, userInputs)
+    modelBase = installPath / modelName
+    modelPath = modelBase.as_posix()
+    
+    cmd = buildCommand(modelBase, mode, userInputs)
 
-    print(f"Running {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    print(f"Running {cmd}")
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            check=True, cwd=modelPath)
     return result
 
 
-def buildCommand(envPath, runSpec, mode, userInputs):
+def buildCommand(modelPath, mode, userInputs):
     """
         Reads the model's run specification YAML file and constructs the
         subprocess command based on user inputs.
 
     Args:
-        envPath (pathlib.Path): Path to the uv environment for model execution.
-        runSpec (pathlib.Path): Path to the run_spec.yaml file.
+        modelPath (pathlib.Path): Path to the installed model.
         mode (str) : The execution mode to use ('single' or 'batch').
         userInputs: Dictionary of arguments provided by the user.
     """
+
+    runSpec = (modelPath / 'run_spec.yaml')
+    envPath = (modelPath / '.venv')
 
     if sys.platform == "win32":
         pythonExe = envPath / "Scripts" / "python.exe"
@@ -64,7 +68,7 @@ def buildCommand(envPath, runSpec, mode, userInputs):
         f"Available modes: {validModes}"
         )
     execConfig = config["execution"][mode]
-    inferenceWrapper = execConfig["entrypoint"]
+    inferenceWrapper =  (modelPath /execConfig["entrypoint"]).as_posix()
     cmd = [str(pythonExe), inferenceWrapper]
 
     # Set args
