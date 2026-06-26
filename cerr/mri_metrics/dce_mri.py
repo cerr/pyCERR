@@ -1,10 +1,9 @@
 import os, random
-from math import degrees, atan
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from scipy.signal import resample, savgol_filter, medfilt
+from scipy.signal import savgol_filter, medfilt
 from scipy.interpolate import PchipInterpolator, CubicSpline
 from scipy.ndimage import gaussian_filter
 from scipy.integrate import cumulative_trapezoid
@@ -13,20 +12,135 @@ from cerr import plan_container as pc
 from cerr.dataclasses import structure as cerrStr
 from cerr.contour.rasterseg import getStrMask
 from cerr.utils.statistics import round, prctile
+from cerr.dataclasses.scan import dcm_hhmmss
 
 EPS = np.finfo(float).eps
 rng = np.random.default_rng()
 
 
-def loadTimeSeq(planC, structNum, userInputTime=None):
+def getAcqTime(planC, timeKey, scanIdxV=None):
+    """Extract timing information from DCE-MRI scans in planC.
+
+    Args:
+        planC (plan_container.planC): pyCERR's plan container object containing DCE scans and metadata.
+        timeKey (str): [optional, default:None] scanInfo field-name from which to read timing.
+                    Note: Assumes timing in min unless `acquisitionTime` or `triggerTime`.
+                    If `None`, first uses``temporalPositionIndex`` (0020,0100), if available,
+                    to establish canonical scan order.
+                    Then examines ``acquisitionTime`` (0008,0032) (assumed to be in seconds).
+                    Values must be unique across scans and ordering must match ``temporalPositionIndex``.
+                    If not,``triggerTime`` (0018,1060) (assumed ot be in ms) is considered.
+                    Returns error if both fail.
+        scanIdxV (list): [optional, default:None] Indices into ``planC.scan`` identifying the DCE volumes to use,
+                        in any order. Defaults to all scans.
+
+    Returns:
+        timeV (np.ndarray) : Timing of each scan (min))
+    """
+
+    if scanIdxV is None:
+        scanIdxV = list(range(len(planC.scan)))
+    scanIdxV = np.asarray(scanIdxV, dtype=int)
+    nScans = len(scanIdxV)
+
+    def _getTiming(planC, fieldName):
+        """
+        Extract timing from planC.scan.scanInfo[0].[fieldName] across scans.
+        """
+        keyTimesV = np.full(nScans, np.nan)
+        for k, i in enumerate(scanIdxV):
+            t = getattr(planC.scan[i].scanInfo[0], fieldName, None)
+            if t not in ('', None):
+                try:
+                    keyTimesV[k] = t
+                except Exception:
+                    pass  # nan
+        return keyTimesV
+    sortOrder = np.arange(nScans)
+
+    if timeKey is None or timeKey in ['acquisitionTime','triggerTime']:
+        # Use acquisitionTime / triggerTime
+        temporalPosV = _getTiming(planC, 'temporalPositionIndex')
+        temporalPosV = np.array(temporalPosV, dtype=float)
+        if not np.any(np.isnan(temporalPosV)):
+            sortOrder = np.argsort(temporalPosV)
+        else:
+            print("WARNING: temporalPositionIndex not found in scanInfo. "
+                  "Assuming scans are in temporal order.")
+
+        # Extract acquisitionTime unless triggerTime is specified
+        skipAcq = True if timeKey == 'triggerTime' else False
+        acqTimesStrV = _getTiming(planC, 'acquisitionTime')
+        acqTimesV = []
+        for at in acqTimesStrV:
+            if at in ('', None) or (isinstance(at, float) and np.isnan(at)):
+                acqTimesV.append(np.nan)
+            else:
+                try:
+                    acqTimesV.append(dcm_hhmmss(str(at))[0])
+                except Exception:
+                    acqTimesV.append(np.nan)
+        acqTimesV = np.array(acqTimesV, dtype=float)
+
+        # Check validity
+        if not skipAcq:
+            sortedAcqTimesV = acqTimesV[sortOrder]
+            if len(np.unique(acqTimesV)) < nScans:
+                skipAcq = True
+                print(f"Acquisition time is not unique across scans. Skipping...")
+            if not np.all(np.diff(sortedAcqTimesV) > 0):
+                skipAcq = True
+                print(f"Acquisition time ordering does not agree with temporalPositionIndex. Skipping...")
+        if timeKey=='acquisitionTime':
+                skipAcq = False
+
+        # Extract triggerTime unless acquisitionTime is specified
+        if skipAcq:
+            skipTriggerTime = True if timeKey == 'acquisitionTime' else False
+
+            if not skipTriggerTime:
+                trigTimesV = _getTiming(planC, 'triggerTime')
+                trigTimesV = np.array(trigTimesV, dtype=float)
+                sortedTriggerTimesV = trigTimesV[sortOrder]
+                if len(np.unique(trigTimesV)) < nScans:
+                    skipTriggerTime = True
+                    print(f"Trigger time is not unique across scans.")
+                if not np.all(np.diff(sortedTriggerTimesV) > 0):
+                    skipTriggerTime = True
+                    print(f"Trigger time ordering does not agree with temporalPositionIndex.")
+            if timeKey == 'triggerTime':
+                skipTriggerTime = False
+
+            # Check validity
+            if skipTriggerTime:
+                    raise ValueError(f"ERROR: Could not extract timing. Please supply timeV manually.")
+            else:
+                print("Timing extracted from triggerTime (0018,1060).")
+                timeV = trigTimesV / 1000.0 / 60.0  # ms to min
+                return timeV
+        else:
+            print("Timing extracted from acquisitionTime (0020,010).")
+            timeV = acqTimesV / 60.0  # min
+    else:
+        # Extract from `timeKey` field
+        timeV = _getTiming(planC, timeKey)
+        timeV = np.array(timeV, dtype=float)
+
+    return timeV
+
+
+def loadTimeSeq(planC, structNum, userInputTime=None, scanNumV=None):
     """loadTimeSeq
     Function to extract 4D DCE scan array associated with input structure from planC
 
     Args:
         planC (plan_container.planC): pyCERR's plan container object
         structNum (int): Index of structure in planC
-        userInputTime (np.array, float): [optional. default=None, read acquisitionTime]
-                                         or user-input acquisition times as array.
+        userInputTime (np.array, float): [optional. default=None]
+                                         or user-input acquisition times (min) as array.
+                                         Must correspond to scan ordering.
+        scanNumV (list): Indices into ``planC.scan`` identifying the DCE volumes to use,
+                                         in any order. Defaults to all scans.
 
     Returns:
         scanArr4M (np.ndarray, 4D)  : DCE array (nRows x nCols x nROISlc x nTime)
@@ -34,23 +148,29 @@ def loadTimeSeq(planC, structNum, userInputTime=None):
         maskSlc3M (np.ndarray, 3D)  : Mask of ROI (nRows x nCols x nROISlc)
         maskSlcV (np.array, 1D)     : Indices of slices in the ROI (1 x nROISlc)
     """
-    numTimePts = len(planC.scan)
+
     mask3M = getStrMask(structNum, planC)
     maskSlcIdxV = np.sum(np.sum(mask3M, axis=0), axis=0) > 0
     maskSlcV = np.array(np.where(maskSlcIdxV)[0])
     maskSlc3M = mask3M[:, :, maskSlcIdxV]
     numSlc = len(maskSlcV)
 
+    if scanNumV is not None:
+        numTimePts = len(scanNumV)
+    else:
+        numTimePts = len(planC.scan)
+        scanNumV = np.arange(0, numTimePts)
+
     # Extract uptake curves for voxels in ROI
-    scanSizeV = planC.scan[0].getScanSize()
+    scanSizeV = planC.scan[scanNumV[0]].getScanSize()
     scanArr4M = np.zeros((scanSizeV[0], scanSizeV[1], numSlc, numTimePts))
     for slc in range(numSlc):
-        scanSlc3M = np.array([scn.getScanArray()[:, :, maskSlcV[slc]] for scn in planC.scan])
+        scanSlc3M = np.array([planC.scan[scn].getScanArray()[:, :, maskSlcV[slc]] for scn in scanNumV])
         scanArr4M[:, :, slc, :] = np.moveaxis(scanSlc3M, 0, -1)
 
     timePtsV = userInputTime
     if userInputTime is None:
-        timePtsV = np.array([planC.scan[scn].scanInfo[0].acquisitionTime for scn in range(numTimePts)])
+        timePtsV = np.array([planC.scan[scn].scanInfo[0].acquisitionTime for scn in scanNumV])
 
     # Sort time pts
     indSortedV = np.argsort(timePtsV)
@@ -65,11 +185,11 @@ def intToConc(normSigM, concDict):
     Converts DCE-MRI signal intensity into contrast agent concentration.
 
     Args:
-        normSigM (tuple, float): Intensity-normalized image (S(t)/S(0))
+        normSigM (np.ndarray): 2-D array of intensity-normalized signal (S(t)/S(0)) (nVox, nTimePts)
         concDict (dict): Dictionary specifying
             clip_between (float array): Clip normalized intensities (intensity/baseline)
                                         between specified mon,max values
-            T10 (float): Pre-contrast longitudinal relaxation time
+            T10 (float): Pre-contrast longitudinal relaxation time (seconds).
             FA (float): Flip angle (degrees)
             TR (float): Repetition time (seconds)
             r1 (float): Relaxivity
@@ -153,46 +273,98 @@ def plotUptake(timePtsV, sigV, blockFlag, savePath=None):
     return 0
 
 
-def getStartofUptake(slice3M, maskM):
+def getStartofUptakeFromMeanSignal(meanSigV, plotDict=None):
+    """getStartofUptakeFromMeanSignal
+    Function for interactive selection of baseline points from a 1D mean signal curve.
+
+    Args:
+        meanSigV (np.ndarray, 1D) : 1D array containing the time sequence of the 3D ROI average signal.
+        plotDict (dict): [optional, default:None] Dictionary for writing the annotated uptake plot (PNG)
+                         with the selected start point highlighted.
+                         'uptake_savepath': Path to output directory.
+                         'prefix': Append to file name.
+    Returns:
+        basePts (int) : Time point representing start of uptake
+    """
+    timePtsV = np.arange(0, len(meanSigV))
+
+    # Interactive selection of baseline pts
+    plt.figure()
+    plt.plot(timePtsV, meanSigV, marker='o', color='b')
+
+    # Annotate indices so the user knows exactly what number to type
+    for i, (x, y) in enumerate(zip(timePtsV, meanSigV)):
+        plt.annotate(str(i), (x, y), xytext=(5, 5), textcoords='offset points')
+
+    plt.xlabel('Time point')
+    plt.ylabel('ROI mean signal intensity')
+    plt.title('Select start of uptake (3D ROI Volume Average)')
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.show(block=True)
+
+    basePts = input("Enter timepoint index representing start of uptake: ")
+
+    try:
+        basePts = int(basePts)
+        # Basic bounds checking
+        if basePts < 0 or basePts >= len(meanSigV):
+            print(f"Error: Index must be between 0 and {len(meanSigV) - 1}.")
+            return None
+    except ValueError:
+        print("Invalid input. Please enter an integer value.")
+        return None
+
+    fig, ax = plt.subplots()
+    ax.plot(timePtsV, meanSigV, marker='o', color='b')
+    for i, (x, y) in enumerate(zip(timePtsV, meanSigV)):
+        ax.annotate(str(i), (x, y), xytext=(5, 5), textcoords='offset points')
+    # Overlay selected point in red
+    ax.plot(timePtsV[basePts], meanSigV[basePts], marker='*',
+            color='r', markersize=12, zorder=5, label=f'Start of uptake (index={basePts})')
+    ax.annotate(str(basePts), (timePtsV[basePts], meanSigV[basePts]),
+                xytext=(5, 5), textcoords='offset points', color='r', fontweight='bold')
+    ax.set_xlabel('Time point')
+    ax.set_ylabel('ROI mean signal intensity')
+    ax.set_title('Select start of uptake (3D ROI Volume Average)')
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend()
+
+    if plotDict is not None and 'uptake_savepath' in plotDict:
+        fileName = 'start_of_uptake.png'
+        if 'prefix' in plotDict:
+            fileName = plotDict['prefix'] + '_' + fileName
+        figPath = os.path.join(plotDict['uptake_savepath'], fileName)
+        fig.savefig(figPath, bbox_inches='tight')
+
+    #plt.show(block=True)
+    plt.close(fig)
+
+    return basePts
+
+
+def getStartofUptake(slice3M, maskM, plotDict=None):
     """getStartofUptake
     Function for interactive selection of baseline points
 
     Args:
         slice3M (np.ndarray, 3D)  : 3D array containing time sequence of scan slice (nRows x nCols x nTime)
         maskM (np.ndarray, 2D)    : Mask of ROI slice
-
+        plotDict (dict): [optional, default:None] Dictionary for writing the annotated uptake plot (PNG)
+                         with the selected start point highlighted.
+                         'uptake_savepath': Path to output directory.
+                         'prefix': Append to file name.
     Returns:
         basePts (int) : Time point representing start of uptake
     """
 
     # Compute mean ROI intensity at each time point
-    roiSize = maskM.sum()
-    mask3M = np.repeat(maskM[:, :, np.newaxis], slice3M.shape[2], axis=2)
-    slice3M[~mask3M] = np.nan
-    meanSigV = np.nansum(np.nansum(slice3M, axis=0), axis=0) / roiSize
-    timePtsV = np.arange(0, len(meanSigV))
-
-    # Interactive selection of baseline pts
-    plt.plot(timePtsV, meanSigV, marker='o')
-    for i, (x, y) in enumerate(zip(timePtsV, meanSigV)):
-        plt.annotate(str(i), (x, y), xytext=(5, 5), textcoords='offset points')
-    plt.xlabel('Time point')
-    plt.ylabel('ROI mean signal intensity')
-    plt.title('Select start of uptake')
-    plt.show(block=True)
-    basePts = input("Enter timepoint representing start of uptake: ")
-    # Try to convert input to float, handle invalid input
-    try:
-        basePts = int(basePts)
-    except ValueError:
-        print("Invalid input. Please enter a numeric value.")
-        return None
-
+    meanSigV = np.mean(slice3M[maskM, :], axis=0)
+    basePts = getStartofUptakeFromMeanSignal(meanSigV, plotDict)
     return basePts
 
 
 def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict=None, enhThresh=None,
-                        method='RSE', concDict=None):
+                        method='RSE', concDict=None, plotDict=None):
     """normalizeToBaseline
     Function to normalize DCE signal to avg. baseline value
 
@@ -211,14 +383,17 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
                          enhancement ('RSE') or contrast concentration (CC)
 
         concDict (dict): [optional, default:None] Required if method='CC'. Dictionary of parameters
-                         required to compute contrast agent concentration. Required keys: 'clip_above',
-                         'T10', 'flipAngle', 'TR', 'r1'.
-
+                         required to compute contrast agent concentration.
+                         Required keys: 'T10','r1','TR','FA'. Optional keys:'clip_between' (float) [c1, c2].
+        plotDict (dict): [optional, default:None] Dictionary for writing the annotated uptake plot (PNG)
+                         with the selected start point highlighted.
+                         'uptake_savepath': Path to output directory.
+                         'prefix': Append to file name.
     Returns:
-        scanArr4M (np.ndarray) : DCE array (nRows x nCols x nROISlc x nTime)
-        timePtsV (np.array)    : Acquisition times (min)
-        normScan4M(np.ndarray) : Normalized scan array (nRows x nCols x nROISlc x nUptakeTime)
-        uptakeTimeV            : Acquisition times for uptake (min) (1 x nUptakeTime)
+        normScan4M (np.ndarray)   : Normalized scan array (nRows x nCols x nROISlc x nUptakeTime)
+        uptakeTimeV (np.array, 1D): Acquisition times for uptake (min) (1 x nUptakeTime)
+        baseline3M (np.ndarray)   : Mean baseline signal intensity (post smoothing if specified) (nRows x nCols x nROISlc)
+        basePts (int)             : No. of time points to the start of uptake.
     """
 
     smoothFlag = False
@@ -255,11 +430,12 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
             slcSeq3M[~maskSlc3M] = np.nan
             if slc == 0 and basePts is None:
                 # Get user - input shift to start of uptake curve
-                midSlc = round(numSlc / 2)
+                midSlc = round(numSlc / 2) if numSlc > 1 else 0
                 midSliceSeq3M = scanArr4M[:, :, midSlc, :]
                 midSlcMaskM = mask3M[:, :, midSlc]
-                basePts = getStartofUptake(midSliceSeq3M, midSlcMaskM)
-            maskedSlcSeq3M = np.ma.masked_invalid(slcSeq3M[:, :, 0:basePts])  # Prevents RuntimeWarning: Mean of empty slice
+                basePts = getStartofUptake(midSliceSeq3M, midSlcMaskM, plotDict)
+            maskedSlcSeq3M = np.ma.masked_invalid(
+                slcSeq3M[:, :, 0:basePts])  # Prevents RuntimeWarning: Mean of empty slice
             baselineM = np.mean(maskedSlcSeq3M, axis=2).filled(np.nan)
             baselineM[baselineM == 0] = EPS
 
@@ -267,7 +443,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
 
             normSig3M = scanArr4M[:, :, slc, :] / baselineM[:, :, np.newaxis]
             if enhThresh is not None:
-                sizV =  normSig3M.shape
+                sizV = normSig3M.shape
                 normSigM = normSig3M.reshape(-1, normSig3M.shape[2], order='F')
                 peakIdxV = locatePeak(normSigM)
                 colIdxV = np.full_like(peakIdxV, fill_value=-1, dtype=np.int32).flatten()
@@ -280,9 +456,13 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
                 # Return normalized signal (S(t)/S(0))
                 normScan4M[:, :, slc, :] = normSig3M
             elif method == 'CC':
-                # Return contrast agent concentration
-                for t in range(normScan4M.shape[3]):
-                    normScan4M[:, :, slc, t] = intToConc(normSig3M[:, :, t], concDict)
+                # Return contrast concentration
+                nRows, nCols, nTimePts = normSig3M.shape
+                flatSlcM = normSig3M.reshape(nRows * nCols, nTimePts)
+                flatConcM = np.zeros_like(flatSlcM)
+                for t in range(nTimePts):
+                    flatConcM[:, t] = intToConc(flatSlcM[:, t], concDict)  # (nRows*nCols,) per time pt
+                normScan4M[:, :, slc, :] = flatConcM.reshape(nRows, nCols, nTimePts)
             else:
                 raise ValueError("Method {} not supported.".format(method))
 
@@ -316,11 +496,11 @@ def locatePeak(sigM, smoothFlag=False):
     sigMax = 0.8 * np.nanmax(sigM, axis=1)
 
     if smoothFlag:
-        filtSigM =  np.apply_along_axis(
-                    lambda row: row if np.all(np.isnan(row)) else \
-                                savgol_filter(row, window_length=getWindowSize(row), polyorder=3),
-                    axis=1,
-                    arr=sigM)
+        filtSigM = np.apply_along_axis(
+            lambda row: row if np.all(np.isnan(row)) else \
+                savgol_filter(row, window_length=getWindowSize(row), polyorder=3),
+            axis=1,
+            arr=sigM)
     else:
         filtSigM = sigM
 
@@ -334,17 +514,19 @@ def locatePeak(sigM, smoothFlag=False):
         hasPeakV = np.any(highSigIdxM, axis=1)
         if np.any(hasPeakV == 0):
             highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV, :] > np.tile(0.6 * sigMax[~hasPeakV],
-                                                                     (nTime, 1)).transpose()
+                                                                         (nTime, 1)).transpose()
             hasPeakV = np.any(highSigIdxM, axis=1)
             if np.any(hasPeakV == 0):
                 # Correction where max of filt signal < 0
                 selFiltSigM = filtSigM[~hasPeakV, :]
                 shiftIdxV = np.max(selFiltSigM, axis=1) < 0
-                selFiltSigM[shiftIdxV, :] = selFiltSigM[shiftIdxV, :] - np.tile(np.min(selFiltSigM[shiftIdxV,:], axis=1),
-                                                              (nTime, 1)).transpose()
+                selFiltSigM[shiftIdxV, :] = selFiltSigM[shiftIdxV, :] - np.tile(
+                    np.min(selFiltSigM[shiftIdxV, :], axis=1),
+                    (nTime, 1)).transpose()
                 filtSigM[~hasPeakV, :] = selFiltSigM
-                highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV, :] > np.tile(0.8 * np.max(filtSigM[~hasPeakV, :], axis=1),
-                                                                         (nTime, 1)).transpose()
+                highSigIdxM[~hasPeakV, :] = filtSigM[~hasPeakV, :] > np.tile(
+                    0.8 * np.max(filtSigM[~hasPeakV, :], axis=1),
+                    (nTime, 1)).transpose()
 
     allPeaksM = np.logical_and(localMaxIdxM, highSigIdxM)
     skipVoxV = ~np.any(allPeaksM, axis=1)
@@ -397,7 +579,7 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False, minW
     calcNoiseLevel = lambda sigV: np.std(sigV - medfilt(sigV, kernel_size=3))
     #calcRelativeNoise = lambda sigV: calcNoiseLevel(sigV)/(np.ptp(sigV) + EPS)
     calcRelativeNoise = lambda sigV: calcNoiseLevel(sigV) / (prctile(sigV, 95) - prctile(sigV, 5) + EPS)
-    getWindowSize = lambda sigV: max(min(2 * round(calcRelativeNoise(sigV) * len(sigV)/2) + 1,
+    getWindowSize = lambda sigV: max(min(2 * round(calcRelativeNoise(sigV) * len(sigV) / 2) + 1,
                                          maxWin, len(sigV) - 1), minWin)
 
     if not (resampFlag or temporalSmoothFlag):
@@ -418,12 +600,12 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False, minW
                 postPeakSigV = selSigM[vox, int(peakIdxV[vox]) + 1:]
                 winSiz = min(winSiz, len(postPeakSigV))
                 if winSiz % 2 == 0:
-                        winSiz -= 1
+                    winSiz -= 1
                 if len(postPeakSigV) < minWin:
                     continue  # skip smoothing
                 selSigM[vox, int(peakIdxV[vox]) + 1:] = savgol_filter(postPeakSigV,
-                                                         window_length=winSiz,
-                                                         polyorder=3)
+                                                                      window_length=winSiz,
+                                                                      polyorder=3)
             origSigM[keepIdxV, :] = selSigM
         if resampFlag:
             # Pad signal
@@ -447,7 +629,7 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False, minW
             resampPadSigM[~skipIdxV, :] = temp
         else:
             resampPadSigM = np.hstack((np.tile(origSigM[:, 0], (nPad, 1)).transpose(), origSigM,
-                                 np.tile(origSigM[:, -1], (nPad, 1)).transpose()))
+                                       np.tile(origSigM[:, -1], (nPad, 1)).transpose()))
             timePadV = np.hstack(
                 (np.linspace(timeV[0] - nPad * tdiff, timeV[0] - tdiff, num=nPad, endpoint=True), timeV,
                  np.linspace(timeV[-1] + tdiff, timeV[-1] + nPad * tdiff, num=nPad, endpoint=True)))
@@ -488,9 +670,9 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     nanIdxV = np.logical_and(np.nansum(procSlcSigM, axis=1) == 0, ~zeroIdxV)
     skipIdxV = np.logical_or(nanIdxV, zeroIdxV)
     peakIdxV = np.zeros(nVox, dtype=int)
-    peakIdxV[~skipIdxV] = (locatePeak(procSlcSigM[~skipIdxV,:], smoothFlag=True)).astype(int)
+    peakIdxV[~skipIdxV] = (locatePeak(procSlcSigM[~skipIdxV, :], smoothFlag=True)).astype(int)
     PEv = procSlcSigM[np.arange(nVox), peakIdxV]
-    TTPv = procTimeV[peakIdxV]  # Time-to-peak
+    TTPv = procTimeV[peakIdxV]  # Time-to-peak (min)
     TTPv[nanIdxV] = np.nan
 
     # Half-peak
@@ -500,9 +682,9 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
         SHPcolIdx[vox] = np.argmin(np.abs(procSlcSigM[vox, :peakIdxV[vox] + 1] - halfMaxSig[vox, np.newaxis]))
     SHPv = procSlcSigM[np.arange(nVox), SHPcolIdx]  # Value (relative enhancement or concentration) at half-peak
     SHPv[nanIdxV] = np.nan
-    TTHPv = procTimeV[SHPcolIdx]  # Time to half-peak
+    TTHPv = procTimeV[SHPcolIdx]  # Time to half-peak (min)
     TTHPv[nanIdxV] = np.nan
-    
+
     # Wash-in slope
     WISv = PEv / (TTPv + EPS)  # Wash in slope, WIS = PE / TTP
     WISv[nanIdxV] = np.nan
@@ -511,11 +693,17 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     # WOS = (PE - RSE(Tend)) / (Tend - TTP), if PE does not occur at Tend (nan otherwise).
     Tend = procTimeV[-1]
     RSEendV = procSlcSigM[:, -1]
-    peakAtEndIdx = TTPv == Tend
+    peakAtEndIdxV = TTPv == Tend
     with np.errstate(invalid='ignore'):
         WOSv = (PEv - RSEendV) / (TTPv + EPS - Tend)
-        WOSv[peakAtEndIdx] = np.nan  # Not defined
+        WOSv[peakAtEndIdxV] = np.nan  # Not defined
     WOSv[nanIdxV] = np.nan
+
+    # Time halfway between peak and end of acquisition
+    midTimeV = 0.5 * (TTPv + Tend)  # (nVox,) or scalar
+    midTimeV = np.atleast_1d(np.asarray(midTimeV, dtype=float))
+    TMWv = procTimeV[np.argmin(np.abs(procTimeV[np.newaxis, :] - midTimeV[:, np.newaxis]), axis=1)]  # (nVox,)
+    TMWv[peakAtEndIdxV] = np.nan
 
     # Wash-in/out gradients
     # Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
@@ -553,8 +741,8 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     # Signal enhancement ratio
     # Defined as in https://doi.org/10.1117/1.JMI.5.1.011019 ; S2-S0/S1-S0
     if sigType == 'RSE':
-        S2v = procSlcSigM[:, -1]                #S2/S0
-        SERv = (S2v - 1) / (PEv - 1 + EPS)      #PEv: S1/S0
+        S2v = procSlcSigM[:, -1]  #S2/S0
+        SERv = (S2v - 1) / (PEv - 1 + EPS)  #PEv: S1/S0
     elif sigType == 'CC':
         C0v = baselineV
         C2v = procSlcSigM[:, -1]
@@ -580,6 +768,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
                    'SignalAtHalfPeak': SHPv,
                    'TimeToPeak': TTPv,
                    'TimeToHalfPeak': TTHPv,
+                   'MidWashoutTime': TMWv,
                    'SignalEnhancementRatio': SERv,
                    'WashInSlope': WISv,
                    'WashOutSlope': WOSv,
@@ -592,7 +781,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
 
 
 def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothDict=None, enhThresh=None,
-                          sigType='RSE', concDict={}, temporalSmoothFlag=False, resampFlag=False, plotDict={}):
+                          sigType='RSE', concDict=None, temporalSmoothFlag=False, resampFlag=False, plotDict=None):
     """calcROIuptakeFeatures
         Wrapper to compute non-parametric uptake characteristics for each slice of input ROI.
 
@@ -609,14 +798,14 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
                            Voxels with peak intensity < thresh*baseline are excluded from analysis.
             sigType (string): [optional, default:'RSE'] Convert intensities to relative signal
                          enhancement ('RSE') or contrast concentration ('CC')
-            concDict (dict): [optional, default:{}] Required if method='CC'. Dictionary of parameters
-                         required to compute contrast agent concentration. Must specify threshold,
-                         T10, flipAngle, TR, r1.
+            concDict (dict): [optional, default:None] Required if method='CC'. Dictionary of parameters
+                         required to compute contrast agent concentration.
+                         Required keys: 'T10','r1','TR','FA'. Optional keys:'clip_between' (float) [c1, c2].
             temporalSmoothFlag (bool) : [optional, default:False] Flag specifying whether to
                                      smooth curves follg. peak using cubic splines.
             resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
                                      resolution if True.
-            plotDict (dict): [optional, default:{}] Display sample plots showing computed features (interactive)
+            plotDict (dict): [optional, default:None] Display sample plots showing computed features (interactive)
 
 
         Returns:
@@ -628,14 +817,22 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
         userInputTime = timeV
 
     # Load DCE series
-    scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
+    if concDict is not None and 'concMapIdx' in concDict:
+        scanIdxV = concDict['concMapIdx']
+        scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime, scanIdxV)
+    else:
+        scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
 
     # Transform signal intensity to
     # relative signal enhancement (signal over baseline intensity) if sigType is 'RSE'  or
     # contrast agent concentration if sigType is 'CC'
     normScan4M, selTimePtsV, baseline3M, basePts = normalizeToBaseline(scanArr4M, mask3M, timePtsV,
-                                                           basePts=basePts, imgSmoothDict=imgSmoothDict,
-                                                           enhThresh=enhThresh, method=sigType, concDict=concDict)
+                                                                       basePts=basePts,
+                                                                       imgSmoothDict=imgSmoothDict,
+                                                                       enhThresh=enhThresh,
+                                                                       method=sigType,
+                                                                       concDict=concDict,
+                                                                       plotDict=plotDict)
 
     # Loop over ROI slices
     featureList = []
@@ -649,10 +846,10 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
         # Pre-process
         ## Retain voxels in ROI
         zeroIdxV = np.sum(normSlcSigM, axis=1) == 0
-        skipIdxV = np.logical_and(np.nansum(normSlcSigM, axis=1)==0, ~zeroIdxV)
+        skipIdxV = np.logical_and(np.nansum(normSlcSigM, axis=1) == 0, ~zeroIdxV)
         #skipIdxV = np.isnan(np.sum(normSlcSigM, axis=1))
-        if np.all(skipIdxV): #No enhancing voxels
-           continue
+        if np.all(skipIdxV):  #No enhancing voxels
+            continue
         else:
             normROISlcSigM = normSlcSigM[~skipIdxV, :]
             slcBaselineV = baselineV[~skipIdxV]
@@ -672,14 +869,130 @@ def calcROIuptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothD
             origSigM = normROISlcSigM if sigType != 'RSE' else normROISlcSigM - 1
             origTimeV = selTimePtsV
 
-            if 'display' in plotDict and plotDict['display']:
+            if plotDict is not None and 'display' in plotDict and plotDict['display']:
                 plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict, skipIdxV,
-                                   numPlots=1, savePath=plotDict['savepath'],
+                                   numPlots=1, savePath=plotDict['vox_savepath'],
                                    prefix=plotDict['prefix'] + '_slc' + str(slc))
 
             featureList.append(featureDict)
 
     return featureList, basePts
+
+
+def calcROImeanUptakeFeatures(planC, structNum, timeV=None, basePts=None, imgSmoothDict=None,
+                              sigType='RSE', concDict=None, temporalSmoothFlag=False, resampFlag=False,
+                              plotDict=None):
+    """calcROImeanUptakeFeatures
+        Compute non-parametric uptake features from the ROI-average signal (RSE or CC).
+
+        Args:
+            planC (plan_container.planC): pyCERR's plan container object
+            structNum (int): Index of structure in planC
+            timeV (np.array, float): [optional, default:None] User-input acquisition times
+            basePts (int): [optional, default:None] Time pt. representing start of uptake.
+                           By default, have user input value.
+            imgSmoothDict (dict): [optional, default:None] Dictionary specifying whether to
+                                  smooth image & associated filter parameters.
+                                  Keys: 'kernelSize', 'sigma'.
+            sigType (string): [optional, default:'RSE'] Convert intensities to relative signal
+                         enhancement ('RSE') or contrast concentration ('CC')
+            concDict (dict): [optional, default:None] Required if method='CC'. Dictionary of parameters
+                         required to compute contrast agent concentration.
+                         Required keys: 'T10','r1','TR','FA'. Optional keys:'clip_between' (float) [c1, c2].
+            temporalSmoothFlag (bool): [optional, default:False] Flag specifying whether to
+                                     smooth curves following peak.
+            resampFlag (bool): [optional, default:False] Resample uptake curves to 0.1 min
+                                     resolution if True.
+            plotDict (dict): [optional, default:None] Display sample plots showing computed features (interactive)
+
+        Returns:
+            featureDict (dict): Dictionary of semi-quantitative features computed on the ROI-mean curve.
+            basePts (int): BAT index.
+    """
+    userInputTime = None
+    usePrecomputedCC = False
+    if timeV is not None and len(timeV) > 0:
+        userInputTime = timeV
+
+    # Load DCE series or pre-computed concentration maps
+    if concDict is not None and 'concMapIdx' in concDict:
+        usePrecomputedCC = True
+        sigType = 'CC'
+        concScanIdxV = concDict['concMapIdx']
+        scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime, concScanIdxV)
+    else:
+        scanArr4M, timePtsV, mask3M, maskSlcV = loadTimeSeq(planC, structNum, userInputTime)
+
+    numSlc = scanArr4M.shape[2]
+    nTimePts = scanArr4M.shape[3]
+
+    # Optional spatial smoothing
+    smoothScanArr4M = scanArr4M.copy()
+    if imgSmoothDict is not None:
+        fSize = imgSmoothDict['kernelSize']
+        fSigma = imgSmoothDict['sigma']
+        for slc in range(numSlc):
+            for t in range(nTimePts):
+                smoothScanArr4M[:, :, slc, t] = gaussian_filter(scanArr4M[:, :, slc, t], sigma=fSigma,
+                                                          mode='nearest', truncate=fSize / fSigma)
+
+    meanSigV = np.mean(scanArr4M[mask3M, :], axis=0)
+    meanSmoothSigV = np.mean(smoothScanArr4M[mask3M, :], axis=0)
+
+    # Interactively determine BAT if not provided
+    if basePts is None:
+        basePts = getStartofUptakeFromMeanSignal(meanSmoothSigV, plotDict)
+        if basePts is None:
+            raise ValueError("Start of uptake (basePts) could not be determined from user input.")
+    if basePts == 0:
+        raise ValueError("Please provide a basePts value > 0 that identifies the start of uptake.")
+
+    # Normalize
+    meanBaseline = np.mean(meanSmoothSigV[0:basePts])  # Mean signal pre-BAT
+    if meanBaseline == 0:
+        meanBaseline = EPS
+    normMeanSigV = meanSigV / meanBaseline
+    timePtsV = timePtsV - timePtsV[basePts]
+    uptakeTimeV = timePtsV[basePts:]
+
+    # Convert to RSE/CC
+    if sigType == 'CC':
+        if usePrecomputedCC:
+            # Use pre-computed concentration map
+            meanUptakeV = meanSigV[basePts:]
+            procInputM = meanUptakeV[np.newaxis, :]
+        else:
+            # Convert to contrast concentration
+            normMeanUptakeM = normMeanSigV[np.newaxis, :]  #reshape to (1, nUptakeTime)
+            procInputM = intToConc(normMeanUptakeM, concDict)
+            procInputM = procInputM[:, basePts:]
+    elif sigType == 'RSE':
+        normMeanUptakeV = normMeanSigV[basePts:]
+        procInputM = normMeanUptakeV[np.newaxis, :]
+    else:
+        raise ValueError(f"sigType '{sigType}' not supported.")
+
+    # Smoothing + resampling
+    origSigM = procInputM.copy() if sigType != 'RSE' else procInputM.copy() - 1 # RSE = S/S0 - 1
+    origTimeV = uptakeTimeV.copy()
+    procSigM, procTimeV = smoothResample(procInputM, uptakeTimeV,
+                                         temporalSmoothFlag=temporalSmoothFlag,
+                                         resampFlag=resampFlag)
+    if sigType == 'RSE':
+        convSigM = procSigM.copy() - 1  # S(t)/S(0) - 1
+    else:
+        convSigM = procSigM.copy()
+
+    # Compute features
+    baselineV = np.array([meanBaseline])  # (1,)
+    featureDict, _ = semiQuantFeatures(convSigM, procTimeV, baselineV, sigType=sigType)
+
+    if plotDict is not None and 'display' in plotDict and plotDict['display']:
+        plotSampleFeatures(origSigM, convSigM, origTimeV, procTimeV, featureDict, skipIdxV=None,
+                          numPlots=1, savePath=plotDict['vox_savepath'],
+                          prefix=plotDict['prefix']+'_roi_mean')
+
+    return featureDict, basePts
 
 
 def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict, skipIdxV=None,
@@ -688,15 +1001,23 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
     Function to plot sample uptake curves and indicate extracted features.
 
     Args:
-        procSlcSigM  (np.ndarray, 2D)  : Processed uptake curves (nVox x nResampUptakeTime)
-        sigType (string): [optional, default:'RSE'] Convert intensities to relative signal
-                         enhancement ('RSE') or contrast concentration (CC)
-        skipIdxV (int): Indices of voxels with nan or all-zero signals
-        featureDict (dict): Dictionary of non-parameteric features
-        numPlots (int): [optional, default = 1] No. sample plots to display per ROI slice.
+        origSigM (np.ndarray, 2D)       : Normalized uptake signal (RSE or CC) (nVox x nUptakeTime)
+        procSlcSigM  (np.ndarray, 2D)   : Processed uptake curves (RSE or CC) (nVox x nResampUptakeTime)
+        origTimeV (np.ndarray, 1D)      : Original acquisition uptake timestamps.
+        procTimeV (np.ndarray, 1D)      : Resampled/smoothed acquisition uptake timestamps.
+        featureDict (dict)              : Dictionary of semi-quantitative features
+        skipIdxV (int)                  : [optional, default:None] Indices of voxels with nan or all-zero signals
+        numPlots (int)                  : [optional, default = 1] No. sample plots to display per ROI slice.
+        savePath (str, optional)        : Destination directory path to save images. If None, plots interactively.
+        prefix (str, optional)          : Filename prefix string used when saving plot images.
+
+    Returns:
+        int: Returns 0 upon successful iteration.
     """
     #voxIdxV = rng.integers(low=0, high=procSlcSigM.shape[0], size=numPlots)
     allIdxV = set(range(0, procSlcSigM.shape[0]))
+    if skipIdxV is None:
+        skipIdxV = np.zeros(procSlcSigM.shape[0], dtype=bool)
     validIdxV = list(allIdxV - set(np.where(skipIdxV)[0]))
     voxIdxV = random.sample(validIdxV, numPlots)
 
@@ -705,7 +1026,7 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
 
         plt.axis([0, procTimeV[-1], np.min(procSlcSigM[idx, :]) - 0.01, np.max(procSlcSigM[idx, :]) + 0.01])
         plt.plot(origTimeV, origSigM[idx, :], color='gray', alpha=0.7,
-                    linewidth=2, linestyle='dashed', label='Original')
+                 linewidth=2, linestyle='dashed', label='Original')
         plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=1, label='SmoothResamp')
         # plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
 
@@ -729,8 +1050,8 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
         point_y1 = 0  # relSigM[idx, 0]
         point_x2 = procTimeV[ctr]
         point_y2 = procSlcSigM[idx, ctr]
-        cptIdx = int(ctr/4)
-        cpt = (procTimeV[cptIdx], procSlcSigM[idx,cptIdx])
+        cptIdx = int(ctr / 4)
+        cpt = (procTimeV[cptIdx], procSlcSigM[idx, cptIdx])
         slope = featureDict['WashInSlope'][idx]
         angle = np.rad2deg(np.arctan2(point_y2 - point_y1, point_x2 - point_x1))
         # line_length = 0.5  # Adjust length of the line
@@ -814,7 +1135,7 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
     return 0
 
 
-def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan'):
+def createFeatureMaps(featureList, structNum, planC, importFlag=False, type='scan'):
     """createFeatureMaps
         Function to generate maps of non-parametric features.
 
@@ -831,12 +1152,12 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan')
     """
 
     # Get mask, associated scan and grid
-    mask3M = getStrMask(strNum, planC)
+    mask3M = getStrMask(structNum, planC)
     validSlcV = np.sum(np.sum(mask3M, axis=0), axis=0) > 0
     mask3M = mask3M[:, :, validSlcV]
 
     if importFlag:
-        assocScan = planC.structure[strNum].getStructureAssociatedScan(planC)
+        assocScan = planC.structure[structNum].getStructureAssociatedScan(planC)
         xV, yV, zV = planC.scan[assocScan].getScanXYZVals()
         zV = zV[validSlcV]
 
@@ -872,6 +1193,7 @@ def createFeatureMaps(featureList, strNum, planC, importFlag=False, type='scan')
                                            doseInfo={'fractionGroupID': key})
 
     return mapDict, planC
+
 
 def collectUserInput(saveDir):
     """Display saved uptake-curve plots sequentially and collect user-entered start-of-uptake values.
@@ -918,7 +1240,7 @@ def collectUserInput(saveDir):
     return 0
 
 
-def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None,):
+def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None, ):
     """Batch-process a cohort of DCE-MRI datasets to facilitate interactive start-of-uptake selection.
 
     For each patient sub-directory located under ``baseDir``, this function loads the corresponding DICOM
@@ -944,7 +1266,6 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None,):
     # Directories
     os.makedirs(saveDir, exist_ok=True)
 
-
     # Exception log
     exceptions = []
 
@@ -959,11 +1280,11 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None,):
 
             ptDir = os.path.join(baseDir, pt)
             planC = pc.loadDcmDir(ptDir)
-            strList = [structure.stuctureName for structure in planC.structure]
+            strList = [structure.structureName for structure in planC.structure]
             if strName is not None:
                 strNum = cerrStr.getMatchingIndex(strName, strList, matchCriteria='exact')
             else:
-                 strNum = 0
+                strNum = 0
             mask = getStrMask(strNum, planC)
 
             figSavePath = os.path.join(saveDir, pt + '.png')
@@ -972,12 +1293,12 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None,):
             scanArr4M, timeOutV, mask3M, maskSlcV = loadTimeSeq(planC, strNum, timeV)
 
             # Save uptake curve for middle slice
-            midSlc = int(round(len(maskSlcV) / 2))
+            midSlc = round(len(maskSlcV) / 2) if len(maskSlcV) > 1 else 0
             midSliceSeq3M = scanArr4M[:, :, midSlc, :]
             midSlcMaskM = mask3M[:, :, midSlc]
             roiSize = midSlcMaskM.sum()
-            mask3M = np.repeat(midSlcMaskM[:, :, np.newaxis], midSliceSeq3M.shape[2], axis=2)
-            midSliceSeq3M[~mask3M] = np.nan
+            midMask3M = np.repeat(midSlcMaskM[:, :, np.newaxis], midSliceSeq3M.shape[2], axis=2)
+            midSliceSeq3M[~midMask3M] = np.nan
             meanSigV = np.nansum(np.nansum(midSliceSeq3M, axis=0), axis=0) / roiSize
             timePtsV = np.arange(0, len(meanSigV))
             plotUptake(timePtsV, meanSigV, blockFlag=False, savePath=figSavePath)
