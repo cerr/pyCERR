@@ -2,11 +2,12 @@
 import sys
 import yaml
 import subprocess
-
+import shutil
+ 
 from pathlib import Path
 from cerr.ai_models.install_utils import validateModelNum
 
-def main(modelNum, installDir, mode, userInputs):
+def main(modelNum, installDir, mode, userInputs, verbose=False):
     """
         Run pretrained AI model.
 
@@ -15,17 +16,28 @@ def main(modelNum, installDir, mode, userInputs):
         installDir (str): Path to model install dir.
         mode (str) : The execution mode to use ('single' or 'batch').
         userInputs: Dictionary of arguments provided by the user.
+        verbose (bool): [optional, default:False] Print stdout if True.
     """
     installPath = Path(installDir)
     modelName = validateModelNum(modelNum)
     modelBase = installPath / modelName
     modelPath = modelBase.as_posix()
     
-    cmd = buildCommand(modelBase, mode, userInputs)
+    cmd, bashExe = buildCommand(modelBase, mode, userInputs)
 
     print(f"Running {cmd}")
-    result = subprocess.run(cmd, capture_output=True, text=True,
-                            check=True, cwd=modelPath)
+    result = subprocess.run(cmd, shell=True, executable=bashExe,
+                            capture_output=True, text=True, cwd=modelPath)
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Model inference failed.\n"
+            f"STDERR:\n{result.stderr}"
+        )
+
+    if verbose:
+        print(result.stdout)
+
     return result
 
 
@@ -45,10 +57,17 @@ def buildCommand(modelPath, mode, userInputs):
 
     if sys.platform == "win32":
         pythonExe = envPath / "Scripts" / "python.exe"
+        activateScript = envPath / "Scripts" / "activate"  # bash-compatible
+        bashExe = shutil.which("bash")
     else:
         pythonExe = envPath / "bin" / "python"
+        activateScript = modelPath / ".venv" / "bin" / "activate"
+        bashExe = '/bin/bash'
     if not pythonExe.exists():
         raise FileNotFoundError(f"Python binary not found in the uv env at: {pythonExe}")
+    if not activateScript.exists():
+        raise FileNotFoundError(f"Activate script not found in the uv env at: {activateScript}")
+
 
     # Read the run specs
     try:
@@ -68,8 +87,9 @@ def buildCommand(modelPath, mode, userInputs):
         f"Available modes: {validModes}"
         )
     execConfig = config["execution"][mode]
-    inferenceWrapper =  (modelPath /execConfig["entrypoint"]).as_posix()
-    cmd = [str(pythonExe), inferenceWrapper]
+    inferenceWrapper = (modelPath /execConfig["entrypoint"]).as_posix()
+
+    cmd = [pythonExe.as_posix().replace("\\", "/"), inferenceWrapper]
 
     # Set args
     for arg in execConfig.get("arguments", []):
@@ -93,4 +113,11 @@ def buildCommand(modelPath, mode, userInputs):
             if isTrue:
                 cmd.append(arg["flag_string"])
 
-    return cmd
+    cmdStr = " ".join(cmd)
+    fullCmd = (
+            f"source {activateScript.as_posix()} && "
+            f"PYTHONPATH={modelPath.as_posix()}:$PYTHONPATH "
+            f"{cmdStr}"
+    )
+
+    return fullCmd, bashExe
