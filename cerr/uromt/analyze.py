@@ -29,6 +29,20 @@ def _cellCenters(n, h):
     return [(np.arange(ni) + 0.5) * hi for ni, hi in zip(n, h)]
 
 
+_PECLET_FLOOR_FRAC = 0.1     # Peclet denom floor as a fraction of ROI-median dif
+
+
+def _pecletDenomFloor(dif, roi):
+    """Robust additive floor for the Peclet denominator |sigma grad log rho|:
+    a fraction of the typical (ROI-median) diffusive speed. Without it, voxels
+    in smooth-density regions (dif -> 0) produce enormous Peclet spikes (the old
+    1e-8 floor let them explode), giving a salt-and-pepper / patchy map."""
+    d = dif[roi & (dif > 0)] if roi is not None else dif[dif > 0]
+    if d.size == 0:
+        return _EPS
+    return max(_PECLET_FLOOR_FRAC * float(np.median(d)), _EPS)
+
+
 def _gradLog(rho3, h):
     """Cell-centered grad(log rho) via central differences; returns a (3, N)
     array (components along axes 0,1,2 = row,col,slice), Fortran-flattened."""
@@ -80,6 +94,7 @@ def runEULA(result, maskOnly=True):
     sigma = float(result.get("sigma", 0.0))
     N = int(np.prod(n))
 
+    roiM = (np.asarray(result["mask"]) > 0).ravel(order="F")
     speed = np.zeros(N)
     rate = np.zeros(N)
     peclet = np.zeros(N)
@@ -89,7 +104,7 @@ def runEULA(result, maskOnly=True):
         vEff, adv, dif = _stepFields(v, rho, n, h, sigma)
         speed += adv
         rate += r
-        peclet += adv / (dif + _EPS)
+        peclet += adv / (dif + _pecletDenomFloor(dif, roiM))
         flux += rho * vEff
         nSteps += 1
     if nSteps:
@@ -99,7 +114,7 @@ def runEULA(result, maskOnly=True):
         flux /= nSteps
 
     if maskOnly:
-        m = (np.asarray(result["mask"]) > 0).ravel(order="F")
+        m = roiM
         speed[~m] = 0.0
         rate[~m] = 0.0
         peclet[~m] = 0.0
@@ -144,7 +159,7 @@ def runEULAIntervals(result, maskOnly=True):
             acc["speed"] += adv
             acc["effSpeed"] += np.sqrt(np.sum(vEff ** 2, axis=0))
             acc["rate"] += rr[:, k]
-            acc["peclet"] += adv / (dif + _EPS)
+            acc["peclet"] += adv / (dif + _pecletDenomFloor(dif, m))
             acc["rho"] += rho_k
             flux += rho_k * vEff
         for k in acc:

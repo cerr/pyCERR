@@ -503,11 +503,36 @@ def test_eulerian_map_to_scan_resized_no_broadcast():
     assert full.shape == scanShape
     assert (full[bbox[0]:bbox[1], bbox[2]:bbox[3], bbox[4]:bbox[5]] != 0).any()
     assert full[0, 0, 0] == 0.0          # zero outside the ROI bbox
+    # the EulerFlux magnitude colourwash uses the same mapper (field='fluxmag')
+    EulF = dict(fluxmag3=np.abs(np.random.default_rng(1).standard_normal((16, 14, 10)))
+                + 0.1, bbox=bbox, frameScanNums=None)
+    fullF = viz.eulerianMapToScan(EulF, field="fluxmag", scanShape=scanShape)
+    assert fullF.shape == scanShape
+    assert (fullF[bbox[0]:bbox[1], bbox[2]:bbox[3], bbox[4]:bbox[5]] != 0).any()
 
 
-def test_uromt_overlay_vectors_have_start_marker_only():
-    """The velocity/flux quiver overlay draws scaled arrows plus a single green
-    start marker (no red stop marker - the arrowhead shows the stop), finite."""
+def test_export_roi_map_to_scan_placement():
+    """export._roiMapToScan places an ROI-grid map into the full scan grid at
+    the bbox (and zooms a resized run up to the bbox extent) - the geometry the
+    NIfTI export writes."""
+    from cerr.uromt.export import _roiMapToScan, EULER_METRICS
+    scanShape = (40, 36, 20)
+    bbox = (8, 24, 10, 24, 5, 15)            # extent 16 x 14 x 10
+    roi = np.arange(16 * 14 * 10).reshape(16, 14, 10).astype(float) + 1.0
+    full = _roiMapToScan(roi, bbox, scanShape)
+    assert full.shape == scanShape
+    assert np.array_equal(full[8:24, 10:24, 5:15], roi)   # placed exactly
+    assert full[0, 0, 0] == 0.0                            # zero outside bbox
+    small = np.abs(np.random.default_rng(0).standard_normal((8, 7, 5))) + 0.1
+    fullS = _roiMapToScan(small, bbox, scanShape)          # resized -> zoom
+    assert fullS.shape == scanShape
+    assert (fullS[8:24, 10:24, 5:15] != 0).any()
+    assert {"speed", "rate", "peclet", "flux"} <= set(EULER_METRICS)
+
+
+def test_uromt_overlay_vectors_no_markers():
+    """The velocity/flux quiver overlay draws scaled arrows only - no start/stop
+    scatter markers (the arrowhead shows direction); arrows stay finite."""
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib.figure import Figure
@@ -528,9 +553,9 @@ def test_uromt_overlay_vectors_have_start_marker_only():
     viz.drawUROMTOverlay(ax, ov, scanShape[2] // 2, xV, yV, ext,
                          lambda m: m[:, :, scanShape[2] // 2], 1, 0, 2, scanShape)
     scatters = [c for c in ax.collections if isinstance(c, PathCollection)]
-    assert len(scatters) == 1                       # start marker only
-    starts = scatters[0].get_offsets()
-    assert starts.size > 0 and np.all(np.isfinite(np.asarray(starts)))
+    assert len(scatters) == 0                       # no marker dots
+    quivers = [c for c in ax.collections if c not in scatters]
+    assert len(quivers) >= 1                         # the arrows are drawn
 
 
 def test_uromt_overlay_colorbar_and_density():
@@ -552,20 +577,20 @@ def test_uromt_overlay_colorbar_and_density():
     ext = [xV[0], xV[-1], yV[-1], yV[0]]
     slr = lambda m: m[:, :, scanShape[2] // 2]
 
-    def n_starts(sub):
+    def n_arrows(sub):
         ov = {"view": "velocity", "alpha": 0.6, "comps": comps,
-              "vrange": (0.0, 0.3), "label": "|v| (cm/t)", "subsample": sub}
+              "vrange": (0.0, 0.3), "label": "|v| (mm/t)", "subsample": sub}
         fig = Figure(); ax = fig.add_subplot(111)
         viz.drawUROMTOverlay(ax, ov, scanShape[2] // 2, xV, yV, ext, slr,
                              1, 0, 2, scanShape)
-        scat = [c for c in ax.collections if isinstance(c, PathCollection)]
         # colorbar legend: rectangles (patches) + range text present
         assert len(ax.patches) > 10 and len(ax.texts) >= 2
-        return scat[0].get_offsets().shape[0] if scat else 0
+        quiv = [c for c in ax.collections if not isinstance(c, PathCollection)]
+        return quiv[0].get_offsets().shape[0] if quiv else 0
 
-    dense = n_starts(1)
-    sparse = n_starts(3)
-    assert dense > sparse > 0                  # density control thins arrows
+    dense = n_arrows(1)
+    sparse = n_arrows(3)
+    assert dense > sparse > 0                   # density control thins arrows
 
 
 def test_overlay_to_3d_scalar_map_point_cloud():
