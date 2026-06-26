@@ -81,3 +81,35 @@ def saveEulerianMapsNii(eul, planC, scanNum, outDir, prefix="uromt"):
             sitk.WriteImage(img, path)
             written.append(path)
     return written
+
+
+def saveVectorFieldNii(field, n, bbox, planC, scanNum, outDir, prefix):
+    """Save a urOMT 3-component vector field (velocity or flux) as NIfTI on the
+    scan grid - one scalar file per component.
+
+    Args:
+        field: ``(3, prod(n))`` array on the ROI grid; component 0 is along the
+            row (y) axis, 1 the column (x) axis, 2 the slice (z) axis (the urOMT
+            convention, as returned by ``result["u"][t].mean(axis=2)`` or
+            ``Eul["flux"][t]``).
+        n (list): ROI grid dims; ``bbox`` the ROI bounding box; ``planC`` /
+            ``scanNum`` give the scan geometry; ``outDir`` / ``prefix`` the
+            output location.
+
+    Returns:
+        list[str]: the three written paths (``..._vrow``, ``_vcol``, ``_vslice``)
+        - components along row, column and slice, in the scan grid.
+    """
+    import SimpleITK as sitk
+    from cerr.uromt import viz
+    scan = planC.scan[scanNum]
+    scanShape = tuple(int(v) for v in scan.getScanArray().shape)
+    comps = viz.fieldToScan(field, n, bbox, scanShape)   # [row, col, slice]
+    os.makedirs(outDir, exist_ok=True)
+    written = []
+    for arr, lab in zip(comps, ("vrow", "vcol", "vslice")):
+        img = _scangridToSitk(arr, scan)
+        path = os.path.join(outDir, "%s_%s.nii.gz" % (prefix, lab))
+        sitk.WriteImage(img, path)
+        written.append(path)
+    return written
