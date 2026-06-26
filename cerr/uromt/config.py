@@ -41,11 +41,14 @@ class UROMTConfig:
     """Resolved urOMT configuration (model settings + planC-derived data).
 
     Attributes (model, from JSON): ``sigma, dt, nt, alpha, beta, niter_pcg,
-    maxUiter, dTri, reinitR, smooth, do_resize, size_factor``.
+    maxUiter, solver, dTri, reinitR, smooth, smooth_method, smooth_dt,
+    do_resize, size_factor``. Concentration-conversion (DCE) attributes:
+    ``convertToConc, T10, r1, basePts, TR, FA, conc_clip``.
 
     Attributes (data, from planC, filled by :func:`cerr.uromt.data.prepareData`):
     ``scanNumV`` (selected time-point scan indices), ``structNum``,
-    ``spacing`` ([dx,dy,dz] cm), ``trueSize`` (ROI dims), ``mask`` (3-D ROI),
+    ``spacing`` ([row,col,slice] mm, always read from planC), ``trueSize``
+    (ROI dims), ``mask`` (3-D ROI),
     ``vol`` (list of preprocessed frame arrays).
     """
 
@@ -58,11 +61,18 @@ class UROMTConfig:
         # data fields (populated by prepareData)
         self.scanNumV = list(scanNumV)
         self.structNum = structNum
-        self.spacing = settings.get("spacing", None)
+        self.spacing = None        # always set from planC (mm) by prepareData
         self.trueSize = None
         self.mask = None
         self.vol = []                 # list of 3-D np.ndarray, one per frame
         self.bbox = None              # (minr,maxr,minc,maxc,mins,maxs)
+
+        # optional source-indicator chi (MATLAB K): a structure index whose
+        # mask marks where the relative source r may act. None -> K = 1
+        # everywhere. prepareData crops/resizes it like the data and stores the
+        # flattened (N,) indicator in self.chi for the numerics.
+        self.chiStructNum = settings.get("chiStructNum", None)
+        self.chi = None
 
     def selectedTimeIndices(self, nScans):
         """1-based first_time:time_jump:last_time -> 0-based positions into the

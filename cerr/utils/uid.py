@@ -46,6 +46,8 @@ def createUID(modality):
         modality = 'FEAT'
     elif modality == 'SEGLABEL':
         modality = 'SEGLABEL'
+    elif modality == 'UROMT':
+        modality = 'UROMT'
 
     randNum = random.randint(1000, 9999)
     current_datetime = datetime.now()
