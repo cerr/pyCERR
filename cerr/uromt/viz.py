@@ -193,7 +193,8 @@ def eulerianMapToScan(Eul, field="speed", scanShape=None, planC=None,
     (mirrors :func:`fieldToScan`) before insertion - otherwise the assignment
     broadcasts a half-size array into the full-size bbox slice and raises."""
     from scipy.ndimage import zoom
-    key = {"speed": "speed3", "rate": "rate3", "peclet": "peclet3"}[field]
+    key = {"speed": "speed3", "rate": "rate3", "peclet": "peclet3",
+           "fluxmag": "fluxmag3"}[field]
     roiMap = np.asarray(Eul[key])
     rs_, re_, cs_, ce_, ss_, se_ = Eul["bbox"]
     if scanShape is None:
@@ -420,7 +421,7 @@ def drawUROMTOverlay(ax, ov, k, hV, vV, extent, slicer, hAxis, vAxis,
         vmin = lo if lo is not None else None
         vmax = hi if hi is not None else None
         ax.imshow(m, cmap=cmName, extent=extent, alpha=alpha, vmin=vmin,
-                  vmax=vmax, interpolation="nearest", aspect="equal", zorder=3)
+                  vmax=vmax, interpolation="bilinear", aspect="equal", zorder=3)
         drewSomething = lo is not None
     elif "comps" in ov:                               # velocity / flux quiver
         comps = ov["comps"]
@@ -452,12 +453,7 @@ def drawUROMTOverlay(ax, ov, k, hV, vV, extent, slicer, hAxis, vAxis,
             ax.quiver(hT, vT, uT, vvT, mT, cmap=cmName, alpha=alpha,
                       angles="xy", scale_units="xy", scale=scale, pivot="tail",
                       width=0.003, clim=(0.0, gmax), zorder=4)
-            # green start (tail) marker - useful when sparse but clutters a
-            # dense field, so only draw below a modest arrow count. The stop is
-            # shown by the arrowhead, so no separate (red) stop marker.
-            if hT.size <= 800:
-                ax.scatter(hT, vT, s=6, c="#39ff14", edgecolors="none",
-                           alpha=min(1.0, alpha + 0.25), zorder=5)     # start
+            # (no start/stop markers - the arrowhead shows direction/stop)
         lo, hi = 0.0, gmax
         drewSomething = True
     elif "segs" in ov:                                # pathlines near the slice

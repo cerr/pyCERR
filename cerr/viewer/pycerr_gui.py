@@ -159,6 +159,8 @@ CT_WINDOW_PRESETS = {
 
 VIEW_AXIAL, VIEW_SAGITTAL, VIEW_CORONAL = "Axial", "Sagittal", "Coronal"
 VIEW_3D = "3D"
+# user-facing display name for an orientation (the constants double as keys)
+VIEW_DISPLAY = {VIEW_3D: "3D Cut Planes"}
 
 # colors of the plane outlines in the 3D view, per orientation
 PLANE_COLORS = {VIEW_AXIAL: "#e8c542", VIEW_SAGITTAL: "#3ad6e0",
@@ -1124,7 +1126,6 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._pvStructCache = {}     # structNum -> pyvista surface | None
         self._pvDoseCache = {}       # doseIdx -> (isosurface, doseMax) | None
         self.plane3dOpacity = 0.6    # translucency of the 3D orthogonal planes
-        self.show3dPlaneLocators = True   # colored plane-outline locators in 3D
         # per-axis overrides (CERR-style axis menu); None = "Auto" -> follow
         # the global panel selection. "dose" may also be -1 (no dose).
         self.axisSel = {w: {"scan": None, "dose": None, "structs": None}
@@ -1230,8 +1231,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ---- urOMT result overlay on the main slice views --------------------
     _UROMT_LABELS = {"speed": "speed (mm/t)", "rate": "rate r (1/t)",
-                     "peclet": "Peclet", "velocity": "|v| (mm/t)",
-                     "flux": "flux", "pathlines": "speed (mm/t)"}
+                     "peclet": "Peclet (-)", "velocity": "|v| (mm/t)",
+                     "flux": "flux (a.u. mm/t)",
+                     "fluxmag": "|flux| (a.u. mm/t)",
+                     "pathlines": "speed (mm/t)"}
 
     def _uromtEulIntervals(self, index, res):
         """Per-interval Eulerian maps (cached per run), so the maps/flux overlays
@@ -1285,11 +1288,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         ov = {"view": view, "alpha": float(alpha), "index": int(index),
               "subsample": max(1, int(subsample)),
               "label": self._UROMT_LABELS.get(view, view)}
-        if view in ("speed", "rate", "peclet"):
+        if view in ("speed", "rate", "peclet", "fluxmag"):
             ei = self._uromtEulIntervals(index, res)
-            EulI = {"speed3": ei["speed"][ivl], "rate3": ei["rate"][ivl],
-                    "peclet3": ei["peclet"][ivl], "bbox": res["bbox"],
-                    "frameScanNums": res.get("frameScanNums")}
+            if view == "fluxmag":                      # |flux| colourwash
+                fmag = np.sqrt(np.sum(np.asarray(ei["flux"][ivl]) ** 2, axis=0))
+                EulI = {"fluxmag3": fmag, "bbox": res["bbox"],
+                        "frameScanNums": res.get("frameScanNums")}
+            else:
+                EulI = {"speed3": ei["speed"][ivl], "rate3": ei["rate"][ivl],
+                        "peclet3": ei["peclet"][ivl], "bbox": res["bbox"],
+                        "frameScanNums": res.get("frameScanNums")}
             ov["map3"] = viz.eulerianMapToScan(EulI, field=view,
                                                scanShape=scanShape)
             nz = ov["map3"][ov["map3"] != 0]
@@ -1310,11 +1318,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             roi = self._uromtRoiMaskToScan(res, scanShape)   # ROI calc grid
             for c in comps:
                 c[~roi] = 0.0
-            ov["comps"] = comps
+            # Winsorize the magnitude to a robust cap so the non-physical
+            # boundary velocities (where the rho-weighted kinetic energy barely
+            # constrains u) don't make arrows jump to huge lengths. Vectors above
+            # the cap are scaled down to it, preserving direction.
             mag = np.sqrt(sum(c ** 2 for c in comps))
             nz = mag[mag > 0]
-            ov["vrange"] = (0.0, float(np.percentile(nz, 99))
-                            if nz.size else 1.0)
+            cap = float(np.percentile(nz, 95)) if nz.size else 1.0
+            if cap > 0:
+                clampF = np.minimum(1.0, cap / (mag + 1e-12))
+                for c in comps:
+                    c *= clampF
+            ov["comps"] = comps
+            ov["vrange"] = (0.0, cap)
         elif view == "pathlines":
             Lag = Lag or runGLAD(res)
             ov["segs"] = viz.pathlinesToScanVox(Lag, sf, dr)
@@ -1717,6 +1733,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         toolsM.addAction("&urOMT (fluid transport on longitudinal scans)...",
                          self.show_uromt_dialog)
         toolsM.addSeparator()
+        toolsM.addAction("3D &Visualization (volume render)...",
+                         self.show_3d_volume)
+        toolsM.addSeparator()
         toolsM.addAction("Re&fresh from planC",
                          lambda: self.after_load(keep_view=True))
 
@@ -1869,27 +1888,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         dl.addLayout(aRow)
         pl.addWidget(grpDose)
 
-        grp3D = QtWidgets.QGroupBox("3D view")
-        tl = QtWidgets.QVBoxLayout(grp3D)
-        pRow = QtWidgets.QHBoxLayout()
-        pRow.addWidget(QtWidgets.QLabel("Plane opacity:"))
-        self.planeOpacitySlider = QtWidgets.QSlider(Qt.Horizontal)
-        self.planeOpacitySlider.setRange(0, 100)
-        self.planeOpacitySlider.setValue(int(round(self.plane3dOpacity * 100)))
-        self.planeOpacitySlider.setToolTip(
-            "Transparency of the urOMT result overlay in the 3D view. "
-            "(The scan planes follow the top-left scan opacity.)")
-        self.planeOpacitySlider.valueChanged.connect(self.on_plane_opacity)
-        pRow.addWidget(self.planeOpacitySlider)
-        tl.addLayout(pRow)
-        self.planeLocChk = QtWidgets.QCheckBox("Show plane locators")
-        self.planeLocChk.setChecked(self.show3dPlaneLocators)
-        self.planeLocChk.setToolTip(
-            "Show the coloured plane-outline locators (slice-position frames) "
-            "in the 3D view.")
-        self.planeLocChk.toggled.connect(self.on_plane_locators)
-        tl.addWidget(self.planeLocChk)
-        pl.addWidget(grp3D)
+        # (3D-view controls moved out of the panel: the urOMT overlay opacity
+        # slider now lives in the urOMT dialog; plane locators are always shown
+        # in the "3D Cut Planes" view.)
 
         h.addWidget(panel)
 
@@ -2459,13 +2460,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views()
 
     def on_plane_opacity(self, val):
-        # opacity of the 3D orthogonal cutting planes (3D views only)
+        # opacity of the 3D urOMT result overlay (driven from the urOMT dialog)
         self.plane3dOpacity = val / 100.0
-        self._refresh_3d_views()
-
-    def on_plane_locators(self, on):
-        # show/hide the coloured plane-outline locators in the 3D view
-        self.show3dPlaneLocators = bool(on)
         self._refresh_3d_views()
 
     def on_dose_cmap(self, name):
@@ -2699,7 +2695,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         viewM = menu.addMenu("View")
         vgrp = QtWidgets.QActionGroup(viewM)
         for o in (VIEW_AXIAL, VIEW_SAGITTAL, VIEW_CORONAL, VIEW_3D):
-            a = viewM.addAction(o)
+            a = viewM.addAction(VIEW_DISPLAY.get(o, o))
             a.setCheckable(True)
             a.setChecked(self.views[orient].orientation == o)
             vgrp.addAction(a)
@@ -3020,6 +3016,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def refresh_views(self, only=None):
         if self.planC is None or not self.planC.scan:
             return
+        if only is None:           # global change -> auto-refresh the 3D volume
+            self._notify_volume3d()
         targets = [only] if only else list(self.activeWins)
         vmin = self.windowCenter - self.windowWidth / 2.0
         vmax = self.windowCenter + self.windowWidth / 2.0
@@ -3330,13 +3328,24 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         else:
             self._render_3d_mpl(view)
 
+    def _notify_volume3d(self):
+        """If the 3D Volume tool window is open, schedule a debounced rebuild so
+        it tracks the main GUI's window/level, transparency, structure and dose
+        selections automatically (no manual Refresh needed)."""
+        dlg = getattr(self, "_volume3dDialog", None)
+        if dlg is not None:
+            try:
+                dlg.request_refresh()
+            except Exception:  # noqa: BLE001 (dialog may be closing)
+                self._volume3dDialog = None
+
     def _plane_slices_3d(self):
         """Current plane indices, window range and plane label text."""
         kA = self.lastSlice[VIEW_AXIAL]
         kS = self.lastSlice[VIEW_SAGITTAL]
         kC = self.lastSlice[VIEW_CORONAL]
-        label = (f"3D  -  planes: axial {kA + 1}, sagittal {kS + 1}, "
-                 f"coronal {kC + 1}")
+        label = (f"3D Cut Planes  -  planes: axial {kA + 1}, "
+                 f"sagittal {kS + 1}, coronal {kC + 1}")
         return kA, kS, kC, label
 
     def _scan_grid_geometry(self):
@@ -3484,16 +3493,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                            (x0, yP, z1), (x0, yP, z0)],
         }
         view._outline_actors = {}
-        if self.show3dPlaneLocators:
-            for orient, ptsList in edges.items():
-                pts = np.asarray(ptsList, dtype=float)
-                poly = pv.PolyData()
-                poly.points = pts
-                poly.lines = np.hstack(([len(pts)], np.arange(len(pts)))).astype(
-                    np.int64)
-                view._outline_actors[orient] = pl.add_mesh(
-                    poly, color=PLANE_COLORS[orient], line_width=2,
-                    pickable=False, show_scalar_bar=False, render=False)
+        for orient, ptsList in edges.items():   # plane locators (always shown)
+            pts = np.asarray(ptsList, dtype=float)
+            poly = pv.PolyData()
+            poly.points = pts
+            poly.lines = np.hstack(([len(pts)], np.arange(len(pts)))).astype(
+                np.int64)
+            view._outline_actors[orient] = pl.add_mesh(
+                poly, color=PLANE_COLORS[orient], line_width=2,
+                pickable=False, show_scalar_bar=False, render=False)
 
         # ---- structure surfaces (follow the Structures checklist) ----
         for strNum in self._axis_structs(view.winId):
@@ -3766,9 +3774,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             VIEW_CORONAL: ([x0, x1, x1, x0, x0], [yC] * 5,
                            [z0, z0, z1, z1, z0]),
         }
-        if self.show3dPlaneLocators:
-            for orient, (ex, ey, ez) in edges.items():
-                ax.plot3D(ex, ey, ez, color=PLANE_COLORS[orient], lw=1.6)
+        for orient, (ex, ey, ez) in edges.items():   # plane locators (always)
+            ax.plot3D(ex, ey, ez, color=PLANE_COLORS[orient], lw=1.6)
 
         for beam in self.beams:        # IMRTP beam overlays
             color = beam.get("color", (0.2, 0.85, 0.9))
@@ -3783,8 +3790,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                            abs(z1 - z0) or 1))
         ax.set_axis_off()
         view.label.setText(
-            f"3D  -  planes: axial {kA + 1}, sagittal {kS + 1}, "
-            f"coronal {kC + 1}")
+            f"3D Cut Planes  -  planes: axial {kA + 1}, "
+            f"sagittal {kS + 1}, coronal {kC + 1}")
         view.canvas.draw_idle()
 
     def _draw_crosshair(self, view):
@@ -3910,6 +3917,24 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._toolWindows.append(dlg)
         self._uromtDialog = dlg           # so set_uromt_overlay updates its colorbar
         dlg.show()
+
+    def show_3d_volume(self):
+        """Open the true-3D volume-visualization tool (Tools menu): GPU volume
+        render of the scan with structure / dose / urOMT overlays, using the
+        main viewer's transparency values."""
+        if self.planC is None or not self.planC.scan:
+            _show_info(self, "3D Visualization", "Load a scan first.")
+            return
+        if not HAS_PYVISTA:
+            _show_info(self, "3D Visualization",
+                       "3D volume rendering needs pyvista "
+                       "(pip install pyvista pyvistaqt).")
+            return
+        dlg = Volume3DDialog(self)
+        self._toolWindows.append(dlg)
+        self._volume3dDialog = dlg        # for auto-refresh on main-GUI changes
+        dlg.show()
+        dlg.render_scene()
 
     def show_controls(self):
         _show_info(
@@ -4737,7 +4762,7 @@ class UROMTDialog(QtWidgets.QDialog):
     views. Each run is stored on the plan container as ``planC.urOMT``."""
 
     _OVERLAY_VIEWS = [("Eulerian speed", "speed"), ("Eulerian rate", "rate"),
-                      ("Eulerian Peclet", "peclet"),
+                      ("Eulerian Peclet", "peclet"), ("Eulerian flux", "fluxmag"),
                       ("Velocity vectors", "velocity"),
                       ("Flux vectors", "flux"), ("Pathlines", "pathlines")]
 
@@ -4848,6 +4873,16 @@ class UROMTDialog(QtWidgets.QDialog):
         orow.addWidget(QtWidgets.QLabel("vec every"))
         orow.addWidget(self.densitySpin)
         form.addRow("Overlay:", orow)
+
+        # opacity of the urOMT overlay in the 3-D views (moved here from the main
+        # panel); drives PyCerrViewer.plane3dOpacity
+        self.plane3dSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.plane3dSlider.setRange(0, 100)
+        self.plane3dSlider.setValue(int(round(self.viewer.plane3dOpacity * 100)))
+        self.plane3dSlider.setToolTip(
+            "Transparency of the urOMT result overlay in the 3-D views.")
+        self.plane3dSlider.valueChanged.connect(self.viewer.on_plane_opacity)
+        form.addRow("3-D overlay opacity:", self.plane3dSlider)
         lay.addLayout(form)
 
         # colorbar legend for the active overlay (lives here, not on the main
@@ -4876,11 +4911,19 @@ class UROMTDialog(QtWidgets.QDialog):
         self.clearBtn.setEnabled(False)
         self.clearBtn.setToolTip("Remove the urOMT overlay from the views.")
         self.clearBtn.clicked.connect(self._clearOverlay)
+        self.saveBtn = QtWidgets.QPushButton("Save maps (NIfTI)")
+        self.saveBtn.setEnabled(False)
+        self.saveBtn.setToolTip("Save the selected run's Eulerian maps (speed, "
+                                "effSpeed, rate, Peclet, |flux|) as individual "
+                                "3-D NIfTI files per metric per time interval, "
+                                "aligned to the scan, into a chosen folder.")
+        self.saveBtn.clicked.connect(self._saveMapsNii)
         closeBtn = QtWidgets.QPushButton("Close")
         closeBtn.clicked.connect(self.close)
         btnRow.addWidget(self.runBtn)
         btnRow.addWidget(self.showBtn)
         btnRow.addWidget(self.clearBtn)
+        btnRow.addWidget(self.saveBtn)
         btnRow.addWidget(closeBtn)
         lay.addLayout(btnRow)
 
@@ -4944,9 +4987,35 @@ class UROMTDialog(QtWidgets.QDialog):
     def _onRunSelected(self):
         has = self.runsCombo.currentData() not in (None, -1)
         self.showBtn.setEnabled(has)
+        self.saveBtn.setEnabled(has)
         self._populateTimepoints()          # timepoints follow the selected run
         if self._overlayShown and has:      # switch overlay to the new run
             self._showResults()
+
+    def _saveMapsNii(self):
+        """Save the selected run's Eulerian maps as NIfTI on the scan grid."""
+        idx = self.runsCombo.currentData()
+        runs = getattr(self.viewer.planC, "urOMT", None) or []
+        if idx in (None, -1) or idx >= len(runs):
+            return
+        res = runs[idx].UROMTResult
+        outDir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Save urOMT maps to NIfTI (choose a folder)")
+        if not outDir:
+            return
+        try:
+            from cerr.uromt.export import saveEulerianMapsNii
+            eul = self.viewer._uromtEulIntervals(idx, res)
+            fsn = res.get("frameScanNums") or [0]
+            paths = saveEulerianMapsNii(eul, self.viewer.planC, int(fsn[0]),
+                                        outDir, prefix="uromt%d" % idx)
+            self.progress.setText("Saved %d NIfTI file(s) to %s"
+                                  % (len(paths), outDir))
+            _show_info(self, "urOMT", "Saved %d map file(s) to\n%s :\n  %s"
+                       % (len(paths), outDir,
+                          "\n  ".join(os.path.basename(p) for p in paths)))
+        except Exception as e:  # noqa: BLE001
+            _show_error(self, "urOMT save", str(e))
 
     def _onOverlayChanged(self):
         if self._overlayShown:              # live-update the active overlay
@@ -5081,6 +5150,131 @@ class UROMTDialog(QtWidgets.QDialog):
         self.runBtn.setEnabled(True)
         self.progress.setText("Failed.")
         _show_error(self, "urOMT error", msg)
+
+
+class Volume3DDialog(QtWidgets.QDialog):
+    """True-3D visualization (Tools -> 3D Visualization): a GPU volume render of
+    the scan with structure surfaces, isodose surfaces and the urOMT overlay in
+    one interactive scene. All transparency follows the main pyCERR viewer - the
+    scan opacity (top-left), the dose colourwash alpha, and the urOMT overlay
+    opacity - so it stays consistent with the 2-D panels. Drag to rotate, scroll
+    to zoom; click 'Refresh' after changing those settings to rebuild the scene.
+    """
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.setWindowTitle("3D Visualization (volume render)")
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.resize(760, 680)
+        lay = QtWidgets.QVBoxLayout(self)
+        self.plotter = QtInteractor(self)          # pyvista/VTK GPU widget
+        lay.addWidget(self.plotter, 1)
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel(
+            "Scan volume + structures / dose / urOMT. Opacities follow the "
+            "main viewer."))
+        row.addStretch(1)
+        refresh = QtWidgets.QPushButton("Refresh")
+        refresh.setToolTip("Rebuild the 3-D scene from the current planC and "
+                           "the main viewer's transparency settings.")
+        refresh.clicked.connect(self.render_scene)
+        closeBtn = QtWidgets.QPushButton("Close")
+        closeBtn.clicked.connect(self.close)
+        row.addWidget(refresh)
+        row.addWidget(closeBtn)
+        lay.addLayout(row)
+
+        # debounce: coalesce rapid main-GUI changes (W/L drag, opacity slider,
+        # structure toggles) into a single rebuild shortly after they settle.
+        self._refreshTimer = QtCore.QTimer(self)
+        self._refreshTimer.setSingleShot(True)
+        self._refreshTimer.setInterval(150)
+        self._refreshTimer.timeout.connect(self.render_scene)
+
+    def request_refresh(self):
+        """Schedule a (debounced) rebuild - called by the main viewer when the
+        window/level, transparency, structure or dose selection changes."""
+        if self.isVisible():
+            self._refreshTimer.start()
+
+    def closeEvent(self, event):
+        if getattr(self.viewer, "_volume3dDialog", None) is self:
+            self.viewer._volume3dDialog = None
+        super().closeEvent(event)
+
+    def render_scene(self):
+        """(Re)build the 3-D scene from the current planC + viewer transparency.
+        Every actor is wrapped defensively so a failure of one (e.g. the GPU
+        volume mapper) still leaves the rest of the scene usable."""
+        v = self.viewer
+        pl = self.plotter
+        try:
+            pl.clear()
+            pl.set_background("black")
+        except Exception:  # noqa: BLE001
+            return
+        # ---- scan as a GPU volume; opacity ramp scaled by the scan opacity ---
+        try:
+            if float(v.scanAlpha) > 0.01:
+                xA, yA, zA, fR, fC, fS = v._scan_grid_geometry()
+                scan = v.scan3M.astype(np.float32)
+                if fR:
+                    scan = scan[::-1, :, :]
+                if fC:
+                    scan = scan[:, ::-1, :]
+                if fS:
+                    scan = scan[:, :, ::-1]
+                grid = v._pv_volume(scan, xA, yA, zA)
+                vmin = v.windowCenter - v.windowWidth / 2.0
+                vmax = v.windowCenter + v.windowWidth / 2.0
+                # a sigmoid opacity transfer function makes the scan clearly
+                # visible (a plain linear ramp renders nearly transparent);
+                # scaled by the main-viewer scan opacity.
+                op = np.clip(pv.opacity_transfer_function("sigmoid", 256)
+                             .astype(float) * float(v.scanAlpha), 0.0, 255.0)
+                pl.add_volume(grid, scalars="v", cmap="gray",
+                              clim=(vmin, max(vmax, vmin + 1e-6)), opacity=op,
+                              shade=False, show_scalar_bar=False, name="scan")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- structure surfaces (the panel's structure checklist) ------------
+        try:
+            for strNum in v._checked_structs():
+                surf = v._pv_struct_mesh(strNum)
+                if surf is not None:
+                    pl.add_mesh(surf, color=v._struct_color(strNum),
+                                opacity=0.45, smooth_shading=True,
+                                pickable=False, show_scalar_bar=False,
+                                name=f"struct{strNum}")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- isodose surfaces (panel dose + colourwash alpha) ----------------
+        try:
+            if v.doseNum is not None and v.doseNum >= 0 and v.doseAlpha > 0:
+                res = v._pv_dose_iso(v.doseNum)
+                if res is not None:
+                    iso, _dmax = res
+                    cbLo, cbHi = v.colorbar.cbarRange
+                    pl.add_mesh(iso, cmap=v.colorbar.mplCmap,
+                                clim=(cbLo, max(cbHi, cbLo + 1e-6)),
+                                opacity=min(max(float(v.doseAlpha), 0.0), 0.6),
+                                pickable=False, show_scalar_bar=False,
+                                name="dose")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- urOMT overlay (reuse the embedded-3D builder) -------------------
+        try:
+            if getattr(v, "uromtOverlay", None) is not None:
+                v._add_uromt_3d_vtk(pl)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            pl.reset_camera()
+            pl.render()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ---------------------------------------------------------------------------#

@@ -226,7 +226,13 @@ def runUROMT(cfg, statusCallback=None):
         rho0 = frames[t] if (reinit or t == 0) else rhoEnd
         drhoN = frames[t + 1]
         sol = blockSolver(rho0, u, r, par, drhoN, tag="interval %d" % (t + 1))
-        out["u"].append(sol["u"].reshape(3, N, nt, order="F"))
+        # velocity flat layout is [comp*N + voxel + 3N*k] (the solver stacks the
+        # 3 components as blocks of N: U[0:N], U[N:2N], U[2N:3N]). Reshaping
+        # straight to (3, N, nt) order="F" would read it as comp + 3*voxel,
+        # interleaving the components and scrambling voxels (a tiled "montage" in
+        # the speed/Peclet/flux maps). Reshape to (N, 3, nt) then move the
+        # component axis to front.
+        out["u"].append(sol["u"].reshape(N, 3, nt, order="F").transpose(1, 0, 2))
         out["r"].append(sol["r"].reshape(N, nt, order="F"))
         out["rho"].append(sol["rho"])
         out["gamma"].append({k: sol[k] for k in
