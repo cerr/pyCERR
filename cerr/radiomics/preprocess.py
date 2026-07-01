@@ -163,13 +163,14 @@ def getResampledGrid(resampResolutionV, xValsV, yValsV, zValsV, gridAlignMethod=
     resampResolutionV = resampResolutionV.copy()
     resampResolutionV[2] = -resampResolutionV[2]
 
+    origSizeV = [len(xValsV), len(yValsV), len(zValsV)]
     if len(resampResolutionV) == 3 and resampResolutionV[2]!=0 and not np.isnan(resampResolutionV[2]):
         resamp3dFlag = True
+        resampSizeV = np.ceil(np.array(origSizeV) * np.array(origResolutionV) / np.array(resampResolutionV)).astype(int)
     else:
         resamp3dFlag = False
-
-    origSizeV = [len(xValsV), len(yValsV), len(zValsV)]
-    resampSizeV = np.ceil(np.array(origSizeV) * np.array(origResolutionV) / np.array(resampResolutionV)).astype(int)
+        resampSizeV = np.zeros(3)
+        resampSizeV[:2] = np.ceil(np.array(origSizeV[:2]) * np.array(origResolutionV[:2]) / np.array(resampResolutionV[:2])).astype(int)
 
     if gridAlignMethod == 'center':
         resampOriginV = originV + (np.array(origResolutionV) * (np.array(origSizeV) - 1) \

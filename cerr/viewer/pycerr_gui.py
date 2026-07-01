@@ -35,7 +35,11 @@ Features (mirroring the classic CERR slice viewer):
   * Patient-orientation labels (L/R/A/P/S/I) at the edges of each 2D view
     and an orientation triad in the 3D view (View menu or O to toggle)
   * Multi-scan fusion: overlay any loaded scan with per-scan opacity & colormap
-  * CT window/level presets (Soft Tissue, Lung, Bone, Brain, ...) + manual W/L
+  * Scan Display dialog (panel button or View menu): per-scan window/level
+    presets (Soft Tissue, Lung, Bone, Brain, ...) + manual W/L, colormap,
+    opacity, and a scan colorbar with draggable colormap-mapping (window) and
+    data display ranges (right-click for colormap/exact ranges). The main
+    figure shows just the base scan and fused overlays.
   * Structure contour overlays with per-structure colors & visibility toggles,
     optional contour vertex dots ("Points"), adjustable contour line width, and
     double-click a structure to center all three views on it
@@ -757,30 +761,61 @@ class SliceView(QtWidgets.QWidget):
 
 
 # ---------------------------------------------------------------------------#
-#  Standalone dose colorbar with draggable range markers (CERR-style)
+#  Standalone colorbar with draggable range markers (CERR-style)
 #    * LEFT handles (yellow)  : colorbar/colormap mapping range
-#    * RIGHT handles (cyan)   : dose display range (doses outside are hidden)
-#  Double-click resets both ranges to [0, doseMax].
+#    * RIGHT handles (cyan)   : data display range (values outside are hidden)
+#  Double-click resets both ranges to the full axis [axisMin, axisMax].
+#
+#  ``RangeColorbarWidget`` is the shared base; ``DoseColorbarWidget`` (dose,
+#  axis pinned at 0) and ``ScanColorbarWidget`` (base scan, arbitrary axis
+#  including negative CT Hounsfield units) only differ in their colormap list,
+#  default map and how the axis range is seeded.
 # ---------------------------------------------------------------------------#
-class DoseColorbarWidget(QtWidgets.QWidget):
+class RangeColorbarWidget(QtWidgets.QGraphicsView):
+    """Retained-mode vertical colorbar with two draggable range pairs.
+
+    Built on a QGraphicsScene so dragging a handle only repositions that handle
+    item (``setPos``) and, for the display range, resizes the two dimming
+    overlays (``setRect``) - no full-widget repaint. The gradient pixmap is
+    rebuilt only when the colormap or the colormap-mapping (yellow) range
+    changes (a cbar-handle drag), never when just the display range or a handle
+    moves."""
     rangesChanged = QtCore.pyqtSignal()
 
     GRAB_PX = 9          # vertical grab tolerance for handles
     TOP, BOT = 16, 16    # margins
+    BAR_X, BAR_W = 44, 24
+
+    _CMAP_NAMES = []                    # colormaps offered in the context menu
+    _DEFAULT_CMAP = "gray"
+    _KIND = "value"                     # noun used in the tooltip
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedWidth(132)
         self.setMinimumHeight(240)
+        self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+        self.setRenderHint(QtGui.QPainter.Antialiasing)
+        self.setStyleSheet("QGraphicsView{background:transparent;border:none;}")
+        self._scene = QtWidgets.QGraphicsScene(self)
+        self.setScene(self._scene)
+        self.viewport().setMouseTracking(True)
+
+        self.axisMin = 0.0
         self.axisMax = 1.0
         self.cbarRange = [0.0, 1.0]      # colormap mapping range
-        self.dispRange = [0.0, 1.0]      # dose display (mask) range
+        self.dispRange = [0.0, 1.0]      # display (mask) range
         self._drag = None                # ("cbar"|"disp", 0|1) while dragging
-        self.cmapName = DEFAULT_DOSE_CMAP   # selectable from the Dose panel
+        self.cmapName = self._DEFAULT_CMAP
         self._set_cmap(self.cmapName)
-        self.setToolTip("Dose colorbar\n"
+        self._build_items()
+        self.setToolTip(f"{self._KIND.capitalize()} colorbar\n"
                         "Yellow (left) handles: colorbar/colormap range\n"
-                        "Cyan (right) handles: dose display range\n"
+                        f"Cyan (right) handles: {self._KIND} display range\n"
                         "Right-click: colormap & exact ranges\n"
                         "Double-click: reset ranges")
 
@@ -788,90 +823,189 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         self.cmapName = name
         self.mplCmap = cerr_get_cmap(name)
         self._lut = cerr_get_lut(name, 256)
+        if hasattr(self, "_barItem"):   # rebuild the gradient on cmap change
+            self._rebuild_gradient()
+
+    def _span(self):
+        return max(self.axisMax - self.axisMin, 1e-9)
+
+    # ------------------------------------------------------- scene items ----
+    def _build_items(self):
+        """Create the persistent scene items once; positions/pixmap are updated
+        in place on drag/resize instead of being re-created."""
+        s = self._scene
+        self._barItem = QtWidgets.QGraphicsPixmapItem()
+        self._barItem.setZValue(0)
+        s.addItem(self._barItem)
+
+        dimBrush = QtGui.QBrush(QtGui.QColor(0, 0, 0, 200))
+        noPen = QtGui.QPen(Qt.NoPen)
+        self._dimTop = s.addRect(0, 0, 0, 0, noPen, dimBrush)   # above disp max
+        self._dimBot = s.addRect(0, 0, 0, 0, noPen, dimBrush)   # below disp min
+        for it in (self._dimTop, self._dimBot):
+            it.setZValue(1)
+
+        self._frameItem = s.addRect(0, 0, 0, 0,
+                                    QtGui.QPen(QtGui.QColor("#aaaaaa"), 1))
+        self._frameItem.setZValue(2)
+
+        self._tickLines, self._tickLabels = [], []
+        tickPen = QtGui.QPen(QtGui.QColor("#888888"), 1)
+        for _ in range(6):
+            ln = s.addLine(0, 0, 0, 0, tickPen)
+            ln.setZValue(2)
+            self._tickLines.append(ln)
+            tx = s.addSimpleText("")
+            tx.setBrush(QtGui.QColor("black"))
+            f = tx.font()
+            f.setPointSize(9)
+            tx.setFont(f)
+            tx.setZValue(2)
+            self._tickLabels.append(tx)
+
+        self._handleItems, self._handleLabels = {}, {}
+        for which, color in (("cbar", QtGui.QColor("#e8c542")),
+                             ("disp", QtGui.QColor("#3ad6e0"))):
+            for j in (0, 1):
+                poly = QtWidgets.QGraphicsPolygonItem(
+                    self._handle_polygon(which))
+                poly.setBrush(color)
+                poly.setPen(QtGui.QPen(Qt.black, 1))
+                poly.setZValue(3)
+                s.addItem(poly)
+                self._handleItems[(which, j)] = poly
+                lab = s.addSimpleText("")
+                lab.setBrush(QtGui.QColor("black"))
+                f = lab.font()
+                f.setPointSize(9)
+                lab.setFont(f)
+                lab.setZValue(3)
+                self._handleLabels[(which, j)] = lab
+
+    @staticmethod
+    def _handle_polygon(which):
+        """Triangle in the item's local coords, tip at (0, 0) pointing at the
+        bar; the item is placed by moving that tip to (x, y) via setPos."""
+        tri = QtGui.QPolygonF()
+        dx = -11 if which == "cbar" else 11   # cbar=left, disp=right
+        tri << QtCore.QPointF(0, 0) \
+            << QtCore.QPointF(dx, -6) << QtCore.QPointF(dx, 6)
+        return tri
 
     # ------------------------------------------------------------ public ----
-    def setDose(self, doseMax):
-        self.axisMax = max(float(doseMax), 1e-6)
-        self.cbarRange = [0.0, self.axisMax]
-        self.dispRange = [0.0, self.axisMax]
-        self.update()
+    def setRange(self, axisMin, axisMax, cbarRange=None, dispRange=None):
+        """Set the axis extent and (optionally) the two ranges.
+
+        When ``cbarRange``/``dispRange`` are omitted the corresponding range is
+        reset to the full axis. Callers that only widen the axis and want to
+        preserve the current handle positions should pass them explicitly."""
+        self.axisMin = float(axisMin)
+        self.axisMax = max(float(axisMax), self.axisMin + 1e-6)
+        self.cbarRange = list(cbarRange) if cbarRange is not None \
+            else [self.axisMin, self.axisMax]
+        self.dispRange = list(dispRange) if dispRange is not None \
+            else [self.axisMin, self.axisMax]
+        self._rebuild()
 
     # ---------------------------------------------------------- geometry ----
     def _bar_rect(self):
-        return QtCore.QRect(44, self.TOP, 24, self.height() - self.TOP - self.BOT)
+        h = max(self.viewport().height() - self.TOP - self.BOT, 1)
+        return QtCore.QRectF(self.BAR_X, self.TOP, self.BAR_W, h)
 
     def _val2y(self, v):
         r = self._bar_rect()
-        return int(r.bottom() - (v / self.axisMax) * r.height())
+        return r.bottom() - ((v - self.axisMin) / self._span()) * r.height()
 
     def _y2val(self, y):
         r = self._bar_rect()
-        return float(np.clip((r.bottom() - y) / max(r.height(), 1), 0, 1)) \
-            * self.axisMax
+        return self.axisMin + float(
+            np.clip((r.bottom() - y) / max(r.height(), 1), 0, 1)) * self._span()
 
-    # ------------------------------------------------------------ paint -----
-    def paintEvent(self, _event):
-        p = QtGui.QPainter(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
+    # --------------------------------------------------------- item update --
+    def _rebuild(self):
+        """Full relayout after a size/axis/range change."""
+        if self.viewport().height() <= 1:
+            return          # not yet shown/sized; showEvent will rebuild
+        self._scene.setSceneRect(0, 0, self.viewport().width(),
+                                 self.viewport().height())
+        self._rebuild_gradient()
+        self._update_dim()
+        self._update_ticks()
+        self._update_handles()
+
+    def _rebuild_gradient(self):
+        """Rebuild the gradient pixmap (colormap over the cbar range). Dimming
+        outside the display range is handled by the overlay rects, so this is
+        only needed when the colormap or cbar range changes."""
+        if not hasattr(self, "_barItem") or self.viewport().height() <= 1:
+            return
         r = self._bar_rect()
+        H = max(int(round(r.height())), 1)
+        W = max(int(round(r.width())), 1)
         cbLo, cbHi = self.cbarRange
-        dLo, dHi = self.dispRange
         span = max(cbHi - cbLo, 1e-9)
+        ys = np.arange(H)                       # 0 = top row = high value
+        vals = self.axisMax - (ys / H) * self._span()
+        idx = (np.clip((vals - cbLo) / span, 0, 1) * 255).astype(np.intp)
+        cols = self._lut[idx]                   # (H, 3) uint8
+        rgba = np.empty((H, W, 4), np.uint8)
+        rgba[..., :3] = cols[:, None, :]
+        rgba[..., 3] = 255
+        self._barImg = np.ascontiguousarray(rgba)
+        img = QtGui.QImage(self._barImg.data, W, H, 4 * W,
+                           QtGui.QImage.Format_RGBA8888)
+        self._barItem.setPixmap(QtGui.QPixmap.fromImage(img))
+        self._barItem.setPos(r.left(), r.top())
+        self._frameItem.setRect(r)
 
-        # gradient bar (row by row), dimming values outside the display range
-        for y in range(r.top(), r.bottom() + 1):
-            val = self._y2val(y)
-            idx = int(np.clip((val - cbLo) / span, 0, 1) * 255)
-            c = self._lut[idx]
-            if val < dLo or val > dHi:
-                c = (c * 0.22).astype(np.uint8)
-            p.setPen(QtGui.QColor(int(c[0]), int(c[1]), int(c[2])))
-            p.drawLine(r.left(), y, r.right(), y)
-        p.setPen(QtGui.QPen(QtGui.QColor("#aaaaaa"), 1))
-        p.drawRect(r)
+    def _update_dim(self):
+        """Resize the two dimming overlays to cover values outside dispRange."""
+        r = self._bar_rect()
+        dLo, dHi = self.dispRange
+        yHi, yLo = self._val2y(dHi), self._val2y(dLo)
+        self._dimTop.setRect(r.left(), r.top(), r.width(),
+                             max(yHi - r.top(), 0))
+        self._dimBot.setRect(r.left(), yLo, r.width(),
+                             max(r.bottom() - yLo, 0))
 
-        font = p.font()
-        font.setPointSize(9)
-        p.setFont(font)
-
-        # scale tick marks + numeric labels (right of the cyan handles)
+    def _update_ticks(self):
+        r = self._bar_rect()
         tickX = r.right() + 18
-        for frac in np.linspace(0, 1, 6):
-            v = frac * self.axisMax
+        for i, frac in enumerate(np.linspace(0, 1, 6)):
+            v = self.axisMin + frac * self._span()
             y = self._val2y(v)
-            p.setPen(QtGui.QPen(QtGui.QColor("#888888"), 1))
-            p.drawLine(tickX, y, tickX + 4, y)
-            p.setPen(QtGui.QColor("black"))
-            p.drawText(QtCore.QRect(tickX + 7, y - 9, 36, 18),
-                       Qt.AlignLeft | Qt.AlignVCenter, f"{v:.4g}")
+            self._tickLines[i].setLine(tickX, y, tickX + 4, y)
+            tx = self._tickLabels[i]
+            tx.setText(f"{v:.4g}")
+            tx.setPos(tickX + 7, y - tx.boundingRect().height() / 2)
 
-        # handles, each with its value always shown (left=cbar, right=disp)
-        for which, (lo, hi), color, side in (
-                ("cbar", self.cbarRange, QtGui.QColor("#e8c542"), "left"),
-                ("disp", self.dispRange, QtGui.QColor("#3ad6e0"), "right")):
-            for j, v in enumerate((lo, hi)):
+    def _update_handles(self):
+        """Reposition each handle triangle + its value label (setPos only)."""
+        r = self._bar_rect()
+        vw = self.viewport().width()
+        for which, rng in (("cbar", self.cbarRange), ("disp", self.dispRange)):
+            for j in (0, 1):
+                v = rng[j]
                 y = self._val2y(v)
-                tri = QtGui.QPolygonF()
-                if side == "left":
-                    x0 = r.left() - 3
-                    tri << QtCore.QPointF(x0, y) \
-                        << QtCore.QPointF(x0 - 11, y - 6) \
-                        << QtCore.QPointF(x0 - 11, y + 6)
-                    txtRect = QtCore.QRect(0, y - 9, r.left() - 16, 18)
-                    align = Qt.AlignRight | Qt.AlignVCenter
+                poly = self._handleItems[(which, j)]
+                lab = self._handleLabels[(which, j)]
+                lab.setText(f"{v:.3g}")
+                br = lab.boundingRect()
+                if which == "cbar":
+                    poly.setPos(r.left() - 3, y)
+                    lab.setPos(r.left() - 16 - br.width(), y - br.height() / 2)
                 else:
-                    x0 = r.right() + 4
-                    tri << QtCore.QPointF(x0, y) \
-                        << QtCore.QPointF(x0 + 11, y - 6) \
-                        << QtCore.QPointF(x0 + 11, y + 6)
-                    txtRect = QtCore.QRect(self.width() - 44, y - 9, 42, 18)
-                    align = Qt.AlignRight | Qt.AlignVCenter
-                p.setBrush(color)
-                p.setPen(QtGui.QPen(Qt.black, 1))
-                p.drawPolygon(tri)
-                p.setPen(QtGui.QColor("black"))   # persistent value label
-                p.drawText(txtRect, align, f"{v:.3g}")
-        p.end()
+                    poly.setPos(r.right() + 4, y)
+                    lab.setPos(vw - 2 - br.width(), y - br.height() / 2)
+
+    # -------------------------------------------------------- Qt overrides --
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self._rebuild()
+
+    def showEvent(self, ev):
+        super().showEvent(ev)
+        self._rebuild()
 
     # ------------------------------------------------------------ mouse -----
     def _hit_test(self, pos):
@@ -888,9 +1022,10 @@ class DoseColorbarWidget(QtWidgets.QWidget):
     def mousePressEvent(self, ev):
         if ev.button() != Qt.LeftButton:
             return
-        self._drag = self._hit_test(ev.pos())
+        pos = self.mapToScene(ev.pos())
+        self._drag = self._hit_test(pos)
         if self._drag:
-            self._move_to(ev.pos().y())
+            self._move_to(pos.y())
 
     # ----------------------------------------------------- context menu -----
     def contextMenuEvent(self, ev):
@@ -898,7 +1033,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
 
         cmapMenu = menu.addMenu("Colormap")
         grp = QtWidgets.QActionGroup(cmapMenu)
-        for name in DOSE_CMAP_NAMES:
+        for name in self._CMAP_NAMES:
             act = cmapMenu.addAction(name)
             act.setCheckable(True)
             act.setChecked(name == self.cmapName)
@@ -925,8 +1060,7 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         return QtGui.QIcon(QtGui.QPixmap.fromImage(img))
 
     def _on_cmap_selected(self, name):
-        self._set_cmap(name)
-        self.update()
+        self._set_cmap(name)          # rebuilds the gradient
         self.rangesChanged.emit()
 
     def _edit_ranges(self):
@@ -940,8 +1074,8 @@ class DoseColorbarWidget(QtWidgets.QWidget):
                            ("Display max:", self.dispRange[1])):
             sp = QtWidgets.QDoubleSpinBox()
             sp.setDecimals(3)
-            sp.setRange(0.0, self.axisMax)
-            sp.setSingleStep(self.axisMax / 100.0)
+            sp.setRange(self.axisMin, self.axisMax)
+            sp.setSingleStep(self._span() / 100.0)
             sp.setValue(val)
             form.addRow(label, sp)
             spins.append(sp)
@@ -952,12 +1086,14 @@ class DoseColorbarWidget(QtWidgets.QWidget):
         form.addRow(bb)
 
         def _apply():
-            eps = self.axisMax * 1e-3
+            eps = self._span() * 1e-3
             cbLo, cbHi = spins[0].value(), spins[1].value()
             dLo, dHi = spins[2].value(), spins[3].value()
             self.cbarRange = [min(cbLo, cbHi - eps), max(cbHi, cbLo + eps)]
             self.dispRange = [min(dLo, dHi - eps), max(dHi, dLo + eps)]
-            self.update()
+            self._rebuild_gradient()
+            self._update_dim()
+            self._update_handles()
             self.rangesChanged.emit()
         # Non-modal (a modal exec_ hangs in an integrated event loop): apply on OK.
         dlg.accepted.connect(_apply)
@@ -968,37 +1104,90 @@ class DoseColorbarWidget(QtWidgets.QWidget):
 
     def _sync_disp_to_cbar(self):
         self.dispRange = list(self.cbarRange)
-        self.update()
+        self._update_dim()
+        self._update_handles()
         self.rangesChanged.emit()
 
     def mouseMoveEvent(self, ev):
+        pos = self.mapToScene(ev.pos())
         if self._drag:
-            self._move_to(ev.pos().y())
+            self._move_to(pos.y())
         else:
-            self.setCursor(Qt.PointingHandCursor if self._hit_test(ev.pos())
+            self.setCursor(Qt.PointingHandCursor if self._hit_test(pos)
                            else Qt.ArrowCursor)
 
     def mouseReleaseEvent(self, _ev):
         if self._drag:
             self._drag = None
-            self.update()
             self.rangesChanged.emit()
 
     def mouseDoubleClickEvent(self, _ev):
-        self.cbarRange = [0.0, self.axisMax]
-        self.dispRange = [0.0, self.axisMax]
-        self.update()
+        self.cbarRange = [self.axisMin, self.axisMax]
+        self.dispRange = [self.axisMin, self.axisMax]
+        self._rebuild_gradient()
+        self._update_dim()
+        self._update_handles()
         self.rangesChanged.emit()
 
     def _move_to(self, y):
         which, j = self._drag
         rng = self.cbarRange if which == "cbar" else self.dispRange
         v = self._y2val(y)
-        eps = self.axisMax * 1e-3
+        eps = self._span() * 1e-3
         rng[j] = min(v, rng[1] - eps) if j == 0 else max(v, rng[0] + eps)
-        rng[j] = float(np.clip(rng[j], 0, self.axisMax))
-        self.update()
+        rng[j] = float(np.clip(rng[j], self.axisMin, self.axisMax))
+        # retained-mode update: move only what changed. A cbar (yellow) handle
+        # remaps the colormap so the gradient is rebuilt; a disp (cyan) handle
+        # only re-dims, so we just resize the overlay rects.
+        self._update_handles()
+        if which == "cbar":
+            self._rebuild_gradient()
+        else:
+            self._update_dim()
         self.rangesChanged.emit()    # live update while dragging
+
+
+class DoseColorbarWidget(RangeColorbarWidget):
+    """Dose colorbar: axis pinned to [0, doseMax], CERR/matplotlib dose maps."""
+    _CMAP_NAMES = DOSE_CMAP_NAMES
+    _DEFAULT_CMAP = DEFAULT_DOSE_CMAP
+    _KIND = "dose"
+
+    def setDose(self, doseMax):
+        self.setRange(0.0, max(float(doseMax), 1e-6))
+
+
+class ScanColorbarWidget(RangeColorbarWidget):
+    """Base-scan colorbar: arbitrary axis (e.g. CT Hounsfield units), gray by
+    default. The colormap-mapping (yellow) range is the window (center/width);
+    the display (cyan) range hides intensities outside it in the 2D views."""
+    _CMAP_NAMES = SCAN_CMAPS
+    _DEFAULT_CMAP = "gray"
+    _KIND = "scan"
+
+    def setScan(self, center, width, dataMin, dataMax):
+        lo = center - width / 2.0
+        hi = center + width / 2.0
+        axisMin = min(float(dataMin), lo)
+        axisMax = max(float(dataMax), hi)
+        # window -> colormap range; display range starts at the full axis
+        self.setRange(axisMin, axisMax, cbarRange=[lo, hi])
+
+    def setWindow(self, center, width):
+        """Update only the colormap (yellow) range from a window, widening the
+        axis if needed and preserving the user's display (cyan) range."""
+        lo = center - width / 2.0
+        hi = center + width / 2.0
+        eps = self._span() * 1e-3
+        # was the display range covering the whole axis? keep it full if so
+        dispFull = (self.dispRange[0] <= self.axisMin + eps
+                    and self.dispRange[1] >= self.axisMax - eps)
+        self.axisMin = min(self.axisMin, lo)
+        self.axisMax = max(self.axisMax, hi)
+        if dispFull:
+            self.dispRange = [self.axisMin, self.axisMax]
+        self.cbarRange = [lo, hi]
+        self._rebuild()
 
 
 # ---------------------------------------------------------------------------#
@@ -1718,6 +1907,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.actLock.toggled.connect(self.on_lock_toggled)
         actReset = viewM.addAction("&Reset pan/zoom", self.reset_all_views)
         actReset.setShortcut("R")
+        viewM.addSeparator()
+        viewM.addAction("Scan &display / window...",
+                        self.show_scan_display_dialog)
+        viewM.addAction("3D &Visualization (volume render)...",
+                        self.show_3d_volume)
 
         toolsM = m.addMenu("&Tools")
         toolsM.addAction("&Contouring (draw/edit structures)...",
@@ -1732,9 +1926,6 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                          self.show_roe_gui)
         toolsM.addAction("&urOMT (fluid transport on longitudinal scans)...",
                          self.show_uromt_dialog)
-        toolsM.addSeparator()
-        toolsM.addAction("3D &Visualization (volume render)...",
-                         self.show_3d_volume)
         toolsM.addSeparator()
         toolsM.addAction("Re&fresh from planC",
                          lambda: self.after_load(keep_view=True))
@@ -1759,48 +1950,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanCombo = QtWidgets.QComboBox()
         self.scanCombo.currentIndexChanged.connect(self.on_scan_changed)
         gl.addWidget(self.scanCombo)
-
-        wlRow = QtWidgets.QHBoxLayout()
-        self.presetCombo = QtWidgets.QComboBox()
-        self.presetCombo.addItems(CT_WINDOW_PRESETS.keys())
-        self.presetCombo.setCurrentText("Soft Tissue")
-        self.presetCombo.currentTextChanged.connect(self.on_preset)
-        wlRow.addWidget(QtWidgets.QLabel("Window:"))
-        wlRow.addWidget(self.presetCombo, 1)
-        gl.addLayout(wlRow)
-
-        cwRow = QtWidgets.QHBoxLayout()
-        self.centerSpin = QtWidgets.QDoubleSpinBox()
-        self.centerSpin.setRange(-5000, 50000)
-        self.centerSpin.setValue(self.windowCenter)
-        self.widthSpin = QtWidgets.QDoubleSpinBox()
-        self.widthSpin.setRange(0.01, 100000)
-        self.widthSpin.setValue(self.windowWidth)
-        for s in (self.centerSpin, self.widthSpin):
-            s.valueChanged.connect(self.on_manual_wl)
-        cwRow.addWidget(QtWidgets.QLabel("C:"))
-        cwRow.addWidget(self.centerSpin)
-        cwRow.addWidget(QtWidgets.QLabel("W:"))
-        cwRow.addWidget(self.widthSpin)
-        gl.addLayout(cwRow)
-
-        cmRow = QtWidgets.QHBoxLayout()
-        cmRow.addWidget(QtWidgets.QLabel("Colormap:"))
-        self.scanCmapCombo = QtWidgets.QComboBox()
-        self.scanCmapCombo.addItems(SCAN_CMAPS)
-        self.scanCmapCombo.setCurrentText(self.scanCmap)
-        self.scanCmapCombo.currentTextChanged.connect(self.on_scan_cmap)
-        cmRow.addWidget(self.scanCmapCombo, 1)
-        gl.addLayout(cmRow)
-
-        opRow = QtWidgets.QHBoxLayout()
-        opRow.addWidget(QtWidgets.QLabel("Opacity:"))
-        self.scanAlphaSlider = QtWidgets.QSlider(Qt.Horizontal)
-        self.scanAlphaSlider.setRange(0, 100)
-        self.scanAlphaSlider.setValue(int(self.scanAlpha * 100))
-        self.scanAlphaSlider.valueChanged.connect(self.on_scan_alpha)
-        opRow.addWidget(self.scanAlphaSlider)
-        gl.addLayout(opRow)
+        # Window/level, colormap, opacity and the scan colorbar live in a
+        # separate "Scan Display" dialog so the main figure just shows the base
+        # scan and fused overlays. The windowing widgets are built there (in
+        # _build_scan_display_dialog) but remain accessible as self.* .
+        self.scanDisplayBtn = QtWidgets.QPushButton("Scan display / window...")
+        self.scanDisplayBtn.setToolTip(
+            "Open the scan display dialog (window/level, colormap, opacity, "
+            "colorbar) for the selected scan")
+        self.scanDisplayBtn.clicked.connect(self.show_scan_display_dialog)
+        gl.addWidget(self.scanDisplayBtn)
         pl.addWidget(grpScan)
 
         # fused scan overlays (visible only when >1 scan is loaded)
@@ -1921,11 +2080,124 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         h.addWidget(self.viewContainer, stretch=1)
         self._apply_layout("default")
 
+        # the base-scan colorbar (window/colormap/display range) lives in the
+        # Scan Display dialog, built here so its widgets exist before load
+        self._build_scan_display_dialog()
+
         # standalone dose colorbar (hidden until a dose is selected)
         self.colorbar = DoseColorbarWidget()
         self.colorbar.rangesChanged.connect(self._on_colorbar_ranges_changed)
         self.colorbar.setVisible(False)
         h.addWidget(self.colorbar)
+
+    # ------------------------------------------------ scan display dialog ----
+    def _build_scan_display_dialog(self):
+        """Modeless dialog holding the base-scan window/level, colormap,
+        opacity and the scan colorbar. Its widgets stay accessible as self.* so
+        the existing handlers keep working; the main panel only selects the
+        scan and manages fused overlays."""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("Scan Display")
+        dlg.setModal(False)
+        lay = QtWidgets.QHBoxLayout(dlg)
+
+        ctrl = QtWidgets.QVBoxLayout()
+
+        # scan selection (mirrors the main-panel combo)
+        ctrl.addWidget(QtWidgets.QLabel("Scan:"))
+        self.scanComboDlg = QtWidgets.QComboBox()
+        self.scanComboDlg.currentIndexChanged.connect(self._on_dlg_scan_changed)
+        ctrl.addWidget(self.scanComboDlg)
+
+        # window preset
+        wlRow = QtWidgets.QHBoxLayout()
+        self.presetCombo = QtWidgets.QComboBox()
+        self.presetCombo.addItems(CT_WINDOW_PRESETS.keys())
+        self.presetCombo.setCurrentText("Soft Tissue")
+        self.presetCombo.currentTextChanged.connect(self.on_preset)
+        wlRow.addWidget(QtWidgets.QLabel("Window:"))
+        wlRow.addWidget(self.presetCombo, 1)
+        ctrl.addLayout(wlRow)
+
+        # manual center / width
+        cwRow = QtWidgets.QHBoxLayout()
+        self.centerSpin = QtWidgets.QDoubleSpinBox()
+        self.centerSpin.setRange(-5000, 50000)
+        self.centerSpin.setValue(self.windowCenter)
+        self.widthSpin = QtWidgets.QDoubleSpinBox()
+        self.widthSpin.setRange(0.01, 100000)
+        self.widthSpin.setValue(self.windowWidth)
+        for s in (self.centerSpin, self.widthSpin):
+            s.valueChanged.connect(self.on_manual_wl)
+        cwRow.addWidget(QtWidgets.QLabel("C:"))
+        cwRow.addWidget(self.centerSpin)
+        cwRow.addWidget(QtWidgets.QLabel("W:"))
+        cwRow.addWidget(self.widthSpin)
+        ctrl.addLayout(cwRow)
+
+        # colormap
+        cmRow = QtWidgets.QHBoxLayout()
+        cmRow.addWidget(QtWidgets.QLabel("Colormap:"))
+        self.scanCmapCombo = QtWidgets.QComboBox()
+        self.scanCmapCombo.addItems(SCAN_CMAPS)
+        self.scanCmapCombo.setCurrentText(self.scanCmap)
+        self.scanCmapCombo.currentTextChanged.connect(self.on_scan_cmap)
+        cmRow.addWidget(self.scanCmapCombo, 1)
+        ctrl.addLayout(cmRow)
+
+        # opacity
+        opRow = QtWidgets.QHBoxLayout()
+        opRow.addWidget(QtWidgets.QLabel("Opacity:"))
+        self.scanAlphaSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.scanAlphaSlider.setRange(0, 100)
+        self.scanAlphaSlider.setValue(int(self.scanAlpha * 100))
+        self.scanAlphaSlider.valueChanged.connect(self.on_scan_alpha)
+        opRow.addWidget(self.scanAlphaSlider)
+        ctrl.addLayout(opRow)
+        ctrl.addStretch(1)
+        lay.addLayout(ctrl)
+
+        # the scan colorbar (colormap-mapping & display ranges, colormap menu)
+        self.scanColorbar = ScanColorbarWidget()
+        self.scanColorbar.rangesChanged.connect(self._on_scan_colorbar_changed)
+        lay.addWidget(self.scanColorbar)
+
+        dlg.resize(360, 340)
+        self.scanDisplayDialog = dlg
+
+    def show_scan_display_dialog(self):
+        """Open (or raise) the Scan Display dialog."""
+        if self.planC is None or not self.planC.scan:
+            _show_info(self, "Scan Display", "Load a scan first.")
+            return
+        self.scanDisplayDialog.show()
+        self.scanDisplayDialog.raise_()
+        self.scanDisplayDialog.activateWindow()
+
+    def _on_dlg_scan_changed(self, idx):
+        """Dialog scan combo -> drive the main combo (single source of truth)."""
+        if idx < 0 or idx == self.scanCombo.currentIndex():
+            return
+        self.scanCombo.setCurrentIndex(idx)   # triggers on_scan_changed
+
+    def _mirror_scan_combo(self):
+        """Copy the main scan combo's items/selection into the dialog combo."""
+        if not hasattr(self, "scanComboDlg"):
+            return
+        self.scanComboDlg.blockSignals(True)
+        self.scanComboDlg.clear()
+        self.scanComboDlg.addItems(
+            [self.scanCombo.itemText(i) for i in range(self.scanCombo.count())])
+        self.scanComboDlg.setCurrentIndex(self.scanCombo.currentIndex())
+        self.scanComboDlg.blockSignals(False)
+
+    def _sync_dlg_scan_index(self):
+        """Keep the dialog combo's selection in step with the main combo."""
+        if hasattr(self, "scanComboDlg") \
+                and self.scanComboDlg.currentIndex() != self.scanNum:
+            self.scanComboDlg.blockSignals(True)
+            self.scanComboDlg.setCurrentIndex(self.scanNum)
+            self.scanComboDlg.blockSignals(False)
 
     # --------------------------------------------------------------- I/O ----
     def _busy(self, msg):
@@ -2225,6 +2497,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.scanCombo.addItem(f"{i}: {mod}")
         self.scanCombo.setCurrentIndex(min(prevScan, len(self.planC.scan) - 1))
         self.scanCombo.blockSignals(False)
+        self._mirror_scan_combo()    # keep the Scan Display dialog combo in step
 
         self.doseCombo.blockSignals(True)
         self.doseCombo.clear()
@@ -2297,6 +2570,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanAlphaSlider.blockSignals(True)
         self.scanAlphaSlider.setValue(int(round(self.scanAlpha * 100)))
         self.scanAlphaSlider.blockSignals(False)
+
+        # seed the base-scan colorbar: robust data range for the axis, current
+        # window as the colormap range, current colormap.
+        lo, hi = np.percentile(self.scan3M, [0.5, 99.5])
+        self._scanDataRange = (float(lo), float(hi))
+        if getattr(self, "scanColorbar", None) is not None:
+            self.scanColorbar.setScan(self.windowCenter, self.windowWidth,
+                                      lo, hi)
+            self.scanColorbar._set_cmap(self.scanCmap)
+            self.scanColorbar.setVisible(True)
+            self.scanColorbar.update()
+        self._sync_dlg_scan_index()
 
     def _populate_struct_list(self):
         self.structList.blockSignals(True)
@@ -2482,9 +2767,49 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.doseCmapCombo.blockSignals(False)
         self.refresh_views()
 
+    def _on_scan_colorbar_changed(self):
+        """React to the scan colorbar: yellow (colormap) range -> window,
+        colormap-menu choice -> panel combo, cyan range -> re-mask the scan."""
+        cb = self.scanColorbar
+        # colormap picked from the colorbar's right-click menu
+        if hasattr(self, "scanCmapCombo") and \
+                self.scanCmapCombo.currentText() != cb.cmapName:
+            self.scanCmap = cb.cmapName
+            self.dispByScan[self.scanNum] = (self.scanCmap, self.scanAlpha)
+            self.scanCmapCombo.blockSignals(True)
+            self.scanCmapCombo.setCurrentText(cb.cmapName)
+            self.scanCmapCombo.blockSignals(False)
+        # colormap-mapping range (yellow handles) -> window center/width
+        lo, hi = cb.cbarRange
+        center, width = (lo + hi) / 2.0, max(hi - lo, 1e-6)
+        if abs(center - self.windowCenter) > 1e-6 \
+                or abs(width - self.windowWidth) > 1e-6:
+            self.windowCenter, self.windowWidth = center, width
+            self.wlByScan[self.scanNum] = (center, width)
+            for sp, val in ((self.centerSpin, center), (self.widthSpin, width)):
+                sp.blockSignals(True)
+                sp.setValue(val)
+                sp.blockSignals(False)
+            self.presetCombo.blockSignals(True)
+            self.presetCombo.setCurrentText("--- Manual ---")
+            self.presetCombo.blockSignals(False)
+        self.refresh_views()
+
+    def _sync_scan_colorbar_window(self):
+        """Push the current window & colormap into the scan colorbar without
+        disturbing the user's display (cyan) range."""
+        cb = getattr(self, "scanColorbar", None)
+        if cb is None:
+            return
+        cb.setWindow(self.windowCenter, self.windowWidth)
+        if cb.cmapName != self.scanCmap:
+            cb._set_cmap(self.scanCmap)
+        cb.update()
+
     def on_scan_cmap(self, name):
         self.scanCmap = name
         self.dispByScan[self.scanNum] = (self.scanCmap, self.scanAlpha)
+        self._sync_scan_colorbar_window()
         self.refresh_views()
 
     def on_scan_alpha(self, val):
@@ -2504,6 +2829,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.widthSpin.setValue(self.windowWidth)
         self.centerSpin.blockSignals(False)
         self.widthSpin.blockSignals(False)
+        self._sync_scan_colorbar_window()
         self.refresh_views()
 
     def on_manual_wl(self, *_):
@@ -2513,6 +2839,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.presetCombo.blockSignals(True)
         self.presetCombo.setCurrentText("--- Manual ---")
         self.presetCombo.blockSignals(False)
+        self._sync_scan_colorbar_window()
         self.refresh_views()
 
     def on_slice_changed(self, winId, val):
@@ -2983,6 +3310,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         extent = [hV[0], hV[-1], vV[-1], vV[0]]
         return img, extent, hV, vV, slicer
 
+    def _apply_scan_dispmask(self, img):
+        """Hide base-scan intensities outside the scan colorbar's display
+        (cyan) range. When that range spans the full axis (the default) the
+        array is returned unchanged so the fast set_data path is unaffected."""
+        cb = getattr(self, "scanColorbar", None)
+        if cb is None:
+            return img
+        dLo, dHi = cb.dispRange
+        eps = cb._span() * 1e-3
+        if dLo <= cb.axisMin + eps and dHi >= cb.axisMax - eps:
+            return img          # full range -> nothing masked
+        return np.ma.masked_where((img < dLo) | (img > dHi), img)
+
     def _grid_points(self, winId, hV, vV):
         """(N,3) physical (y,x,z) points covering this view's slice plane."""
         H, V = np.meshgrid(hV, vV)
@@ -3046,6 +3386,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 ax.imshow(regComp, extent=extent, interpolation="nearest",
                           aspect="equal")
             elif useBase:
+                img = self._apply_scan_dispmask(img)
                 if scanIm is None:
                     view._scanIm = ax.imshow(
                         img, cmap=self.scanCmap, vmin=vmin, vmax=vmax,
@@ -5153,12 +5494,14 @@ class UROMTDialog(QtWidgets.QDialog):
 
 
 class Volume3DDialog(QtWidgets.QDialog):
-    """True-3D visualization (Tools -> 3D Visualization): a GPU volume render of
+    """True-3D visualization (View -> 3D Visualization): a GPU volume render of
     the scan with structure surfaces, isodose surfaces and the urOMT overlay in
     one interactive scene. All transparency follows the main pyCERR viewer - the
     scan opacity (top-left), the dose colourwash alpha, and the urOMT overlay
-    opacity - so it stays consistent with the 2-D panels. Drag to rotate, scroll
-    to zoom; click 'Refresh' after changing those settings to rebuild the scene.
+    opacity - so it stays consistent with the 2-D panels. Left-drag rotates
+    (or pans when 'Pan mode' is checked) and scroll zooms; a triad of arrows
+    labelled L (Left), A (Anterior), S (Superior) sits in the corner and the
+    camera is set with Superior up. Click 'Refresh' after changing settings.
     """
 
     def __init__(self, viewer):
@@ -5168,14 +5511,37 @@ class Volume3DDialog(QtWidgets.QDialog):
         self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.resize(760, 680)
+        self._panMode = False           # left-drag pans (else rotates)
+        self._camStyle = None           # persistent trackball interactor style
+        self._panObsInstalled = False
         lay = QtWidgets.QVBoxLayout(self)
         self.plotter = QtInteractor(self)          # pyvista/VTK GPU widget
         lay.addWidget(self.plotter, 1)
+
+        # structure surface opacity - 3D only; 2D contour lines stay opaque
+        self.structOpacity = 0.45
+        structRow = QtWidgets.QHBoxLayout()
+        structRow.addWidget(QtWidgets.QLabel("Structure opacity (3D):"))
+        self.structAlphaSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.structAlphaSlider.setRange(0, 100)
+        self.structAlphaSlider.setValue(int(self.structOpacity * 100))
+        self.structAlphaSlider.setToolTip(
+            "Opacity of structure surfaces in this 3D view only. The 2D contour "
+            "lines are unaffected and always drawn fully opaque.")
+        self.structAlphaSlider.valueChanged.connect(self._on_struct_alpha)
+        structRow.addWidget(self.structAlphaSlider, 1)
+        lay.addLayout(structRow)
+
         row = QtWidgets.QHBoxLayout()
         row.addWidget(QtWidgets.QLabel(
-            "Scan volume + structures / dose / urOMT. Opacities follow the "
-            "main viewer."))
+            "Left-drag rotate, scroll zoom. Opacities follow the main viewer."))
         row.addStretch(1)
+        self.panCheck = QtWidgets.QCheckBox("Pan mode")
+        self.panCheck.setToolTip(
+            "Left-drag pans the scene instead of rotating it "
+            "(scroll still zooms). Uncheck to rotate.")
+        self.panCheck.toggled.connect(self._on_pan_toggled)
+        row.addWidget(self.panCheck)
         refresh = QtWidgets.QPushButton("Refresh")
         refresh.setToolTip("Rebuild the 3-D scene from the current planC and "
                            "the main viewer's transparency settings.")
@@ -5198,6 +5564,111 @@ class Volume3DDialog(QtWidgets.QDialog):
         window/level, transparency, structure or dose selection changes."""
         if self.isVisible():
             self._refreshTimer.start()
+
+    def _on_struct_alpha(self, val):
+        """Set the 3D structure-surface opacity. Updates the existing surface
+        actors in place (cheap) rather than rebuilding the whole scene; falls
+        back to a full rebuild if the actors are not present yet."""
+        self.structOpacity = val / 100.0
+        pl = self.plotter
+        try:
+            actors = pl.actors
+            updated = False
+            for strNum in self.viewer._checked_structs():
+                actor = actors.get(f"struct{strNum}")
+                if actor is not None:
+                    actor.GetProperty().SetOpacity(self.structOpacity)
+                    updated = True
+            if updated:
+                pl.render()
+            else:
+                self.render_scene()
+        except Exception:  # noqa: BLE001
+            self.render_scene()
+
+    def _on_pan_toggled(self, on):
+        """Toggle left-drag between pan and rotate.
+
+        Subclassing the interactor style and overriding ``OnLeftButtonDown`` did
+        not work (VTK does not dispatch button virtuals to Python overrides),
+        and ``enable_image_style`` maps left-drag to window/level, not pan. So we
+        keep a normal trackball-camera style and add a high-priority observer on
+        the interactor's LeftButtonPress: when pan mode is on it calls
+        ``StartPan`` before the default handler runs, so the default
+        ``StartRotate`` early-returns (a state is already set) and left-drag
+        pans. Middle-drag still pans, scroll still zooms."""
+        self._panMode = bool(on)
+        try:
+            import vtk
+            iren = getattr(self.plotter, "iren", None)
+            iren = getattr(iren, "interactor", iren)
+            if iren is None:
+                return
+            if getattr(self, "_camStyle", None) is None:
+                self._camStyle = vtk.vtkInteractorStyleTrackballCamera()
+            # ensure our style is the active one (pyvista may swap it on render)
+            iren.SetInteractorStyle(self._camStyle)
+            if not getattr(self, "_panObsInstalled", False):
+                def _press(_obj, _evt):
+                    if self._panMode:
+                        self._camStyle.StartPan()
+
+                def _release(_obj, _evt):
+                    if self._panMode:
+                        self._camStyle.EndPan()
+                # priority 10 => runs before the style's own handler
+                iren.AddObserver("LeftButtonPressEvent", _press, 10.0)
+                iren.AddObserver("LeftButtonReleaseEvent", _release, 10.0)
+                self._panObsInstalled = True
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _add_orientation_marker(self):
+        """Corner triad of arrows labelled L (Left), A (Anterior), S (Superior).
+
+        pyCERR virtual axes are +x=Left, +y=Anterior, +z=Inferior, so the Z
+        arrow is flipped (scale z by -1) to point Superior for the 'S' label;
+        LAS is a left-handed triad, consistent with that flip. A vtkAxesActor in
+        an orientation-marker widget is used (billboarded caption labels always
+        face the camera, so nothing renders mirrored). Built once and kept alive
+        - the widget lives on the interactor, so it survives ``clear()``."""
+        if getattr(self, "_orientMarker", None) is not None:
+            return
+        pl = self.plotter
+        try:
+            import vtk
+            axes = vtk.vtkAxesActor()
+            axes.SetXAxisLabelText("L")
+            axes.SetYAxisLabelText("A")
+            axes.SetZAxisLabelText("S")
+            flip = vtk.vtkTransform()
+            flip.Scale(1.0, 1.0, -1.0)          # Z arrow -> Superior (world -z)
+            axes.SetUserTransform(flip)
+            # lighting off so the negative-scale normal flip can't darken arrows
+            for prop in (axes.GetXAxisShaftProperty(), axes.GetXAxisTipProperty(),
+                         axes.GetYAxisShaftProperty(), axes.GetYAxisTipProperty(),
+                         axes.GetZAxisShaftProperty(), axes.GetZAxisTipProperty()):
+                prop.LightingOff()
+            for cap in (axes.GetXAxisCaptionActor2D(),
+                        axes.GetYAxisCaptionActor2D(),
+                        axes.GetZAxisCaptionActor2D()):
+                cap.GetCaptionTextProperty().SetColor(1.0, 1.0, 1.0)
+                cap.GetCaptionTextProperty().BoldOn()
+            iren = getattr(pl, "iren", None)
+            iren = getattr(iren, "interactor", iren)
+            marker = vtk.vtkOrientationMarkerWidget()
+            marker.SetOrientationMarker(axes)
+            marker.SetInteractor(iren)
+            marker.SetViewport(0.0, 0.0, 0.22, 0.22)
+            marker.EnabledOn()
+            marker.InteractiveOff()
+            self._orientMarker = marker          # keep a reference alive
+        except Exception:  # noqa: BLE001
+            try:                                 # fallback: simple labelled triad
+                pl.add_axes(xlabel="L", ylabel="A", zlabel="S", color="white")
+                self._orientMarker = True
+            except Exception:  # noqa: BLE001
+                pass
 
     def closeEvent(self, event):
         if getattr(self.viewer, "_volume3dDialog", None) is self:
@@ -5245,7 +5716,7 @@ class Volume3DDialog(QtWidgets.QDialog):
                 surf = v._pv_struct_mesh(strNum)
                 if surf is not None:
                     pl.add_mesh(surf, color=v._struct_color(strNum),
-                                opacity=0.45, smooth_shading=True,
+                                opacity=self.structOpacity, smooth_shading=True,
                                 pickable=False, show_scalar_bar=False,
                                 name=f"struct{strNum}")
         except Exception:  # noqa: BLE001
@@ -5271,7 +5742,18 @@ class Volume3DDialog(QtWidgets.QDialog):
         except Exception:  # noqa: BLE001
             pass
         try:
+            self._add_orientation_marker()
             pl.reset_camera()
+            # pyCERR virtual +z = Inferior, so Superior is -z: orient the camera
+            # with Superior up (otherwise the scene renders upside-down S-I).
+            try:
+                pl.set_viewup((0.0, 0.0, -1.0), reset=False, render=False)
+            except TypeError:                    # older pyvista signature
+                pl.set_viewup((0.0, 0.0, -1.0))
+            except Exception:  # noqa: BLE001
+                pl.camera.up = (0.0, 0.0, -1.0)
+            # keep the interaction mode in sync with the Pan-mode checkbox
+            self._on_pan_toggled(self.panCheck.isChecked())
             pl.render()
         except Exception:  # noqa: BLE001
             pass
