@@ -977,6 +977,7 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
         triggerTime = ("0018", "1060")
         TR = ("0018", "0080")
         FA = ("0018", "1314")
+        MFS = ("0018", "0087")  # MagneticFieldStrength
         if bVal1 in ds: scan_info.bValue = ds["0043", "1039"].value
         if bVal2 in ds: scan_info.bValue = ds["0018", "9087"].value
         if bVal3 in ds: scan_info.bValue = ds["0019", "100C"].value
@@ -984,7 +985,7 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
         if triggerTime in ds: scan_info.triggerTime = ds["0018", "1060"].value
         if TR in ds: scan_info.repetitionTime = float(ds["0018", "0080"].value)
         if FA in ds: scan_info.flipAngle = float(ds["0018", "1314"].value)
-
+        if MFS in ds: scan_info.magneticFieldStrength = float(ds["0018", "0087"].value) 
         scan_info = populateRadiopharmaFields(scan_info, ds)
 
     else:
@@ -1040,9 +1041,10 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
             # MR-specific tags
             TR = ("0018", "0080")
             FA = ("0018", "1314")
-            if TR in ds: scan_info.repetitionTime = float(ds["0018", "0080"].value)
-            if FA in ds: scan_info.flipAngle = float(ds["0018", "1314"].value)
-
+            MFS = ("0018", "0087")
+            if TR in ds: s_info.repetitionTime = float(ds["0018", "0080"].value)
+            if FA in ds: s_info.flipAngle = float(ds["0018", "1314"].value)
+            if MFS in ds: s_info.magneticFieldStrength = float(ds["0018", "0087"].value)
             s_info = populateRadiopharmaFields(s_info, ds)
 
             scan_info[iFrame] = s_info

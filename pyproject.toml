@@ -33,7 +33,7 @@ dependencies = [
     'shapelysmooth',
     'matplotlib >= 3.5',
     'ipywidgets',
-    'surface-distance',
+    'surface-distance-based-measures',
     'itk-strain',
     # Desktop Qt viewer (cerr.viewer.pycerr_gui): PyQt5 is the Qt binding;
     # pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk is pulled in

@@ -104,7 +104,7 @@ class ScanInfo:
         philipsActivityConcentrationScaleFactor (float): Philips scanner private tag to convert stored pixel values (after applying the Rescale Slope (0028,1053)) into Activity Concentration units (MBq/mL).
         gePETDecayCorrectionDateTime (float): GE scanner private tag for the date and time to which all frames in this Image were decay corrected.
         siemensPETDecayCorrectionDateTime (float): Siemens scanner private tag for the date and time to which all frames in this Image were decay corrected.
-
+        magneticFieldStrength (float): Magnetic field strength (in Tesla) conditionally required for MRI.
     """
 
     imageNumber: float = 0.0
@@ -207,7 +207,7 @@ class ScanInfo:
     philipsActivityConcentrationScaleFactor: float = ''
     gePETDecayCorrectionDateTime: float = ''
     siemensPETDecayCorrectionDateTime: float = ''
-
+    magneticFieldStrength: float = np.nan
 
 
 @dataclass
