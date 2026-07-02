@@ -1,6 +1,11 @@
+import os
+import glob
 import json
 import math
 import numpy as np
+import pathlib
+
+import importlib.resources
 from scipy.special import erf
 
 from cerr.dvh import *
@@ -907,21 +912,66 @@ def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, b
 
     return doseBinList, volHistList, model
 
+
+def getModelDir():
+    """Get path to ROE directory with model parameters.
+    Returns:
+        modelPath (pathlib.Path): Path to ROE directory with model parameters.
+"""
+    modelPath = importlib.resources.files("cerr.roe") / "model_parameters"
+    return modelPath
+
+
+def listModels():
+    """
+    List all available dosimetric models.
+
+    Returns:
+        List of model names.
+    """
+    return sorted(p.stem for p in getModelDir().glob("*.json"))
+
+
+def mapModelToFile(modelName):
+    """
+    Accept a model name and return path to JSON parameter file.
+    
+    Args:
+        modelName (str) : Name of dosimetric model.
+    Returns:
+        str : Path to JSON parameter file.
+    """
+
+    # Treat as a model name
+    candidates = list(getModelDir().glob(f"{modelName}.json"))
+    if not candidates:
+        available = listModels()
+        raise ValueError(
+            f"Unknown model name {modelName!r}. "
+            f"Built-in models available:\n  " + "\n  ".join(available)
+        )
+    return str(candidates[0])
+
+
 def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
     """
     Evaluate dosimetric model including fractionation correction where applicable.
     Args:
-          modelFile: Path to JSON file describing model parameters OR
-                     Dictionary of model parameters
-          doseNum: Index of dose in planC
-          planC: plan container object
-          fSizeIn: Fraction size of input plan
-          fNumIn: Fraction no. of input plan
-          binWidth (float): Bin width for DVH calculation. Default:0.05
+          modelFile (str): Model name accepted by mapModelToFile (or)
+                           Path to JSON file describing model parameters OR
+                           Dictionary of model parameters.
+          doseNum (int): Index of dose in planC.
+          planC (cerr.plan_container.PlanC): Plan container object.
+          fSizeIn (float): Fraction size of input plan.
+          fNumIn (int): Fraction no. of input plan.
+          binWidth (float): Bin width for DVH calculation. Default:0.05.
           mode: Set to 'test' for unit tests using single-voxel structures.
     Returns:
         Model-based NTCP.
     """
+
+    if isinstance(modelFile, str) and '.json' not in modelFile:
+        modelFile = mapModelToFile(modelFile)
 
     # Get corrected dose bins and associated volumes for structures involved
     doseBinList, volHistList, model = get_corrected_dvbins(modelFile, doseNum, planC,
