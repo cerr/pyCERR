@@ -1,0 +1,27 @@
+{
+	"name": "Parotid Gland-Related Xerostomia (M12)",
+	"type": "NTCP",
+	"fractionCorrect": "No",
+  	"parameters": 
+        	     {
+		       "structures":{
+                            "SCRR":{
+						            "meanDose":{"weight": 0.008, "val": "meanDose"}
+		                           },
+                            "Parotids-SCRR":{
+						            "meanDose":{"weight": 0.00032, "val": "meanDose"}
+		                           },
+                            "Submandibular glands":{
+						            "meanDose":{"weight": 0.014, "val": "meanDose"}
+		                           },
+                            "Oral cavity":{
+						            "meanDose":{"weight": 0.012, "val": "meanDose"}
+		                           }
+                      },
+               "pretreatment_toxicity": {"weight": 0.533, "val": 0, "desc": {"No": 0, "Yes": 1}},
+               "constant": {"weight": 1, "val": -2.317}
+	},
+	"function": "logitFn",
+	"author": "Aditi Iyer (iyera@mskcc.org)",
+	"date_created": "06/26/2026"
+}
