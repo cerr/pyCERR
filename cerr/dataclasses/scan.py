@@ -1070,7 +1070,7 @@ def loadSortedScanInfo(file_list):
     multiFrameFlag = False
     for file in file_list:
         ds = dcmread(file)
-        if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM"])): #hasattr(ds, "pixel_array"):
+        if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM", "US", "OT"])): #hasattr(ds, "pixel_array"):
             if len(file_list) == 1 and 'NumberOfFrames' in ds:
                 multiFrameFlag = True
                 si_pixel_data = parseScanInfoFields(ds, multiFrameFlag)
@@ -1094,7 +1094,7 @@ def loadSortedScanInfo(file_list):
         scan_info = np.delete(scan_info,np.arange(count,scan_array.shape[2]),axis=0)
 
     # Filter out duplicate SOP Instances
-    if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM"])) and not multiFrameFlag:
+    if np.any(ds.Modality == np.array(["CT","PT", "MR", "NM", "US", "OT"])) and not multiFrameFlag:
         allSOPs = [s.sopInstanceUID for s in scan_info]
         uniqSOPs, uniqInds = np.unique(allSOPs, return_index=True)
         duplicateIDs = list(set(range(len(scan_info))) - set(uniqInds))

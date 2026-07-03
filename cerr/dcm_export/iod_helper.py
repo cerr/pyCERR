@@ -33,6 +33,14 @@ def getFileMeta(dataType) -> FileMetaDataset:
         dataClassUID = "1.2.840.10008.5.1.4.1.1.66.3"
     elif dataType == "RTDOSE":
         dataClassUID = "1.2.840.10008.5.1.4.1.1.481.2"
+    elif dataType == "RTPLAN":
+        dataClassUID = "1.2.840.10008.5.1.4.1.1.481.5"
+    elif dataType == "PT":
+        dataClassUID = "1.2.840.10008.5.1.4.1.1.128"
+    elif dataType == "NM":
+        dataClassUID = "1.2.840.10008.5.1.4.1.1.20"
+    elif dataType == "US":
+        dataClassUID = "1.2.840.10008.5.1.4.1.1.6.1"
     else:
         raise Exception("Unsupported data type")
 

@@ -683,7 +683,7 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         d = group_content.to_dict()
         files = group_content.iloc[:,-1]
         modality = group_content.iloc[0,4]
-        if modality in ["CT","PT", "MR", "NM"]:
+        if modality in ["CT","PT", "MR", "NM", "US", "OT"]:
             # populate scan attributes
             scan_meta = populatePlanCField('scan', files, opts)
             kept = []
