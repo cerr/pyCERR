@@ -342,7 +342,7 @@ def load_beams(file_list):
                 patientSetupSeq = PatientSetupSeq()
                 patientSetupSeq.PatientPosition = ds.PatientSetupSequence[0].PatientPosition
                 patientSetupSeq.PatientSetupNumber = ds.PatientSetupSequence[0].PatientSetupNumber
-                ref_dose_seq_list = np.append(patient_setup_seq_list,patientSetupSeq)
+                patient_setup_seq_list = np.append(patient_setup_seq_list,patientSetupSeq)
                 beams_meta.PatientSetupSequence = patient_setup_seq_list
             if hasattr(ds,"DoseReferenceSequence"):
                 dose_ref_seq_list = np.array([], dtype=DoseReferenceSeq)
@@ -448,7 +448,7 @@ def load_beams(file_list):
             if hasattr(ds,"ManufacturerModelName"): beams_meta.ManufacturerModelName = ds.ManufacturerModelName
             beams_meta.RTPlanLabel = ds.RTPlanLabel
             beams_meta.RTPlanDate = ds.RTPlanDate
-            beams_meta.RTPlanDate = ds.RTPlanTime
+            beams_meta.RTPlanTime = ds.RTPlanTime
             beams_meta.RTPlanGeometry = ds.RTPlanGeometry
             if hasattr(ds,"TreatmentSites"): beams_meta.TreatmentSites = ds.TreatmentSites
             if hasattr(ds,"PrescriptionDescription"): beams_meta.PrescriptionDescription = ds.PrescriptionDescription
