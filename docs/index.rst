@@ -19,7 +19,8 @@ Features
 * DICOM import of CT/MR/PT/US/NM scans plus RTSTRUCT, RTDOSE and RTPLAN (``cerr.plan_container.loadDcmDir``)
 * NIfTI import/export of scans, segmentations and dose
 * Full-``PlanC`` HDF5 serialization (``saveToH5`` / ``loadFromH5``)
-* DICOM RTSTRUCT export (``cerr.dcm_export.rtstruct_iod``)
+* DICOM export of RTSTRUCT, image series (CT/MR/PT/US/NM, or Secondary Capture
+  for derived scans), RTDOSE and RTPLAN (``cerr.dcm_export``)
 
 **Segmentation & contours**
 
@@ -49,7 +50,9 @@ Features
 (``cerr.viewer``):
 
 * ``pycerr_napari`` — napari 2D/3D viewer
-* ``pycerr_gui`` — PyQt5 CERR-style desktop viewer
+* ``pycerr_gui`` — PyQt5 CERR-style desktop viewer: linked ortho views, per-scan
+  window/colormap/opacity, colorwash or isodose-line dose display, a 3D volume
+  render with a draggable clip box, contouring, DVH and Registration QA
 * ``pycerr_nbviewer`` — Jupyter / Colab notebook viewer
 
 .. toctree::
