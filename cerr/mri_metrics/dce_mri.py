@@ -1048,8 +1048,8 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
         ctr = np.argmin(np.abs(procTimeV - featureDict['TimeToPeak'][idx]))
         point_x1 = 0  # procTimeV[0]
         point_y1 = 0  # relSigM[idx, 0]
-        point_x2 = procTimeV[ctr]
-        point_y2 = procSlcSigM[idx, ctr]
+        point_x2 = featureDict['TimeToPeak'][idx]
+        point_y2 = featureDict['PeakEnhancement'][idx]
         cptIdx = int(ctr / 4)
         cpt = (procTimeV[cptIdx], procSlcSigM[idx, cptIdx])
         slope = featureDict['WashInSlope'][idx]
@@ -1066,8 +1066,8 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
                  rotation_mode='anchor')
 
         # Wash-out slope
-        point_x1 = procTimeV[ctr]
-        point_y1 = procSlcSigM[idx, ctr]
+        point_x1 = featureDict['TimeToPeak'][idx]
+        point_y1 = featureDict['PeakEnhancement'][idx]
         point_x2 = procTimeV[-1]
         point_y2 = procSlcSigM[idx, -1]
         midptIdx = int(ctr + (len(procTimeV) - ctr) / 2)

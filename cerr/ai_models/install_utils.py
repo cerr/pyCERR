@@ -46,6 +46,41 @@ def checkSystemDependencies():
             f"Please install them before proceeding."
         )
 
+
+def listModels():
+    """List all available models from the model_installer.
+    """
+    scriptPath = getScriptPath()
+
+    models = {}
+    modelNum = 1
+    while True:
+        cmd = buildBashCommand(scriptPath, ["-n", str(modelNum)])
+        try:
+            result = subprocess.run(cmd,capture_output=True,text=True)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Timed out while listing models at model number {modelNum}.")
+
+        # Extract model name
+        lines = [line.strip() for line in result.stdout.strip().split("\n")
+                 if line.strip() and line.strip() != "Error"]
+        modelName = lines[-1] if lines else ""
+        if not modelName or modelName == "Error" or result.returncode != 0:
+            break
+
+        models[modelNum] = modelName
+        modelNum += 1
+
+    if not models:
+        raise RuntimeError("No models found. Check that model_installer is correctly installed.")
+
+    # Display
+    for num, name in models.items():
+        print(f"  {num}. {name}")
+
+    return models
+
+
 def validateModelNum(modelNum):
     """Check that modelNum input to installer.sh is valid.
 
