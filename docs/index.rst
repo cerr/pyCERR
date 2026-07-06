@@ -61,11 +61,16 @@ Features
 
    cerr
    cerr.dataclasses
+   cerr.contour
    cerr.radiomics
+   cerr.dcm_export
    cerr.registration
    cerr.utils
    cerr.viewer
    cerr.imrtp
+   cerr.roe
+   cerr.mri_metrics
+   cerr.datasets
    tests
 
 Indices and tables
