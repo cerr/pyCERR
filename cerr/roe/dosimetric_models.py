@@ -818,17 +818,18 @@ def getTreatmentSchedule(nFrx, scheduleType):
 
 
 def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
-    """
-    Returns corrected dose bins and associated vol. histograms for structures involved.
+    """Return corrected dose bins and associated volume histograms for the structures involved.
+
     Args:
-          modelFile: Path to JSON file describing model parameters OR
-                     Dictionary of model parameters
-          doseNum: Index of dose in planC
-          planC: plan container object
-          fSizeIn: Fraction size of input plan
-          fNumIn: Fraction no. of input plan
-          binWidth (float): Bin width for DVH calculation. Default:0.05
-          mode: Set to 'test' for unit tests using single-voxel structures.
+        modelFile: Path to JSON file describing model parameters, or a
+            dictionary of model parameters.
+        doseNum: Index of dose in planC.
+        planC: Plan container object.
+        fSizeIn: Fraction size of input plan.
+        fNumIn: Fraction number of input plan.
+        binWidth (float): Bin width for DVH calculation. Default: 0.05.
+        mode: Set to 'test' for unit tests using single-voxel structures.
+
     Returns:
         Model-based NTCP.
     """
@@ -908,17 +909,18 @@ def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, b
     return doseBinList, volHistList, model
 
 def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
-    """
-    Evaluate dosimetric model including fractionation correction where applicable.
+    """Evaluate a dosimetric model, including fractionation correction where applicable.
+
     Args:
-          modelFile: Path to JSON file describing model parameters OR
-                     Dictionary of model parameters
-          doseNum: Index of dose in planC
-          planC: plan container object
-          fSizeIn: Fraction size of input plan
-          fNumIn: Fraction no. of input plan
-          binWidth (float): Bin width for DVH calculation. Default:0.05
-          mode: Set to 'test' for unit tests using single-voxel structures.
+        modelFile: Path to JSON file describing model parameters, or a
+            dictionary of model parameters.
+        doseNum: Index of dose in planC.
+        planC: Plan container object.
+        fSizeIn: Fraction size of input plan.
+        fNumIn: Fraction number of input plan.
+        binWidth (float): Bin width for DVH calculation. Default: 0.05.
+        mode: Set to 'test' for unit tests using single-voxel structures.
+
     Returns:
         Model-based NTCP.
     """
