@@ -428,7 +428,7 @@ def run(modelName, planC, scanNum, paramDict=None):
 
     Returns:
         mask4M (np.ndarray, 4D)          : Stack of output 3D binary masks.
-        labelDict (dict)                 : Dictionary mapping output structure labels with indices in map4M.
+        labelDict (dict)                 : Dictionary mapping output structure labels with indices in mask4M.
                                            {"outStructure":label}
                                            outStructureMask3M = mask4M[:,:,:,label-1]
         planC (cerr.plan_container.PlanC): pyCERR's plan container object with SCRR structures added
