@@ -12,14 +12,13 @@ from pathlib import Path
 from cerr import plan_container as pc
 from cerr.ai_models.install_utils import validateModelNum
 
-def main(modelNum, installDir, mode, userInputs, verbose=False):
+def main(modelNum, installDir, userInputs, verbose=False):
     """
         Run pretrained AI model.
 
     Args:
         modelNum (int): Model number to install (see model_installer for available models)
         installDir (str): Path to model install dir.
-        mode (str) : The execution mode to use ('single' or 'batch').
         userInputs: Dictionary of arguments provided by the user.
         verbose (bool): [optional, default:False] Print stdout if True.
     """
@@ -61,9 +60,9 @@ def main(modelNum, installDir, mode, userInputs, verbose=False):
         sessionUserInputs['session_input'] = os.path.join(sessionPath, 'input')
         sessionUserInputs['session_output'] = os.path.join(sessionPath, 'output')
         os.makedirs(sessionUserInputs['session_output'], exist_ok=True)
-        cmd, bashExe = buildCommand(modelBase, mode, sessionUserInputs)
+        cmd, bashExe = buildCommand(modelBase, sessionUserInputs)
     else:
-        cmd, bashExe = buildCommand(modelBase, mode, userInputs)
+        cmd, bashExe = buildCommand(modelBase, userInputs)
 
     # Apply the model
     print(f"Running {cmd}")
@@ -88,14 +87,13 @@ def main(modelNum, installDir, mode, userInputs, verbose=False):
     return result
 
 
-def buildCommand(modelPath, mode, userInputs):
+def buildCommand(modelPath, userInputs):
     """
         Reads the model's run specification YAML file and constructs the
         subprocess command based on user inputs.
 
     Args:
         modelPath (pathlib.Path): Path to the installed model.
-        mode (str) : The execution mode to use ('single' or 'batch').
         userInputs: Dictionary of arguments provided by the user.
     """
 
@@ -127,13 +125,7 @@ def buildCommand(modelPath, mode, userInputs):
         raise ValueError(f"Error parsing YAML file: {e}")
 
     # Set path to inference wrapper
-    validModes = ['single','batch']
-    if mode not in validModes:
-        raise ValueError(
-        f"Invalid execution mode '{mode}'."
-        f"Available modes: {validModes}"
-        )
-    execConfig = config["execution"][mode]
+    execConfig = config["execution"]
     inferenceWrapper = (modelPath /execConfig["entrypoint"]).as_posix()
 
     cmd = [pythonExe.as_posix().replace("\\", "/"), inferenceWrapper]
