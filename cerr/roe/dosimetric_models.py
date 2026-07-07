@@ -1,9 +1,5 @@
-import os
-import glob
 import json
 import math
-import numpy as np
-import pathlib
 
 import importlib.resources
 from scipy.special import erf
@@ -826,14 +822,15 @@ def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, b
     """
     Returns corrected dose bins and associated vol. histograms for structures involved.
     Args:
-          modelFile: Path to JSON file describing model parameters OR
-                     Dictionary of model parameters
-          doseNum: Index of dose in planC
-          planC: plan container object
-          fSizeIn: Fraction size of input plan
-          fNumIn: Fraction no. of input plan
-          binWidth (float): Bin width for DVH calculation. Default:0.05
-          mode: Set to 'test' for unit tests using single-voxel structures.
+        modelFile: Path to JSON file describing model parameters, or a
+            dictionary of model parameters.
+        doseNum: Index of dose in planC.
+        planC: Plan container object.
+        fSizeIn: Fraction size of input plan.
+        fNumIn: Fraction number of input plan.
+        binWidth (float): Bin width for DVH calculation. Default: 0.05.
+        mode: Set to 'test' for unit tests using single-voxel structures.
+
     Returns:
         Model-based NTCP.
     """
@@ -935,7 +932,7 @@ def listModels():
 def mapModelToFile(modelName):
     """
     Accept a model name and return path to JSON parameter file.
-    
+
     Args:
         modelName (str) : Name of dosimetric model.
     Returns:
@@ -954,12 +951,12 @@ def mapModelToFile(modelName):
 
 
 def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
-    """
-    Evaluate dosimetric model including fractionation correction where applicable.
+    """Evaluate a dosimetric model, including fractionation correction where applicable.
+
     Args:
-          modelFile (str): Model name accepted by mapModelToFile (or)
-                           Path to JSON file describing model parameters OR
-                           Dictionary of model parameters.
+          modelFile (str or dict): Model name accepted by mapModelToFile (or)
+                                   path to JSON file describing model parameters (or)
+                                   dictionary of model parameters.
           doseNum (int): Index of dose in planC.
           planC (cerr.plan_container.PlanC): Plan container object.
           fSizeIn (float): Fraction size of input plan.

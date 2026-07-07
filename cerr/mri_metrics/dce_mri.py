@@ -186,13 +186,14 @@ def intToConc(normSigM, concDict):
 
     Args:
         normSigM (np.ndarray): 2-D array of intensity-normalized signal (S(t)/S(0)) (nVox, nTimePts)
-        concDict (dict): Dictionary specifying
-            clip_between (float array): Clip normalized intensities (intensity/baseline)
-                                        between specified mon,max values
-            T10 (float): Pre-contrast longitudinal relaxation time (seconds).
-            FA (float): Flip angle (degrees)
-            TR (float): Repetition time (seconds)
-            r1 (float): Relaxivity
+        concDict (dict): Dictionary specifying the following keys:
+
+            - clip_between (float array): Clip normalized intensities
+              (intensity/baseline) between specified min, max values.
+            - T10 (float): Pre-contrast longitudinal relaxation time (seconds).
+            - FA (float): Flip angle (degrees).
+            - TR (float): Repetition time (seconds).
+            - r1 (float): Relaxivity.
 
     Returns:
         Concentration (C) in mmol/L and R1 map
@@ -644,21 +645,21 @@ def smoothResample(sigM, timeV, temporalSmoothFlag=False, resampFlag=False, minW
 
 
 def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
-    """semiQuantFeatures
-        Compute non-parametric features from pre-processed contrast uptake curve.
-        Ref.: Lee, S.H., et al. (2017) "Correlation Between Tumor Metabolism and Semiquantitative Perfusion
-               MRI Metrics in Non–small Cell Lung Cancer." IJROBP 99.2:S83-S84.
+    """Compute non-parametric features from a pre-processed contrast uptake curve.
 
-        Args:
-            procSlcSigM (np.ndarray, 2D)   : Processed uptake curves (nVox x nResampleTime)
-            procTimeV (np.array, 1D)       : Acquisition times (1 x nResampleTime) in min.
-            baselineV (np.array, 1D)       : Mean signal before BAT (nVox x 1)
-            sigType (string)               : [optional, default:'RSE'] Convert intensities to relative signal
-                                             enhancement ('RSE') or contrast concentration (CC)
+    Ref.: Lee, S.H., et al. (2017) "Correlation Between Tumor Metabolism and
+    Semiquantitative Perfusion MRI Metrics in Non-small Cell Lung Cancer."
+    IJROBP 99.2:S83-S84.
 
-        Returns:
-            featureDict (dict)             : Dictionary of non-parameteric features.
+    Args:
+        procSlcSigM (np.ndarray, 2D): Processed uptake curves (nVox x nResampleTime).
+        procTimeV (np.array, 1D): Acquisition times (1 x nResampleTime) in min.
+        baselineV (np.array, 1D): Mean signal before BAT (nVox x 1).
+        sigType (str): [optional, default:'RSE'] Convert intensities to relative
+            signal enhancement ('RSE') or contrast concentration ('CC').
 
+    Returns:
+        featureDict (dict): Dictionary of non-parametric features.
     """
 
     nVox = procSlcSigM.shape[0]
@@ -1251,13 +1252,14 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None, ):
 
     Args:
         baseDir (str): Root directory whose immediate sub-directories each
-                       correspond to one patient / dataset.
+            correspond to one patient / dataset.
         saveDir (str): Directory in which output PNG plots, the collected
-                      ``user_inputs.xlsx``, and any ``exceptions.log`` are written.
-                        Created automatically if it does not exist.
-        timeV (np.array, float): [optional. default=None, read acquisitionTime]
-                                or array of user-input acquisition times.
-        strName (str): [optional. default=None, name of ROI in ``planC``]. First structure is used by default.
+            ``user_inputs.xlsx``, and any ``exceptions.log`` are written.
+            Created automatically if it does not exist.
+        timeV (np.array, float): [optional, default=None, read acquisitionTime]
+            or array of user-input acquisition times.
+        strName (str): [optional, default=None] Name of ROI in ``planC``; the
+            first structure is used by default.
 
     Returns:
         file: The log-file handle for ``exceptions.log`` or ``None`` if no exceptions were encountered.
