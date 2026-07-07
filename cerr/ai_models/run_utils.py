@@ -42,6 +42,7 @@ def main(modelNum, installDir, userInputs, verbose=False):
     planC = None
     procScanNum = None
     scanNum = None
+    sessionUserInputs = None
 
     # Apply pre-processing
     if prepScript:
@@ -51,18 +52,16 @@ def main(modelNum, installDir, userInputs, verbose=False):
         spec = importlib.util.spec_from_file_location("preproc", prepPath)
         preproc = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(preproc)
-        planC, procScanNum, scanNum = preproc.processInputData(userInputs)
+        planC, procScanNum, scanNum, sessionUserInputs = preproc.processInputData(userInputs)
 
     # Build model run command
     sessionPath = userInputs.get('session_path')
     if prepScript and sessionPath:
-        sessionUserInputs = dict(userInputs)
-        sessionUserInputs['session_input'] = os.path.join(sessionPath, 'input')
-        sessionUserInputs['session_output'] = os.path.join(sessionPath, 'output')
-        os.makedirs(sessionUserInputs['session_output'], exist_ok=True)
         cmd, bashExe = buildCommand(modelBase, sessionUserInputs)
+        sessionOutDir = sessionUserInputs['output_path']
     else:
         cmd, bashExe = buildCommand(modelBase, userInputs)
+        sessionOutDir = userInputs['output_path']
 
     # Apply the model
     print(f"Running {cmd}")
@@ -81,8 +80,8 @@ def main(modelNum, installDir, userInputs, verbose=False):
         spec = importlib.util.spec_from_file_location("postproc", postPath)
         postproc = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(postproc)
-        outDir = os.path.join(sessionPath, 'output')
-        status = postproc.postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir)
+        __ = postproc.postProcAndImportSeg(planC, procScanNum, scanNum,
+                                               userInputs, sessionOutDir)
 
     return result
 
