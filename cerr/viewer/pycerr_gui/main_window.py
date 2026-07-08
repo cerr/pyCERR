@@ -1730,8 +1730,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def _fast_3d_style(self, view, layer, cmap, clim, alpha):
         """In-place colormap/window/opacity update for the embedded VTK
         cut-planes view. Returns False (caller re-renders the window) when an
-        in-place update is not possible."""
+        in-place update is not possible - including when a display (cyan) range
+        is active, since the scan NaN mask / dose iso-levels then depend on it
+        and must be rebuilt by a re-render."""
         if not getattr(view, "uses_vtk", False):
+            return False
+        dispActive = (self._scan_disp_range() if layer == "scan"
+                      else self._dose_disp_range()) != (float("-inf"),
+                                                        float("inf"))
+        if dispActive:
             return False
         pl = getattr(view, "vtk_widget", None)
         if pl is None:
@@ -1761,12 +1768,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def _notify_volume3d_style(self, layer):
         """Ask the 3D volume dialog to restyle in place (colormap/window/
-        opacity) without a full rebuild; falls back to its debounced rebuild."""
+        opacity) without a full rebuild; falls back to its debounced rebuild.
+
+        The scan volume honors the display range via its opacity transfer
+        function (in place), but dose iso-surfaces at a masked display range
+        change *geometry* (fewer levels), so a rebuild is requested instead."""
         dlg = getattr(self, "_volume3dDialog", None)
         if dlg is None:
             return
         try:
-            dlg.apply_style(layer)
+            if layer == "dose" and self._dose_disp_range() != (
+                    float("-inf"), float("inf")):
+                dlg.request_refresh()
+            else:
+                dlg.apply_style(layer)
         except Exception:  # noqa: BLE001
             self._volume3dDialog = None
 
@@ -3297,19 +3312,44 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._pvStructCache[key] = surf
         return self._pvStructCache[key]
 
+    def _scan_disp_range(self):
+        """Scan display (cyan) range in scan units, or (-inf, inf) when the
+        range spans the whole axis (i.e. no masking)."""
+        cb = getattr(self, "scanColorbar", None)
+        if cb is None:
+            return float("-inf"), float("inf")
+        lo, hi = cb.dispRange
+        if lo <= cb.axisMin + cb._span() * 1e-3 \
+                and hi >= cb.axisMax - cb._span() * 1e-3:
+            return float("-inf"), float("inf")
+        return float(lo), float(hi)
+
+    def _dose_disp_range(self):
+        """Dose display (cyan) range in dose units, or (-inf, inf) when the
+        range spans the whole axis (i.e. no masking)."""
+        cb = getattr(self, "colorbar", None)
+        if cb is None:
+            return float("-inf"), float("inf")
+        lo, hi = cb.dispRange
+        if lo <= cb.axisMin + cb._span() * 1e-3 \
+                and hi >= cb.axisMax - cb._span() * 1e-3:
+            return float("-inf"), float("inf")
+        return float(lo), float(hi)
+
     def _pv_dose_iso(self, doseIdx, frac=1.0):
         """Cached (isodose surfaces, doseMax) for a dose index, or None.
         Surfaces are contoured at the panel's isodose levels (resolved to Gy via
-        :meth:`_isodose_abs_levels`, matching the 2D isodose lines), so changes
-        to the isodose levels/units are reflected in the 3D and cut-plane views.
-        ``frac < 1`` contours a resampled dose grid. Results are cached per
+        :meth:`_isodose_abs_levels`, matching the 2D isodose lines), restricted
+        to the dose display (cyan) range so the 3D views honor it. ``frac < 1``
+        contours a resampled dose grid. Results are cached per
         (dose, fraction, levels)."""
         # Resolve levels first so the cache invalidates when they change.
         dmaxAll = self._dose_interp(doseIdx)
         dmaxAll = dmaxAll[1] if dmaxAll is not None else 0.0
+        dLo, dHi = self._dose_disp_range()
         levels = tuple(round(lv, 4)
                        for lv in self._isodose_abs_levels(doseIdx, dmaxAll)
-                       if lv > 0)
+                       if lv > 0 and dLo <= lv <= dHi)
         key = (doseIdx, round(frac, 3), levels)
         if key not in self._pvDoseCache:
             res = None
@@ -3364,13 +3404,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             return np.ascontiguousarray(img2)
 
         sn = self.scanNum
+        # honor the scan display (cyan) range: values outside it become NaN and
+        # are drawn transparent (nan_opacity=0), so the planes match the 2D mask.
+        dLo, dHi = self._scan_disp_range()
+        masked = np.isfinite(dLo) or np.isfinite(dHi)
+
+        def mask(scalars):
+            if not masked:
+                return scalars
+            a = np.asarray(scalars, dtype=np.float32).copy()
+            a[(a < dLo) | (a > dHi)] = np.nan
+            return a
+
         aImg = canon(self.scan3M[:, :, kA], flipR, flipC)   # (y, x)
         aImg, dyA, dxA = self._upsample_plane(aImg, yA, xA, ("3dA", kA, sn))
         nRa, nCa = aImg.shape
         axial = pv.ImageData(dimensions=(nCa, nRa, 1), spacing=(dxA, dyA, 1.0),
                              origin=(float(xA[0]), float(yA[0]),
                                      float(self.zV[kA])))
-        axial.point_data["v"] = aImg.ravel()                # x fastest
+        axial.point_data["v"] = mask(aImg.ravel())          # x fastest
 
         sImg = canon(self.scan3M[:, kS, :], flipR, flipS)   # (y, z)
         sImg, dyS, dzS = self._upsample_plane(sImg, yA, zA, ("3dS", kS, sn))
@@ -3378,7 +3430,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         sag = pv.ImageData(dimensions=(1, nRs, nSs), spacing=(1.0, dyS, dzS),
                            origin=(float(self.xV[kS]), float(yA[0]),
                                    float(zA[0])))
-        sag.point_data["v"] = sImg.ravel(order="F")         # y fastest
+        sag.point_data["v"] = mask(sImg.ravel(order="F"))   # y fastest
 
         cImg = canon(self.scan3M[kC, :, :], flipC, flipS)   # (x, z)
         cImg, dxC, dzC = self._upsample_plane(cImg, xA, zA, ("3dC", kC, sn))
@@ -3386,7 +3438,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         cor = pv.ImageData(dimensions=(nCc, 1, nSc), spacing=(dxC, 1.0, dzC),
                            origin=(float(xA[0]), float(self.yV[kC]),
                                    float(zA[0])))
-        cor.point_data["v"] = cImg.ravel(order="F")         # x fastest
+        cor.point_data["v"] = mask(cImg.ravel(order="F"))   # x fastest
 
         pl.clear()      # actors only; the camera is preserved
         view._plane_actors = {}
@@ -3394,7 +3446,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                              (VIEW_CORONAL, cor)):
             view._plane_actors[orient] = pl.add_mesh(
                 mesh, cmap=self.scanCmap, clim=(vmin, max(vmax, vmin + 1e-6)),
-                opacity=self.scanAlpha, lighting=False,    # scan opacity (top-left)
+                opacity=self.scanAlpha, nan_opacity=0.0, lighting=False,
                 show_scalar_bar=False, render=False)
 
         # colored plane outlines (locators)

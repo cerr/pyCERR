@@ -154,15 +154,27 @@ class Volume3DDialog(QtWidgets.QDialog):
         vmax = v.windowCenter + v.windowWidth / 2.0
         return vmin, max(vmax, vmin + 1e-6)
 
-    def _scan_opacity_tf(self):
-        """vtkPiecewiseFunction: the build-time sigmoid ramp x scan opacity,
-        over the current clim range."""
-        import vtk
+    def _scan_opacity_ramp(self):
+        """256-sample opacity ramp (0..1) over clim: the sigmoid TF scaled by
+        scan opacity, with samples outside the scan display (cyan) range zeroed
+        so the volume honors it."""
         vmin, vmax = self._clim()
-        span = max(vmax - vmin, 1e-6)
         ramp = np.clip(pv.opacity_transfer_function("sigmoid", 256)
                        .astype(float) * float(self.scanOpacity),
                        0.0, 255.0) / 255.0
+        dLo, dHi = self.viewer._scan_disp_range()
+        if np.isfinite(dLo) or np.isfinite(dHi):
+            scal = vmin + (vmax - vmin) * np.arange(len(ramp)) / (len(ramp) - 1)
+            ramp = ramp.copy()
+            ramp[(scal < dLo) | (scal > dHi)] = 0.0
+        return ramp
+
+    def _scan_opacity_tf(self):
+        """vtkPiecewiseFunction from :meth:`_scan_opacity_ramp` over clim."""
+        import vtk
+        vmin, vmax = self._clim()
+        span = vmax - vmin
+        ramp = self._scan_opacity_ramp()
         otf = vtk.vtkPiecewiseFunction()
         n = len(ramp)
         for i, a in enumerate(ramp):
@@ -544,12 +556,9 @@ class Volume3DDialog(QtWidgets.QDialog):
                 grid = v._pv_volume(scan, xA, yA, zA)
                 vmin = v.windowCenter - v.windowWidth / 2.0
                 vmax = v.windowCenter + v.windowWidth / 2.0
-                # a sigmoid opacity transfer function makes the scan clearly
-                # visible (a plain linear ramp renders nearly transparent);
-                # scaled by this dialog's scan-opacity slider.
-                op = np.clip(pv.opacity_transfer_function("sigmoid", 256)
-                             .astype(float) * float(self.scanOpacity),
-                             0.0, 255.0)
+                # sigmoid opacity ramp x scan opacity, zeroed outside the scan
+                # display (cyan) range so the volume honors it (0..1 -> 0..255).
+                op = self._scan_opacity_ramp() * 255.0
                 pl.add_volume(grid, scalars="v", cmap=v.scanCmap,
                               clim=(vmin, max(vmax, vmin + 1e-6)), opacity=op,
                               shade=False, show_scalar_bar=False, name="scan")
