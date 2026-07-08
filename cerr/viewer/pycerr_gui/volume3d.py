@@ -62,9 +62,10 @@ class Volume3DDialog(QtWidgets.QDialog):
         self.resCombo.addItems(["1/4", "1/2", "3/4", "Full"])
         self.resCombo.setCurrentText("1/2")
         self.resCombo.setToolTip(
-            "Fraction of the native grid resolution used for the rendered "
-            "scan volume, structure surfaces and isodose surfaces. Lower "
-            "fractions load and update faster; 'Full' uses the exact grids.")
+            "Display resolution for the isotropically-resampled scan volume. "
+            "'Full' uses the smallest native voxel spacing; a fraction gives "
+            "that spacing divided by the fraction (e.g. '1/2' = twice the "
+            "smallest spacing). Lower fractions load and update faster.")
         self.resCombo.currentTextChanged.connect(lambda *_: self.render_scene())
         row.addWidget(self.resCombo)
         self.clipCheck = QtWidgets.QCheckBox("Clip box")
@@ -111,7 +112,76 @@ class Volume3DDialog(QtWidgets.QDialog):
 
     def _on_scan_alpha(self, val):
         self.scanOpacity = val / 100.0
-        self._refreshTimer.start()     # volume opacity needs a rebuilt TF
+        self.apply_style("scan")
+
+    def apply_style(self, layer):
+        """Restyle a layer in place (colormap / window / opacity) without a
+        re-resample or re-upload; rebuilds only when the actor must be added
+        or removed, or on any error. Called by the main viewer when its scan/
+        dose colormap, window or opacity changes."""
+        pl = self.plotter
+        try:
+            if layer == "scan":
+                actor = pl.actors.get("scan")
+                if actor is None or self.scanOpacity <= 0.01:
+                    self._refreshTimer.start()     # add/remove the volume
+                    return
+                prop = actor.GetProperty()
+                prop.SetColor(self._scan_color_tf())
+                prop.SetScalarOpacity(self._scan_opacity_tf())
+                pl.render()
+            else:
+                actor = pl.actors.get("dose")
+                if actor is None:
+                    if self.doseOpacity > 0:
+                        self._refreshTimer.start()
+                    return
+                v = self.viewer
+                cbLo, cbHi = v.colorbar.cbarRange
+                actor.mapper.lookup_table = pv.LookupTable(
+                    cmap=v.colorbar.cmapName,
+                    scalar_range=(cbLo, max(cbHi, cbLo + 1e-6)))
+                actor.mapper.scalar_range = (cbLo, max(cbHi, cbLo + 1e-6))
+                actor.GetProperty().SetOpacity(
+                    min(max(self.doseOpacity, 0.0), 0.6))
+                pl.render()
+        except Exception:  # noqa: BLE001
+            self._refreshTimer.start()             # fall back to a full rebuild
+
+    def _clim(self):
+        v = self.viewer
+        vmin = v.windowCenter - v.windowWidth / 2.0
+        vmax = v.windowCenter + v.windowWidth / 2.0
+        return vmin, max(vmax, vmin + 1e-6)
+
+    def _scan_opacity_tf(self):
+        """vtkPiecewiseFunction: the build-time sigmoid ramp x scan opacity,
+        over the current clim range."""
+        import vtk
+        vmin, vmax = self._clim()
+        span = max(vmax - vmin, 1e-6)
+        ramp = np.clip(pv.opacity_transfer_function("sigmoid", 256)
+                       .astype(float) * float(self.scanOpacity),
+                       0.0, 255.0) / 255.0
+        otf = vtk.vtkPiecewiseFunction()
+        n = len(ramp)
+        for i, a in enumerate(ramp):
+            otf.AddPoint(vmin + span * i / (n - 1), float(a))
+        return otf
+
+    def _scan_color_tf(self):
+        """vtkColorTransferFunction from the viewer's scan colormap over clim."""
+        import vtk
+        vmin, vmax = self._clim()
+        span = max(vmax - vmin, 1e-6)
+        cmap = plt.get_cmap(self.viewer.scanCmap)
+        ctf = vtk.vtkColorTransferFunction()
+        n = 256
+        for i in range(n):
+            r, g, b, _ = cmap(i / (n - 1))
+            ctf.AddRGBPoint(vmin + span * i / (n - 1),
+                            float(r), float(g), float(b))
+        return ctf
 
     def _on_dose_alpha(self, val):
         """Update the isodose-surface opacity in place when possible."""
@@ -464,8 +534,13 @@ class Volume3DDialog(QtWidgets.QDialog):
                     scan = scan[:, ::-1, :]
                 if fS:
                     scan = scan[:, :, ::-1]
-                scan, xA, yA, zA = \
-                    v._resample_volume(scan, xA, yA, zA, resFrac)
+                # Always render on isotropic voxels. 'Full' resolution = the
+                # smallest native voxel spacing; a fraction f gives spacing
+                # (smallest / f), e.g. '1/2' -> twice the smallest spacing.
+                sMin = v._smallest_spacing(xA, yA, zA, scan.shape)
+                if sMin > 0:
+                    scan, xA, yA, zA = v._resample_volume_isotropic(
+                        scan, xA, yA, zA, sMin / resFrac)
                 grid = v._pv_volume(scan, xA, yA, zA)
                 vmin = v.windowCenter - v.windowWidth / 2.0
                 vmax = v.windowCenter + v.windowWidth / 2.0
@@ -475,7 +550,7 @@ class Volume3DDialog(QtWidgets.QDialog):
                 op = np.clip(pv.opacity_transfer_function("sigmoid", 256)
                              .astype(float) * float(self.scanOpacity),
                              0.0, 255.0)
-                pl.add_volume(grid, scalars="v", cmap="gray",
+                pl.add_volume(grid, scalars="v", cmap=v.scanCmap,
                               clim=(vmin, max(vmax, vmin + 1e-6)), opacity=op,
                               shade=False, show_scalar_bar=False, name="scan")
         except Exception:  # noqa: BLE001
@@ -505,6 +580,32 @@ class Volume3DDialog(QtWidgets.QDialog):
                                                 0.0), 0.6),
                                 pickable=False, show_scalar_bar=False,
                                 name="dose")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- IMRTP beam overlays (one combined polyline actor) ---------------
+        try:
+            if getattr(v, "beams", None):
+                pts_list, conn, cellRGB, off = [], [], [], 0
+                for beam in v.beams:
+                    rgb = (np.asarray(beam.get("color", (0.2, 0.85, 0.9)))
+                           * 255).astype(np.uint8)
+                    for poly in beam["polylines"]:
+                        p = np.asarray(poly, dtype=float)
+                        if len(p) < 2:
+                            continue
+                        pts_list.append(p)
+                        conn.append(np.concatenate(
+                            ([len(p)], np.arange(off, off + len(p)))))
+                        cellRGB.append(rgb)
+                        off += len(p)
+                if pts_list:
+                    pd = pv.PolyData()
+                    pd.points = np.vstack(pts_list)
+                    pd.lines = np.concatenate(conn).astype(np.int64)
+                    pd.cell_data["rgb"] = np.asarray(cellRGB, dtype=np.uint8)
+                    pl.add_mesh(pd, scalars="rgb", rgb=True, line_width=2,
+                                pickable=False, show_scalar_bar=False,
+                                name="beams")
         except Exception:  # noqa: BLE001
             pass
         # ---- urOMT overlay (reuse the embedded-3D builder) -------------------
