@@ -49,6 +49,14 @@ import cerr.contour.rasterseg as rs  # noqa: E402
 import cerr.dataclasses.scan as scn  # noqa: E402
 from cerr import dvh as cerrDvh  # noqa: E402
 
+# Manual Agg blitting paints the Agg buffer straight onto the canvas widget.
+# On macOS's Qt backend that constructs a QPainter on the widget outside its
+# paintEvent (illegal), producing "QWidget::paintEngine: Should no longer be
+# called" / "QPainter::begin: ... engine == 0" and recursive-repaint warnings.
+# Where blitting is unsafe, the crosshair is drawn as a normal (non-animated)
+# artist and repositioned with a full draw_idle() instead.
+CROSSHAIR_BLIT_OK = sys.platform != "darwin"
+
 # CERR dose colormaps (ported from MATLAB CERR's CERRColorMap.m).
 # Keep cerr_colormaps.py next to this file; falls back to jet if missing.
 try:

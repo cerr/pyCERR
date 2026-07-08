@@ -109,7 +109,9 @@ class SliceView(QtWidgets.QWidget):
                 and self.canvas.width() > 0 and self.canvas.height() > 0)
 
     def _capture_crosshair_bg(self, _event=None):
-        if self.xline is None or not self._paintable():
+        # Where blitting is unsafe (macOS) the crosshair is a normal artist
+        # drawn by the regular figure draw, so there is nothing to blit.
+        if not CROSSHAIR_BLIT_OK or self.xline is None or not self._paintable():
             self._chBg = None
             return
         try:
@@ -119,7 +121,7 @@ class SliceView(QtWidgets.QWidget):
             self._chBg = None
 
     def _paint_crosshair(self):
-        if not self._paintable():
+        if not CROSSHAIR_BLIT_OK or not self._paintable():
             return
         for ln in (self.xline, self.yline):
             if ln is not None:
@@ -128,9 +130,10 @@ class SliceView(QtWidgets.QWidget):
 
     def blit_crosshair(self):
         """Fast crosshair reposition: restore the cached background and repaint
-        just the two lines. Falls back to a full redraw when no background has
-        been captured yet (e.g. before the first paint)."""
-        if self._chBg is None or self.xline is None or not self._paintable():
+        just the two lines. Falls back to a full redraw when blitting is
+        unavailable or no background has been captured yet."""
+        if not CROSSHAIR_BLIT_OK or self._chBg is None or self.xline is None \
+                or not self._paintable():
             self.canvas.draw_idle()
             return
         self.canvas.restore_region(self._chBg)

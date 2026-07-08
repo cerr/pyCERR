@@ -3401,9 +3401,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         view.canvas.draw_idle()
 
     def _draw_crosshair(self, view):
-        """(Re)create the crosshair artists for a freshly drawn view."""
+        """(Re)create the crosshair artists for a freshly drawn view.
+
+        When blitting is unsafe (macOS) the lines are non-animated so they are
+        painted by the normal figure draw; elsewhere they are animated and
+        blitted for a fast reposition without a full redraw."""
         kw = dict(color="#e8c542", lw=0.6, ls="--", alpha=0.7,
-                  visible=self.showCrosshairs, animated=True)
+                  visible=self.showCrosshairs, animated=CROSSHAIR_BLIT_OK)
         view.xline = view.ax.axvline(0, **kw)
         view.yline = view.ax.axhline(0, **kw)
         self._position_crosshair(view)
