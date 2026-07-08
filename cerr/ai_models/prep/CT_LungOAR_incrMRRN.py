@@ -30,7 +30,9 @@ def processInputData(userInputs):
 
     # Create session input dir
     modInputPath = os.path.join(sessionPath, 'input')
+    modOutputPath = os.path.join(sessionPath, 'output')
     os.makedirs(modInputPath, exist_ok=True)
+    os.makedirs(modOutputPath, exist_ok=True)
 
     # Load input into planC
     if os.path.isdir(inputPath):
@@ -66,6 +68,9 @@ def processInputData(userInputs):
     scanNiiFile = os.path.join(modInputPath, f"{ptID}_scan_3D.nii.gz")
     planC.scan[procScanNum].saveNii(scanNiiFile)
 
-    return planC, procScanNum, scanNum
+    sessionUserInputs = userInputs.copy()
+    sessionUserInputs['input_path'] = modInputPath
+    sessionUserInputs['output_path'] = modOutputPath
+    return planC, procScanNum, scanNum, sessionUserInputs
 
 
