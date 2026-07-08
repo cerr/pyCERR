@@ -343,25 +343,45 @@ class Volume3DDialog(QtWidgets.QDialog):
             pass
 
     def _add_orientation_marker(self):
-        """Corner triad of arrows labelled L (Left), A (Anterior), S (Superior).
+        """Corner triad of arrows labelled by patient direction (e.g. L/A/S for
+        an axial scan).
 
-        pyCERR virtual axes are +x=Left, +y=Anterior, +z=Inferior, so the Z
-        arrow is flipped (scale z by -1) to point Superior for the 'S' label;
-        LAS is a left-handed triad, consistent with that flip. A vtkAxesActor in
-        an orientation-marker widget is used (billboarded caption labels always
-        face the camera, so nothing renders mirrored). Built once and kept alive
-        - the widget lives on the interactor, so it survives ``clear()``."""
-        if getattr(self, "_orientMarker", None) is not None:
-            return
+        Arrows point along the pyCERR virtual axes; each label comes from the
+        base scan's actual orientation, so the triad is correct for any
+        acquisition. The Z arrow is flipped (scale z by -1) so it points to
+        world -z, and is labelled with that axis's -z-end direction. The widget
+        lives on the interactor and survives ``clear()``; the labels are
+        refreshed in place when the scan orientation changes."""
         pl = self.plotter
+        # label each arrow by its true patient direction; the Z arrow is
+        # flipped to world -z, so it gets the label at the -z end.
+        xl = self.viewer._axis_anatomy("x")[0]
+        yl = self.viewer._axis_anatomy("y")[0]
+        zl = self.viewer._axis_anatomy("z")[1]
+        triad = (xl, yl, zl)
+        if getattr(self, "_orientMarker", None) is not None:
+            if getattr(self, "_orientTriad", None) == triad:
+                return
+            axes = getattr(self, "_orientAxes", None)
+            if axes is not None:                 # relabel the vtkAxesActor
+                axes.SetXAxisLabelText(xl)
+                axes.SetYAxisLabelText(yl)
+                axes.SetZAxisLabelText(zl)
+            else:                                # fallback triad -> re-add
+                try:
+                    pl.add_axes(xlabel=xl, ylabel=yl, zlabel=zl, color="white")
+                except Exception:  # noqa: BLE001
+                    pass
+            self._orientTriad = triad
+            return
         try:
             import vtk
             axes = vtk.vtkAxesActor()
-            axes.SetXAxisLabelText("L")
-            axes.SetYAxisLabelText("A")
-            axes.SetZAxisLabelText("S")
+            axes.SetXAxisLabelText(xl)
+            axes.SetYAxisLabelText(yl)
+            axes.SetZAxisLabelText(zl)
             flip = vtk.vtkTransform()
-            flip.Scale(1.0, 1.0, -1.0)          # Z arrow -> Superior (world -z)
+            flip.Scale(1.0, 1.0, -1.0)          # Z arrow -> world -z
             axes.SetUserTransform(flip)
             # lighting off so the negative-scale normal flip can't darken arrows
             for prop in (axes.GetXAxisShaftProperty(), axes.GetXAxisTipProperty(),
@@ -382,10 +402,14 @@ class Volume3DDialog(QtWidgets.QDialog):
             marker.EnabledOn()
             marker.InteractiveOff()
             self._orientMarker = marker          # keep a reference alive
+            self._orientAxes = axes              # for in-place relabelling
+            self._orientTriad = triad
         except Exception:  # noqa: BLE001
             try:                                 # fallback: simple labelled triad
-                pl.add_axes(xlabel="L", ylabel="A", zlabel="S", color="white")
+                pl.add_axes(xlabel=xl, ylabel=yl, zlabel=zl, color="white")
                 self._orientMarker = True
+                self._orientAxes = None
+                self._orientTriad = triad
             except Exception:  # noqa: BLE001
                 pass
 

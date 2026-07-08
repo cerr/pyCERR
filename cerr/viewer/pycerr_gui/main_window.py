@@ -2751,9 +2751,36 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             view.label.setText(self._view_label_text(view))
             view.canvas.draw_idle()
 
+    # Through-plane pyCERR virtual axis for each view (column of
+    # cerrToDcmTransM: 0=x/col, 1=y/row, 2=z/slice).
+    _VIEW_THRU_COL = {VIEW_AXIAL: 2, VIEW_SAGITTAL: 0, VIEW_CORONAL: 1}
+    # Dominant DICOM/patient axis of the through-plane direction -> anatomical
+    # plane (DICOM X = L-R -> Sagittal, Y = A-P -> Coronal, Z = S-I -> Axial).
+    _DCM_AXIS_PLANE = (VIEW_SAGITTAL, VIEW_CORONAL, VIEW_AXIAL)
+
+    def _anatomical_plane(self, orient):
+        """Anatomical plane name for a view, from the base scan's actual image
+        orientation (so a sagittally/coronally acquired scan is labelled by the
+        plane it really shows, not by its array slice axis). Falls back to the
+        view's own key when the scan geometry is unavailable."""
+        col = self._VIEW_THRU_COL.get(orient)
+        if col is None or self.planC is None \
+                or not (0 <= self.scanNum < len(self.planC.scan)):
+            return orient
+        try:
+            M = np.asarray(self.planC.scan[self.scanNum].cerrToDcmTransM,
+                           dtype=float)
+            direction = M[:3, col]
+            if not np.any(direction):
+                return orient
+            return self._DCM_AXIS_PLANE[int(np.argmax(np.abs(direction)))]
+        except Exception:  # noqa: BLE001
+            return orient
+
     def _view_label_text(self, view):
-        """View title: slice-plane coordinate (cm), scan #/modality and dose
-        # shown in this view, plus any per-axis overrides / lock state."""
+        """View title: anatomical plane, slice-plane coordinate (cm),
+        scan #/modality and dose shown in this view, plus any per-axis
+        overrides / lock state."""
         winId, orient = view.winId, view.orientation
         if view.is3d:
             return view.label.text()        # 3D label set by its renderer
@@ -2764,6 +2791,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             axis, val = "x", self.xV[k]
         else:
             axis, val = "y", self.yV[k]
+        plane = self._anatomical_plane(orient)
 
         baseIdx = self._axis_scan(winId)
         mod = getattr(self.planC.scan[baseIdx].scanInfo[0], "imageType",
@@ -2778,7 +2806,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         if self.lockViews:
             flags.append("locked")
         extra = "  [" + ", ".join(flags) + "]" if flags else ""
-        return (f"{orient}   {axis}={val:.2f} cm   |   "
+        return (f"{plane}   {axis}={val:.2f} cm   |   "
                 f"scan {baseIdx} ({mod})   |   {doseStr}{extra}")
 
     @staticmethod
@@ -2861,18 +2889,42 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         view.ax.set_xlim(xl)            # keep the scan-extent / user zoom
         view.ax.set_ylim(yl)
 
+    # DICOM/patient axis -> (label at +axis end, label at -axis end).
+    # DICOM LPS: +X = Left, +Y = Posterior, +Z = Superior.
+    _DCM_AXIS_ENDS = (("L", "R"), ("P", "A"), ("S", "I"))
+
+    def _axis_anatomy(self, axisLetter):
+        """(labelAtIncreasingEnd, labelAtDecreasingEnd) for a pyCERR virtual
+        axis ('x'/'y'/'z'), from the base scan's actual image orientation, so
+        the L/R/A/P/S/I markers are correct for sagittally/coronally acquired
+        (or oblique) scans. Falls back to the fixed L/A/I convention when the
+        scan geometry is unavailable."""
+        col = {"x": 0, "y": 1, "z": 2}[axisLetter]
+        try:
+            if self.planC is not None and 0 <= self.scanNum < len(self.planC.scan):
+                M = np.asarray(self.planC.scan[self.scanNum].cerrToDcmTransM,
+                               dtype=float)
+                d = M[:3, col]
+                if np.any(d):
+                    a = int(np.argmax(np.abs(d)))
+                    hi, lo = self._DCM_AXIS_ENDS[a]
+                    return (hi, lo) if d[a] > 0 else (lo, hi)
+        except Exception:  # noqa: BLE001
+            pass
+        return ORIENT_POS[axisLetter], ORIENT_NEG[axisLetter]
+
     def _draw_orientation_labels(self, view):
-        """L/R/A/P/S/I markers at the edge midpoints of a 2D view, derived
-        from the displayed coordinate directions (pyCERR virtual coords:
-        +x = Left, +y = Anterior, +z = Inferior)."""
+        """L/R/A/P/S/I markers at the edge midpoints of a 2D view, derived from
+        the displayed axes' actual patient directions (via the base scan's
+        cerrToDcmTransM), so they are correct for any acquisition orientation."""
         ax = view.ax
         hAxis, vAxis = AXES_2D[view.orientation]
+        hPos, hNeg = self._axis_anatomy(hAxis)
+        vPos, vNeg = self._axis_anatomy(vAxis)
         x0, x1 = ax.get_xlim()
-        left, right = ((ORIENT_NEG[hAxis], ORIENT_POS[hAxis]) if x1 >= x0
-                       else (ORIENT_POS[hAxis], ORIENT_NEG[hAxis]))
+        left, right = (hNeg, hPos) if x1 >= x0 else (hPos, hNeg)
         y0, y1 = ax.get_ylim()
-        bottom, top = ((ORIENT_NEG[vAxis], ORIENT_POS[vAxis]) if y1 >= y0
-                       else (ORIENT_POS[vAxis], ORIENT_NEG[vAxis]))
+        bottom, top = (vNeg, vPos) if y1 >= y0 else (vPos, vNeg)
         kw = dict(transform=ax.transAxes, color="#e8e8e8", fontsize=9,
                   fontweight="bold", ha="center", va="center", zorder=15,
                   bbox=dict(facecolor="black", alpha=0.45, edgecolor="none",
@@ -2913,12 +2965,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._volume3dDialog = None
 
     def _plane_slices_3d(self):
-        """Current plane indices, window range and plane label text."""
+        """Current plane indices, window range and plane label text.
+
+        The plane names follow the base scan's actual orientation (so a
+        sagittally/coronally acquired scan is labelled correctly)."""
         kA = self.lastSlice[VIEW_AXIAL]
         kS = self.lastSlice[VIEW_SAGITTAL]
         kC = self.lastSlice[VIEW_CORONAL]
-        label = (f"3D Cut Planes  -  planes: axial {kA + 1}, "
-                 f"sagittal {kS + 1}, coronal {kC + 1}")
+        label = ("3D Cut Planes  -  planes: "
+                 f"{self._anatomical_plane(VIEW_AXIAL).lower()} {kA + 1}, "
+                 f"{self._anatomical_plane(VIEW_SAGITTAL).lower()} {kS + 1}, "
+                 f"{self._anatomical_plane(VIEW_CORONAL).lower()} {kC + 1}")
         return kA, kS, kC, label
 
     def _scan_grid_geometry(self):
@@ -3169,8 +3226,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # (enabling it at widget-creation time leaves it invisible)
         if self.showOrientation:
             try:
+                # label the +x/+y/+z arrows by their true patient direction,
+                # recomputed each render so a scan-orientation change relabels
+                # the triad in place.
+                triad = (self._axis_anatomy("x")[0], self._axis_anatomy("y")[0],
+                         self._axis_anatomy("z")[0])
                 if getattr(pl.renderer, "axes_widget", None) is None:
-                    pl.add_axes(xlabel="L", ylabel="A", zlabel="I")
+                    pl.add_axes(xlabel=triad[0], ylabel=triad[1],
+                                zlabel=triad[2])
                     # caption text defaults to black: match each label to
                     # its axis shaft color so it reads on dark backgrounds
                     axes = pl.renderer.axes_actor
@@ -3185,6 +3248,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                         tp.SetColor(*shaft.GetColor())
                         tp.SetShadow(0)
                         tp.BoldOn()
+                    view._orientTriad = triad
+                elif getattr(view, "_orientTriad", None) != triad:
+                    axes = pl.renderer.axes_actor
+                    axes.SetXAxisLabelText(triad[0])
+                    axes.SetYAxisLabelText(triad[1])
+                    axes.SetZAxisLabelText(triad[2])
+                    view._orientTriad = triad
                 pl.renderer.axes_widget.SetEnabled(1)
             except Exception:  # noqa: BLE001
                 pass
@@ -3395,9 +3465,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         ax.set_box_aspect((abs(x1 - x0) or 1, abs(y1 - y0) or 1,
                            abs(z1 - z0) or 1))
         ax.set_axis_off()
-        view.label.setText(
-            f"3D Cut Planes  -  planes: axial {kA + 1}, "
-            f"sagittal {kS + 1}, coronal {kC + 1}")
+        view.label.setText(self._plane_slices_3d()[3])
         view.canvas.draw_idle()
 
     def _draw_crosshair(self, view):
