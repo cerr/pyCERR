@@ -297,11 +297,15 @@ class Scan:
         orientString = orientString + zOri
         return orientString
 
-    def getScanSpacing(self):
-        """ Routine to get voxel spacing in cm.
+    def getScanSpacing(self, units='cm'):
+        """ Routine to get voxel spacing, in (x, y, z) = (col, row, slice) order.
+
+        Args:
+            units (str): 'cm' (default, native pyCERR unit) or 'mm'.
 
         Returns:
-            np.array: 3-element array containing dx, dy, dz of scan
+            np.array: 3-element array containing dx, dy, dz of scan, in the
+            requested units.
 
         """
 
@@ -312,6 +316,10 @@ class Scan:
         dy = abs(np.median(np.diff(y_vals_v)))
         dz = abs(np.median(np.diff(z_vals_v)))
         spacing_v = np.array([dx, dy, dz])
+        if str(units).lower() == 'mm':
+            spacing_v = spacing_v * 10.0
+        elif str(units).lower() != 'cm':
+            raise ValueError("getScanSpacing: units must be 'cm' or 'mm', got %r" % units)
         return spacing_v
 
 
