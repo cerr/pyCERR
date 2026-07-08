@@ -745,8 +745,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.structList = QtWidgets.QListWidget()
         self.structList.itemChanged.connect(lambda *_: self.refresh_views())
         self.structList.itemDoubleClicked.connect(self.on_struct_double_click)
+        self.structList.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.structList.customContextMenuRequested.connect(
+            self._on_struct_context_menu)
         self.structList.setToolTip(
-            "Double-click a structure to center all views on it")
+            "Double-click a structure to center all views on it; "
+            "right-click to change its color")
         # black list background so the per-structure colored names all show
         self.structList.setStyleSheet(
             "QListWidget { background: #000; }"
@@ -1678,15 +1682,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             return
         if levels != self.isodoseLevels:
             self.isodoseLevels = levels
-            if self.doseDispMode == "isodose":
-                self._update_isodose_ticks()
-                self.refresh_views()
+            self._update_isodose_ticks()
+            # 2D isodose lines and the 3D/cut-plane isodose surfaces both follow
+            # these levels, so refresh regardless of the 2D display mode.
+            self.refresh_views()
 
     def on_isodose_units(self, units):
         self.isodoseUnits = units
-        if self.doseDispMode == "isodose":
-            self._update_isodose_ticks()
-            self.refresh_views()
+        self._update_isodose_ticks()
+        self.refresh_views()
 
     def on_isodose_width(self, val):
         self.isodoseWidth = float(val)
@@ -2279,6 +2283,99 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             return
         self.goto_struct_center(strNum)
 
+    def _on_struct_context_menu(self, pos):
+        """Right-click menu on the structure list: color, center, rename,
+        delete."""
+        item = self.structList.itemAt(pos)
+        if item is None:
+            return
+        strNum = item.data(Qt.UserRole)
+        if strNum is None:
+            return
+        menu = QtWidgets.QMenu(self.structList)
+        actColor = menu.addAction("Select color…")
+        actCenter = menu.addAction("Go to center")
+        actRename = menu.addAction("Rename…")
+        menu.addSeparator()
+        actDelete = menu.addAction("Delete")
+        chosen = menu.exec_(self.structList.viewport().mapToGlobal(pos))
+        if chosen is actColor:
+            self._pick_struct_color(strNum, item)
+        elif chosen is actCenter:
+            self.goto_struct_center(strNum)
+        elif chosen is actRename:
+            self._rename_struct(strNum, item)
+        elif chosen is actDelete:
+            self._delete_struct(strNum)
+
+    def _rename_struct(self, strNum, item=None):
+        """Prompt for a new name and apply it to the structure."""
+        if self.planC is None or not (0 <= strNum < len(self.planC.structure)):
+            return
+        cur = self.planC.structure[strNum].structureName
+        name, ok = QtWidgets.QInputDialog.getText(
+            self, "Rename structure", "Structure name:",
+            QtWidgets.QLineEdit.Normal, cur)
+        if not ok:
+            return
+        name = name.strip()
+        if not name or name == cur:
+            return
+        self.planC.structure[strNum].structureName = name
+        if item is not None:
+            item.setText(f"{strNum}: {name}")
+        self.refresh_views()
+
+    def _delete_struct(self, strNum):
+        """Remove a structure from planC after confirmation.
+
+        Deleting shifts every later structure's index, so all structure-indexed
+        caches are cleared and the list is rebuilt."""
+        if self.planC is None or not (0 <= strNum < len(self.planC.structure)):
+            return
+        # An active contour edit is bound to a structure index that this delete
+        # would invalidate; ask the user to close it first.
+        ctl = self.contourCtl
+        if ctl is not None and ctl.isVisible():
+            self.statusBar().showMessage(
+                "Close the contouring tool before deleting a structure.")
+            return
+        name = self.planC.structure[strNum].structureName
+        if QtWidgets.QMessageBox.question(
+                self, "Delete structure",
+                f"Delete structure '{strNum}: {name}'?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
+            return
+        del self.planC.structure[strNum]
+        # Structure indices shifted: drop all structure-indexed caches.
+        self.maskCache.clear()
+        self._pvStructCache.clear()
+        self._structSegCache.clear()
+        self._populate_struct_list()
+        self.refresh_views()
+
+    def _pick_struct_color(self, strNum, item=None):
+        """Open a color-wheel dialog and apply the chosen color to a structure.
+
+        Colors are stored on the structure as 0-255 integer RGB triplets (the
+        convention used throughout planC.structure)."""
+        if self.planC is None or not (0 <= strNum < len(self.planC.structure)):
+            return
+        r, g, b = (int(round(c * 255)) for c in self._struct_color(strNum))
+        initial = QtGui.QColor(r, g, b)
+        col = QtWidgets.QColorDialog.getColor(
+            initial, self, "Select structure color")
+        if not col.isValid():
+            return
+        self.planC.structure[strNum].structureColor = \
+            [col.red(), col.green(), col.blue()]
+        # Recolor the list-item label to match.
+        if item is not None:
+            item.setForeground(QtGui.QColor.fromRgbF(
+                *np.clip([col.redF(), col.greenF(), col.blueF()], 0, 1)))
+        self.refresh_views()
+
     def goto_struct_center(self, strNum):
         """Navigate the three orthogonal views to the structure's center of
         mass (its isocenter slice in each plane)."""
@@ -2430,6 +2527,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._render_3d(view)
                 continue
             ax = view.ax
+            # Full extent (no active pan/zoom): re-enable autoscale so the
+            # reused base-scan image's set_extent drives the limits back to the
+            # whole slice. A prior zoom/pan disabled autoscale via set_xlim, so
+            # without this a double-click reset would leave the view zoomed.
+            ax.set_autoscale_on(view.user_limits is None)
             img, extent, hV, vV, slicer = self._slice_data(orient)
             baseIdx = self._axis_scan(orient)
             regComp = None
@@ -2892,9 +2994,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def _pv_dose_iso(self, doseIdx, frac=1.0):
         """Cached (isodose surfaces, doseMax) for a dose index, or None.
-        Levels at 30/50/70/90% of the dose maximum. ``frac < 1`` contours a
-        resampled dose grid; results are cached per (dose, fraction)."""
-        key = (doseIdx, round(frac, 3))
+        Surfaces are contoured at the panel's isodose levels (resolved to Gy via
+        :meth:`_isodose_abs_levels`, matching the 2D isodose lines), so changes
+        to the isodose levels/units are reflected in the 3D and cut-plane views.
+        ``frac < 1`` contours a resampled dose grid. Results are cached per
+        (dose, fraction, levels)."""
+        # Resolve levels first so the cache invalidates when they change.
+        dmaxAll = self._dose_interp(doseIdx)
+        dmaxAll = dmaxAll[1] if dmaxAll is not None else 0.0
+        levels = tuple(round(lv, 4)
+                       for lv in self._isodose_abs_levels(doseIdx, dmaxAll)
+                       if lv > 0)
+        key = (doseIdx, round(frac, 3), levels)
         if key not in self._pvDoseCache:
             res = None
             try:
@@ -2907,10 +3018,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 dose3M, xD, yD, zD = \
                     self._resample_volume(dose3M, xD, yD, zD, frac)
                 dmax = float(dose3M.max())
-                if dmax > 0:
+                # Keep only levels within the dose range (contouring outside it
+                # yields empty surfaces / VTK warnings).
+                drawLevels = [lv for lv in levels if 0 < lv <= dmax]
+                if dmax > 0 and drawLevels:
                     grid = self._pv_volume(dose3M, xD, yD, zD)
-                    levels = [f * dmax for f in (0.3, 0.5, 0.7, 0.9)]
-                    iso = grid.contour(levels)
+                    iso = grid.contour(drawLevels)
                     if iso.n_points:
                         res = (iso, dmax)
             except Exception:  # noqa: BLE001
