@@ -97,8 +97,19 @@ class SliceView(QtWidgets.QWidget):
     # After every full canvas draw we cache the rendered background and paint
     # the lines on top; moving the crosshair then only needs restore + blit
     # instead of a full ~100 ms redraw of the whole view.
+    def _paintable(self):
+        """True only when the canvas has a real, on-screen backing store.
+
+        Blitting paints the Agg buffer straight onto the canvas widget; doing
+        that before the widget is mapped/sized makes Qt begin a painter on a
+        device with no paint engine (on macOS this prints
+        'QPainter::begin: Paint device returned engine == 0, type: 1').
+        """
+        return (not self.is3d and self.canvas.isVisible()
+                and self.canvas.width() > 0 and self.canvas.height() > 0)
+
     def _capture_crosshair_bg(self, _event=None):
-        if self.is3d or self.xline is None:
+        if self.xline is None or not self._paintable():
             self._chBg = None
             return
         try:
@@ -108,6 +119,8 @@ class SliceView(QtWidgets.QWidget):
             self._chBg = None
 
     def _paint_crosshair(self):
+        if not self._paintable():
+            return
         for ln in (self.xline, self.yline):
             if ln is not None:
                 self.ax.draw_artist(ln)
@@ -117,7 +130,7 @@ class SliceView(QtWidgets.QWidget):
         """Fast crosshair reposition: restore the cached background and repaint
         just the two lines. Falls back to a full redraw when no background has
         been captured yet (e.g. before the first paint)."""
-        if self._chBg is None or self.xline is None:
+        if self._chBg is None or self.xline is None or not self._paintable():
             self.canvas.draw_idle()
             return
         self.canvas.restore_region(self._chBg)
