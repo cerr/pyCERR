@@ -18,6 +18,17 @@ from cerr.radiomics import preprocess
 import numpy as np
 import subprocess
 
+# ANTs (antspyx) based registration lives in a companion module; re-export the
+# public entry points so they are reachable as cerr.registration.register.*.
+# The module does not import antspyx at import time, so this stays lightweight.
+from cerr.registration.ants_reg import (
+    registerScansAnts,
+    warpScanAnts,
+    warpStructuresAnts,
+    warpDoseAnts,
+    landmarksToDicomPhysical,
+)
+
 
 def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
                   deforAlgorithm='bsplines', registrationTool='plastimatch',
@@ -181,6 +192,130 @@ def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
     return basePlanC
 
 
+def _applyRigidToNii(movingNii, warpedNii, fixedNii, deformS, interpolator,
+                     matrixDirection='movingToFixed'):
+    """Resample a moving nii onto the fixed grid using a stored rigid matrix.
+
+    SimpleITK's resampling transform maps output (fixed) points to input
+    (moving) points, i.e. it needs the fixed -> moving matrix.
+
+    Args:
+        matrixDirection (str): direction of the stored matrix.
+            ``'movingToFixed'`` (default) follows the DICOM Spatial Registration
+            convention (moving frame -> base/fixed frame), so its inverse is
+            used as the sitk transform. ``'fixedToMoving'`` is for vendor files
+            written in the opposite direction; the matrix is used as-is.
+    """
+    import SimpleITK as sitk
+
+    if deformS.deformOutFileType != 'rigid':
+        raise ValueError("deformS does not hold a rigid registration "
+                         "(deformOutFileType != 'rigid').")
+    if matrixDirection not in ('movingToFixed', 'fixedToMoving'):
+        raise ValueError("matrixDirection must be 'movingToFixed' or "
+                         "'fixedToMoving', got " + str(matrixDirection))
+    matrix = np.array(deformS.deformParams['rigidMatrix'], dtype=float)
+
+    fixedImg = sitk.ReadImage(fixedNii)
+    movingImg = sitk.ReadImage(movingNii)
+
+    # sitk needs the fixed -> moving matrix.
+    fixedToMoving = matrix if matrixDirection == 'fixedToMoving' \
+        else np.linalg.inv(matrix)
+    tfm = sitk.AffineTransform(3)
+    tfm.SetMatrix(fixedToMoving[:3, :3].ravel())
+    tfm.SetTranslation(fixedToMoving[:3, 3])
+
+    interpMap = {'linear': sitk.sitkLinear,
+                 'nearestNeighbor': sitk.sitkNearestNeighbor,
+                 'bspline': sitk.sitkBSpline}
+    if interpolator not in interpMap:
+        raise ValueError("Unsupported interpolator: " + str(interpolator))
+    bgVal = float(sitk.GetArrayViewFromImage(movingImg).min())
+    warpedImg = sitk.Resample(movingImg, fixedImg, tfm,
+                              interpMap[interpolator], bgVal,
+                              movingImg.GetPixelID())
+    sitk.WriteImage(warpedImg, warpedNii)
+
+
+def warpScanRigid(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS,
+                  interpolator='linear', matrixDirection='movingToFixed'):
+    """Warp a moving scan onto a fixed scan grid using a rigid registration.
+
+    Applies the 4x4 matrix stored on a rigid deform object (e.g. imported from
+    a DICOM Spatial Registration REG file via
+    :func:`cerr.plan_container.loadDcmReg`).
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): plan container with the fixed scan.
+        baseScanIndex (int): index of the fixed scan in ``basePlanC.scan``.
+        movPlanC (cerr.plan_container.PlanC): plan container with the moving scan.
+        movScanIndex (int): index of the moving scan in ``movPlanC.scan``.
+        deformS (cerr.dataclasses.deform.Deform): rigid deform object
+            (``deformOutFileType == 'rigid'``).
+        interpolator (str): 'linear' (default), 'nearestNeighbor' or 'bspline'.
+        matrixDirection (str): direction of the stored matrix,
+            ``'movingToFixed'`` (default, DICOM convention) or
+            ``'fixedToMoving'`` (for vendor files written the other way, or if
+            the warp comes out reversed).
+
+    Returns:
+        cerr.plan_container.PlanC: ``basePlanC`` with the warped scan appended.
+    """
+    dirpath = tempfile.mkdtemp()
+    fixedNii = os.path.join(dirpath, 'ref.nii.gz')
+    movingNii = os.path.join(dirpath, 'moving.nii.gz')
+    warpedNii = os.path.join(dirpath, 'warped.nii.gz')
+    basePlanC.scan[baseScanIndex].saveNii(fixedNii)
+    movPlanC.scan[movScanIndex].saveNii(movingNii)
+
+    _applyRigidToNii(movingNii, warpedNii, fixedNii, deformS, interpolator,
+                     matrixDirection)
+
+    imageType = movPlanC.scan[movScanIndex].scanInfo[0].imageType
+    basePlanC = pc.loadNiiScan(warpedNii, imageType, '', basePlanC)
+
+    shutil.rmtree(dirpath)
+    return basePlanC
+
+
+def warpStructuresRigid(basePlanC, baseScanIndex, movPlanC, movStrNumV,
+                        deformS, matrixDirection='movingToFixed'):
+    """Warp moving structures onto a fixed scan grid using a rigid registration.
+
+    Args:
+        basePlanC (cerr.plan_container.PlanC): plan container with the fixed scan.
+        baseScanIndex (int): index of the fixed scan in ``basePlanC.scan``.
+        movPlanC (cerr.plan_container.PlanC): plan container with the moving
+            structures.
+        movStrNumV (list): indices of moving structures in ``movPlanC.structure``.
+        deformS (cerr.dataclasses.deform.Deform): rigid deform object
+            (``deformOutFileType == 'rigid'``).
+        matrixDirection (str): direction of the stored matrix,
+            ``'movingToFixed'`` (default, DICOM convention) or
+            ``'fixedToMoving'``.
+
+    Returns:
+        cerr.plan_container.PlanC: ``basePlanC`` with the warped structures appended.
+    """
+    if not isinstance(movStrNumV, (list, np.ndarray)):
+        movStrNumV = [movStrNumV]
+    dirpath = tempfile.mkdtemp()
+    fixedNii = os.path.join(dirpath, 'ref.nii.gz')
+    movingNii = os.path.join(dirpath, 'structure.nii.gz')
+    warpedNii = os.path.join(dirpath, 'warped.nii.gz')
+    basePlanC.scan[baseScanIndex].saveNii(fixedNii)
+    for strNum in movStrNumV:
+        structName = movPlanC.structure[strNum].structureName
+        movPlanC.structure[strNum].saveNii(movingNii, movPlanC)
+        _applyRigidToNii(movingNii, warpedNii, fixedNii, deformS,
+                         'nearestNeighbor', matrixDirection)
+        basePlanC = pc.loadNiiStructure(warpedNii, baseScanIndex, basePlanC,
+                                        {structName: 1})
+    shutil.rmtree(dirpath)
+    return basePlanC
+
+
 def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS):
     """Routine to deform moving dose to fixed scan based on input transformation
 
@@ -259,7 +394,9 @@ def warpStructures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
                       " --fixed " + fixed_img_nii + \
                       " --interpolation nn"
         os.system(plm_warp_str_cmd)
-        basePlanC = pc.loadNiiStructure(warped_str_nii, baseScanIndex, basePlanC, {1: structName})
+        # loadNiiStructure expects labels_dict as {structureName: label}; the
+        # saved/warped structure nii is a binary mask with label value 1.
+        basePlanC = pc.loadNiiStructure(warped_str_nii, baseScanIndex, basePlanC, {structName: 1})
 
     os.chdir(currDir)
 

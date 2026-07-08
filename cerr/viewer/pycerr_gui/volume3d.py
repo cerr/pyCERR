@@ -62,9 +62,10 @@ class Volume3DDialog(QtWidgets.QDialog):
         self.resCombo.addItems(["1/4", "1/2", "3/4", "Full"])
         self.resCombo.setCurrentText("1/2")
         self.resCombo.setToolTip(
-            "Fraction of the native grid resolution used for the rendered "
-            "scan volume, structure surfaces and isodose surfaces. Lower "
-            "fractions load and update faster; 'Full' uses the exact grids.")
+            "Display resolution for the isotropically-resampled scan volume. "
+            "'Full' uses the smallest native voxel spacing; a fraction gives "
+            "that spacing divided by the fraction (e.g. '1/2' = twice the "
+            "smallest spacing). Lower fractions load and update faster.")
         self.resCombo.currentTextChanged.connect(lambda *_: self.render_scene())
         row.addWidget(self.resCombo)
         self.clipCheck = QtWidgets.QCheckBox("Clip box")
@@ -111,7 +112,88 @@ class Volume3DDialog(QtWidgets.QDialog):
 
     def _on_scan_alpha(self, val):
         self.scanOpacity = val / 100.0
-        self._refreshTimer.start()     # volume opacity needs a rebuilt TF
+        self.apply_style("scan")
+
+    def apply_style(self, layer):
+        """Restyle a layer in place (colormap / window / opacity) without a
+        re-resample or re-upload; rebuilds only when the actor must be added
+        or removed, or on any error. Called by the main viewer when its scan/
+        dose colormap, window or opacity changes."""
+        pl = self.plotter
+        try:
+            if layer == "scan":
+                actor = pl.actors.get("scan")
+                if actor is None or self.scanOpacity <= 0.01:
+                    self._refreshTimer.start()     # add/remove the volume
+                    return
+                prop = actor.GetProperty()
+                prop.SetColor(self._scan_color_tf())
+                prop.SetScalarOpacity(self._scan_opacity_tf())
+                pl.render()
+            else:
+                actor = pl.actors.get("dose")
+                if actor is None:
+                    if self.doseOpacity > 0:
+                        self._refreshTimer.start()
+                    return
+                v = self.viewer
+                cbLo, cbHi = v.colorbar.cbarRange
+                actor.mapper.lookup_table = pv.LookupTable(
+                    cmap=v.colorbar.cmapName,
+                    scalar_range=(cbLo, max(cbHi, cbLo + 1e-6)))
+                actor.mapper.scalar_range = (cbLo, max(cbHi, cbLo + 1e-6))
+                actor.GetProperty().SetOpacity(
+                    min(max(self.doseOpacity, 0.0), 0.6))
+                pl.render()
+        except Exception:  # noqa: BLE001
+            self._refreshTimer.start()             # fall back to a full rebuild
+
+    def _clim(self):
+        v = self.viewer
+        vmin = v.windowCenter - v.windowWidth / 2.0
+        vmax = v.windowCenter + v.windowWidth / 2.0
+        return vmin, max(vmax, vmin + 1e-6)
+
+    def _scan_opacity_ramp(self):
+        """256-sample opacity ramp (0..1) over clim: the sigmoid TF scaled by
+        scan opacity, with samples outside the scan display (cyan) range zeroed
+        so the volume honors it."""
+        vmin, vmax = self._clim()
+        ramp = np.clip(pv.opacity_transfer_function("sigmoid", 256)
+                       .astype(float) * float(self.scanOpacity),
+                       0.0, 255.0) / 255.0
+        dLo, dHi = self.viewer._scan_disp_range()
+        if np.isfinite(dLo) or np.isfinite(dHi):
+            scal = vmin + (vmax - vmin) * np.arange(len(ramp)) / (len(ramp) - 1)
+            ramp = ramp.copy()
+            ramp[(scal < dLo) | (scal > dHi)] = 0.0
+        return ramp
+
+    def _scan_opacity_tf(self):
+        """vtkPiecewiseFunction from :meth:`_scan_opacity_ramp` over clim."""
+        import vtk
+        vmin, vmax = self._clim()
+        span = vmax - vmin
+        ramp = self._scan_opacity_ramp()
+        otf = vtk.vtkPiecewiseFunction()
+        n = len(ramp)
+        for i, a in enumerate(ramp):
+            otf.AddPoint(vmin + span * i / (n - 1), float(a))
+        return otf
+
+    def _scan_color_tf(self):
+        """vtkColorTransferFunction from the viewer's scan colormap over clim."""
+        import vtk
+        vmin, vmax = self._clim()
+        span = max(vmax - vmin, 1e-6)
+        cmap = plt.get_cmap(self.viewer.scanCmap)
+        ctf = vtk.vtkColorTransferFunction()
+        n = 256
+        for i in range(n):
+            r, g, b, _ = cmap(i / (n - 1))
+            ctf.AddRGBPoint(vmin + span * i / (n - 1),
+                            float(r), float(g), float(b))
+        return ctf
 
     def _on_dose_alpha(self, val):
         """Update the isodose-surface opacity in place when possible."""
@@ -343,25 +425,45 @@ class Volume3DDialog(QtWidgets.QDialog):
             pass
 
     def _add_orientation_marker(self):
-        """Corner triad of arrows labelled L (Left), A (Anterior), S (Superior).
+        """Corner triad of arrows labelled by patient direction (e.g. L/A/S for
+        an axial scan).
 
-        pyCERR virtual axes are +x=Left, +y=Anterior, +z=Inferior, so the Z
-        arrow is flipped (scale z by -1) to point Superior for the 'S' label;
-        LAS is a left-handed triad, consistent with that flip. A vtkAxesActor in
-        an orientation-marker widget is used (billboarded caption labels always
-        face the camera, so nothing renders mirrored). Built once and kept alive
-        - the widget lives on the interactor, so it survives ``clear()``."""
-        if getattr(self, "_orientMarker", None) is not None:
-            return
+        Arrows point along the pyCERR virtual axes; each label comes from the
+        base scan's actual orientation, so the triad is correct for any
+        acquisition. The Z arrow is flipped (scale z by -1) so it points to
+        world -z, and is labelled with that axis's -z-end direction. The widget
+        lives on the interactor and survives ``clear()``; the labels are
+        refreshed in place when the scan orientation changes."""
         pl = self.plotter
+        # label each arrow by its true patient direction; the Z arrow is
+        # flipped to world -z, so it gets the label at the -z end.
+        xl = self.viewer._axis_anatomy("x")[0]
+        yl = self.viewer._axis_anatomy("y")[0]
+        zl = self.viewer._axis_anatomy("z")[1]
+        triad = (xl, yl, zl)
+        if getattr(self, "_orientMarker", None) is not None:
+            if getattr(self, "_orientTriad", None) == triad:
+                return
+            axes = getattr(self, "_orientAxes", None)
+            if axes is not None:                 # relabel the vtkAxesActor
+                axes.SetXAxisLabelText(xl)
+                axes.SetYAxisLabelText(yl)
+                axes.SetZAxisLabelText(zl)
+            else:                                # fallback triad -> re-add
+                try:
+                    pl.add_axes(xlabel=xl, ylabel=yl, zlabel=zl, color="white")
+                except Exception:  # noqa: BLE001
+                    pass
+            self._orientTriad = triad
+            return
         try:
             import vtk
             axes = vtk.vtkAxesActor()
-            axes.SetXAxisLabelText("L")
-            axes.SetYAxisLabelText("A")
-            axes.SetZAxisLabelText("S")
+            axes.SetXAxisLabelText(xl)
+            axes.SetYAxisLabelText(yl)
+            axes.SetZAxisLabelText(zl)
             flip = vtk.vtkTransform()
-            flip.Scale(1.0, 1.0, -1.0)          # Z arrow -> Superior (world -z)
+            flip.Scale(1.0, 1.0, -1.0)          # Z arrow -> world -z
             axes.SetUserTransform(flip)
             # lighting off so the negative-scale normal flip can't darken arrows
             for prop in (axes.GetXAxisShaftProperty(), axes.GetXAxisTipProperty(),
@@ -382,10 +484,14 @@ class Volume3DDialog(QtWidgets.QDialog):
             marker.EnabledOn()
             marker.InteractiveOff()
             self._orientMarker = marker          # keep a reference alive
+            self._orientAxes = axes              # for in-place relabelling
+            self._orientTriad = triad
         except Exception:  # noqa: BLE001
             try:                                 # fallback: simple labelled triad
-                pl.add_axes(xlabel="L", ylabel="A", zlabel="S", color="white")
+                pl.add_axes(xlabel=xl, ylabel=yl, zlabel=zl, color="white")
                 self._orientMarker = True
+                self._orientAxes = None
+                self._orientTriad = triad
             except Exception:  # noqa: BLE001
                 pass
 
@@ -440,18 +546,20 @@ class Volume3DDialog(QtWidgets.QDialog):
                     scan = scan[:, ::-1, :]
                 if fS:
                     scan = scan[:, :, ::-1]
-                scan, xA, yA, zA = \
-                    v._resample_volume(scan, xA, yA, zA, resFrac)
+                # Always render on isotropic voxels. 'Full' resolution = the
+                # smallest native voxel spacing; a fraction f gives spacing
+                # (smallest / f), e.g. '1/2' -> twice the smallest spacing.
+                sMin = v._smallest_spacing(xA, yA, zA, scan.shape)
+                if sMin > 0:
+                    scan, xA, yA, zA = v._resample_volume_isotropic(
+                        scan, xA, yA, zA, sMin / resFrac)
                 grid = v._pv_volume(scan, xA, yA, zA)
                 vmin = v.windowCenter - v.windowWidth / 2.0
                 vmax = v.windowCenter + v.windowWidth / 2.0
-                # a sigmoid opacity transfer function makes the scan clearly
-                # visible (a plain linear ramp renders nearly transparent);
-                # scaled by this dialog's scan-opacity slider.
-                op = np.clip(pv.opacity_transfer_function("sigmoid", 256)
-                             .astype(float) * float(self.scanOpacity),
-                             0.0, 255.0)
-                pl.add_volume(grid, scalars="v", cmap="gray",
+                # sigmoid opacity ramp x scan opacity, zeroed outside the scan
+                # display (cyan) range so the volume honors it (0..1 -> 0..255).
+                op = self._scan_opacity_ramp() * 255.0
+                pl.add_volume(grid, scalars="v", cmap=v.scanCmap,
                               clim=(vmin, max(vmax, vmin + 1e-6)), opacity=op,
                               shade=False, show_scalar_bar=False, name="scan")
         except Exception:  # noqa: BLE001
@@ -481,6 +589,32 @@ class Volume3DDialog(QtWidgets.QDialog):
                                                 0.0), 0.6),
                                 pickable=False, show_scalar_bar=False,
                                 name="dose")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- IMRTP beam overlays (one combined polyline actor) ---------------
+        try:
+            if getattr(v, "beams", None):
+                pts_list, conn, cellRGB, off = [], [], [], 0
+                for beam in v.beams:
+                    rgb = (np.asarray(beam.get("color", (0.2, 0.85, 0.9)))
+                           * 255).astype(np.uint8)
+                    for poly in beam["polylines"]:
+                        p = np.asarray(poly, dtype=float)
+                        if len(p) < 2:
+                            continue
+                        pts_list.append(p)
+                        conn.append(np.concatenate(
+                            ([len(p)], np.arange(off, off + len(p)))))
+                        cellRGB.append(rgb)
+                        off += len(p)
+                if pts_list:
+                    pd = pv.PolyData()
+                    pd.points = np.vstack(pts_list)
+                    pd.lines = np.concatenate(conn).astype(np.int64)
+                    pd.cell_data["rgb"] = np.asarray(cellRGB, dtype=np.uint8)
+                    pl.add_mesh(pd, scalars="rgb", rgb=True, line_width=2,
+                                pickable=False, show_scalar_bar=False,
+                                name="beams")
         except Exception:  # noqa: BLE001
             pass
         # ---- urOMT overlay (reuse the embedded-3D builder) -------------------

@@ -55,6 +55,9 @@ napari = [
 model_installer = [
     "model_installer @ git+https://github.com/cerr/model_installer.git",
 ]
+ants = [
+    "antspyx",
+]
 
 [tool.setuptools]
 include-package-data = true

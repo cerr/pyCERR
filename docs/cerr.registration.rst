@@ -12,6 +12,14 @@ cerr.registration.register module
    :undoc-members:
    :show-inheritance:
 
+cerr.registration.ants\_reg module
+----------------------------------
+
+.. automodule:: cerr.registration.ants_reg
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

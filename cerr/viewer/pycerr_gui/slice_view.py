@@ -20,11 +20,12 @@ class SliceView(QtWidgets.QWidget):
         super().__init__(parent)
         self.winId = winId
         self.orientation = orientation   # current view type, may be changed
-        self.fig = Figure(facecolor="black", layout="tight")
+        # No auto-layout: the axes spans the whole figure (a full-bleed
+        # [0,0,1,1] position), so there is no per-draw tight-layout solve. The
+        # single view has no external ticks/labels that would need margins.
+        self.fig = Figure(facecolor="black")
         self.canvas = FigureCanvas(self.fig)
-        self.ax = self.fig.add_subplot(111)
-        self.ax.set_facecolor("black")
-        self.ax.set_xticks([]), self.ax.set_yticks([])
+        self.ax = self._make_2d_axes()
 
         self.user_limits = None      # (xlim, ylim) while panned/zoomed
         self.xline = None            # crosshair artists (vertical, horizontal)
@@ -74,6 +75,19 @@ class SliceView(QtWidgets.QWidget):
         self.canvas.mpl_connect("axes_leave_event", self._on_axes_leave)
         self.canvas.mpl_connect("draw_event", self._capture_crosshair_bg)
 
+    def _make_2d_axes(self):
+        """Create the full-bleed 2D slice axes.
+
+        The axes spans the whole figure ([0, 0, 1, 1]) so slices fill the panel
+        with no wasted margin, and ``aspect='equal'`` with ``adjustable='datalim'``
+        keeps pixels square by expanding the data limits (the axes box stays
+        fixed, so there is no per-draw relayout)."""
+        ax = self.fig.add_axes((0.0, 0.0, 1.0, 1.0))
+        ax.set_facecolor("black")
+        ax.set_xticks([]), ax.set_yticks([])
+        ax.set_aspect("equal", adjustable="datalim")
+        return ax
+
     @property
     def is3d(self):
         return self.orientation == VIEW_3D
@@ -83,8 +97,21 @@ class SliceView(QtWidgets.QWidget):
     # After every full canvas draw we cache the rendered background and paint
     # the lines on top; moving the crosshair then only needs restore + blit
     # instead of a full ~100 ms redraw of the whole view.
+    def _paintable(self):
+        """True only when the canvas has a real, on-screen backing store.
+
+        Blitting paints the Agg buffer straight onto the canvas widget; doing
+        that before the widget is mapped/sized makes Qt begin a painter on a
+        device with no paint engine (on macOS this prints
+        'QPainter::begin: Paint device returned engine == 0, type: 1').
+        """
+        return (not self.is3d and self.canvas.isVisible()
+                and self.canvas.width() > 0 and self.canvas.height() > 0)
+
     def _capture_crosshair_bg(self, _event=None):
-        if self.is3d or self.xline is None:
+        # Where blitting is unsafe (macOS) the crosshair is a normal artist
+        # drawn by the regular figure draw, so there is nothing to blit.
+        if not CROSSHAIR_BLIT_OK or self.xline is None or not self._paintable():
             self._chBg = None
             return
         try:
@@ -94,6 +121,8 @@ class SliceView(QtWidgets.QWidget):
             self._chBg = None
 
     def _paint_crosshair(self):
+        if not CROSSHAIR_BLIT_OK or not self._paintable():
+            return
         for ln in (self.xline, self.yline):
             if ln is not None:
                 self.ax.draw_artist(ln)
@@ -101,9 +130,10 @@ class SliceView(QtWidgets.QWidget):
 
     def blit_crosshair(self):
         """Fast crosshair reposition: restore the cached background and repaint
-        just the two lines. Falls back to a full redraw when no background has
-        been captured yet (e.g. before the first paint)."""
-        if self._chBg is None or self.xline is None:
+        just the two lines. Falls back to a full redraw when blitting is
+        unavailable or no background has been captured yet."""
+        if not CROSSHAIR_BLIT_OK or self._chBg is None or self.xline is None \
+                or not self._paintable():
             self.canvas.draw_idle()
             return
         self.canvas.restore_region(self._chBg)
@@ -135,13 +165,12 @@ class SliceView(QtWidgets.QWidget):
         self.fig.clf()
         if to3d:    # matplotlib fallback when pyvista is unavailable
             self.ax = self.fig.add_subplot(111, projection="3d")
+            try:
+                self.ax.set_facecolor("black")
+            except Exception:  # noqa: BLE001
+                pass
         else:
-            self.ax = self.fig.add_subplot(111)
-            self.ax.set_xticks([]), self.ax.set_yticks([])
-        try:
-            self.ax.set_facecolor("black")
-        except Exception:  # noqa: BLE001
-            pass
+            self.ax = self._make_2d_axes()
         self.slider.setVisible(not to3d)
         # artists from the old axes are gone
         self.xline = self.yline = None
@@ -403,7 +432,9 @@ class SliceView(QtWidgets.QWidget):
 
     def _do_zoom_drag(self, event):
         y0, ax_x, ax_y, xlim0, ylim0 = self._zoom_drag
-        # drag up zooms in, drag down zooms out; ~120 px doubles/halves
+        # drag up zooms in, drag down zooms out; ~120 px doubles/halves.
+        # aspect='equal'/adjustable='datalim' fills the panel and keeps pixels
+        # square, so a plain symmetric rescale about the cursor is enough.
         factor = float(np.clip(2.0 ** ((event.y - y0) / 120.0), 0.05, 20.0))
         self.ax.set_xlim(ax_x + (xlim0[0] - ax_x) / factor,
                          ax_x + (xlim0[1] - ax_x) / factor)
