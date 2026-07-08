@@ -678,6 +678,9 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         pt_groups = df_img.groupby(by=grouping_cols, dropna=False)
 
     pt_groups.size()
+    # REG (deformable registration) files are processed after the main loop so
+    # their base/moving scans are already present in planC for matching.
+    regFileList = []
     for group_name,group_content in pt_groups:
         print(group_name)
         d = group_content.to_dict()
@@ -722,6 +725,9 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
                 else:
                     kept.append(dmeta)
             planC.dose.extend(kept)
+        elif modality == "REG":
+            # Defer until all scans are loaded (see below).
+            regFileList.extend(list(files))
         else:
             print("Modality " + modality + " not supported")
 
@@ -787,6 +793,15 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         assocScanNum = scn.getScanNumFromUID(planC.dose[dose_num].assocScanUID, planC)
         if assocScanNum is not None:
             planC.dose[dose_num].cerrToDcmTransM = planC.scan[assocScanNum].cerrToDcmTransM
+
+    # Import deformable registration (REG) files now that scans (and their
+    # final scanUIDs) are available for frame-of-reference matching.
+    for regFile in regFileList:
+        try:
+            planC = loadDcmReg(regFile, planC)
+        except Exception as e:
+            warnings.warn("REG " + str(regFile) + " not imported "
+                          "from DICOM: " + str(e))
 
     return planC
 
@@ -1106,6 +1121,220 @@ def loadNiiVf(dvf_file, baseScanNum, planC):
     deform.imageOrientationPatient = orient
     deform.dx = res[0] / 10
     deform.dy = res[1] / 10
+
+    # Convert DVF to CERR virtual
+    deform.convertDcmToCerrVirtualCoords()
+    planC.deform.append(deform)
+
+    return planC
+
+
+def _matchScanUIDsByFOR(deform, baseFOR, movFOR, planC):
+    """Set deform.baseScanUID / movScanUID from scans matching the FOR UIDs.
+
+    Multiple scans may share a frame of reference; the first match wins.
+    """
+    for s in planC.scan:
+        forUID = s.scanInfo[0].frameOfReferenceUID
+        if forUID and forUID == baseFOR and not deform.baseScanUID:
+            deform.baseScanUID = s.scanUID
+        if forUID and forUID == movFOR and not deform.movScanUID:
+            deform.movScanUID = s.scanUID
+    return deform
+
+
+def _appendRigidDeform(regFile, ds, rigidMatrix, matrixType, baseFOR, movFOR,
+                       planC):
+    """Append a rigid-registration Deform object to planC.deform.
+
+    ``rigidMatrix`` follows the DICOM Spatial Registration convention: it maps
+    points in the moving (source) frame of reference to the base (registered)
+    frame of reference, in LPS mm.
+    """
+    deform = dfrm.Deform()
+    deform.deformUID = uid.createUID("deform")
+    deform.deformOutFileType = 'rigid'
+    deform.deformOutFilePath = regFile
+    deform.registrationTool = 'dicom'
+    deform.algorithm = getattr(ds, 'SeriesDescription', '') or 'DICOM REG'
+    deform = _matchScanUIDsByFOR(deform, baseFOR, movFOR, planC)
+    deform.deformParams = {
+        'rigidMatrix': np.asarray(rigidMatrix, dtype=float).tolist(),
+        'rigidMatrixType': matrixType,
+        'baseFrameOfReferenceUID': baseFOR,
+        'movFrameOfReferenceUID': movFOR,
+    }
+    planC.deform.append(deform)
+    return planC
+
+
+def _composeMatrixSequence(mtxSeq):
+    """Compose the items of a DICOM Matrix Sequence, applied in item order."""
+    composed = np.eye(4)
+    matrixType = 'RIGID'
+    for mItem in mtxSeq:
+        m = np.array(mItem.FrameOfReferenceTransformationMatrix,
+                     dtype=float).reshape(4, 4)
+        composed = np.matmul(m, composed)
+        matrixType = getattr(mItem, 'FrameOfReferenceTransformationMatrixType',
+                             matrixType)
+    return composed, matrixType
+
+
+def loadDcmReg(regFile, planC):
+    """Import a DICOM REG (spatial registration) file into planC.deform.
+
+    Supports both REG flavors:
+
+    * **Deformable Spatial Registration** (SOP class
+      ``1.2.840.10008.5.1.4.1.1.66.3``) with a deformation grid: the DVF is
+      parsed into ``Deform.dvfMatrix`` (``deformOutFileType == 'dvf'``). This is
+      the inverse of the REG export in :mod:`cerr.dcm_export.reg_iod`. If the
+      moving item carries only pre/post rigid matrices and no grid, the
+      composed matrix is imported as a rigid registration instead.
+    * **Spatial Registration** (SOP class ``1.2.840.10008.5.1.4.1.1.66.1``)
+      with rigid/affine matrices: the composed 4x4 matrix is stored in
+      ``deform.deformParams['rigidMatrix']`` (``deformOutFileType == 'rigid'``).
+      Per the DICOM convention the matrix maps moving (source) frame points to
+      base (registered) frame points, LPS mm. Use
+      :func:`cerr.registration.register.warpScanRigid` to apply it.
+
+    The base (fixed) and moving scans are matched to scans already in ``planC``
+    by Frame of Reference UID when possible; the corresponding ``scanUID`` values
+    are stored on the deform object. Any pre/post-deformation rigid matrices
+    accompanying a grid are preserved in ``deform.deformParams``.
+
+    Args:
+        regFile (str): path to a DICOM REG file.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        cerr.plan_container.PlanC: ``planC`` with the registration appended to
+        ``planC.deform``.
+    """
+    from pydicom import dcmread
+
+    ds = dcmread(regFile)
+    if getattr(ds, 'Modality', '') != 'REG':
+        raise ValueError("File is not a REG modality DICOM: " + str(regFile))
+
+    # ---- Rigid Spatial Registration IOD (66.1) ----
+    if 'DeformableRegistrationSequence' not in ds:
+        if 'RegistrationSequence' not in ds:
+            raise ValueError("REG file has neither DeformableRegistration"
+                             "Sequence nor RegistrationSequence: " + str(regFile))
+        # The base item carries an identity matrix in the dataset's own frame
+        # of reference; the moving item carries the actual transform.
+        regFOR = getattr(ds, 'FrameOfReferenceUID', '')
+        baseFOR = regFOR
+        movFOR = ''
+        rigidMatrix = np.eye(4)
+        matrixType = 'RIGID'
+        for item in ds.RegistrationSequence:
+            itemFOR = getattr(item, 'FrameOfReferenceUID', '')
+            m, mType = _composeMatrixSequence(
+                item.MatrixRegistrationSequence[0].MatrixSequence)
+            if np.allclose(m, np.eye(4)) and (itemFOR == regFOR or not itemFOR):
+                baseFOR = itemFOR or regFOR
+            else:
+                rigidMatrix = m
+                matrixType = mType
+                movFOR = itemFOR
+        return _appendRigidDeform(regFile, ds, rigidMatrix, matrixType,
+                                  baseFOR, movFOR, planC)
+
+    # ---- Deformable Spatial Registration IOD (66.3) ----
+    # The moving item carries the deformation grid; the base item (Frame of
+    # Reference Identity) does not.
+    gridItem = None
+    baseFOR = ''
+    movFOR = ''
+    preMatrix = None
+    postMatrix = None
+    for item in ds.DeformableRegistrationSequence:
+        if 'DeformableRegistrationGridSequence' in item:
+            gridItem = item.DeformableRegistrationGridSequence[0]
+        elif 'PreDeformationMatrixRegistrationSequence' not in item and \
+                'PostDeformationMatrixRegistrationSequence' not in item:
+            baseFOR = getattr(item, 'SourceFrameOfReferenceUID', '')
+            continue
+        movFOR = getattr(item, 'SourceFrameOfReferenceUID', '')
+        if 'PreDeformationMatrixRegistrationSequence' in item:
+            preMatrix = np.array(
+                item.PreDeformationMatrixRegistrationSequence[0]
+                .FrameOfReferenceTransformationMatrix, dtype=float).reshape(4, 4)
+        if 'PostDeformationMatrixRegistrationSequence' in item:
+            postMatrix = np.array(
+                item.PostDeformationMatrixRegistrationSequence[0]
+                .FrameOfReferenceTransformationMatrix, dtype=float).reshape(4, 4)
+
+    if gridItem is None:
+        # Matrices-only deformable REG: import as a rigid registration.
+        if preMatrix is None and postMatrix is None:
+            raise ValueError("REG file has no DeformableRegistrationGrid"
+                             "Sequence and no pre/post matrices: " + str(regFile))
+        rigidMatrix = np.eye(4)
+        if preMatrix is not None:
+            rigidMatrix = np.matmul(preMatrix, rigidMatrix)
+        if postMatrix is not None:
+            rigidMatrix = np.matmul(postMatrix, rigidMatrix)
+        return _appendRigidDeform(regFile, ds, rigidMatrix, 'RIGID',
+                                  baseFOR, movFOR, planC)
+
+    # Grid geometry (DICOM LPS, mm). GridDimensions is (cols, rows, slices).
+    nCols, nRows, nSlcs = [int(v) for v in gridItem.GridDimensions]
+    res = [float(v) for v in gridItem.GridResolution]        # (sx, sy, sz) mm
+    origin = np.array([float(v) for v in gridItem.ImagePositionPatient])
+    iop = np.array([float(v) for v in gridItem.ImageOrientationPatient])
+    rowDir = iop[:3]
+    colDir = iop[3:]
+    sliceNormal = np.cross(rowDir, colDir)
+
+    # VectorGridData is float32, x-fastest, with (dx, dy, dz) LPS-mm per voxel:
+    # index order matches sitk's (slice, row, col) C-ordering used on export.
+    vec = np.frombuffer(bytes(gridItem.VectorGridData), dtype=np.float32)
+    expectedLen = nCols * nRows * nSlcs * 3
+    if vec.size != expectedLen:
+        raise ValueError("VectorGridData length %d does not match grid "
+                         "dimensions %s (expected %d)."
+                         % (vec.size, [nCols, nRows, nSlcs], expectedLen))
+    dvfZYX = vec.reshape(nSlcs, nRows, nCols, 3)  # (slice, row, col, component)
+    # pyCERR Deform.dvfMatrix is (rows, cols, slices, component).
+    dvfMatrix = np.moveaxis(dvfZYX, [0, 1, 2, 3], [2, 0, 1, 3])
+
+    deform = dfrm.Deform()
+    deform.deformUID = uid.createUID("deform")
+    deform.deformOutFileType = 'dvf'
+    deform.deformOutFilePath = regFile
+    deform.registrationTool = 'dicom'
+    deform.algorithm = getattr(ds, 'SeriesDescription', '') or 'DICOM REG'
+
+    # Match base/moving scans by Frame of Reference UID.
+    deform = _matchScanUIDsByFOR(deform, baseFOR, movFOR, planC)
+
+    # Per-slice image position (mm) and CERR z-values (cm), sorted by z.
+    imagePositionPatientV = np.zeros((nSlcs, 3))
+    zValuesV = np.zeros(nSlcs)
+    for slc in range(nSlcs):
+        imagePositionPatientV[slc, :] = origin + res[2] * slc * sliceNormal
+        zValuesV[slc] = - np.sum(sliceNormal * imagePositionPatientV[slc, :]) / 10
+    sortIndex = np.argsort(zValuesV)
+    zValuesV = zValuesV[sortIndex]
+    imagePositionPatientV = imagePositionPatientV[sortIndex, :]
+    dvfMatrix = dvfMatrix[:, :, sortIndex, :]
+
+    deform.dvfMatrix = dvfMatrix
+    deform.imagePositionPatientV = imagePositionPatientV
+    deform.zValuesV = zValuesV
+    deform.imageOrientationPatient = iop
+    deform.dx = res[0] / 10
+    deform.dy = res[1] / 10
+    deform.deformParams = {
+        'baseFrameOfReferenceUID': baseFOR,
+        'movFrameOfReferenceUID': movFOR,
+        'preDeformationMatrix': preMatrix.tolist() if preMatrix is not None else None,
+        'postDeformationMatrix': postMatrix.tolist() if postMatrix is not None else None,
+    }
 
     # Convert DVF to CERR virtual
     deform.convertDcmToCerrVirtualCoords()

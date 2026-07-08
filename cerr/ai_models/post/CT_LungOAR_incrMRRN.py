@@ -2,8 +2,8 @@ import os
 import glob
 import numpy as np
 from cerr import plan_container as pc
-from cerr.dataclasses import structure
 from cerr.dataclasses import scan as cerrScn
+from cerr.dataclasses import structure as cerrStr
 from cerr.utils import mask
 from cerr.dcm_export import rtstruct_iod
 
@@ -16,6 +16,7 @@ STR_TO_LABEL_MAP = {
     5: "Cord",
     6: "PBT"
 }
+LABEL_TO_STR_MAP = {value: key for key, value in STR_TO_LABEL_MAP.items()}
 
 
 def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
@@ -47,20 +48,17 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
 
     # Import label map to planC on resized scan
     numStrOrig = len(planC.structure)
-    planC = pc.loadNiiStructure(
-        niiGlob[0], procScanNum, planC,
-        labels_dict=STR_TO_LABEL_MAP
-    )
+    planC = pc.loadNiiStructure(niiGlob[0], procScanNum, planC,labels_dict=LABEL_TO_STR_MAP)
     cpyStrNumV = np.arange(numStrOrig, len(planC.structure))
     numExistingStructs = numStrOrig
 
     # Copy structures to original scan and retain largest connected component
     for label in range(numLabel):
-        planC = structure.copyToScan(cpyStrNumV[label], scanNum, planC)
+        planC = cerrStr.copyToScan(cpyStrNumV[label], scanNum, planC)
         origStr = len(planC.structure) - 1
         strName = STR_TO_LABEL_MAP[label + 1]
-        __ = mask.largestConnComps(origStr, numComponents, planC, saveFlag=True,
-                                 replaceFlag=False, procSructName=strName)
+        __, planC = cerrStr.getLargestConnComps(origStr, numComponents, planC=planC,
+                           saveFlag=True, replaceFlag=True, procSructName=strName)
 
     newNumStructs = len(planC.structure)
     structNumV = np.arange(numExistingStructs, newNumStructs)
@@ -70,11 +68,15 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
                         dtype=int)
     structsToExportV = structNumV[indOrigV == scanNum]
 
+    for s in structsToExportV:
+        name = planC.structure[s].structureName
+        print(f"struct {s}: name={name!r}  type={type(name)}")
+
     # Export
+    ptID = os.path.basename(inputPath.rstrip('/'))
     if os.path.isdir(inputPath):
         # to DICOM RTSTRUCT
         os.makedirs(outputPath, exist_ok=True)
-        ptID = os.path.basename(inputPath.rstrip('/'))
         structFileName = f"{ptID}_CT_LungOAR_incrMRRN_AI_seg.dcm"
         structFilePath = os.path.join(outputPath, structFileName)
         exportOpts = {'seriesDescription': 'AI Generated'}
