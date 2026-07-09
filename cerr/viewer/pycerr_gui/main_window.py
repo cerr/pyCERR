@@ -3336,20 +3336,39 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             return float("-inf"), float("inf")
         return float(lo), float(hi)
 
+    N_DOSE_ISO_3D = 5    # number of dose iso-surfaces drawn in 3D
+
     def _pv_dose_iso(self, doseIdx, frac=1.0):
         """Cached (isodose surfaces, doseMax) for a dose index, or None.
-        Surfaces are contoured at the panel's isodose levels (resolved to Gy via
-        :meth:`_isodose_abs_levels`, matching the 2D isodose lines), restricted
-        to the dose display (cyan) range so the 3D views honor it. ``frac < 1``
-        contours a resampled dose grid. Results are cached per
+
+        Draws ``N_DOSE_ISO_3D`` iso-surfaces evenly spanning the effective dose
+        range: the dose display (cyan) range when a handle is moved in (lower
+        bound = outer surface, upper bound = inner surface, so both cutoffs are
+        honored and the shells resize continuously as you drag), else the full
+        dose range. ``frac < 1`` contours a resampled dose grid. Cached per
         (dose, fraction, levels)."""
         # Resolve levels first so the cache invalidates when they change.
         dmaxAll = self._dose_interp(doseIdx)
         dmaxAll = dmaxAll[1] if dmaxAll is not None else 0.0
-        dLo, dHi = self._dose_disp_range()
-        levels = tuple(round(lv, 4)
-                       for lv in self._isodose_abs_levels(doseIdx, dmaxAll)
-                       if lv > 0 and dLo <= lv <= dHi)
+        lo_eff, hi_eff = 0.0, dmaxAll
+        cb = getattr(self, "colorbar", None)
+        if cb is not None:
+            lo, hi = cb.dispRange
+            eps = cb._span() * 1e-3
+            if lo > cb.axisMin + eps:
+                lo_eff = lo
+            if hi < cb.axisMax - eps:
+                hi_eff = hi
+        n = self.N_DOSE_ISO_3D
+        if dmaxAll > 0 and hi_eff > lo_eff:
+            # evenly spaced shells; skip a zero lower endpoint (whole volume)
+            if lo_eff <= 0:
+                levs = np.linspace(lo_eff, hi_eff, n + 1)[1:]
+            else:
+                levs = np.linspace(lo_eff, hi_eff, n)
+            levels = tuple(round(float(lv), 4) for lv in levs if lv > 0)
+        else:
+            levels = ()
         key = (doseIdx, round(frac, 3), levels)
         if key not in self._pvDoseCache:
             res = None

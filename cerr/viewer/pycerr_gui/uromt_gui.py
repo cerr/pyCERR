@@ -228,10 +228,10 @@ class UROMTDialog(QtWidgets.QDialog):
             self.settingsEdit.setText(f)
 
     def _run(self):
-        from cerr.uromt.data import scanTimeOrder
+        from cerr.mri_metrics.dce_mri import getScanOrder
         structNum = self.structCombo.currentData()
         # order scans by acquisition time (planC scan order may not be temporal)
-        scanNumV = scanTimeOrder(self.viewer.planC)
+        scanNumV = getScanOrder(self.viewer.planC)
         timeSel = (self.firstSpin.value(), self.jumpSpin.value(),
                    self.lastSpin.value())
         self.runBtn.setEnabled(False)
@@ -351,8 +351,8 @@ class UROMTDialog(QtWidgets.QDialog):
                    or (run.UROMTResult or {}).get("frameScanNums") or [])
             self._tpScanNums = list(fsn)
         if run is None or not self._tpScanNums:
-            from cerr.uromt.data import scanTimeOrder
-            self._tpScanNums = scanTimeOrder(self.viewer.planC)
+            from cerr.mri_metrics.dce_mri import getScanOrder
+            self._tpScanNums = getScanOrder(self.viewer.planC)
         n = len(self._tpScanNums)
         self.tpSlider.blockSignals(True)
         self.tpSlider.setRange(0, max(0, n - 1))

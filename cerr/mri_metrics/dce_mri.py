@@ -18,24 +18,30 @@ EPS = np.finfo(float).eps
 rng = np.random.default_rng()
 
 
-def getAcqTime(planC, timeKey, scanIdxV=None):
+def getAcqTime(planC, timeKey, scanIdxV=None, returnBasis=False):
     """Extract timing information from DCE-MRI scans in planC.
 
     Args:
         planC (plan_container.planC): pyCERR's plan container object containing DCE scans and metadata.
         timeKey (str): [optional, default:None] scanInfo field-name from which to read timing.
-                    Note: Assumes timing in min unless `acquisitionTime` or `triggerTime`.
-                    If `None`, first uses``temporalPositionIndex`` (0020,0100), if available,
-                    to establish canonical scan order.
+                    Note: Assumes input timing is in min unless `acquisitionTime` or `triggerTime`.
+                    Default behavior:
+                    If `None`, first uses``temporalPositionIdentifier`` (0020,0100) if available.
                     Then examines ``acquisitionTime`` (0008,0032) (assumed to be in seconds).
-                    Values must be unique across scans and ordering must match ``temporalPositionIndex``.
                     If not,``triggerTime`` (0018,1060) (assumed ot be in ms) is considered.
+                    Time values must be unique across scans; if ``temporalPositionIdentifier`` is
+                    available, a warnign is raised if ordering differs.
                     Returns error if both fail.
+                    Otherwise, extracts timing from "timeKey" field, e.g. "seriesDate", "seriesTime".
         scanIdxV (list): [optional, default:None] Indices into ``planC.scan`` identifying the DCE volumes to use,
                         in any order. Defaults to all scans.
+        returnBasis (bool): [optional, default:False] If True, also return the field from which timing was determined
+                           ('acquisitionTime', 'triggerTime', or `timeKey` if provided).
+
 
     Returns:
         timeV (np.ndarray) : Timing of each scan (min))
+        basis (str): only if ``returnBasis`` is True.
     """
 
     if scanIdxV is None:
@@ -58,19 +64,20 @@ def getAcqTime(planC, timeKey, scanIdxV=None):
         return keyTimesV
     sortOrder = np.arange(nScans)
 
-    if timeKey is None or timeKey in ['acquisitionTime','triggerTime']:
-        # Use acquisitionTime / triggerTime
-        temporalPosV = _getTiming(planC, 'temporalPositionIndex')
-        temporalPosV = np.array(temporalPosV, dtype=float)
-        if not np.any(np.isnan(temporalPosV)):
-            sortOrder = np.argsort(temporalPosV)
-        else:
-            print("WARNING: temporalPositionIndex not found in scanInfo. "
-                  "Assuming scans are in temporal order.")
+    # Check if temporalPositionIdentifier is present.
+    temporalPosV = _getTiming(planC, 'temporalPositionIdentifier')
+    temporalPosV = np.array(temporalPosV, dtype=float)
+    hasTemporalPos = not np.any(np.isnan(temporalPosV))
+    if hasTemporalPos:
+        sortOrder = np.argsort(temporalPosV)
+        print("Ordering based on temporalPositionIdentifier.")
+
+    if timeKey is None or timeKey in ['acquisitionTime', 'triggerTime']:
 
         # Extract acquisitionTime unless triggerTime is specified
         skipAcq = True if timeKey == 'triggerTime' else False
-        acqTimesStrV = _getTiming(planC, 'acquisitionTime')
+        acqTimesStrV = [getattr(planC.scan[i].scanInfo[0], 'acquisitionTime', None) #_getTiming handles numeric values
+                        for i in scanIdxV]
         acqTimesV = []
         for at in acqTimesStrV:
             if at in ('', None) or (isinstance(at, float) and np.isnan(at)):
@@ -84,13 +91,15 @@ def getAcqTime(planC, timeKey, scanIdxV=None):
 
         # Check validity
         if not skipAcq:
-            sortedAcqTimesV = acqTimesV[sortOrder]
             if len(np.unique(acqTimesV)) < nScans:
                 skipAcq = True
                 print(f"Acquisition time is not unique across scans. Skipping...")
-            if not np.all(np.diff(sortedAcqTimesV) > 0):
-                skipAcq = True
-                print(f"Acquisition time ordering does not agree with temporalPositionIndex. Skipping...")
+            elif hasTemporalPos:
+                sortedAcqTimesV = acqTimesV[sortOrder]
+                if not np.all(np.diff(sortedAcqTimesV) > 0):
+                    skipAcq = False
+                    print(f"WARNING: Acquisition time ordering does not agree with temporalPositionIdentifier."
+                          f"Set timeKey=""temporalPositionIdentifier"" to use this tag for ordering instead.")
         if timeKey=='acquisitionTime':
                 skipAcq = False
 
@@ -101,32 +110,96 @@ def getAcqTime(planC, timeKey, scanIdxV=None):
             if not skipTriggerTime:
                 trigTimesV = _getTiming(planC, 'triggerTime')
                 trigTimesV = np.array(trigTimesV, dtype=float)
-                sortedTriggerTimesV = trigTimesV[sortOrder]
                 if len(np.unique(trigTimesV)) < nScans:
                     skipTriggerTime = True
                     print(f"Trigger time is not unique across scans.")
-                if not np.all(np.diff(sortedTriggerTimesV) > 0):
-                    skipTriggerTime = True
-                    print(f"Trigger time ordering does not agree with temporalPositionIndex.")
+                elif hasTemporalPos:
+                    sortedTriggerTimesV = trigTimesV[sortOrder]
+                    if not np.all(np.diff(sortedTriggerTimesV) > 0):
+                        skipTriggerTime = False
+                        print(f"WARNING: Trigger time ordering does not agree with temporalPositionIdentifier."
+                              f"Set timeKey=""temporalPositionIdentifier"" to use this tag for ordering instead.")
             if timeKey == 'triggerTime':
                 skipTriggerTime = False
 
             # Check validity
             if skipTriggerTime:
-                    raise ValueError(f"ERROR: Could not extract timing. Please supply timeV manually.")
+                    raise ValueError(f"ERROR: Could not extract timing from triggerTime or acquisitionTime."
+                    f"Please provide a different timeKey or supply input time manually.")
             else:
                 print("Timing extracted from triggerTime (0018,1060).")
                 timeV = trigTimesV / 1000.0 / 60.0  # ms to min
-                return timeV
+                return (timeV, "triggerTime") if returnBasis else timeV
         else:
             print("Timing extracted from acquisitionTime (0020,010).")
             timeV = acqTimesV / 60.0  # min
+            basis = "acquisitionTime"
+
     else:
         # Extract from `timeKey` field
         timeV = _getTiming(planC, timeKey)
         timeV = np.array(timeV, dtype=float)
+        basis = timeKey
 
-    return timeV
+    return (timeV, basis) if returnBasis else timeV
+
+
+def getScanOrder(planC, scanNumV=None, returnBasis=False):
+    """Return the given scan indices (or all scans) ordered by acquisition
+    time. The basis for both the urOMT timepoint sequence and the GUI timepoint->scan-index mapping.
+    Args:
+        planC (plan_container.planC): pyCERR's plan container object.
+        scanNumV (list): [optional, default:None] Indices into ``planC.scan``
+            to order, in any order. Defaults to all scans.
+        returnBasis (bool): [optional, default:False] If True, also return the field from which timing was determined
+                           ('acquisitionTime', 'triggerTime', or `timeKey` if provided).
+
+    Returns:
+        list[int]: ``scanNumV`` (or all scan indices) sorted chronologically.
+        basis (str): only if ``returnBasis`` is True.
+    """
+    nums = list(range(len(planC.scan))) if scanNumV is None else list(scanNumV)
+
+    try:
+        times, basis = getAcqTime(planC, None, scanIdxV=nums, returnBasis=True)
+        times = np.asarray(times, dtype=float)
+        if times.size and not np.any(np.isnan(times)):
+            order = [nums[i] for i in np.argsort(times, kind="stable")]
+        return (order, basis) if returnBasis else order
+    except Exception:
+        pass  # fall through to the per-scan fallback key below
+
+    def _fallbackKey(scanNum):
+        scanInfo = planC.scan[scanNum].scanInfo[0]
+        #Even if timing info. is not available (getAcqTime fails),
+        #temporalPositionIdentifier suffices for sorting
+        temporalPosV = getattr(scanInfo, "temporalPositionIdentifier", None)
+        if temporalPosV not in (None, ""):
+            try:
+                return (0, float(temporalPosV), scanNum)
+            except (TypeError, ValueError):
+                pass
+        # Less reliable-- use series date/time
+        t = getattr(scanInfo, "seriesTime", None)
+        if t not in (None, ""):
+            return (1, "%s %s" % (getattr(scanInfo, "seriesDate", "") or "", t), scanNum)
+
+        return (2, scanNum, scanNum)   # preserve input order
+
+    fallbackList = {0: "temporalPositionIdentifier", 1: "seriesDateTime", 2: "scanIndex"}
+    order = sorted(nums, key=_fallbackKey)
+
+    fallbacksUsed = {_fallbackKey(s)[0] for s in nums}
+    if len(fallbacksUsed) > 1:
+        raise ValueError(
+            "getScanOrder: scans in this planC resolved to inconsistent ordering "
+            "fields (%s). Pass scanNumV in the intended order explicitly."
+            % ", ".join(sorted(fallbackList[t] for t in fallbacksUsed)))
+
+    basis = fallbackList[next(iter(fallbacksUsed))]
+    if basis == "scanIndex":
+        print("WARNING: No timing metadata found. Input scan order used as-is.")
+    return (order, basis) if returnBasis else order
 
 
 def loadTimeSeq(planC, structNum, userInputTime=None, scanNumV=None):
@@ -170,7 +243,7 @@ def loadTimeSeq(planC, structNum, userInputTime=None, scanNumV=None):
 
     timePtsV = userInputTime
     if userInputTime is None:
-        timePtsV = np.array([planC.scan[scn].scanInfo[0].acquisitionTime for scn in scanNumV])
+        timePtsV = getAcqTime(planC, timeKey=None, scanIdxV=scanNumV)
 
     # Sort time pts
     indSortedV = np.argsort(timePtsV)
@@ -204,9 +277,12 @@ def intToConc(normSigM, concDict):
     """
 
     T10 = concDict['T10']
-    TR = concDict['TR']
-    FA = concDict['FA']
+    TR = concDict.get('TR')
+    FA = concDict.get('FA')
     r1 = concDict['r1']
+    if TR is None or FA is None:
+        raise ValueError("intToConc: concDict must include a valid 'TR' and 'FA' for CC "
+                         "conversion (see resolveTRFA/buildConcDict).")
 
     R10 = 1.0 / T10  # Relaxation rate before contrast
 
@@ -236,6 +312,63 @@ def intToConc(normSigM, concDict):
     C[C < 0] = 0
 
     return C
+
+
+def resolveTRFA(planC, scanNum, TR=None, FA=None):
+    """Extract ``TR ``(seconds), ``FA`` (degrees) for intToConc conversion
+
+    Allows for input from a settings file, otherwise falls back to the
+    scan's DICOM metadata: ``scanInfo.repetitionTime`` (0018,0080), which
+    pyCERR stores in **milliseconds** and is converted to seconds here, and
+    ``scanInfo.flipAngle`` (0018,1314), in degrees.
+
+    Args:
+        planC (plan_container.planC): pyCERR's plan container object.
+        scanNum (int): index into ``planC.scan`` to read metadata from.
+        TR (float): [optional] repetition time override, in SECONDS.
+        FA (float): [optional] flip angle override, in DEGREES.
+
+    Returns:
+        (float, float): ``(TR, FA)`` resolved to seconds and degrees.
+    """
+    scanInfo = planC.scan[scanNum].scanInfo[0]
+    if TR is None:
+        TRms = getattr(scanInfo, 'repetitionTime', None)
+        TR = (float(TRms) / 1000.0) if TRms is not None else None
+    if FA is None:
+        FA = getattr(scanInfo, 'flipAngle', None)
+    if TR is None or FA is None:
+        raise ValueError(
+            "resolveTRFA: Conversion to concentration requires repetition time and "
+            "flip angle; scan %d has none (pass TR/FA explicitly, or use "
+            "normMethod='RSE')." % scanNum)
+    return float(TR), float(FA)
+
+
+def buildConcDict(planC, scanNum, T10, r1, TR=None, FA=None, clip=None):
+    """Build parameter dictionary for contrast-concentration conversion.
+
+    Args:
+        planC (plan_container.planC): pyCERR's plan container object.
+        scanNum (int): index into ``planC.scan`` to read TR/FA metadata from
+            if not overridden.
+        T10 (float): pre-contrast longitudinal relaxation time (seconds).
+        r1 (float): relaxivity.
+        TR (float): [optional] repetition time override, in seconds.
+        FA (float): [optional] flip angle override, in degrees.
+        clip (sequence): [optional] ``[min, max]`` clip applied to the
+            normalized signal before conversion; sets
+            ``concDict['clip_between']`` when given.
+
+    Returns:
+        dict: ``concDict`` with keys ``'T10'``, ``'r1'``, ``'TR'``, ``'FA'``,
+        and ``'clip_between'`` if ``clip`` was given.
+    """
+    TR, FA = resolveTRFA(planC, scanNum, TR=TR, FA=FA)
+    concDict = {"T10": float(T10), "r1": float(r1), "TR": TR, "FA": FA}
+    if clip is not None:
+        concDict["clip_between"] = [float(clip[0]), float(clip[1])]
+    return concDict
 
 
 def plotUptake(timePtsV, sigV, blockFlag, savePath=None):
@@ -1276,9 +1409,9 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None, ):
 
         try:
 
-            ptNum = pt.split("_")[0].split('BC')[-1]
-            vNum = pt.split("_")[-1]
-            uqID = f"BC{ptNum}{vNum}"
+            #ptNum = pt.split("_")[0].split('BC')[-1]
+            #vNum = pt.split("_")[-1]
+            #uqID = f"BC{ptNum}{vNum}"
 
             ptDir = os.path.join(baseDir, pt)
             planC = pc.loadDcmDir(ptDir)
