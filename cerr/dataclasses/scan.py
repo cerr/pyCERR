@@ -297,15 +297,11 @@ class Scan:
         orientString = orientString + zOri
         return orientString
 
-    def getScanSpacing(self, units='cm'):
-        """ Routine to get voxel spacing, in (x, y, z) = (col, row, slice) order.
-
-        Args:
-            units (str): 'cm' (default, native pyCERR unit) or 'mm'.
+    def getScanSpacing(self):
+        """ Routine to get voxel spacing in cm.
 
         Returns:
-            np.array: 3-element array containing dx, dy, dz of scan, in the
-            requested units.
+            np.array: 3-element array containing dx, dy, dz of scan
 
         """
 
@@ -316,10 +312,6 @@ class Scan:
         dy = abs(np.median(np.diff(y_vals_v)))
         dz = abs(np.median(np.diff(z_vals_v)))
         spacing_v = np.array([dx, dy, dz])
-        if str(units).lower() == 'mm':
-            spacing_v = spacing_v * 10.0
-        elif str(units).lower() != 'cm':
-            raise ValueError("getScanSpacing: units must be 'cm' or 'mm', got %r" % units)
         return spacing_v
 
 
@@ -989,7 +981,7 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
         if bVal1 in ds: scan_info.bValue = ds["0043", "1039"].value
         if bVal2 in ds: scan_info.bValue = ds["0018", "9087"].value
         if bVal3 in ds: scan_info.bValue = ds["0019", "100C"].value
-        if temporalPos in ds: scan_info.temporalPositionIndex = ds["0020", "0100"].value
+        if temporalPos in ds: scan_info.temporalPositionIdentifier = ds["0020", "0100"].value
         if triggerTime in ds: scan_info.triggerTime = ds["0018", "1060"].value
         if TR in ds: scan_info.repetitionTime = float(ds["0018", "0080"].value)
         if FA in ds: scan_info.flipAngle = float(ds["0018", "1314"].value)
