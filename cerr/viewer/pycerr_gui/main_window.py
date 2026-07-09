@@ -55,6 +55,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.overlayCache = {}       # scanIdx -> (interp, vmin, vmax) | None
         self.wlByScan = {}           # scanIdx -> (center, width)
         self.dispByScan = {}         # scanIdx -> (cmapName, alpha)
+        self.dispRangeByScan = {}    # scanIdx -> (lo, hi) mask range | None(full)
         self.doseCache = {}          # doseIdx -> (interp, doseMax) | None
         self._pvStructCache = {}     # structNum -> pyvista surface | None
         self._pvDoseCache = {}       # doseIdx -> (isosurface, doseMax) | None
@@ -90,6 +91,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.planC = planC
         self.wlByScan.clear()        # scan indices refer to a new plan now
         self.dispByScan.clear()
+        self.dispRangeByScan.clear()
         self.overlayState.clear()
         self._reset_axis_sel()
         if planC is not None and planC.scan:
@@ -895,7 +897,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         dlg = QtWidgets.QDialog(self)
         dlg.setWindowTitle("Scan Display")
         dlg.setModal(False)
-        lay = QtWidgets.QHBoxLayout(dlg)
+        lay = QtWidgets.QVBoxLayout(dlg)
 
         ctrl = QtWidgets.QVBoxLayout()
 
@@ -950,15 +952,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanAlphaSlider.valueChanged.connect(self.on_scan_alpha)
         opRow.addWidget(self.scanAlphaSlider)
         ctrl.addLayout(opRow)
-        ctrl.addStretch(1)
         lay.addLayout(ctrl)
 
-        # the scan colorbar (colormap-mapping & display ranges, colormap menu)
+        # the scan colorbar (horizontal, with an intensity histogram above the
+        # gradient; colormap-mapping & display ranges, colormap menu)
+        lay.addWidget(QtWidgets.QLabel("Intensity histogram / colorbar:"))
         self.scanColorbar = ScanColorbarWidget()
         self.scanColorbar.rangesChanged.connect(self._on_scan_colorbar_changed)
         lay.addWidget(self.scanColorbar)
 
-        dlg.resize(360, 340)
+        dlg.resize(440, 320)
         self.scanDisplayDialog = dlg
 
     def show_scan_display_dialog(self):
@@ -1017,6 +1020,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             lo, hi = wl[0] - wl[1] / 2.0, wl[0] + wl[1] / 2.0
         self.scanColorbar.setScan(wl[0], wl[1], lo, hi)
         self.scanColorbar._set_cmap(cmap)
+        # restore this scan's own display (cyan) range (setScan reset it to full)
+        rng = self.dispRangeByScan.get(t)
+        if rng is not None:
+            self.scanColorbar.dispRange = [rng[0], rng[1]]
+            self.scanColorbar._update_dim()
+            self.scanColorbar._update_handles()
+        try:
+            arr = self.scan3M if t == self.scanNum \
+                else self.planC.scan[t].getScanArray()
+            self.scanColorbar.setHistogram(arr)
+        except Exception:  # noqa: BLE001
+            self.scanColorbar.setHistogram(None)
         self.scanColorbar.update()
 
     def _open_scan_display_for(self, scanIdx):
@@ -1178,6 +1193,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self.planC = pc.loadPlanCFromPkl(path)
                 self.wlByScan.clear()
                 self.dispByScan.clear()
+                self.dispRangeByScan.clear()
                 self.overlayState.clear()
                 self._reset_axis_sel()
                 self.after_load()
@@ -1323,6 +1339,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.planC = pc.loadPlanCFromPkl(f)
             self.wlByScan.clear()    # scan indices refer to a new plan now
             self.dispByScan.clear()
+            self.dispRangeByScan.clear()
             self.overlayState.clear()
             self._reset_axis_sel()
             self.after_load()
@@ -1459,15 +1476,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.slices[wid] = min(self.slices[wid], n - 1)
             v.set_range(n, self.slices[wid])
 
-        # restore this scan's saved window; auto-window non-CT on first view
+        # robust data range: drives the colorbar axis AND the default window
+        # (a new scan defaults to showing its full data range).
+        lo, hi = np.percentile(self.scan3M, [0.5, 99.5])
+        self._scanDataRange = (float(lo), float(hi))
+
+        # restore this scan's saved window; default a new scan to its full range
         if self.scanNum in self.wlByScan:
             self.windowCenter, self.windowWidth = self.wlByScan[self.scanNum]
         else:
-            mod = str(getattr(scanObj.scanInfo[0], "imageType", "")).upper()
-            if "CT" not in mod:
-                lo, hi = np.percentile(self.scan3M, [2, 98])
-                self.windowCenter, self.windowWidth = \
-                    (lo + hi) / 2, max(hi - lo, 1)
+            self.windowCenter, self.windowWidth = \
+                (lo + hi) / 2.0, max(hi - lo, 1.0)
             self.wlByScan[self.scanNum] = (self.windowCenter, self.windowWidth)
         for sp, val in ((self.centerSpin, self.windowCenter),
                         (self.widthSpin, self.windowWidth)):
@@ -1484,15 +1503,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanAlphaSlider.blockSignals(True)
         self.scanAlphaSlider.setValue(int(round(self.scanAlpha * 100)))
         self.scanAlphaSlider.blockSignals(False)
-
-        # seed the base-scan colorbar: robust data range for the axis, current
-        # window as the colormap range, current colormap.
-        lo, hi = np.percentile(self.scan3M, [0.5, 99.5])
-        self._scanDataRange = (float(lo), float(hi))
         if getattr(self, "scanColorbar", None) is not None:
             self.scanColorbar.setScan(self.windowCenter, self.windowWidth,
                                       lo, hi)
             self.scanColorbar._set_cmap(self.scanCmap)
+            rng = self.dispRangeByScan.get(self.scanNum)
+            if rng is not None:          # restore a saved display (cyan) range
+                self.scanColorbar.dispRange = [rng[0], rng[1]]
+                self.scanColorbar._update_dim()
+                self.scanColorbar._update_handles()
+            self.scanColorbar.setHistogram(self.scan3M)
             self.scanColorbar.setVisible(True)
             self.scanColorbar.update()
         self._sync_dlg_scan_index()
@@ -1729,30 +1749,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def _fast_3d_style(self, view, layer, cmap, clim, alpha):
         """In-place colormap/window/opacity update for the embedded VTK
-        cut-planes view. Returns False (caller re-renders the window) when an
-        in-place update is not possible - including when a display (cyan) range
-        is active, since the scan NaN mask / dose iso-levels then depend on it
-        and must be rebuilt by a re-render."""
-        if not getattr(view, "uses_vtk", False):
+        cut-planes scan. Returns False (caller re-renders the window) for dose
+        (drawn as several graded iso-surfaces that depend on the levels) and
+        when a scan display (cyan) range is active (the scan NaN mask must be
+        rebuilt by a re-render)."""
+        if not getattr(view, "uses_vtk", False) or layer != "scan":
             return False
-        dispActive = (self._scan_disp_range() if layer == "scan"
-                      else self._dose_disp_range()) != (float("-inf"),
-                                                        float("inf"))
-        if dispActive:
+        if self._scan_disp_range() != (float("-inf"), float("inf")):
             return False
         pl = getattr(view, "vtk_widget", None)
         if pl is None:
             return False
         try:
-            if layer == "scan":
-                actors = list(getattr(view, "_plane_actors", {}).values())
-                op = float(alpha)
-            else:
-                doseIdx = self._axis_dose(view.winId)
-                act = pl.actors.get("isodose%d" % doseIdx) \
-                    if doseIdx is not None and doseIdx >= 0 else None
-                actors = [act] if act is not None else []
-                op = min(max(float(alpha), 0.0), 0.6)
+            actors = list(getattr(view, "_plane_actors", {}).values())
             if not actors:
                 return False
             lut = pv.LookupTable(cmap=cmap)
@@ -1760,28 +1769,21 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             for act in actors:
                 act.mapper.lookup_table = lut
                 act.mapper.scalar_range = clim
-                act.prop.opacity = op
+                act.prop.opacity = float(alpha)
             pl.render()
             return True
         except Exception:  # noqa: BLE001
             return False
 
     def _notify_volume3d_style(self, layer):
-        """Ask the 3D volume dialog to restyle in place (colormap/window/
-        opacity) without a full rebuild; falls back to its debounced rebuild.
-
-        The scan volume honors the display range via its opacity transfer
-        function (in place), but dose iso-surfaces at a masked display range
-        change *geometry* (fewer levels), so a rebuild is requested instead."""
+        """Ask the 3D volume dialog to restyle scan/dose quickly (multi-volume
+        actor recreate from cached grids, or in-place transfer functions);
+        the dialog falls back to its debounced rebuild when needed."""
         dlg = getattr(self, "_volume3dDialog", None)
         if dlg is None:
             return
         try:
-            if layer == "dose" and self._dose_disp_range() != (
-                    float("-inf"), float("inf")):
-                dlg.request_refresh()
-            else:
-                dlg.apply_style(layer)
+            dlg.apply_style(layer)
         except Exception:  # noqa: BLE001
             self._volume3dDialog = None
 
@@ -1951,6 +1953,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.presetCombo.blockSignals(True)
             self.presetCombo.setCurrentText("--- Manual ---")
             self.presetCombo.blockSignals(False)
+        # Store this scan's display (cyan) mask range (None = full = no mask).
+        # It is keyed by scan so an overlay's cyan range never masks the base
+        # scan (the colorbar is shared and may be targeting an overlay).
+        eps = cb._span() * 1e-3
+        if cb.dispRange[0] <= cb.axisMin + eps \
+                and cb.dispRange[1] >= cb.axisMax - eps:
+            self.dispRangeByScan[t] = None
+        else:
+            self.dispRangeByScan[t] = (float(cb.dispRange[0]),
+                                       float(cb.dispRange[1]))
         # Window (yellow), colormap and display-mask (cyan) all update in place
         # for the base scan: _fast_layer_style re-masks the 2D slice and
         # restyles the 3D views without a rebuild (the display mask doesn't
@@ -2590,18 +2602,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         extent = [hV[0], hV[-1], vV[-1], vV[0]]
         return img, extent, hV, vV, slicer
 
+    def _apply_dispmask(self, arr, scanIdx):
+        """Mask values of ``arr`` outside scan ``scanIdx``'s stored display
+        (cyan) range (dispRangeByScan; None = full = no mask). Accepts an
+        already-masked array - ``masked_where`` unions the masks - so it can be
+        layered on the FOV mask of an overlay slice."""
+        rng = self.dispRangeByScan.get(scanIdx)
+        if rng is None:
+            return arr          # full range -> nothing masked
+        dLo, dHi = rng
+        return np.ma.masked_where((arr < dLo) | (arr > dHi), arr)
+
     def _apply_scan_dispmask(self, img):
-        """Hide base-scan intensities outside the scan colorbar's display
-        (cyan) range. When that range spans the full axis (the default) the
-        array is returned unchanged so the fast set_data path is unaffected."""
-        cb = getattr(self, "scanColorbar", None)
-        if cb is None:
-            return img
-        dLo, dHi = cb.dispRange
-        eps = cb._span() * 1e-3
-        if dLo <= cb.axisMin + eps and dHi >= cb.axisMax - eps:
-            return img          # full range -> nothing masked
-        return np.ma.masked_where((img < dLo) | (img > dHi), img)
+        """Hide base-scan intensities outside the BASE scan's display (cyan)
+        mask range. The range is stored per scan (dispRangeByScan) so that
+        editing an overlay's display range - the colorbar is shared and may be
+        targeting an overlay - never masks the base scan. When the range is full
+        (the default) the array is returned unchanged so the fast set_data path
+        is unaffected."""
+        return self._apply_dispmask(img, self.scanNum)
 
     def _upsample_for_display(self, img, hV, vV, cacheKey):
         """Sinc-upsample a 2D slice to the finer of the two in-plane voxel
@@ -2847,6 +2866,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 ovSlc = self._resample_slice2d("scan", ovIdx, interp,
                                                orient, hV, vV)
                 ovMasked = np.ma.masked_invalid(ovSlc)  # hide outside its FOV
+                # also hide intensities outside this overlay's display (cyan)
+                # range, set from its own Scan Display colorbar
+                ovMasked = self._apply_dispmask(ovMasked, ovIdx)
                 im = ovIms.get(ovIdx)
                 if im is not None:
                     im.set_data(ovMasked)
@@ -3313,16 +3335,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         return self._pvStructCache[key]
 
     def _scan_disp_range(self):
-        """Scan display (cyan) range in scan units, or (-inf, inf) when the
-        range spans the whole axis (i.e. no masking)."""
-        cb = getattr(self, "scanColorbar", None)
-        if cb is None:
+        """Base-scan display (cyan) range in scan units, or (-inf, inf) when it
+        spans the whole axis (no masking). Read from the per-scan store so an
+        overlay's display range never affects the base scan (3D or 2D)."""
+        rng = self.dispRangeByScan.get(self.scanNum)
+        if rng is None:
             return float("-inf"), float("inf")
-        lo, hi = cb.dispRange
-        if lo <= cb.axisMin + cb._span() * 1e-3 \
-                and hi >= cb.axisMax - cb._span() * 1e-3:
-            return float("-inf"), float("inf")
-        return float(lo), float(hi)
+        return float(rng[0]), float(rng[1])
 
     def _dose_disp_range(self):
         """Dose display (cyan) range in dose units, or (-inf, inf) when the
@@ -3383,17 +3402,89 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                     self._resample_volume(dose3M, xD, yD, zD, frac)
                 dmax = float(dose3M.max())
                 # Keep only levels within the dose range (contouring outside it
-                # yields empty surfaces / VTK warnings).
-                drawLevels = [lv for lv in levels if 0 < lv <= dmax]
+                # yields empty surfaces / VTK warnings). Contour each level
+                # separately so it can be given its own (graded) opacity.
+                drawLevels = sorted(lv for lv in levels if 0 < lv <= dmax)
                 if dmax > 0 and drawLevels:
                     grid = self._pv_volume(dose3M, xD, yD, zD)
-                    iso = grid.contour(drawLevels)
-                    if iso.n_points:
-                        res = (iso, dmax)
+                    surfaces = []
+                    for lv in drawLevels:
+                        s = grid.contour([lv])
+                        if s.n_points:
+                            surfaces.append((lv, s))
+                    if surfaces:
+                        res = (surfaces, dmax)
             except Exception:  # noqa: BLE001
                 res = None
             self._pvDoseCache[key] = res
         return self._pvDoseCache[key]
+
+    @staticmethod
+    def _dose_surface_opacity(level, levels, baseOpacity):
+        """Graded opacity for a dose iso-surface: the highest level gets the
+        full (selected) dose opacity, the lowest gets 0.2x it, linearly
+        interpolated by level in between."""
+        lo, hi = min(levels), max(levels)
+        frac = 1.0 if hi <= lo else (level - lo) / (hi - lo)
+        return baseOpacity * (0.2 + 0.8 * frac)
+
+    def _pv_dose_grid(self, doseIdx, frac=1.0):
+        """(pyvista ImageData of the dose, doseMax) on the dose's own grid in
+        pyCERR virtual coords, for volume rendering; or None. ``frac < 1``
+        resamples for speed."""
+        try:
+            d = self.planC.dose[doseIdx]
+            dose3M = np.asarray(d.doseArray, dtype=np.float32)
+            xD, yD, zD = d.getDoseXYZVals()
+            yD, dose3M = ascending(yD, dose3M, axis=0)
+            xD, dose3M = ascending(xD, dose3M, axis=1)
+            zD, dose3M = ascending(zD, dose3M, axis=2)
+            dose3M, xD, yD, zD = self._resample_volume(dose3M, xD, yD, zD, frac)
+            dmax = float(dose3M.max())
+            if dmax <= 0:
+                return None
+            return self._pv_volume(dose3M, xD, yD, zD), dmax
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _overlay_scan_indices(self):
+        """Indices of the non-base scans currently overlaid on the base scan
+        (the ticked rows in 'Scan overlays'), for the 3D view."""
+        if self.planC is None:
+            return []
+        return [i for i, st in self.overlayState.items()
+                if st.get("on") and i != self.scanNum
+                and 0 <= i < len(self.planC.scan)]
+
+    def _pv_scan_grid(self, scanIdx, frac=1.0):
+        """(pyvista ImageData, (vmin, vmax)) for a scan index on isotropic
+        voxels for 3D volume rendering, or None. Uses the scan's own geometry
+        and its per-scan window (wlByScan) or auto 2-98% window - matching the
+        2D fused-overlay display."""
+        try:
+            sObj = self.planC.scan[scanIdx]
+            a3M = sObj.getScanArray().astype(np.float32)
+            xs, ys, zs = sObj.getScanXYZVals()
+            ys, a3M = ascending(ys, a3M, axis=0)
+            xs, a3M = ascending(xs, a3M, axis=1)
+            zs, a3M = ascending(zs, a3M, axis=2)
+            sMin = self._smallest_spacing(xs, ys, zs, a3M.shape)
+            if sMin > 0:
+                a3M, xs, ys, zs = self._resample_volume_isotropic(
+                    a3M, xs, ys, zs, sMin / frac)
+            grid = self._pv_volume(a3M, xs, ys, zs)
+            wl = self.wlByScan.get(scanIdx)
+            if wl is not None:
+                vmin, vmax = wl[0] - wl[1] / 2.0, wl[0] + wl[1] / 2.0
+            else:
+                res = self._overlay_interp(scanIdx)
+                if res is not None:
+                    vmin, vmax = res[1], res[2]
+                else:
+                    vmin, vmax = float(a3M.min()), float(a3M.max())
+            return grid, (float(vmin), float(max(vmax, vmin + 1e-6)))
+        except Exception:  # noqa: BLE001
+            return None
 
     def _render_3d_vtk(self, view):
         """GPU (pyvista/VTK) 3D view: full-resolution textured orthogonal
@@ -3506,13 +3597,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         if doseIdx is not None and doseIdx >= 0 and self.doseAlpha > 0:
             res = self._pv_dose_iso(doseIdx)
             if res is not None:
-                iso, _dmax = res
+                surfaces, _dmax = res
                 cbLo, cbHi = self.colorbar.cbarRange
-                pl.add_mesh(iso, cmap=self.colorbar.mplCmap,
-                            clim=(cbLo, max(cbHi, cbLo + 1e-6)),
-                            opacity=min(max(self.doseAlpha, 0.0), 0.6),
-                            pickable=False, show_scalar_bar=False,
-                            name=f"isodose{doseIdx}", render=False)
+                base = min(max(self.doseAlpha, 0.0), 1.0)
+                levs = [lv for lv, _ in surfaces]
+                for i, (lv, mesh) in enumerate(surfaces):
+                    pl.add_mesh(mesh, cmap=self.colorbar.mplCmap,
+                                clim=(cbLo, max(cbHi, cbLo + 1e-6)),
+                                opacity=self._dose_surface_opacity(lv, levs, base),
+                                pickable=False, show_scalar_bar=False,
+                                name=f"isodose{doseIdx}_{i}", render=False)
 
         # ---- IMRTP beam overlays: ONE combined polyline actor (fast) ----
         if self.beams:

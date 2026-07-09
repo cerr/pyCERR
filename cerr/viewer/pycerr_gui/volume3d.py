@@ -3,8 +3,10 @@ from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
 
 class Volume3DDialog(QtWidgets.QDialog):
     """True-3D visualization (View -> 3D Visualization): a GPU volume render of
-    the scan with structure surfaces, isodose surfaces and the urOMT overlay in
-    one interactive scene. Scan, dose and structure opacity are set with the
+    the scan with the dose colorwash overlaid as a second GPU volume, any
+    scans ticked in the main viewer's 'Scan overlays' rendered as further
+    independent volumes (each with its own opacity slider here), plus
+    structure surfaces and the urOMT overlay in one interactive scene. Scan, dose and structure opacity are set with the
     dialog's own sliders, independent of the main viewer's 2-D settings. A
     'Clip box' shows a cube around the scan volume whose faces can be dragged
     to cut the scene open and look inside. Left-drag rotates (or pans when
@@ -40,12 +42,22 @@ class Volume3DDialog(QtWidgets.QDialog):
             "Opacity of the volume-rendered scan (this 3D view only)")
         self.doseAlphaSlider = self._add_opacity_slider(
             opRow, "Dose:", self.doseOpacity, self._on_dose_alpha,
-            "Opacity of the isodose surfaces (this 3D view only)")
+            "Opacity of the dose colorwash overlaid on the volume-rendered "
+            "scan (this 3D view only)")
         self.structAlphaSlider = self._add_opacity_slider(
             opRow, "Structures:", self.structOpacity, self._on_struct_alpha,
             "Opacity of structure surfaces in this 3D view only. The 2D "
             "contour lines are unaffected and always drawn fully opaque.")
         lay.addLayout(opRow)
+
+        # per-overlaid-scan opacities + their (dynamically built) sliders. One
+        # independent GPU volume per scan ticked in the main viewer's 'Scan
+        # overlays', each with its own opacity slider here.
+        self.overlayOpacity = {}          # scanIdx -> opacity (this view only)
+        self.overlayAlphaSliders = {}     # scanIdx -> QSlider
+        self._overlayClim = {}            # scanIdx -> (vmin, vmax) last built
+        self.overlayOpRow = QtWidgets.QHBoxLayout()
+        lay.addLayout(self.overlayOpRow)
 
         row = QtWidgets.QHBoxLayout()
         row.addWidget(QtWidgets.QLabel(
@@ -115,38 +127,41 @@ class Volume3DDialog(QtWidgets.QDialog):
         self.apply_style("scan")
 
     def apply_style(self, layer):
-        """Restyle a layer in place (colormap / window / opacity) without a
-        re-resample or re-upload; rebuilds only when the actor must be added
-        or removed, or on any error. Called by the main viewer when its scan/
-        dose colormap, window or opacity changes."""
+        """Restyle the scan or dose volume in place - swap its colormap/opacity
+        transfer functions on the live GPU volume and re-render (~1-2 ms), with
+        no re-resample or re-upload. The scan and dose are two independent
+        volume actors ("scan" and "dose"), so each restyles on its own. A
+        rebuild is scheduled (debounced) only when the target actor is not
+        present yet and needs to be added."""
         pl = self.plotter
         try:
-            if layer == "scan":
-                actor = pl.actors.get("scan")
-                if actor is None or self.scanOpacity <= 0.01:
-                    self._refreshTimer.start()     # add/remove the volume
-                    return
-                prop = actor.GetProperty()
-                prop.SetColor(self._scan_color_tf())
-                prop.SetScalarOpacity(self._scan_opacity_tf())
-                pl.render()
-            else:
+            if layer == "dose":
                 actor = pl.actors.get("dose")
                 if actor is None:
-                    if self.doseOpacity > 0:
-                        self._refreshTimer.start()
+                    if self._show_dose():
+                        self._refreshTimer.start()     # add the dose volume
                     return
-                v = self.viewer
-                cbLo, cbHi = v.colorbar.cbarRange
-                actor.mapper.lookup_table = pv.LookupTable(
-                    cmap=v.colorbar.cmapName,
-                    scalar_range=(cbLo, max(cbHi, cbLo + 1e-6)))
-                actor.mapper.scalar_range = (cbLo, max(cbHi, cbLo + 1e-6))
-                actor.GetProperty().SetOpacity(
-                    min(max(self.doseOpacity, 0.0), 0.6))
+                prop = actor.GetProperty()
+                prop.SetColor(self._dose_color_tf())
+                prop.SetScalarOpacity(self._dose_opacity_tf())
                 pl.render()
+                return
+            actor = pl.actors.get("scan")
+            if actor is None or self.scanOpacity <= 0.01:
+                self._refreshTimer.start()         # add/remove the volume
+                return
+            prop = actor.GetProperty()
+            prop.SetColor(self._scan_color_tf())
+            prop.SetScalarOpacity(self._scan_opacity_tf())
+            pl.render()
         except Exception:  # noqa: BLE001
             self._refreshTimer.start()             # fall back to a full rebuild
+
+    def _show_dose(self):
+        """True when a dose is selected and this dialog's dose opacity is > 0."""
+        v = self.viewer
+        return (v.doseNum is not None and v.doseNum >= 0
+                and self.doseOpacity > 0)
 
     def _clim(self):
         v = self.viewer
@@ -183,10 +198,17 @@ class Volume3DDialog(QtWidgets.QDialog):
 
     def _scan_color_tf(self):
         """vtkColorTransferFunction from the viewer's scan colormap over clim."""
-        import vtk
         vmin, vmax = self._clim()
+        return self._color_tf(self.viewer.scanCmap, vmin, vmax)
+
+    @staticmethod
+    def _color_tf(cmapName, vmin, vmax):
+        """vtkColorTransferFunction sampling a colormap over a range. Resolves
+        the name via ``cerr_get_cmap`` so pyCERR's own dose/scan colormaps (not
+        known to matplotlib) work as well as plain matplotlib names."""
+        import vtk
         span = max(vmax - vmin, 1e-6)
-        cmap = plt.get_cmap(self.viewer.scanCmap)
+        cmap = cerr_get_cmap(cmapName)
         ctf = vtk.vtkColorTransferFunction()
         n = 256
         for i in range(n):
@@ -195,20 +217,107 @@ class Volume3DDialog(QtWidgets.QDialog):
                             float(r), float(g), float(b))
         return ctf
 
+    def _dose_clim(self):
+        cbLo, cbHi = self.viewer.colorbar.cbarRange
+        return float(cbLo), max(float(cbHi), float(cbLo) + 1e-6)
+
+    def _dose_color_tf(self):
+        """vtkColorTransferFunction from the dose colormap over the colorbar
+        (yellow) range."""
+        lo, hi = self._dose_clim()
+        return self._color_tf(self.viewer.colorbar.cmapName, lo, hi)
+
+    def _dose_opacity_tf(self):
+        """vtkPiecewiseFunction for the dose volume: a linear dose->opacity
+        ramp scaled by the dialog's dose opacity, zeroed outside the dose
+        display (cyan) range so the overlay honors it (and zero at no dose)."""
+        import vtk
+        lo, hi = self._dose_clim()
+        dLo, dHi = self.viewer._dose_disp_range()
+        top = min(max(float(self.doseOpacity), 0.0), 1.0)
+        otf = vtk.vtkPiecewiseFunction()
+        n = 128
+        for i in range(n):
+            f = i / (n - 1)
+            val = lo + (hi - lo) * f
+            a = top * f
+            if val < max(dLo, 1e-3) or val > dHi:
+                a = 0.0
+            otf.AddPoint(val, float(a))
+        return otf
+
     def _on_dose_alpha(self, val):
-        """Update the isodose-surface opacity in place when possible."""
+        """Restyle the dose volume at the new dose opacity."""
         self.doseOpacity = val / 100.0
+        self.apply_style("dose")
+
+    # -------------------------------------------------- overlaid scans -------
+    def _sync_overlay_sliders(self):
+        """Rebuild the per-overlaid-scan opacity sliders to match the scans
+        currently ticked in the main viewer's 'Scan overlays'. Kept in sync on
+        every (re)build so added/removed overlays get/lose their slider."""
+        row = self.overlayOpRow
+        while row.count():                       # clear the previous sliders
+            item = row.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self.overlayAlphaSliders = {}
+        try:
+            indices = self.viewer._overlay_scan_indices()
+        except Exception:  # noqa: BLE001
+            indices = []
+        for i in indices:
+            op = self.overlayOpacity.setdefault(i, 0.5)
+            try:
+                mod = getattr(self.viewer.planC.scan[i].scanInfo[0],
+                              "imageType", "scan")
+            except Exception:  # noqa: BLE001
+                mod = "scan"
+            sld = self._add_opacity_slider(
+                row, f"Scan {i} ({mod}):", op,
+                (lambda val, k=i: self._on_overlay_alpha(k, val)),
+                "Opacity of this overlaid scan as an independent 3D volume "
+                "(this 3D view only). Its colormap and window come from the "
+                "main viewer's Scan Display settings.")
+            self.overlayAlphaSliders[i] = sld
+
+    def _overlay_color_tf(self, scanIdx, vmin, vmax):
+        """vtkColorTransferFunction from the overlaid scan's colormap (from the
+        main viewer's Scan Display) over its window."""
+        cmapName = self.viewer._scan_display(scanIdx)[0]
+        return self._color_tf(cmapName, vmin, vmax)
+
+    def _overlay_opacity_tf(self, scanIdx, vmin, vmax):
+        """vtkPiecewiseFunction for an overlaid scan: the sigmoid opacity ramp
+        scaled by this scan's 3D opacity, over its window."""
+        import vtk
+        op = float(self.overlayOpacity.get(scanIdx, 0.5))
+        ramp = np.clip(pv.opacity_transfer_function("sigmoid", 256)
+                       .astype(float) * op, 0.0, 255.0) / 255.0
+        span = max(vmax - vmin, 1e-6)
+        otf = vtk.vtkPiecewiseFunction()
+        n = len(ramp)
+        for i, a in enumerate(ramp):
+            otf.AddPoint(vmin + span * i / (n - 1), float(a))
+        return otf
+
+    def _on_overlay_alpha(self, scanIdx, val):
+        """Restyle one overlaid-scan volume in place at its new opacity."""
+        self.overlayOpacity[scanIdx] = val / 100.0
         pl = self.plotter
         try:
-            actor = pl.actors.get("dose")
-            if actor is not None:
-                actor.GetProperty().SetOpacity(
-                    min(max(self.doseOpacity, 0.0), 0.6))
-                pl.render()
-            elif self.doseOpacity > 0:
-                self.render_scene()
+            actor = pl.actors.get(f"oscan{scanIdx}")
+            if actor is None:
+                self._refreshTimer.start()
+                return
+            vmin, vmax = self._overlayClim.get(scanIdx, self._clim())
+            prop = actor.GetProperty()
+            prop.SetColor(self._overlay_color_tf(scanIdx, vmin, vmax))
+            prop.SetScalarOpacity(self._overlay_opacity_tf(scanIdx, vmin, vmax))
+            pl.render()
         except Exception:  # noqa: BLE001
-            self.render_scene()
+            self._refreshTimer.start()
 
     # ------------------------------------------------------------ clip box --
     def _on_clip_toggled(self, on):
@@ -342,7 +451,7 @@ class Volume3DDialog(QtWidgets.QDialog):
                     q.SetOrigin(p.GetOrigin())
                     q.SetNormal(-n[0], -n[1], -n[2])
                     coll.AddItem(q)
-            clipNames = ("scan", "struct", "dose", "uromt")
+            clipNames = ("scan", "oscan", "struct", "dose", "uromt")
             for name, actor in list(self.plotter.actors.items()):
                 # only cut the data actors; the dotted reference box, the
                 # widget's own handles and other helpers stay visible
@@ -498,6 +607,13 @@ class Volume3DDialog(QtWidgets.QDialog):
     def closeEvent(self, event):
         if getattr(self.viewer, "_volume3dDialog", None) is self:
             self.viewer._volume3dDialog = None
+        # Release the VTK render window / GL context while the widget is still
+        # alive; otherwise Qt tears down the window first and VTK logs a
+        # 'wglMakeCurrent failed in MakeCurrent()' warning on Windows.
+        try:
+            self.plotter.close()
+        except Exception:  # noqa: BLE001
+            pass
         super().closeEvent(event)
 
     def _res_frac(self):
@@ -510,6 +626,7 @@ class Volume3DDialog(QtWidgets.QDialog):
         interaction with the dialog while the rebuild runs."""
         QtWidgets.QApplication.setOverrideCursor(Qt.BusyCursor)
         self.setEnabled(False)
+        self._sync_overlay_sliders()   # match sliders to the current overlays
         QtWidgets.QApplication.processEvents()   # show the busy state now
         try:
             self._build_scene()
@@ -535,7 +652,16 @@ class Volume3DDialog(QtWidgets.QDialog):
         except Exception:  # noqa: BLE001
             return
         resFrac = self._res_frac()
-        # ---- scan as a GPU volume; opacity ramp scaled by the scan opacity ---
+        # ---- scan + dose as two independent GPU volumes ---------------------
+        #      The scan and dose are added as separate volume actors ("scan"
+        #      and "dose"), each with its own colormap/opacity transfer
+        #      functions; the dose (drawn after the scan) composites over it as
+        #      a colorwash. Two plain single-input volumes render reliably on
+        #      every driver (unlike vtkMultiVolume, which renders black on some
+        #      GPUs/macOS), and each restyles in place - so opacity/window/
+        #      colormap edits stay snappy without a re-resample.
+        showDose = self._show_dose()
+        # ---- scan volume ----
         try:
             if float(self.scanOpacity) > 0.01:
                 xA, yA, zA, fR, fC, fS = v._scan_grid_geometry()
@@ -554,14 +680,55 @@ class Volume3DDialog(QtWidgets.QDialog):
                     scan, xA, yA, zA = v._resample_volume_isotropic(
                         scan, xA, yA, zA, sMin / resFrac)
                 grid = v._pv_volume(scan, xA, yA, zA)
-                vmin = v.windowCenter - v.windowWidth / 2.0
-                vmax = v.windowCenter + v.windowWidth / 2.0
+                vmin, vmax = self._clim()
                 # sigmoid opacity ramp x scan opacity, zeroed outside the scan
-                # display (cyan) range so the volume honors it (0..1 -> 0..255).
+                # display (cyan) range (0..1 -> 0..255).
                 op = self._scan_opacity_ramp() * 255.0
                 pl.add_volume(grid, scalars="v", cmap=v.scanCmap,
-                              clim=(vmin, max(vmax, vmin + 1e-6)), opacity=op,
-                              shade=False, show_scalar_bar=False, name="scan")
+                              clim=(vmin, vmax), opacity=op, shade=False,
+                              show_scalar_bar=False, name="scan")
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- dose volume (colorwash overlay, composited over the scan) ------
+        #      The dose colormap is a pyCERR colormap that matplotlib does not
+        #      know, so we do NOT pass its name to add_volume (which would raise
+        #      and silently drop the dose). Instead the volume is added with a
+        #      placeholder transfer function, then our resolved color/opacity
+        #      transfer functions are set directly on the actor - identical to
+        #      the in-place dose restyle path.
+        try:
+            if showDose:
+                doseRes = v._pv_dose_grid(v.doseNum, resFrac)
+                if doseRes is not None:
+                    lo, hi = self._dose_clim()
+                    actor = pl.add_volume(
+                        doseRes[0], scalars="v", clim=(lo, hi),
+                        opacity="linear", shade=False,
+                        show_scalar_bar=False, name="dose")
+                    prop = actor.GetProperty()
+                    prop.SetColor(self._dose_color_tf())
+                    prop.SetScalarOpacity(self._dose_opacity_tf())
+        except Exception:  # noqa: BLE001
+            pass
+        # ---- overlaid scans (each an independent GPU volume, like dose) ------
+        #      One volume per scan ticked in the main viewer's 'Scan overlays',
+        #      using that scan's own geometry/window and its Scan-Display
+        #      colormap (resolved via _color_tf so pyCERR colormaps work). Each
+        #      has its own opacity slider and restyles in place.
+        self._overlayClim = {}
+        try:
+            for i in v._overlay_scan_indices():
+                res = v._pv_scan_grid(i, resFrac)
+                if res is None:
+                    continue
+                grid, (vmin, vmax) = res
+                self._overlayClim[i] = (vmin, vmax)
+                actor = pl.add_volume(
+                    grid, scalars="v", clim=(vmin, vmax), opacity="linear",
+                    shade=False, show_scalar_bar=False, name=f"oscan{i}")
+                prop = actor.GetProperty()
+                prop.SetColor(self._overlay_color_tf(i, vmin, vmax))
+                prop.SetScalarOpacity(self._overlay_opacity_tf(i, vmin, vmax))
         except Exception:  # noqa: BLE001
             pass
         # ---- structure surfaces (the panel's structure checklist) ------------
@@ -573,22 +740,6 @@ class Volume3DDialog(QtWidgets.QDialog):
                                 opacity=self.structOpacity, smooth_shading=True,
                                 pickable=False, show_scalar_bar=False,
                                 name=f"struct{strNum}")
-        except Exception:  # noqa: BLE001
-            pass
-        # ---- isodose surfaces (panel dose, this dialog's dose opacity) -------
-        try:
-            if v.doseNum is not None and v.doseNum >= 0 \
-                    and self.doseOpacity > 0:
-                res = v._pv_dose_iso(v.doseNum, resFrac)
-                if res is not None:
-                    iso, _dmax = res
-                    cbLo, cbHi = v.colorbar.cbarRange
-                    pl.add_mesh(iso, cmap=v.colorbar.mplCmap,
-                                clim=(cbLo, max(cbHi, cbLo + 1e-6)),
-                                opacity=min(max(float(self.doseOpacity),
-                                                0.0), 0.6),
-                                pickable=False, show_scalar_bar=False,
-                                name="dose")
         except Exception:  # noqa: BLE001
             pass
         # ---- IMRTP beam overlays (one combined polyline actor) ---------------
