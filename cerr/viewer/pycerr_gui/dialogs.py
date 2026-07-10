@@ -908,7 +908,13 @@ class RegQaDialog(QtWidgets.QDialog):
     # ------------------------------------------------------- compositing ----
     def compose_slice(self, winId, img, hV, vV):
         """Composite RGB image of base+moving for one view slice, each scan
-        rendered with its own colormap. None falls back to normal display."""
+        rendered with its own colormap. None falls back to normal display.
+
+        Registration QA ignores the scans' Scan-Display opacities: base and
+        moving are drawn fully opaque (opacity 1) in Mirrorscope, AlternateGrid
+        and Side-by-side, and blended by the fade slider (base weight, moving =
+        1 - base) in Toggle. The selected scan opacities are restored when QA is
+        exited (this composite is only used while the QA tool is open)."""
         v = self.viewer
         movIdx = self.movCombo.currentIndex()
         res = v._overlay_interp(movIdx)

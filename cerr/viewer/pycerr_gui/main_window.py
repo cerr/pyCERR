@@ -49,6 +49,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.showCrosshairs = True
         self.showOrientation = True  # L/R/A/P/S/I edge labels
         self.upsampleDisplay = False  # sinc-upsample the scan slice for display
+        self.upsampleFactor = 1.0    # target = this x finest in-plane spacing
         self.showStructDots = False  # contour vertex dots (Alaly dots)
         self.structLineWidth = 1.4   # contour line width
         self.overlayState = {}       # scanIdx -> {"on", "alpha", "cmap"}
@@ -652,14 +653,28 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.actOrient.setChecked(True)
         self.actOrient.setShortcut("O")
         self.actOrient.toggled.connect(self.on_orientation_toggled)
-        self.actUpsample = viewM.addAction("&Upsample display (sinc)")
-        self.actUpsample.setCheckable(True)
-        self.actUpsample.setChecked(False)
-        self.actUpsample.setToolTip(
-            "Sinc-upsample the scan slice for display to the finer of the two "
-            "in-plane voxel resolutions (smoother, especially on thick-slice "
-            "planes); does not change the stored data")
-        self.actUpsample.toggled.connect(self.on_upsample_toggled)
+        upMenu = viewM.addMenu("&Upsample display (sinc)")
+        upMenu.setToolTip(
+            "Sinc-upsample the scan slice for display (smoother, especially on "
+            "thick-slice planes); does not change the stored data")
+        # Each option toggles upsampling on/off: click one to upsample to that
+        # target spacing (the finest in-plane voxel spacing / factor; larger
+        # factor = finer/smoother, heavier); click the checked one to turn it
+        # off. At most one is checked.
+        self._upsampleActs = []
+        for label, fac in (("Finest voxel spacing", 1.0),
+                           ("1.5× finer than finest", 1.5),
+                           ("2× finer than finest", 2.0)):
+            act = upMenu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(False)
+            act.setToolTip(
+                "Target display spacing = the finest in-plane voxel spacing "
+                "divided by this factor (larger = finer/smoother, heavier). "
+                "Click again to turn upsampling off.")
+            act.triggered.connect(
+                lambda _=False, f=fac, a=act: self.on_upsample_factor(f, a))
+            self._upsampleActs.append(act)
         self.actLock = viewM.addAction("&Lock slices across matching views")
         self.actLock.setCheckable(True)
         self.actLock.setShortcut("L")
@@ -706,19 +721,26 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         grpScan = QtWidgets.QGroupBox("Scan")
         gl = QtWidgets.QVBoxLayout(grpScan)
+        # scan selector + a compact "..." button (like the fusion rows) that
+        # opens the Scan Display dialog. Window/level, colormap, opacity and the
+        # scan colorbar live in that separate dialog so the main figure just
+        # shows the base scan and fused overlays. The windowing widgets are
+        # built there (in _build_scan_display_dialog) but remain accessible as
+        # self.* .
+        scanRow = QtWidgets.QHBoxLayout()
         self.scanCombo = QtWidgets.QComboBox()
         self.scanCombo.currentIndexChanged.connect(self.on_scan_changed)
-        gl.addWidget(self.scanCombo)
-        # Window/level, colormap, opacity and the scan colorbar live in a
-        # separate "Scan Display" dialog so the main figure just shows the base
-        # scan and fused overlays. The windowing widgets are built there (in
-        # _build_scan_display_dialog) but remain accessible as self.* .
-        self.scanDisplayBtn = QtWidgets.QPushButton("Scan display / window...")
+        scanRow.addWidget(self.scanCombo, 1)
+        self.scanDisplayBtn = QtWidgets.QToolButton()
+        self.scanDisplayBtn.setText("...")
         self.scanDisplayBtn.setToolTip(
-            "Open the scan display dialog (window/level, colormap, opacity, "
-            "colorbar) for the selected scan")
-        self.scanDisplayBtn.clicked.connect(self.show_scan_display_dialog)
-        gl.addWidget(self.scanDisplayBtn)
+            "Set this scan's window/level, colormap, opacity and colorbar "
+            "(Scan Display)")
+        # open the dialog targeting the main scan (not whatever it last showed)
+        self.scanDisplayBtn.clicked.connect(
+            lambda: self._open_scan_display_for(self.scanNum))
+        scanRow.addWidget(self.scanDisplayBtn)
+        gl.addLayout(scanRow)
         pl.addWidget(grpScan)
 
         # fused scan overlays (visible only when >1 scan is loaded)
@@ -2085,8 +2107,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.showOrientation = on
         self.refresh_views()
 
-    def on_upsample_toggled(self, on):
-        self.upsampleDisplay = bool(on)
+    def on_upsample_factor(self, factor, act):
+        """Toggle sinc-upsample display from one of the factor menu items.
+
+        Clicking an unchecked item turns upsampling on at that target (the
+        finest in-plane voxel spacing / ``factor``; 1.0 = finest, 1.5x / 2x go
+        finer/smoother) and unchecks the others; clicking the checked item
+        turns upsampling off. Cached slices are dropped and the views redraw."""
+        on = act.isChecked()
+        self.upsampleDisplay = on
+        if on:
+            self.upsampleFactor = float(factor)
+            for a in self._upsampleActs:      # keep at most one checked
+                if a is not act:
+                    a.setChecked(False)       # programmatic: no triggered()
         self._upsampleCache.clear()
         self.refresh_views()
 
@@ -2623,13 +2657,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         return self._apply_dispmask(img, self.scanNum)
 
     def _upsample_for_display(self, img, hV, vV, cacheKey):
-        """Sinc-upsample a 2D slice to the finer of the two in-plane voxel
-        spacings, for a smoother display. The coarser axis (or axes) is
-        resampled up to the finer spacing with a polyphase windowed-sinc
-        filter (scipy.signal.resample_poly); the physical extent is unchanged,
-        so it is shown via the same imshow ``extent``. Results are cached per
-        (kind, orientation, slice, scan). Returns ``img`` unchanged on failure
-        or when already isotropic."""
+        """Sinc-upsample a 2D slice for a smoother display. The target spacing
+        is the finest in-plane voxel spacing divided by ``self.upsampleFactor``
+        (1.0 = finest; 1.5x / 2x go finer, i.e. smoother but heavier). Each
+        axis coarser than that target is resampled toward it with a
+        polyphase windowed-sinc filter (scipy.signal.resample_poly); the
+        physical extent is unchanged, so it is shown via the same imshow
+        ``extent``. Results are cached per (kind, orientation, slice, scan) and
+        the cache is cleared when the factor changes. Returns ``img`` unchanged
+        on failure or when already at/above the target spacing."""
         if not self.upsampleDisplay:
             return img
         hit = self._upsampleCache.get(cacheKey)
@@ -2641,15 +2677,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             if nH >= 2 and nV >= 2:
                 dh = abs(hV[-1] - hV[0]) / (nH - 1)
                 dv = abs(vV[-1] - vV[0]) / (nV - 1)
-                s = min(dh, dv)
-                if s > 0:
+                # target display spacing = finest in-plane spacing / factor
+                # (factor 1 = finest; 1.5x / 2x go finer, i.e. smoother)
+                target = min(dh, dv) / self.upsampleFactor
+                if target > 0:
                     from fractions import Fraction
                     from scipy.signal import resample_poly
                     MAXFAC = 8      # cap upsampling to keep arrays sane
                     arr = np.ascontiguousarray(img, dtype=np.float32)
                     for axis, d in ((1, dh), (0, dv)):
-                        if d / s > 1.001:
-                            fr = Fraction(d / s).limit_denominator(32)
+                        if d / target > 1.001:
+                            fr = Fraction(d / target).limit_denominator(32)
                             up, dn = fr.numerator, fr.denominator
                             if up > MAXFAC * dn:
                                 up, dn = MAXFAC, 1
@@ -2769,11 +2807,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._render_3d(view)
                 continue
             ax = view.ax
-            # Full extent (no active pan/zoom): re-enable autoscale so the
-            # reused base-scan image's set_extent drives the limits back to the
-            # whole slice. A prior zoom/pan disabled autoscale via set_xlim, so
-            # without this a double-click reset would leave the view zoomed.
-            ax.set_autoscale_on(view.user_limits is None)
+            # Full extent (no active pan/zoom): the limits are set explicitly
+            # from this scan's extent at the end of the draw (autoscale would
+            # mis-centre it - see there). Keep autoscale off so nothing expands
+            # to the stale dataLim in between.
+            ax.set_autoscale_on(False)
             img, extent, hV, vV, slicer = self._slice_data(orient)
             baseIdx = self._axis_scan(orient)
             regComp = None
@@ -2789,17 +2827,23 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 and view._scanIm.axes is ax else None
 
             activeOv = []       # (ovIdx, (cmap, alpha), interp-result) to draw
-            for ovIdx, st in self.overlayState.items():
-                if not st["on"] or ovIdx == baseIdx \
-                        or ovIdx >= len(self.planC.scan):
-                    continue
-                disp = self._scan_display(ovIdx)   # Scan Display settings
-                if disp[1] <= 0:
-                    continue
-                res = self._overlay_interp(ovIdx)
-                if res is None:
-                    continue
-                activeOv.append((ovIdx, disp, res))
+            # In registration QA the base<->moving composite is the scan
+            # display, at opacity 1 (mirror/grid/side-by-side) or the fade
+            # slider (toggle). The panel's fused scan-overlays and their
+            # per-scan opacities are ignored while the composite is shown, so
+            # they can't leak into the QA view; they return when QA is exited.
+            if regComp is None:
+                for ovIdx, st in self.overlayState.items():
+                    if not st["on"] or ovIdx == baseIdx \
+                            or ovIdx >= len(self.planC.scan):
+                        continue
+                    disp = self._scan_display(ovIdx)   # Scan Display settings
+                    if disp[1] <= 0:
+                        continue
+                    res = self._overlay_interp(ovIdx)
+                    if res is None:
+                        continue
+                    activeOv.append((ovIdx, disp, res))
             doseIdx = self._axis_dose(orient)
             doseRes = self._dose_interp(doseIdx) if self.doseAlpha > 0 else None
             drawDose = doseRes is not None and doseRes[1] > 0
@@ -2992,6 +3036,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             if view.user_limits is not None:    # keep user pan/zoom
                 ax.set_xlim(view.user_limits[0])
                 ax.set_ylim(view.user_limits[1])
+            else:
+                # Frame explicitly on this scan's extent. Relying on autoscale
+                # mis-centers the scan: reused image artists only grow ax.dataLim
+                # (set_extent/set_data never shrink it and relim() isn't called),
+                # so after a larger-FOV scan a smaller/offset one autoscales
+                # inside the stale box. aspect='equal'/adjustable='datalim' then
+                # expands the limits symmetrically about the scan centre.
+                ax.set_xlim(extent[0], extent[1])
+                ax.set_ylim(extent[2], extent[3])
 
             # ---- patient orientation labels (L/R/A/P/S/I) ----
             if self.showOrientation:
