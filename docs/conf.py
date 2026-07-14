@@ -26,8 +26,8 @@ project = 'pyCERR'
 copyright = 'GNU GPL v3'
 author = 'Aditya Apte, Aditi Iyer, Eve LoCastro, Joseph Deasy'
 
-version = '0.1'
-release = '1'
+version = '2.1'
+release = '2.1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
