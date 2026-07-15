@@ -31,11 +31,12 @@ TEST_T10 = 1.0 / 0.6 # Testing pre-contrast longitudinal relaxation time
 TEST_r1 = 3.8        # Testing relaxivity
 
 def _par(n=(8, 8, 8), nt=2, sigma=2e-3, alpha=10.0, beta=50.0, dt=0.3,
-         chi=None):
+         chi=None, eta=0.0):
     """Build a `par` dict on a tiny grid via a lightweight cfg stand-in."""
     cfg = SimpleNamespace(trueSize=list(n), spacing=[1.0, 1.0, 1.0],
                           dt=dt, nt=nt, sigma=sigma, alpha=alpha, beta=beta,
-                          bc="closed", niter_pcg=10, maxUiter=3, chi=chi)
+                          bc="closed", niter_pcg=10, maxUiter=3, chi=chi,
+                          eta=eta)
     return paramInit(cfg)
 
 
@@ -103,14 +104,17 @@ def test_objective_components_nonnegative_and_fit_term():
     u = 0.02 * rng.standard_normal(3 * N * nt)
     r = 0.05 * rng.standard_normal(N * nt)
     drhoN = np.abs(rng.standard_normal(N)) + 0.5
-    G, (G1, G2, G3), rho = getGamma(rho0, u, r, par, drhoN)
-    # Gamma1 (kinetic) and Gamma3 (fit) are sums of squares -> nonnegative.
-    assert G1 >= 0.0 and G2 >= 0.0 and G3 >= 0.0
+    G, (G1, G2, G3, G4), rho = getGamma(rho0, u, r, par, drhoN)
+    # Gamma1 (kinetic), Gamma3 (fit), Gamma4 (H1) are sums of squares -> >= 0.
+    assert G1 >= 0.0 and G2 >= 0.0 and G3 >= 0.0 and G4 >= 0.0
     # Gamma3 is exactly hd * ||rho_N - drhoN||^2.
     expect = par["hd"] * float(np.sum((rho[:, -1] - drhoN) ** 2))
     assert np.isclose(G3, expect, rtol=1e-12, atol=0.0)
-    # Total = G1 + alpha*G2 + beta*G3.
-    assert np.isclose(G, G1 + par["alpha"] * G2 + par["beta"] * G3, rtol=1e-12)
+    # Total = G1 + alpha*G2 + beta*G3 + G4.
+    assert np.isclose(G, G1 + par["alpha"] * G2 + par["beta"] * G3 + G4,
+                      rtol=1e-12)
+    # eta = 0 (default) -> the H1 term is exactly zero.
+    assert G4 == 0.0
 
 
 def test_adjoint_gradient_matches_finite_difference_interior():
@@ -138,6 +142,51 @@ def test_adjoint_gradient_matches_finite_difference_interior():
     # Test the 20 interior coordinates with the largest analytic gradient.
     order = intCoords[np.argsort(-np.abs(g[intCoords]))]
     sel = order[:20]
+
+    eps = 1e-6
+    nu = 3 * N * nt
+    relErrs = []
+    for i in sel:
+        xp = x.copy(); xp[i] += eps
+        xm = x.copy(); xm[i] -= eps
+        Gp, _, _ = getGamma(rho0, xp[:nu], xp[nu:], par, drhoN)
+        Gm, _, _ = getGamma(rho0, xm[:nu], xm[nu:], par, drhoN)
+        fd = (Gp - Gm) / (2 * eps)
+        relErrs.append(abs(fd - g[i]) / max(abs(g[i]), 1e-8))
+    relErrs = np.array(relErrs)
+    assert relErrs.max() < 5e-3, "max rel err %.2e" % relErrs.max()
+    assert np.median(relErrs) < 1e-3, "median rel err %.2e" % np.median(relErrs)
+
+
+def test_h1_smoothness_gradient_matches_finite_difference():
+    """With eta > 0 the velocity H1-smoothness term contributes to the objective
+    and its analytic gradient must match central finite differences on interior
+    velocity coordinates."""
+    par = _par(eta=0.7)
+    n, N, nt = par["n"], par["N"], par["nt"]
+    rng = np.random.default_rng(11)
+    rho0 = np.abs(rng.standard_normal(N)) + 0.5
+    u = 0.02 * rng.standard_normal(3 * N * nt)
+    r = 0.05 * rng.standard_normal(N * nt)
+    drhoN = np.abs(rng.standard_normal(N)) + 0.5
+
+    # the H1 term is genuinely active
+    _, comps, _ = getGamma(rho0, u, r, par, drhoN)
+    assert comps[3] > 0.0
+    par0 = _par(eta=0.0)
+    _, comps0, _ = getGamma(rho0, u, r, par0, drhoN)
+    assert comps0[3] == 0.0
+
+    gU, gR = gradGamma(rho0, u, r, par, drhoN)
+    g = np.concatenate([gU, gR])
+    x = np.concatenate([u, r])
+
+    interior = _interior_mask(n)
+    voxU = np.tile(np.tile(np.arange(N), 3), nt)
+    voxR = np.tile(np.arange(N), nt)
+    vox = np.concatenate([voxU, voxR])
+    intCoords = np.where(interior[vox])[0]
+    sel = intCoords[np.argsort(-np.abs(g[intCoords]))][:20]
 
     eps = 1e-6
     nu = 3 * N * nt
