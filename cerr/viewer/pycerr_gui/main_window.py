@@ -3,7 +3,8 @@ from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
 from cerr.viewer.pycerr_gui.slice_view import SliceView  # noqa: E402
 from cerr.viewer.pycerr_gui.colorbars import DoseColorbarWidget, ScanColorbarWidget  # noqa: E402
 from cerr.viewer.pycerr_gui.dialogs import (DvhDialog, ContourDialog, RegQaDialog,  # noqa: E402
-                                            ScanDoseExportDialog, StructureExportDialog)
+                                            ScanDoseExportDialog, StructureExportDialog,
+                                            StructureConsensusDialog)
 from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog  # noqa: E402
 from cerr.viewer.pycerr_gui.volume3d import Volume3DDialog  # noqa: E402
 
@@ -693,6 +694,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         toolsM.addAction("&DVH...", self.show_dvh_dialog)
         toolsM.addAction("Registration &QA (compare scans)...",
                          self.show_reg_dialog)
+        toolsM.addAction("Structure &consensus (compare/STAPLE)...",
+                         self.show_consensus_dialog)
         toolsM.addSeparator()
         toolsM.addAction("&IMRTP (beamlet dose calculation)...",
                          self.show_imrtp_gui)
@@ -1442,6 +1445,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._structSegCache.clear()
         self._upsampleCache.clear()
         prevScan = self.scanNum if keep_view else 0
+        # -1 means "None"; restored below so an edit (e.g. saving a structure
+        # from the contouring tool) does not silently switch the dose off.
+        prevDose = getattr(self, "doseNum", -1) if keep_view else -1
 
         self.scanCombo.blockSignals(True)
         self.scanCombo.clear()
@@ -1457,14 +1463,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.doseCombo.addItem("None")
         for i, d in enumerate(self.planC.dose):
             self.doseCombo.addItem(f"{i}: {getattr(d, 'fractionGroupID', 'dose')}")
-        if self.planC.dose and not keep_view:
+        if keep_view:
+            # Restore the dose that was on display (index 0 == "None").
+            self.doseCombo.setCurrentIndex(
+                max(0, min(prevDose + 1, self.doseCombo.count() - 1)))
+        elif self.planC.dose:
             self.doseCombo.setCurrentIndex(1)
         self.doseCombo.blockSignals(False)
 
         self.scanNum = self.scanCombo.currentIndex()
         self.doseNum = self.doseCombo.currentIndex() - 1
         self._load_scan_geometry(reset_slices=not keep_view)
-        self._populate_struct_list()
+        self._populate_struct_list(preserve=keep_view)
         self._populate_overlay_rows()
         self._build_dose_interp()
         self.refresh_views()
@@ -1539,7 +1549,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.scanColorbar.update()
         self._sync_dlg_scan_index()
 
-    def _populate_struct_list(self):
+    def _populate_struct_list(self, preserve=False):
+        """Rebuild the structure list.
+
+        With ``preserve=True`` the on/off state of structures that are already
+        listed is carried over (keyed by their planC index), so rebuilding after
+        an edit does not switch every structure back on. Structures that were
+        not listed before - a newly created one, or one revealed by changing the
+        scan filter - default to checked.
+        """
+        prevStates = {}
+        if preserve:
+            for i in range(self.structList.count()):
+                it = self.structList.item(i)
+                prevStates[it.data(Qt.UserRole)] = it.checkState()
         self.structList.blockSignals(True)
         self.structList.clear()
         curUID = None
@@ -1552,7 +1575,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 continue            # filtered: not on the current scan
             item = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
+            item.setCheckState(prevStates.get(i, Qt.Checked))
             item.setData(Qt.UserRole, i)
             col = np.asarray(st.structureColor, dtype=float).ravel()
             rgb = (col / 255.0 if col.size == 3 and col.max() > 1
@@ -1564,7 +1587,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def _on_struct_scan_filter(self, *_):
         """Re-list structures for the current scan-filter setting."""
         if self.planC is not None and self.planC.structure:
-            self._populate_struct_list()
+            self._populate_struct_list(preserve=True)
             self.refresh_views()
 
     def _set_all_structs(self, on):
@@ -1686,7 +1709,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._load_scan_geometry()
         if getattr(self, "structScanFilterChk", None) is not None \
                 and self.structScanFilterChk.isChecked():  # filter follows scan
-            self._populate_struct_list()
+            self._populate_struct_list(preserve=True)
         self._populate_overlay_rows()   # base scan is excluded from overlays
         if self.regCtl is not None:     # keep QA base in sync with the scan
             self.regCtl.sync_base(idx)
@@ -3978,6 +4001,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # Non-modal (like the other tools): a modal exec_() hangs when the
         # viewer runs inside an integrated event loop (show() / %gui qt).
         dlg = DvhDialog(self.planC, self)
+        self._toolWindows.append(dlg)
+        dlg.show()
+
+    def show_consensus_dialog(self):
+        """Open the structure consensus / comparison tool (STAPLE, kappa,
+        agreement statistics, consensus structure generation)."""
+        if self.planC is None or len(self.planC.structure) < 2:
+            _show_info(self, "Structure Consensus",
+                       "At least two structures on the same scan are required.")
+            return
+        dlg = StructureConsensusDialog(self)
         self._toolWindows.append(dlg)
         dlg.show()
 
