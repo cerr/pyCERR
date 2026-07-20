@@ -1022,3 +1022,189 @@ class RegQaDialog(QtWidgets.QDialog):
 
 
 # ---------------------------------------------------------------------------#
+
+
+# ---------------------------------------------------------------------------#
+#  Structure consensus / comparison tool
+#  pyCERR counterpart of CERR's structCompare.m: compares several observer
+#  segmentations of the same target (STAPLE, Fleiss' kappa, agreement/volume
+#  statistics) and can add a consensus structure back into planC.
+# ---------------------------------------------------------------------------#
+class StructureConsensusDialog(QtWidgets.QDialog):
+    """Non-modal dialog to compare observer structures and build a consensus."""
+
+    _METHOD_KEYS = {
+        "STAPLE (probabilistic)": "staple",
+        "Majority vote (> 50%)": "majority",
+        "Agreement fraction >= threshold": "agreement",
+        "Union (>= 1 observer)": "union",
+        "Intersection (all observers)": "intersection",
+    }
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.planC = viewer.planC
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle("Structure Consensus / Comparison")
+        self.resize(820, 580)
+        self._result = None
+
+        lay = QtWidgets.QHBoxLayout(self)
+
+        # ----- left: structure selection + options ------------------------ #
+        left = QtWidgets.QVBoxLayout()
+        left.addWidget(QtWidgets.QLabel(
+            "Observer structures (select 2+ on the same scan):"))
+        self.strList = QtWidgets.QListWidget()
+        self._populate_structs()
+        left.addWidget(self.strList, 1)
+
+        # Statistics depend only on the selected structures, not on the
+        # consensus method, so this sits above the method options.
+        self.btnCompare = QtWidgets.QPushButton("Compute statistics")
+        self.btnCompare.clicked.connect(self.compute_stats)
+        left.addWidget(self.btnCompare)
+
+        methodBox = QtWidgets.QGroupBox("Consensus method")
+        ml = QtWidgets.QVBoxLayout(methodBox)
+        self.methodBtns = {}
+        self.methodGrp = QtWidgets.QButtonGroup(self)
+        for label in self._METHOD_KEYS:
+            b = QtWidgets.QRadioButton(label)
+            self.methodGrp.addButton(b)
+            ml.addWidget(b)
+            self.methodBtns[label] = b
+            b.toggled.connect(self._update_threshold_state)
+        next(iter(self.methodBtns.values())).setChecked(True)   # STAPLE
+
+        thrRow = QtWidgets.QHBoxLayout()
+        thrRow.addWidget(QtWidgets.QLabel("Threshold:"))
+        self.thrSpin = QtWidgets.QDoubleSpinBox()
+        self.thrSpin.setRange(0.0, 1.0)
+        self.thrSpin.setSingleStep(0.05)
+        self.thrSpin.setValue(0.5)
+        thrRow.addWidget(self.thrSpin)
+        thrRow.addStretch(1)
+        ml.addLayout(thrRow)
+        left.addWidget(methodBox)
+
+        nameRow = QtWidgets.QHBoxLayout()
+        nameRow.addWidget(QtWidgets.QLabel("New structure name:"))
+        self.nameEdit = QtWidgets.QLineEdit()
+        self.nameEdit.setPlaceholderText("(auto)")
+        nameRow.addWidget(self.nameEdit, 1)
+        left.addLayout(nameRow)
+
+        self.btnCreate = QtWidgets.QPushButton("Create consensus structure")
+        self.btnCreate.clicked.connect(self.create_structure)
+        left.addWidget(self.btnCreate)
+
+        lw = QtWidgets.QWidget()
+        lw.setLayout(left)
+        lw.setFixedWidth(340)
+        lay.addWidget(lw)
+
+        # ----- right: results text ---------------------------------------- #
+        self.report = QtWidgets.QTextEdit()
+        self.report.setReadOnly(True)
+        self.report.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+        mono = QtGui.QFont("Courier New")
+        mono.setStyleHint(QtGui.QFont.Monospace)
+        self.report.setFont(mono)
+        lay.addWidget(self.report, 1)
+
+        self._update_threshold_state()
+
+    # ------------------------------------------------------------------ ui --
+    def _populate_structs(self):
+        self.strList.clear()
+        for i, st in enumerate(self.planC.structure):
+            try:
+                scanNum = scn.getScanNumFromUID(st.assocScanUID, self.planC)
+            except Exception:  # noqa: BLE001
+                scanNum = "?"
+            it = QtWidgets.QListWidgetItem(
+                f"{i}: {st.structureName}  [scan {scanNum}]")
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Unchecked)
+            it.setData(Qt.UserRole, i)
+            self.strList.addItem(it)
+
+    def _selected_structs(self):
+        out = []
+        for i in range(self.strList.count()):
+            it = self.strList.item(i)
+            if it.checkState() == Qt.Checked:
+                out.append(it.data(Qt.UserRole))
+        return out
+
+    def _current_method(self):
+        for label, b in self.methodBtns.items():
+            if b.isChecked():
+                return self._METHOD_KEYS[label]
+        return "staple"
+
+    def _update_threshold_state(self, *_):
+        # Selecting the default radio button can fire this before the spin box
+        # exists (it is created after the method buttons).
+        if not hasattr(self, "thrSpin"):
+            return
+        self.thrSpin.setEnabled(self._current_method() in ("staple",
+                                                           "agreement"))
+
+    # -------------------------------------------------------------- actions --
+    def compute_stats(self):
+        from cerr.contour import structure_consensus as sc
+        structNumV = self._selected_structs()
+        if len(structNumV) < 2:
+            _show_info(self, "Structure Consensus",
+                       "Select at least two structures on the same scan.")
+            return
+        try:
+            self.viewer._busy("Computing structure consensus statistics ...")
+            self._result = sc.compareStructures(structNumV, self.planC)
+            self.report.setPlainText(sc.summaryText(self._result))
+            self.viewer._done("Consensus statistics computed.")
+        except Exception as e:  # noqa: BLE001
+            self.viewer._done()
+            self._result = None
+            _show_error(self, "Structure Consensus",
+                        f"Could not compute statistics:\n{e}")
+
+    def create_structure(self):
+        from cerr.contour import structure_consensus as sc
+        structNumV = self._selected_structs()
+        if len(structNumV) < 2:
+            _show_info(self, "Structure Consensus",
+                       "Select at least two structures on the same scan.")
+            return
+        method = self._current_method()
+        threshold = float(self.thrSpin.value())
+        name = self.nameEdit.text().strip() or None
+        # Reuse cached statistics only when they cover the same structures and
+        # already contain a STAPLE map if this method needs one.
+        result = self._result
+        if result is not None:
+            sameStructs = (result.get("structNumV") == list(structNumV))
+            hasStaple = result.get("staple3M") is not None
+            if not sameStructs or (method == "staple" and not hasStaple):
+                result = None
+        try:
+            self.viewer._busy(f"Building '{method}' consensus structure ...")
+            self.planC, strNum = sc.createConsensusStructure(
+                structNumV, self.planC, method=method, threshold=threshold,
+                structName=name, result=result)
+            self.viewer.planC = self.planC
+            self.viewer.maskCache.clear()
+            self.viewer.after_load(keep_view=True)
+            self._populate_structs()
+            newName = self.planC.structure[strNum].structureName
+            self.viewer._done(f"Added consensus structure '{newName}'.")
+            _show_info(self, "Structure Consensus",
+                       f"Added structure {strNum}: '{newName}'.")
+        except Exception as e:  # noqa: BLE001
+            self.viewer._done()
+            _show_error(self, "Structure Consensus",
+                        f"Could not create consensus structure:\n{e}")

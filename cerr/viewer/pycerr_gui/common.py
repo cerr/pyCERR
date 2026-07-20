@@ -21,9 +21,25 @@ except ImportError:  # pragma: no cover - PySide fallback
     from PySide2 import QtCore, QtGui, QtWidgets  # type: ignore
     from PySide2.QtCore import Qt  # type: ignore
 
+import logging
+
 import matplotlib
 
 matplotlib.use("Qt5Agg")
+
+
+# The slice views are deliberately aspect='equal'/adjustable='datalim' (square
+# pixels, filling the panel). Restoring an exact zoom box pins both x- and
+# y-limits, so matplotlib honors x, recomputes y from the aspect, and logs
+# "Ignoring fixed x/y limits to fulfill fixed data aspect...". That is the
+# intended behavior here; drop just that record (it is logged, not warned).
+class _AspectLimitLogFilter(logging.Filter):
+    def filter(self, record):  # noqa: A003
+        return "Ignoring fixed" not in record.getMessage()
+
+
+logging.getLogger("matplotlib.axes._base").addFilter(_AspectLimitLogFilter())
+
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mpatches  # noqa: E402
 from matplotlib.collections import LineCollection  # noqa: E402
