@@ -52,9 +52,10 @@ napari = [
     "napari[all]",
     "napari-animation"
 ]
-model_installer = [
-    "model_installer @ git+https://github.com/cerr/model_installer.git",
-]
+# NOTE: model_installer is only distributed as a git repo, and PyPI rejects
+# direct URL (git+) dependencies in package metadata. So it is NOT declared as
+# an extra here; install it alongside pyCERR when needed with:
+#   pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
 ants = [
     "antspyx",
 ]

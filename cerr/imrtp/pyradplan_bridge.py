@@ -453,13 +453,16 @@ def squaredDeviation(dRef: float, priority: float = 100.0):
 def squaredOverdosing(dMax: float, priority: float = 100.0):
     """OAR objective: penalize dose above ``dMax`` Gy."""
     _requirePyRadPlan()
-    return SquaredOverdosing(d_ref=dMax, priority=priority)
+    # pyRadPlan names this parameter ``d_max`` (not ``d_ref``); passing the
+    # wrong keyword is silently ignored and leaves the default 30 Gy in place.
+    return SquaredOverdosing(d_max=dMax, priority=priority)
 
 
 def squaredUnderdosing(dMin: float, priority: float = 100.0):
     """Target objective: penalize dose below ``dMin`` Gy."""
     _requirePyRadPlan()
-    return SquaredUnderdosing(d_ref=dMin, priority=priority)
+    # pyRadPlan names this parameter ``d_min`` (not ``d_ref``).
+    return SquaredUnderdosing(d_min=dMin, priority=priority)
 
 
 def meanDose(dRef: float = 0.0, priority: float = 1.0):

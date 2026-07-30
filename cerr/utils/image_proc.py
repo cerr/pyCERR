@@ -1,5 +1,5 @@
 """
-Pre- and post-processing transformations for AI models
+Image pre- and post-processing transformations.
 """
 import math
 import numpy as np
@@ -475,3 +475,60 @@ def transformScan(scan3M, mask4M, gridS, orientation):
         raise ValueError(f'Transformation to view {orientation} is not supported')
 
     return outScan3M, outMask4M, outGridS
+
+
+def affineDiffusion3d(arr, nSteps, dt=0.1, affFlag=True):
+    """Affine-invariant mean-curvature-flow smoothing.
+
+    A nonlinear, edge/shape-preserving 3-D smoothing filter (affine-invariant
+    mean-curvature flow), with a plain isotropic heat-equation mode
+    (``affFlag=False``) as an alternative. Evolves the image via mean/Gaussian
+    curvature numerators of an affine flow.
+
+    Args:
+        arr (np.ndarray): 3-D image.
+        nSteps (int): number of evolution steps (``n_t``).
+        dt (float): evolution step size.
+        affFlag (bool): True -> affine-invariant flow; False -> linear (heat).
+
+    Returns:
+        np.ndarray: smoothed image (float64), nonnegative.
+    """
+    phi = np.asarray(arr, dtype=np.float64).copy()
+    if phi.ndim != 3:
+        raise ValueError("affineDiffusion3d takes a 3-D array")
+    if min(phi.shape) < 3 or nSteps <= 0:
+        return phi
+    c_ = (slice(1, -1), slice(1, -1), slice(1, -1))
+    for _ in range(int(nSteps)):
+        c = phi[c_]
+        jp = phi[1:-1, 2:, 1:-1]; jm = phi[1:-1, :-2, 1:-1]   # col +/-
+        kp = phi[2:, 1:-1, 1:-1]; km = phi[:-2, 1:-1, 1:-1]   # row +/-
+        lp = phi[1:-1, 1:-1, 2:]; lm = phi[1:-1, 1:-1, :-2]   # slice +/-
+        pXX = jp - 2 * c + jm
+        pYY = kp - 2 * c + km
+        pZZ = lp - 2 * c + lm
+        if not affFlag:                          # linear (heat) smoothing
+            phi[c_] = c + dt * (pXX + pYY + pZZ)
+            continue
+        pX = 0.5 * (jp - jm)
+        pY = 0.5 * (km - kp)                      # note sign (MATLAB k-1 minus k+1)
+        pZ = 0.5 * (lm - lp)
+        pXY = 0.25 * (-phi[:-2, :-2, 1:-1] + phi[:-2, 2:, 1:-1]
+                      + phi[2:, :-2, 1:-1] - phi[2:, 2:, 1:-1])
+        pXZ = 0.25 * (phi[1:-1, :-2, 2:] + phi[1:-1, 2:, :-2]
+                      - phi[1:-1, :-2, :-2] - phi[1:-1, 2:, 2:])
+        pYZ = 0.25 * (phi[:-2, 1:-1, :-2] + phi[2:, 1:-1, 2:]
+                      - phi[:-2, 1:-1, 2:] - phi[2:, 1:-1, :-2])
+        meanCurvNum = (pX ** 2 * (pYY + pZZ) + pY ** 2 * (pXX + pZZ)
+                       + pZ ** 2 * (pXX + pYY)
+                       - 2 * (pX * pY * pXY + pX * pZ * pXZ + pY * pZ * pYZ))
+        gausCurvNum = (pX ** 2 * (pYY * pZZ - pYZ ** 2)
+                       + pY ** 2 * (pXX * pZZ - pXZ ** 2)
+                       + pZ ** 2 * (pXX * pYY - pXY ** 2)
+                       + 2 * pX * pY * (pXZ * pYZ - pXY * pZZ)
+                       + 2 * pY * pZ * (pXY * pXZ - pYZ * pXX)
+                       + 2 * pX * pZ * (pXY * pYZ - pXZ * pYY))
+        upd = np.sign(meanCurvNum) * np.maximum(0.0, gausCurvNum) ** 0.25
+        phi[c_] = np.maximum(0.0, c + dt * upd)
+    return phi

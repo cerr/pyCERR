@@ -22,13 +22,34 @@ def _cb(disp, lo=0.0, hi=100.0):
 
 
 def test_scan_disp_range_full_is_infinite():
-    v = types.SimpleNamespace(scanColorbar=_cb((0.0, 100.0)))
+    # no stored range for the base scan -> no masking
+    v = types.SimpleNamespace(scanNum=0, dispRangeByScan={0: None})
+    assert PyCerrViewer._scan_disp_range(v) == (float("-inf"), float("inf"))
+    v = types.SimpleNamespace(scanNum=0, dispRangeByScan={})
     assert PyCerrViewer._scan_disp_range(v) == (float("-inf"), float("inf"))
 
 
 def test_scan_disp_range_partial():
-    v = types.SimpleNamespace(scanColorbar=_cb((20.0, 60.0)))
+    # a stored (lo, hi) for the base scan is returned as-is
+    v = types.SimpleNamespace(scanNum=0, dispRangeByScan={0: (20.0, 60.0)})
     assert PyCerrViewer._scan_disp_range(v) == (20.0, 60.0)
+
+
+def test_scan_disp_range_overlay_does_not_affect_base():
+    # an overlay's (narrow) range must not mask the base scan
+    v = types.SimpleNamespace(scanNum=0,
+                              dispRangeByScan={0: None, 2: (40.0, 60.0)})
+    assert PyCerrViewer._scan_disp_range(v) == (float("-inf"), float("inf"))
+
+
+def test_apply_dispmask_per_scan():
+    # base (0) has no mask -> unchanged; overlay (2) masks outside [40, 60]
+    v = types.SimpleNamespace(dispRangeByScan={0: None, 2: (40.0, 60.0)})
+    arr = np.array([[10.0, 50.0, 90.0]])
+    out0 = PyCerrViewer._apply_dispmask(v, arr, 0)
+    assert not np.ma.is_masked(out0)
+    out2 = PyCerrViewer._apply_dispmask(v, arr, 2)
+    assert np.ma.getmaskarray(out2).tolist() == [[True, False, True]]
 
 
 def test_dose_disp_range_full_and_partial():
@@ -64,3 +85,21 @@ def test_scan_opacity_ramp_zeroed_outside_display_range():
     assert np.all(ramp[scal < 40.0] == 0.0)
     assert np.all(ramp[scal > 60.0] == 0.0)
     assert np.any(ramp[(scal >= 40.0) & (scal <= 60.0)] >= 0.0)
+
+
+# --- graded dose iso-surface opacity ----------------------------------------
+def test_dose_surface_opacity_grading():
+    levels = [14.0, 28.0, 42.0, 56.0, 70.0]     # 5 evenly spaced shells
+    base = 0.6
+    op = [PyCerrViewer._dose_surface_opacity(lv, levels, base) for lv in levels]
+    assert op[-1] == pytest.approx(base)         # highest level -> full opacity
+    assert op[0] == pytest.approx(0.2 * base)    # lowest level -> 0.2x
+    assert np.all(np.diff(op) > 0)               # monotonically increasing
+    # linear interpolation by level
+    assert op[2] == pytest.approx(base * (0.2 + 0.8 * 0.5))
+
+
+def test_dose_surface_opacity_single_level():
+    # one surface -> gets the full (highest) opacity
+    assert PyCerrViewer._dose_surface_opacity(50.0, [50.0], 0.5) == \
+        pytest.approx(0.5)

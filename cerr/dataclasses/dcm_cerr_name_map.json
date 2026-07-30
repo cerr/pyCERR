@@ -52,7 +52,7 @@
 "imagePositionPatient": "ImagePositionPatient",
 "windowCenter": "WindowCenter",
 "windowWidth": "WindowWidth",
-"temporalPositionIndex": "TemporalPositionIdentifier",
+"temporalPositionIdentifier": "TemporalPositionIdentifier",
 "triggerTime": "TriggerTime",
 "repetitionTime": "RepetitionTime",
 "flipAngle": "FlipAngle"

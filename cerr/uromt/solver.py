@@ -53,6 +53,7 @@ def gnBlockUr(rho0, u0, r0, par, drhoN, tag=""):
     G, comps, rho = getGamma(rho0, u, r, par, drhoN)
     return dict(u=u, r=r, rho=rho, Gamma=G,
                 Gamma1=comps[0], Gamma2=comps[1], Gamma3=comps[2],
+                Gamma4=comps[3],
                 nfev=res.nfev, time=time.time() - t0, tag=tag)
 
 
@@ -92,6 +93,9 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     alpha, beta = par["alpha"], par["beta"]
     chi = par.get("chi")
+    eta = float(par.get("eta", 0.0))         # velocity H1-smoothness weight
+    Grad = par["Grad"]
+    cSmooth = 2.0 * eta * hd * dt            # smoothness Hessian scale (const)
     nu = 3 * N * nt
     u = np.asarray(u0, float).ravel().copy()
     r = np.asarray(r0, float).ravel().copy()
@@ -116,6 +120,12 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
         diagU = (2.0 * hd * dt * np.tile(rho, (3, 1))).ravel(order="F")
         diagR = (2.0 * alpha * hd * dt * rho * chiCol).ravel(order="F")
         diagReg = np.concatenate([diagU, diagR])
+        if eta:                              # add H1 Laplacian diagonal (precond)
+            lapDiag = par["lapDiag"]
+            smoothDiag = cSmooth * np.repeat(
+                np.tile(lapDiag, 3)[:, None], nt, axis=1).ravel(order="F")
+            diagReg = diagReg.copy()
+            diagReg[:nu] += smoothDiag
         # per-step trilinear derivatives are constant across the CG matvecs of
         # this outer step (depend only on the fixed rho/r) - precompute once.
         dSlist = precomputeSensDeriv(rho0, r, par, interp, rho)
@@ -128,8 +138,15 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
             def matvec(x, lam=lam):
                 vu = x[:nu]
                 vr = x[nu:]
-                hu = (diagU + lam) * vu          # regularization + damping
+                hu = (diagU + lam) * vu          # kinetic regularization + damping
                 hr = (diagR + lam) * vr
+                if eta:                          # H1 smoothness Hessian (const)
+                    VU = vu.reshape(3 * N, nt, order="F")
+                    sm = np.empty_like(VU)
+                    for d in range(3):
+                        sm[d * N:(d + 1) * N, :] = cSmooth * (
+                            Grad.T @ (Grad @ VU[d * N:(d + 1) * N, :]))
+                    hu = hu + sm.ravel(order="F")
                 # misfit Gauss-Newton term 2*beta*hd * J' (J v)
                 Jv = forwardSensitivity(rho0, u, r, vu, vr, par, interp,
                                         rho, dSlist)[:, -1]
@@ -175,6 +192,7 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
     G, comps, rho = getGamma(rho0, u, r, par, drhoN)
     return dict(u=u, r=r, rho=rho, Gamma=G,
                 Gamma1=comps[0], Gamma2=comps[1], Gamma3=comps[2],
+                Gamma4=comps[3],
                 nfev=nfev, time=time.time() - t0, tag=tag)
 
 
@@ -236,7 +254,7 @@ def runUROMT(cfg, statusCallback=None):
         out["r"].append(sol["r"].reshape(N, nt, order="F"))
         out["rho"].append(sol["rho"])
         out["gamma"].append({k: sol[k] for k in
-                             ("Gamma", "Gamma1", "Gamma2", "Gamma3",
+                             ("Gamma", "Gamma1", "Gamma2", "Gamma3", "Gamma4",
                               "nfev", "time")})
         rhoEnd = sol["rho"][:, -1]
         u, r = sol["u"], sol["r"]      # warm-start next interval

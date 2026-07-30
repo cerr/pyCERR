@@ -40,9 +40,10 @@ def loadModelSettings(settingsFile=None):
 class UROMTConfig:
     """Resolved urOMT configuration (model settings + planC-derived data).
 
-    Attributes (model, from JSON): ``sigma, dt, nt, alpha, beta, niter_pcg,
+    Attributes (model, from JSON): ``sigma, dt, nt, alpha, beta, eta, niter_pcg,
     maxUiter, solver, dTri, reinitR, smooth, smooth_method, smooth_dt,
-    do_resize, size_factor``. Concentration-conversion (DCE) attributes:
+    do_resize, size_factor`` (``eta`` weights the velocity H1-smoothness penalty
+    Gamma4; 0 = off). Concentration-conversion (DCE) attributes:
     ``convertToConc, T10, r1, basePts, TR, FA, conc_clip``.
 
     Attributes (data, from planC, filled by :func:`cerr.uromt.data.prepareData`):

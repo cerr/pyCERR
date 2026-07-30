@@ -92,7 +92,7 @@ class ScanInfo:
         imagePositionPatient (np.array): x,y,z coordinate of the top left voxel of the scan volume.
         windowCenter (float): Window center used for visualization
         windowWidth (float): Window width used for visualization
-        temporalPositionIndex (float): Temporal position in the dynamic sequence from the FrameContentSequence.
+        temporalPositionIdentifier (float): Temporal position in the dynamic sequence from the FrameContentSequence.
         triggerTime (float): Time, in msec, between peak of the R wave and the peak of the echo produced.
         frameAcquisitionDuration (float): Duration of Frame acquisition from the FrameContentSequence.
         frameReferenceDateTime (str): FrameReferenceDateTime from the FrameContentSequence
@@ -195,7 +195,7 @@ class ScanInfo:
     imagePositionPatient: np.array = field(default_factory=get_empty_np_array)
     windowCenter: float = '' #np.NAN
     windowWidth: float = '' #np.NAN
-    temporalPositionIndex: float = '' #np.NAN
+    temporalPositionIdentifier: float = '' #np.NAN
     triggerTime: float = ''
     frameAcquisitionDuration: float = '' #np.NAN
     frameReferenceDateTime: str = ''

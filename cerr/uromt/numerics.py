@@ -105,11 +105,16 @@ def paramInit(cfg):
     h = [float(v) for v in cfg.spacing]
     N = int(np.prod(n))
     Grad = neumannGrad(n, h)
+    # diag(Grad'Grad) = per-voxel column sum of Grad**2 (the Neumann-Laplacian
+    # diagonal). Precomputed for the GN Hessian's Jacobi preconditioner when the
+    # velocity H1-smoothness regularizer (eta > 0) is active.
+    lapDiag = np.asarray(Grad.multiply(Grad).sum(axis=0)).ravel()
     Xc, Yc, Zc = cellCenteredGrid(n, h)
     par = dict(dim=3, n=n, h=h, N=N, hd=float(np.prod(h)),
                dt=float(cfg.dt), nt=int(cfg.nt), sigma=float(cfg.sigma),
                alpha=float(cfg.alpha), beta=float(cfg.beta),
-               bc=cfg.bc, Xc=Xc, Yc=Yc, Zc=Zc, Grad=Grad,
+               eta=float(getattr(cfg, "eta", 0.0)),
+               bc=cfg.bc, Xc=Xc, Yc=Yc, Zc=Zc, Grad=Grad, lapDiag=lapDiag,
                Bsolve=_DiffusionSolver(n, h, cfg.dt, cfg.sigma),
                niter_pcg=int(cfg.niter_pcg),
                maxUiter=int(cfg.maxUiter),
@@ -389,8 +394,17 @@ def adjointSensitivity(rho0, u, r, wN, par, interp=None, rho=None, dSlist=None):
 #  Objective (get_Gamma.m) and adjoint gradient
 # --------------------------------------------------------------------------- #
 def getGamma(rho0, u, r, par, drhoN, interp=None):
-    """Cost Gamma = Gamma1(kinetic) + alpha*Gamma2(source) + beta*Gamma3(fit).
-    Returns (Gamma, (Gamma1, Gamma2, Gamma3), rho)."""
+    """Cost Gamma = Gamma1(kinetic) + alpha*Gamma2(source) + beta*Gamma3(fit)
+    + Gamma4(velocity H1-smoothness).
+    Returns (Gamma, (Gamma1, Gamma2, Gamma3, Gamma4), rho).
+
+    ``Gamma4 = eta*hd*dt * sum_k sum_d |Grad u_d(:,k)|^2`` penalizes the spatial
+    gradient of each velocity component (the H1 seminorm), so neighbouring
+    velocity vectors are pulled toward the same direction. The urOMT misfit
+    constrains velocity only where density flows, leaving it in the objective's
+    null space in low/flat-density voxels; this term regularizes that null
+    space. ``eta = 0`` (default) recovers the original objective exactly.
+    """
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     U = u.reshape(3 * N, nt, order="F")
     R = r.reshape(N, nt, order="F")
@@ -401,8 +415,17 @@ def getGamma(rho0, u, r, par, drhoN, interp=None):
     Gamma1 = hd * dt * float(np.sum(rho * uSq))
     Gamma2 = hd * dt * float(np.sum(rho * rSq))
     Gamma3 = hd * float(np.sum((rho[:, -1] - drhoN) ** 2))
-    Gamma = Gamma1 + par["alpha"] * Gamma2 + par["beta"] * Gamma3
-    return Gamma, (Gamma1, Gamma2, Gamma3), rho
+    eta = float(par.get("eta", 0.0))
+    Gamma4 = 0.0
+    if eta:
+        Grad = par["Grad"]
+        s = 0.0
+        for d in range(3):
+            GU = Grad @ U[d * N:(d + 1) * N, :]   # (3N, nt) directional derivs
+            s += float(np.sum(GU * GU))
+        Gamma4 = eta * hd * dt * s
+    Gamma = Gamma1 + par["alpha"] * Gamma2 + par["beta"] * Gamma3 + Gamma4
+    return Gamma, (Gamma1, Gamma2, Gamma3, Gamma4), rho
 
 
 def gradGamma(rho0, u, r, par, drhoN, interp=None):
@@ -444,4 +467,12 @@ def gradGamma(rho0, u, r, par, drhoN, interp=None):
                          + dt * prev * mbar)
         # propagate adjoint to rho_{k-1}
         carry = (1.0 + dt * R[:, k] * ck) * mbar
+    # velocity H1-smoothness gradient: d/du_d [eta*hd*dt*|Grad u_d|^2]
+    #                                 = 2*eta*hd*dt * Grad' Grad u_d  (per comp/step)
+    eta = float(par.get("eta", 0.0))
+    if eta:
+        Grad = par["Grad"]
+        c = 2.0 * eta * hd * dt
+        for d in range(3):
+            gU[d * N:(d + 1) * N, :] += c * (Grad.T @ (Grad @ U[d * N:(d + 1) * N, :]))
     return gU.ravel(order="F"), gR.ravel(order="F")

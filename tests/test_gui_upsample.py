@@ -1,8 +1,9 @@
 """Headless tests for the View > 'Upsample display (sinc)' helper.
 
 Covers ``PyCerrViewer._upsample_for_display``, which sinc-upsamples a 2D slice
-to the finer of its two in-plane voxel spacings for display. Pure array logic,
-exercised with a lightweight stand-in ``self`` (no QApplication).
+to the finest in-plane voxel spacing divided by ``upsampleFactor`` (1.0 =
+finest; 1.5x / 2x go finer) for display. Pure array logic, exercised with a
+lightweight stand-in ``self`` (no QApplication).
 """
 import types
 import numpy as np
@@ -12,8 +13,9 @@ mw = pytest.importorskip("cerr.viewer.pycerr_gui.main_window")
 PyCerrViewer = mw.PyCerrViewer
 
 
-def _fake(on=True):
-    return types.SimpleNamespace(upsampleDisplay=on, _upsampleCache={})
+def _fake(on=True, factor=1.0):
+    return types.SimpleNamespace(upsampleDisplay=on, upsampleFactor=factor,
+                                 _upsampleCache={})
 
 
 def _up(fake, img, hV, vV, key=("k",)):
@@ -44,6 +46,18 @@ def test_isotropic_slice_unchanged():
     vV = np.linspace(0, 39 * 0.1, 40)
     out = _up(_fake(True), img, hV, vV)
     assert out.shape == img.shape
+
+
+def test_factor_upsamples_finer_than_finest():
+    # An isotropic slice is untouched at factor 1.0 (target = finest spacing),
+    # but a 2x factor targets finest/2 so both axes double.
+    img = np.random.rand(40, 40).astype(np.float32)
+    hV = np.linspace(0, 39 * 0.1, 40)
+    vV = np.linspace(0, 39 * 0.1, 40)
+    assert _up(_fake(True, 1.0), img, hV, vV).shape == (40, 40)
+    out2 = _up(_fake(True, 2.0), img, hV, vV, ("f2",))
+    assert 2 * 40 - 2 <= out2.shape[0] <= 2 * 40 + 2
+    assert 2 * 40 - 2 <= out2.shape[1] <= 2 * 40 + 2
 
 
 def test_both_axes_coarser_are_both_upsampled():

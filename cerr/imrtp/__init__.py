@@ -28,6 +28,8 @@ from .imrtp_problem import (IMRTProblem, IMBeam, IMGoal, IMParams, VMCParams,
                             addEquispacedBeams, addGoal, getIMList,
                             saveIMToPlan)
 from .imrtp import runIMRTP, doseToPlanC, registerEngine, availableEngines
+from .lattice import (createLattice, createLatticeVertices, paintSpheres,
+                      latticeBoostObjectives, optimizeLatticeBoost)
 
 # Register the bundled dose engines (QIB + Monte-Carlo placeholders).
 try:

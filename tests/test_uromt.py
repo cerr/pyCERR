@@ -17,9 +17,9 @@ from cerr.uromt.numerics import (paramInit, sourceAdvecDiff, getGamma,
                                   gradGamma, forwardSensitivity,
                                   adjointSensitivity)
 from cerr.uromt.solver import gnBlockExact, gnBlockUr
-from cerr.uromt.data import (affineDiffusion3d, framesToConcentration,
-                             DEFAULT_T10, DEFAULT_R1, externalBaselineCount,
-                             scanTimeKey, scanTimeOrder, scanTimeLabel)
+from cerr.utils.image_proc import affineDiffusion3d
+from cerr.mri_metrics.dce_mri import getScanOrder, normalizeToBaseline, buildConcDict
+from cerr.uromt.data import externalBaselineCount, scanTimeLabel
 from cerr.uromt.analyze import runEULA, runGLAD, runEULAIntervals
 from cerr.dataclasses.uromt import (UROMT, getUROMTList, saveUROMTToPlan,
                                     buildFromConfig)
@@ -27,13 +27,16 @@ from cerr.utils import uid
 from cerr.uromt.viz import (velocityVectors, eulerianFluxVectors,
                             eulerianMapToScan, pathlineTracks)
 
+TEST_T10 = 1.0 / 0.6 # Testing pre-contrast longitudinal relaxation time
+TEST_r1 = 3.8        # Testing relaxivity
 
 def _par(n=(8, 8, 8), nt=2, sigma=2e-3, alpha=10.0, beta=50.0, dt=0.3,
-         chi=None):
+         chi=None, eta=0.0):
     """Build a `par` dict on a tiny grid via a lightweight cfg stand-in."""
     cfg = SimpleNamespace(trueSize=list(n), spacing=[1.0, 1.0, 1.0],
                           dt=dt, nt=nt, sigma=sigma, alpha=alpha, beta=beta,
-                          bc="closed", niter_pcg=10, maxUiter=3, chi=chi)
+                          bc="closed", niter_pcg=10, maxUiter=3, chi=chi,
+                          eta=eta)
     return paramInit(cfg)
 
 
@@ -101,14 +104,17 @@ def test_objective_components_nonnegative_and_fit_term():
     u = 0.02 * rng.standard_normal(3 * N * nt)
     r = 0.05 * rng.standard_normal(N * nt)
     drhoN = np.abs(rng.standard_normal(N)) + 0.5
-    G, (G1, G2, G3), rho = getGamma(rho0, u, r, par, drhoN)
-    # Gamma1 (kinetic) and Gamma3 (fit) are sums of squares -> nonnegative.
-    assert G1 >= 0.0 and G2 >= 0.0 and G3 >= 0.0
+    G, (G1, G2, G3, G4), rho = getGamma(rho0, u, r, par, drhoN)
+    # Gamma1 (kinetic), Gamma3 (fit), Gamma4 (H1) are sums of squares -> >= 0.
+    assert G1 >= 0.0 and G2 >= 0.0 and G3 >= 0.0 and G4 >= 0.0
     # Gamma3 is exactly hd * ||rho_N - drhoN||^2.
     expect = par["hd"] * float(np.sum((rho[:, -1] - drhoN) ** 2))
     assert np.isclose(G3, expect, rtol=1e-12, atol=0.0)
-    # Total = G1 + alpha*G2 + beta*G3.
-    assert np.isclose(G, G1 + par["alpha"] * G2 + par["beta"] * G3, rtol=1e-12)
+    # Total = G1 + alpha*G2 + beta*G3 + G4.
+    assert np.isclose(G, G1 + par["alpha"] * G2 + par["beta"] * G3 + G4,
+                      rtol=1e-12)
+    # eta = 0 (default) -> the H1 term is exactly zero.
+    assert G4 == 0.0
 
 
 def test_adjoint_gradient_matches_finite_difference_interior():
@@ -136,6 +142,51 @@ def test_adjoint_gradient_matches_finite_difference_interior():
     # Test the 20 interior coordinates with the largest analytic gradient.
     order = intCoords[np.argsort(-np.abs(g[intCoords]))]
     sel = order[:20]
+
+    eps = 1e-6
+    nu = 3 * N * nt
+    relErrs = []
+    for i in sel:
+        xp = x.copy(); xp[i] += eps
+        xm = x.copy(); xm[i] -= eps
+        Gp, _, _ = getGamma(rho0, xp[:nu], xp[nu:], par, drhoN)
+        Gm, _, _ = getGamma(rho0, xm[:nu], xm[nu:], par, drhoN)
+        fd = (Gp - Gm) / (2 * eps)
+        relErrs.append(abs(fd - g[i]) / max(abs(g[i]), 1e-8))
+    relErrs = np.array(relErrs)
+    assert relErrs.max() < 5e-3, "max rel err %.2e" % relErrs.max()
+    assert np.median(relErrs) < 1e-3, "median rel err %.2e" % np.median(relErrs)
+
+
+def test_h1_smoothness_gradient_matches_finite_difference():
+    """With eta > 0 the velocity H1-smoothness term contributes to the objective
+    and its analytic gradient must match central finite differences on interior
+    velocity coordinates."""
+    par = _par(eta=0.7)
+    n, N, nt = par["n"], par["N"], par["nt"]
+    rng = np.random.default_rng(11)
+    rho0 = np.abs(rng.standard_normal(N)) + 0.5
+    u = 0.02 * rng.standard_normal(3 * N * nt)
+    r = 0.05 * rng.standard_normal(N * nt)
+    drhoN = np.abs(rng.standard_normal(N)) + 0.5
+
+    # the H1 term is genuinely active
+    _, comps, _ = getGamma(rho0, u, r, par, drhoN)
+    assert comps[3] > 0.0
+    par0 = _par(eta=0.0)
+    _, comps0, _ = getGamma(rho0, u, r, par0, drhoN)
+    assert comps0[3] == 0.0
+
+    gU, gR = gradGamma(rho0, u, r, par, drhoN)
+    g = np.concatenate([gU, gR])
+    x = np.concatenate([u, r])
+
+    interior = _interior_mask(n)
+    voxU = np.tile(np.tile(np.arange(N), 3), nt)
+    voxR = np.tile(np.arange(N), nt)
+    vox = np.concatenate([voxU, voxR])
+    intCoords = np.where(interior[vox])[0]
+    sel = intCoords[np.argsort(-np.abs(g[intCoords]))][:20]
 
     eps = 1e-6
     nu = 3 * N * nt
@@ -226,15 +277,17 @@ def test_affine_diffusion_smooths_and_preserves_mean_shape():
 
 def test_scan_time_order():
     """Scans are ordered by acquisition time even when planC stores them in a
-    different (e.g. lexical) order; the timepoint->scan-index map is correct."""
+    different (e.g. lexical) order; the timepoint->scan-index map is correct.
+    """
     # planC stand-in: scan i has an out-of-order acquisitionTime
     times = ["075710", "075813", "080115", "075833", "075620"]   # not sorted
     scans = [SimpleNamespace(
         scanInfo=[SimpleNamespace(acquisitionDate="20101111",
                                   acquisitionTime=t)]) for t in times]
+
     planC = SimpleNamespace(scan=scans)
 
-    order = scanTimeOrder(planC)
+    order = getScanOrder(planC)
     assert order == [4, 0, 1, 3, 2]                  # sorted by acq time
     assert order != list(range(len(scans)))          # differs from index order
     # the mapping resolves the correct scan index per timepoint
@@ -242,8 +295,7 @@ def test_scan_time_order():
     # key falls back to scan index when no time metadata
     bare = SimpleNamespace(scan=[SimpleNamespace(scanInfo=[SimpleNamespace()])
                                  for _ in range(3)])
-    assert scanTimeOrder(bare) == [0, 1, 2]
-    assert scanTimeKey(bare, 1)[2] == 1
+    assert getScanOrder(bare) == [0, 1, 2]
 
 
 def test_external_baseline_count_window_after_baseline():
@@ -265,8 +317,8 @@ def test_external_baseline_count_window_after_baseline():
 
 def test_concentration_defaults():
     """Bundled concentration defaults match the requested values."""
-    assert np.isclose(DEFAULT_T10, 1.0 / 0.6)
-    assert DEFAULT_R1 == 3.8
+    assert np.isclose(TEST_T10, 1.0 / 0.6)
+    assert TEST_r1 == 3.8
 
 
 def test_frames_to_concentration_recovers_known_concentration():
@@ -291,38 +343,76 @@ def test_frames_to_concentration_recovers_known_concentration():
     Cknown = [0.0, 0.1, 0.3, 0.5]                           # mmol/L per frame
     frames = [spgr(R10 + r1 * (c * blob)) for c in Cknown]
 
-    conc, basePts = framesToConcentration(frames, mask, T10=T10, r1=r1,
-                                          TR=TR, FA=FA, basePts=1)
-    assert basePts == 1
-    assert len(conc) == len(frames) - 1                    # baseline consumed
+    scanArr4M = np.stack(frames, axis=3)
+    timePtsV = np.arange(len(frames), dtype=float)
+    concDict = {"T10": T10, "r1": r1, "TR": TR, "FA": FA}
+
+    conc4M, uptakeTimeV, baseline3M, basePtsUsed = normalizeToBaseline(
+        scanArr4M, mask, timePtsV, basePts=1, method="CC", concDict=concDict)
+    conc4M = np.nan_to_num(conc4M, nan=0.0)
+
+    assert basePtsUsed == 1
+    assert conc4M.shape[3] == len(frames) - 1              # baseline consumed
     core = blob > 0.8
-    recovered = [float(cf[core].mean()) for cf in conc]
-    assert all(c >= 0 for cf in conc for c in cf.ravel())  # nonnegative
-    assert recovered[0] < recovered[1] < recovered[2]      # monotonic uptake
-    # outside the ROI stays zero
-    assert np.array([cf[~mask] for cf in conc]).max() == 0.0
+    recovered = [float(conc4M[:, :, :, j][core].mean())
+                 for j in range(conc4M.shape[3])]
+    assert np.all(conc4M >= 0)                              # nonnegative
+    assert recovered[0] < recovered[1] < recovered[2]       # monotonic uptake
+    # outside the ROI stays zero (masked to nan upstream, nan_to_num'd to 0)
+    assert conc4M[~mask].max() == 0.0
 
 
-def test_frames_to_concentration_rse():
-    """RSE normalization returns S(t)/S(0) and consumes the baseline frame."""
+def test_frames_to_rse():
+    """RSE normalization returns S(t)/S(0) and consumes the baseline frame.
+    """
     n = (6, 6, 3)
     base = 100.0
     frames = [base * np.ones(n), 1.5 * base * np.ones(n), 2.0 * base * np.ones(n)]
     mask = np.ones(n, dtype=bool)
-    out, bp = framesToConcentration(frames, mask, method="RSE", basePts=1)
-    assert bp == 1 and len(out) == len(frames) - 1     # baseline consumed
-    assert np.allclose(out[0][mask], 1.5)
-    assert np.allclose(out[1][mask], 2.0)
+    scanArr4M = np.stack(frames, axis=3)
+    timePtsV = np.arange(len(frames), dtype=float)
+
+    out4M, _t, _b, basePtsUsed = normalizeToBaseline(
+        scanArr4M, mask, timePtsV, basePts=1, method="RSE")
+    assert basePtsUsed == 1 and out4M.shape[3] == len(frames) - 1  # baseline consumed
+    assert np.allclose(out4M[:, :, :, 0][mask], 1.5)
+    assert np.allclose(out4M[:, :, :, 1][mask], 2.0)
 
 
-def test_frames_to_concentration_requires_tr_fa():
-    frames = [np.ones((4, 4, 2)), np.ones((4, 4, 2)) * 1.2]
-    mask = np.ones((4, 4, 2), dtype=bool)
+def test_frames_to_concentration_requires_tr():
+    """normalizeToBaseline(method='CC') requires a valid repetition time (TR).
+    Check that ValueError is raised instead of silently proceeding with
+    undefined TR.
+    """
+    n = (4, 4, 2)
+    scanArr4M = np.ones(n + (3,))
+    mask = np.ones(n, dtype=bool)
+    timePtsV = np.arange(3, dtype=float)
+    concDict = {"T10": 1.0 / 0.6, "r1": 3.8, "TR": None, "FA": 15.0}
     try:
-        framesToConcentration(frames, mask, TR=None, FA=10.0)
+        normalizeToBaseline(scanArr4M, mask, timePtsV, basePts=1,
+                            method="CC", concDict=concDict)
         assert False, "expected ValueError for missing TR"
-    except ValueError:
-        pass
+    except ValueError as e:
+        assert "TR" in str(e)
+
+
+def test_frames_to_concentration_requires_fa():
+    """normalizeToBaseline(method='CC') requires a valid flip angle (FA).
+    Check that ValueError is raised instead of silently proceeding with
+    undefined FA.
+    """
+    n = (4, 4, 2)
+    scanArr4M = np.ones(n + (3,))
+    mask = np.ones(n, dtype=bool)
+    timePtsV = np.arange(3, dtype=float)
+    concDict = {"T10": 1.0 / 0.6, "r1": 3.8, "TR": 0.005, "FA": None}
+    try:
+        normalizeToBaseline(scanArr4M, mask, timePtsV, basePts=1,
+                            method="CC", concDict=concDict)
+        assert False, "expected ValueError for missing FA"
+    except ValueError as e:
+        assert "FA" in str(e)
 
 
 def _uniform_flow_result(n=(16, 16, 8), nt=4, vx=1.0, dt=0.4,
