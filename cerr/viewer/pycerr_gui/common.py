@@ -150,12 +150,10 @@ UROMT_AXES = {VIEW_AXIAL: (1, 0, 2), VIEW_SAGITTAL: (0, 2, 1),
               VIEW_CORONAL: (1, 2, 0)}
 
 # Colormaps offered for fused scan overlays
-OVERLAY_CMAPS =  ["hot", "jet", "cool", "spring", "winter", "copper",
+OVERLAY_CMAPS = ["hot", "jet", "cool", "spring", "winter", "copper",
                  "viridis", "gray"]
-
 # Colormaps offered for the base scan / registration-QA images (gray default)
-SCAN_CMAPS = (["starinterp"] if "starinterp" in CERR_COLORMAP_NAMES else []) + \
-             ["gray", "bone", "hot", "jet", "viridis", "magma", "plasma",
+SCAN_CMAPS = ["gray", "bone", "hot", "jet", "viridis", "magma", "plasma",
               "copper", "cool", "Greens", "Reds", "Blues"]
 
 
