@@ -1202,28 +1202,33 @@ def calcIsocenter(strNum, planC):
     return isocenter
 
 def getMatchingIndex(structName, strList, matchCriteria='exact'):
-    """This routine returns the index of element/s from the list of structure names that match the input name.
+    """This routine returns the index of element/s from the list of structure names that match the input name(s).
 
     Args:
-        structName (str): Structure name to find a match
+        structName (str or list[str]): Structure name, or list of structure names, to find matches for.
         strList: List of structure names
         matchCriteria: Criteria used to find the match
             'EXACT' - returns indices of exact matches
             'FIRSTCHARS' - returns indices where first characters of elements in the list match input structName
-
-    Returns:
-        List: list of matching indices from input strList
+            other - returns indices where elements in the list contain input structName as a substring
     """
 
-    if matchCriteria.upper() == 'EXACT':
-        indMatchV = [i for i, s in enumerate(strList) if s.lower() == structName.lower()]
-    elif matchCriteria.upper() == 'FIRSTCHARS':
-        indMatchV = [i for i, s in enumerate(strList) if s.lower().startswith(structName.lower())]
+    if isinstance(structName, str):
+        nameList = [structName]
     else:
-        # implementation for 'contains' match criteria
-        indMatchV = []
-        for i, s in enumerate(strList):
-            if structName.lower() in s.lower():
+        nameList = list(structName)
+
+    indMatchV = []
+    for name in nameList:
+        if matchCriteria.upper() == 'EXACT':
+            matches = [i for i, s in enumerate(strList) if s.lower() == name.lower()]
+        elif matchCriteria.upper() == 'FIRSTCHARS':
+            matches = [i for i, s in enumerate(strList) if s.lower().startswith(name.lower())]
+        else:
+            # implementation for 'contains' match criteria
+            matches = [i for i, s in enumerate(strList) if name.lower() in s.lower()]
+        for i in matches:
+            if i not in indMatchV:
                 indMatchV.append(i)
     return indMatchV
 
@@ -1388,6 +1393,105 @@ def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
     else:
         sructName = planC.structure[structNum].structureName + '_expand_' + str(marginCm) + ' cm'
     planC = importStructureMask(expandedMask3M, assocScanNum, sructName, planC)
+    return planC
+
+
+def getMasksOnScan(structNumV, planC):
+    """Fetch masks for a list of structures, validating that they share a scan.
+
+    Args:
+        structNumV (list[int]): Indices into ``planC.structure``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        tuple: ``(maskList, assocScanNum)`` where ``maskList`` is a list of
+        boolean ``np.ndarray`` masks (one per structure, all the same shape)
+        and ``assocScanNum`` is the shared associated scan index.
+    """
+    structNumV = [int(s) for s in structNumV]
+    if len(structNumV) < 2:
+        raise ValueError("At least two structures are required for this "
+                         "operation.")
+
+    assocScans = [scn.getScanNumFromUID(planC.structure[s].assocScanUID, planC)
+                  for s in structNumV]
+    if len(set(assocScans)) != 1:
+        raise ValueError("All structures must be associated with the same "
+                         "scan. Got scan indices: %s" % assocScans)
+    assocScanNum = assocScans[0]
+
+    maskList = [rs.getStrMask(s, planC).astype(bool) for s in structNumV]
+    return maskList, assocScanNum
+
+
+def structUnion(structNumV, planC, unionStructName=None):
+    """Compute the union of two or more structures and add it to planC.
+    Args:
+        structNumV (list[int]): Indices of the structures (>= 2) to combine,
+            in ``planC.structure``. All structures must share the same
+            associated scan.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        unionStructName (str or None): Name for the new structure. A descriptive
+            default is generated when ``None``.
+    """
+    maskList, assocScanNum = getMasksOnScan(structNumV, planC)
+    unionMask3M = np.zeros(maskList[0].shape, dtype=bool)
+    for m in maskList:
+        unionMask3M |= m
+    if unionStructName is None:
+        names = [planC.structure[s].structureName for s in structNumV]
+        unionStructName = "_UNION_".join(names)
+    planC = importStructureMask(unionMask3M, assocScanNum, unionStructName, planC)
+    return planC
+
+
+def structIntersect(structNumV, planC, intrStructName=None):
+    """Compute the intersection of two or more structures and add it to planC.
+    Args:
+        structNumV (list[int]): Indices of the structures (>= 2) to combine,
+            in ``planC.structure``. All structures must share the same
+            associated scan.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        intrStructName (str or None): Name for the new structure. A descriptive
+            default is generated when ``None``.
+
+    Returns:
+        cerr.plan_container.PlanC: Updated plan container object with the
+        intersection structure appended to ``planC.structure``.
+    """
+    maskList, assocScanNum = getMasksOnScan(structNumV, planC)
+    intersectMask3M = maskList[0].copy()
+    for m in maskList[1:]:
+        intersectMask3M &= m
+    if intrStructName is None:
+        names = [planC.structure[s].structureName for s in structNumV]
+        intrStructName = "_INTERSECT_".join(names)
+    planC = importStructureMask(intersectMask3M, assocScanNum, intrStructName, planC)
+    return planC
+
+
+def structDiff(structNum1, structNum2, planC, diffStructName=None):
+    """Compute the set difference (structNum1 - structNum2) and add it to planC.
+    Args:
+        structNum1 (int): Index of the minuend structure in ``planC.structure``.
+        structNum2 (int): Index of the subtrahend structure in
+            ``planC.structure``. Must share the same associated scan as
+            ``structNum1``.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        diffStructName (str or None): Name for the new structure. A descriptive
+            default is generated when ``None``.
+
+    Returns:
+        cerr.plan_container.PlanC: Updated plan container object with the
+        difference structure appended to ``planC.structure``.
+    """
+    maskList, assocScanNum = getMasksOnScan([structNum1, structNum2], planC)
+    diffMask3M = maskList[0] & ~maskList[1]
+    if diffStructName is None:
+        name1 = planC.structure[structNum1].structureName
+        name2 = planC.structure[structNum2].structureName
+        diffStructName = "%s-%s" % (name1, name2)
+    planC = importStructureMask(diffMask3M, assocScanNum, diffStructName, planC)
     return planC
 
 
