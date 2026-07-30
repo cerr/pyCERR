@@ -856,21 +856,31 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
         IGv[i] = b[1]
     IGv[nanIdxV] = np.nan
 
-    # Wash-out gradient estimated by linear regression of RSE between  1 and 2 min elapsed from start of uptake
+    # Wash-out gradient estimated by linear regression of RSE between 70% and 10% of signal drop (post peak)
     WOGv = np.full((nVox,), fill_value=np.nan)
     for i in range(nVox):
+        if nanIdxV[i]:
+            continue
+        RSEpostPeakV = procSlcSigM[i, peakIdxV[i]:]
+        postTimeV = procTimeV[peakIdxV[i]:]
+        RSEend = procSlcSigM[i, -1]
+        RSEdropV = PEv[i] - RSEend  # signal drop: peak to end
 
-        id_1 = np.argmax(procTimeV >= 1)
-        id_2 = np.argmax(procTimeV > 2)
-        if id_1 == 0 or id_2 == 0:
+        RSE_10 = PEv[i] - 0.10 * RSEdropV
+        RSE_70 = PEv[i] - 0.70 * RSEdropV
+
+        id_10 = np.argmin(np.abs(RSEpostPeakV - RSE_10))
+        id_70 = np.argmin(np.abs(RSEpostPeakV[id_10:] - RSE_70)) + id_10
+
+        if id_70 == id_10:
             WOGv[i] = np.nan
-        else:
-            washOutPts = np.arange(id_1, id_2)
-            y = procSlcSigM[i, washOutPts].T
-            x = np.hstack((np.ones((len(washOutPts), 1)), procTimeV[washOutPts].T[:, np.newaxis]))
-            b, __, __, __ = np.linalg.lstsq(x, y, rcond=None)
-            WOGv[i] = b[1]
-    WOGv[nanIdxV] = np.nan
+            continue
+
+        pts = np.arange(id_10, id_70 + 1)
+        y = RSEpostPeakV[pts]
+        x = np.column_stack([np.ones(len(pts)), postTimeV[pts]])
+        b, *_ = np.linalg.lstsq(x, y, rcond=None)
+        WOGv[i] = b[1]
 
     # Signal enhancement ratio
     # Defined as in https://doi.org/10.1117/1.JMI.5.1.011019 ; S2-S0/S1-S0
@@ -1162,7 +1172,10 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
         plt.plot(origTimeV, origSigM[idx, :], color='gray', alpha=0.7,
                  linewidth=2, linestyle='dashed', label='Original')
         plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=1, label='SmoothResamp')
-        # plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
+        plt.axis.legend(['Original','Processed'])
+
+        #PE
+        plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
 
         # TTP
         ttp = featureDict['TimeToPeak'][idx]

@@ -244,10 +244,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                                                scanShape=scanShape)
             nz = ov["map3"][ov["map3"] != 0]
             if view == "rate":                         # diverging, symmetric
-                a = float(np.percentile(np.abs(nz), 99)) if nz.size else 1.0
+                a = float(np.nanpercentile(np.abs(nz), 99)) if nz.size else 1.0
                 ov["vrange"] = (-a, a)
             else:
-                ov["vrange"] = (0.0, float(np.percentile(nz, 99))
+                ov["vrange"] = (0.0, float(np.nanpercentile(nz, 99))
                                 if nz.size else 1.0)
         elif view in ("velocity", "flux"):
             if view == "flux":
@@ -266,7 +266,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             # the cap are scaled down to it, preserving direction.
             mag = np.sqrt(sum(c ** 2 for c in comps))
             nz = mag[mag > 0]
-            cap = float(np.percentile(nz, 95)) if nz.size else 1.0
+            cap = float(np.nanpercentile(nz, 95)) if nz.size else 1.0
             if cap > 0:
                 clampF = np.minimum(1.0, cap / (mag + 1e-12))
                 for c in comps:
@@ -277,7 +277,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             Lag = Lag or runGLAD(res)
             ov["segs"] = viz.pathlinesToScanVox(Lag, sf, dr)
             vals = ov["segs"][1]
-            ov["vrange"] = (0.0, float(np.percentile(vals, 99))
+            ov["vrange"] = (0.0, float(np.nanpercentile(vals, 99))
                             if len(vals) else 1.0)
         else:
             return
@@ -1519,6 +1519,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         else:
             self.windowCenter, self.windowWidth = \
                 (lo + hi) / 2.0, max(hi - lo, 1.0)
+            mod = str(getattr(scanObj.scanInfo[0], "imageType", "")).upper()
+            if "CT" not in mod:
+                lo, hi = np.nanpercentile(self.scan3M, [2, 98])
+                self.windowCenter, self.windowWidth = \
+                    (lo + hi) / 2, max(hi - lo, 1)
             self.wlByScan[self.scanNum] = (self.windowCenter, self.windowWidth)
         for sp, val in ((self.centerSpin, self.windowCenter),
                         (self.widthSpin, self.windowWidth)):
@@ -1535,6 +1540,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanAlphaSlider.blockSignals(True)
         self.scanAlphaSlider.setValue(int(round(self.scanAlpha * 100)))
         self.scanAlphaSlider.blockSignals(False)
+
+        # seed the base-scan colorbar, use the current
+        # window as the colormap range with the current colormap.
+        lo, hi = np.nanpercentile(self.scan3M, [0.5, 99.5])
+        self._scanDataRange = (float(lo), float(hi))
         if getattr(self, "scanColorbar", None) is not None:
             self.scanColorbar.setScan(self.windowCenter, self.windowWidth,
                                       lo, hi)
@@ -1657,7 +1667,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 ys, a3M = ascending(ys, a3M, axis=0)
                 xs, a3M = ascending(xs, a3M, axis=1)
                 zs, a3M = ascending(zs, a3M, axis=2)
-                lo, hi = np.percentile(a3M, [2, 98])
+                lo, hi = np.nanpercentile(a3M, [2, 98])
                 interp = RegularGridInterpolator(
                     (ys, xs, zs), a3M, bounds_error=False, fill_value=np.nan)
                 self.overlayCache[scanIdx] = (interp, float(lo),
