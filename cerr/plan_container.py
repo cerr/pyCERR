@@ -618,7 +618,11 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
         dcmDir (str): absolute path to directory containing dicom files
         opts (dict): dictionary of import options. Currently supported options are:
 
-                     * 'suvType': Choose from 'BW', 'BSA', 'LBM', 'LBMJANMA'
+                     * 'suvType': Choose from 'BW' (default), 'BSA', 'LBM',
+                       'LBMJAMES128', 'LBMJANMA', 'IBW', 'AS_STORED'. Applies to PT
+                       scans and is independent of the normalization the scanner
+                       applied, except for 'AS_STORED' which keeps it. None and ''
+                       are rejected as ambiguous; omit the key to get 'BW'.
                      * 'groupByAcquisitionNumber': Choose from True, False (default)
 
                      e.g. ``opts = {'suvType': 'LBM', 'groupByAcquisitionNumber': True}``
@@ -832,11 +836,12 @@ def populatePlanCField(field_name, file_list, opts={}):
         scan_meta[0].convertDcmToCerrVirtualCoords()
         scan_meta[0].convertDcmToRealWorldUnits(opts)
         if scan_meta[0].scanInfo[0].imageType == "PT SCAN":
-            suvType = None
-            if 'suvType' in opts:
-                suvType = opts['suvType']
-            elif scan_meta[0].scanInfo[0].suvType:
-                suvType = scan_meta[0].scanInfo[0].suvType
+            # SUV Type (0054,1006) describes the normalization already applied to
+            # the stored values, not the one being requested. Default to body
+            # weight and only override when the caller explicitly asks. An
+            # explicit None/'' is passed through so convertToSUV rejects it
+            # rather than silently converting to a normalization not asked for.
+            suvType = opts['suvType'] if 'suvType' in opts else 'BW'
             scan_meta[0].convertToSUV(suvType)
         return scan_meta
 
