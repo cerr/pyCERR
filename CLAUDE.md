@@ -110,3 +110,21 @@ Radiomics feature extraction is IBSI-compliant (International Biomarker Standard
 ## CI
 
 GitHub Actions (`.github/workflows/python-package.yml`) runs linting and pytest on Python 3.9–3.12 (Ubuntu). Tests download reference data from external URLs; network access is required for the test suite.
+
+## Branch Flow
+
+`main` and `testing` are kept content-identical. They are *not* independent lines of development.
+
+- **Commit work to `testing`**, never directly to `main`. A commit landing only on `main` is what makes the two diverge.
+- **Promote by merging `testing` into `main`** — never the reverse, and never by rewriting history. Promotion is always a deliberate manual step; there is no CI job or hook that syncs the branches automatically:
+
+  ```bash
+  ./tools/sync-branches.sh          # merge and verify locally, pushes nothing
+  ./tools/sync-branches.sh --push   # promote for real
+  ```
+
+- **The check that matters is the tree hash**, not the commit count. After a promotion, `git rev-parse main^{tree}` and `git rev-parse testing^{tree}` must be equal. The branches will always show differing commit SHAs (merge commits, historical duplicates); identical trees are what "aligned" means here.
+
+Never `git push --force` either branch — both are published on a public repository, and force-pushing discards other contributors' work. When a push is rejected, fetch and rebase or merge; do not force.
+
+If the branches have drifted, `git cherry main testing` shows which patches are genuinely missing (`+`) versus already present as content-equivalent duplicates (`-`).
