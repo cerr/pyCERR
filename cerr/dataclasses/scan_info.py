@@ -77,6 +77,16 @@ class ScanInfo:
         philipsActivityConcentrationScaleFactor (float): Used to convert the pixel data from counts to Activity Concentration (in Bq/ml) as per (7053, 1009 tag
         petNumSlices (int): The number of slices in each separate volume as per (0054,0081)
         petDecayCorrectionDateTime (str): The date and time to which all frames in this Image were decay corrected as per (0018,9701)
+        frameReferenceTime (float): Time, in msec, at which the values occurred, measured relative to the
+            decay-correction reference datetime, as per (0054,1300).
+        actualFrameDuration (float): Elapsed time of data acquisition for this frame, in msec, as per (0018,1242).
+        decayFactor (float): Decay factor applied to the frame as per (0054,1321).
+        injectionDateTime (str): Radiopharmaceutical Start DateTime (0018,1078). Preferred over the
+            separate injectionDate/injectionTime since it carries an unambiguous date component.
+        petDecayCorrected (str): Whether the Enhanced PET frames are decay corrected, as per
+            (0018,9758). YES or NO.
+        frameAcquisitionDateTime (str): Frame Acquisition DateTime (0018,9074) from the
+            FrameContentSequence of an Enhanced PET frame.
         decayCorrection (float): Whether Decay (DECY) correction has been applied to image. YES or NO.
         correctedImage (float): One or more values that indicate which, if any, corrections have been applied to the image as per (0028,0051)
         seriesDate (str): Series date
@@ -172,6 +182,12 @@ class ScanInfo:
     petDecayCorrectionDateTime: str = ''
     petDecayCorrection: str = ''
     petCorrectedImage: str = ''
+    frameReferenceTime: float = '' #np.NAN
+    actualFrameDuration: float = '' #np.NAN
+    decayFactor: float = '' #np.NAN
+    injectionDateTime: str = ''
+    petDecayCorrected: str = ''
+    frameAcquisitionDateTime: str = ''
     seriesDate: str = ''
     seriesTime: str = ''
     studyDate: str = ''

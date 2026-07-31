@@ -13,8 +13,11 @@ from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 import cerr.dataclasses.scan_info as scn_info
 import SimpleITK as sitk
+import datetime
 import json
 import os
+import re
+import warnings
 
 def get_empty_list():
     """Return an empty list, used as a default factory for dataclass fields.
@@ -485,179 +488,206 @@ class Scan:
                 scaleSlope = self.scanInfo[0].scaleSlope
                 self.scanArray = self.scanArray.astype(np.float32) / (rescaleSlope * scaleSlope)
 
-    def convertToSUV(self, suvType=None):
+    def convertToSUV(self, suvType='BW'):
         """ Routine to convert pixel array for PET scan from DICOM storage to SUV
 
+        The conversion follows the SUV computation strategy standardized by the
+        IBSI-SUV manual (https://oncoray.github.io/suv_computation/suv.html).
+        Stored values are first brought to a body-weight SUV, which is
+        independent of the time point the values and the dose were corrected to.
+        Images already normalized by the scanner (Units 'GML' or 'CM2ML') are
+        re-scaled from the scanner's normalization to body weight rather than
+        being used as-is. A different normalization can be requested via suvType.
+
         Args:
-            suvType (str): optional, type of SUV. When not specified, the suvType is read from DICOM if available.
-             When not specified and not available in DIOCM, a default value of 'BW' is used. Currently supported
-             options are 'BW', 'BSA', 'LBM', 'LBMJANMA'
+            suvType (str): type of SUV to produce. Defaults to 'BW' (body weight),
+             regardless of the normalization the scanner applied. Supported options are
+             'BW', 'BSA', 'LBM', 'LBMJAMES128', 'LBMJANMA', 'IBW' and 'AS_STORED'.
+             'AS_STORED' keeps the normalization the scanner already applied, i.e. the
+             SUV Type (0054,1006) of images stored as 'GML'/'CM2ML'; images stored as an
+             activity concentration have no applied normalization and yield 'BW'. Because
+             it inherits the scanner's protocol, 'AS_STORED' may return a different
+             normalization per series and should not be used to pool a cohort.
+             None and '' are rejected: an absent option is not a request to skip
+             normalization, and silently treating it as either choice would be ambiguous.
+
+        Raises:
+            ValueError: if suvType is None, '', or not one of the supported types.
+
+        Note:
+            The scan is left unmodified and a warning is issued when the DICOM
+            attributes required for the conversion are missing or inconsistent.
 
         """
 
         scan3M = self.scanArray
         headerS = self.scanInfo
-        scanSiz = scan3M.shape
-        suv3M = np.zeros(scanSiz)
+        suv3M = np.zeros(scan3M.shape)
         numSlcs = scan3M.shape[2]
-        acqTimeV = np.empty(numSlcs,dtype=float)
 
-        # Allow None input for suvType
-        if suvType == "" or suvType == None:
-            suvType = headerS[0].suvType
-            if suvType == "":
-                suvType = 'BW'
+        # SUV Type (0054,1006) describes the normalization already applied to
+        # the stored values; it is not necessarily the type being requested.
+        storedSuvType = str(headerS[0].suvType).upper()
+        if storedSuvType == '':
+            storedSuvType = 'BW'
+        # Body weight is the default target since SUVbw is independent of the
+        # normalization the scanner happened to use. None/'' are rejected rather
+        # than coerced: they cannot be distinguished from an unset option, and
+        # guessing between 'BW' and 'AS_STORED' would silently change the values.
+        if suvType is None or str(suvType).strip() == '':
+            raise ValueError(
+                "suvType must be one of " + ', '.join(sorted(SUV_TYPES)) +
+                "; None and '' are ambiguous. Use 'BW' for body weight (the "
+                "default) or 'AS_STORED' to keep the scanner's normalization.")
+        suvType = str(suvType).strip().upper()
+        if suvType not in SUV_TYPES:
+            raise ValueError(f"Unsupported suvType '{suvType}'. Supported types are "
+                             + ', '.join(sorted(SUV_TYPES)) + '.')
+        # 'AS_STORED' resolves per frame, since the applied normalization is a
+        # property of the stored units rather than of the request.
+        asStored = suvType == 'AS_STORED'
 
+        warnMsgs = []
+        sliceUnits = [''] * numSlcs
+        sliceSuvTypes = [''] * numSlcs
         for slcNum in range(numSlcs):
             headerSlcS = headerS[slcNum]
-            if headerSlcS.acquisitionTime:
-                acqTimeV[slcNum] = dcm_hhmmss(headerSlcS.acquisitionTime)[0]
-        seriesTime = dcm_hhmmss(headerSlcS.seriesTime)[0]
-        seriesDate = np.nan
-        if headerSlcS.seriesDate:
-            seriesDate = dcm_to_np_date(headerSlcS.seriesDate)
-        injectionDate = np.nan
-        if headerSlcS.injectionDate:
-            injectionDate = dcm_to_np_date(headerSlcS.injectionDate)
-        acqStartTime = np.nan
-        if not np.any(np.isnan(acqTimeV)):
-            acqStartTime = np.min(acqTimeV)
-
-        for slcNum in range(scan3M.shape[2]):
-            headerSlcS = headerS[slcNum]
             imgM = scan3M[:, :, slcNum] - headerSlcS.CTOffset
-            imgUnits = headerSlcS.imageUnits
-            imgMUnits = imgM.copy()
+            imgUnits = str(headerSlcS.imageUnits).upper()
+
+            # Resolve the normalization requested for this frame. Only 'GML' and
+            # 'CM2ML' carry a scanner-applied normalization to inherit; an
+            # activity concentration has none, so 'AS_STORED' yields body weight.
+            if asStored:
+                if imgUnits == 'CM2ML':
+                    frameSuvType = 'BSA'
+                elif imgUnits == 'GML':
+                    frameSuvType = storedSuvType
+                else:
+                    frameSuvType = 'BW'
+            else:
+                frameSuvType = suvType
+
+            # Step 1: bring the frame to either an activity concentration in
+            # Bq/ml, or directly to a body-weight SUV when the scanner already
+            # normalized the values.
+            activityConcM = None   # Bq/ml
+            suvBwM = None          # g/ml
+            suvDirectM = None      # already in the requested normalization
             if imgUnits == 'CNTS':
                 activityScaleFactor = headerSlcS.philipsActivityConcentrationScaleFactor
                 suvScaleFactor = headerSlcS.philipsSUVScaleFactor
                 if activityScaleFactor != "":
-                    imgMUnits = imgMUnits * activityScaleFactor
-                    imgMUnits = imgMUnits * 1000  # Bq/L
-                    imgUnits = 'BQL'
+                    activityConcM = imgM * activityScaleFactor
                 elif suvScaleFactor != "":
-                    suvM = imgMUnits * suvScaleFactor # GML
-                    imageUnits = 'GML'
+                    suvBwM = imgM * suvScaleFactor
+                else:
+                    warnings.warn('SUV computation for Units CNTS requires a Philips '
+                                  'activity concentration or SUV scale factor.')
+                    return
             elif imgUnits in ['BQML', 'BQCC']:
-                imgMUnits = imgMUnits * 1000  # Bq/L
-                imgUnits = 'BQL'
+                activityConcM = imgM
             elif imgUnits in ['KBQCC', 'KBQML']:
-                imgMUnits = imgMUnits * 1e6  # Bq/L
-                imgUnits = 'BQL'
+                activityConcM = imgM * 1000
             elif imgUnits in ['GML', 'CM2ML']:
-                suvM = imgMUnits
-                imageUnits = imgUnits
+                # Values are already normalized. Re-scale to body weight using
+                # the normalization the scanner applied, per SUV Type.
+                storedType = 'BSA' if imgUnits == 'CM2ML' else storedSuvType
+                if frameSuvType == storedType:
+                    # Already in the requested normalization. Pass the values
+                    # through instead of dividing and re-applying the same
+                    # factor, so the conversion needs no patient attributes.
+                    suvDirectM = imgM
+                else:
+                    weightG = getSuvNormalizationFactor('BW', headerSlcS)
+                    storedFactor = getSuvNormalizationFactor(storedType, headerSlcS)
+                    if weightG is None or storedFactor is None or storedFactor <= 0:
+                        warnings.warn('Patient attributes required to convert stored '
+                                      f'{storedType} values to SUV are missing or invalid.')
+                        return
+                    suvBwM = imgM * weightG / storedFactor
             else:
-                #raise ValueError('SUV calculation is supported only for imageUnits BQML and CNTS')
-                import warnings
                 warnings.warn("'SUV calculation is supported only for imageUnits BQML and CNTS'")
                 return
 
-            if imgUnits == 'BQL':
-                decayCorrection = headerSlcS.petDecayCorrection
-                if len(headerSlcS.petDecayCorrectionDateTime) > 8:
-                    scantime = dcm_hhmmss(headerSlcS.petDecayCorrectionDateTime[8:])[0]
-                elif len(headerSlcS.gePETDecayCorrectionDateTime) > 8:
-                    scantime = dcm_hhmmss(headerSlcS.gePETDecayCorrectionDateTime[8:])[0]
-                elif len(headerSlcS.siemensPETDecayCorrectionDateTime) > 8:
-                    scantime = dcm_hhmmss(headerSlcS.siemensPETDecayCorrectionDateTime[8:])[0]
-                elif decayCorrection == 'START':
-                    scantime = seriesTime
-                    if not np.isnan(acqStartTime) and acqStartTime < scantime:
-                        scantime = acqStartTime
-                elif decayCorrection == 'ADMIN':
-                    scantime = dcm_hhmmss(headerSlcS.injectionTime)[0]
-                elif decayCorrection == 'NONE':
-                    scantime = np.nan
-                else:
-                    scantime = np.nan
-
-                # Start Time for Radiopharmaceutical Injection
-                injection_time = dcm_hhmmss(headerSlcS.injectionTime)[0]
-
-                if not np.isnan(seriesDate) and not np.isnan(injectionDate):
-                    date_diff = seriesDate - injectionDate
-                    if date_diff < 5: # check whether it is a reasonable value
-                        injection_time = injection_time - date_diff.item().total_seconds()
-
-                # Half Life for Radionuclide
-                half_life = headerSlcS.halfLife
-
-                # Total dose injected for Radionuclide
-                injected_dose = headerSlcS.injectedDose
-
-                # Modality
-                modality = headerSlcS.imageType
-                if modality.upper() == 'NM SCAN':
-                    injected_dose = injected_dose * 1e6  # Convert MBq to Bq
-
-                # Fix issue where IOD is PT and injected_dose units are in MBq
-                if injected_dose < 1e5:
-                    injected_dose = injected_dose * 1e6
-
-                # Calculate the decay
-                # The injected dose used to calculate suvM is corrected for the decay that
-                # occurs between the time of injection and the time of scan.
-                # decayFactor = e^(t1-t2/halflife)
-                if decayCorrection.upper() == 'NONE':
-                    decay = 1
-                else:
-                    decay = np.exp(-np.log(2) * (scantime - injection_time) / half_life)
-
-                # Calculate the dose decayed during procedure
-                injected_dose_decay = injected_dose * decay  # in Bq
-
-                # Patient Weight
-                ptWeight = headerSlcS.patientWeight
-
-                # Calculate SUV based on type
-                # reference: http://dicom.nema.org/medical/Dicom/2017e/output/chtml/part16/sect_CID_85.html
-                # SUVbw and SUVbsa equations are taken from Kim et al. Journal of Nuclear Medicine. Volume 35, No. 1, January 1994. pp 164-167.
-                suvType = suvType.upper()
-                if suvType == 'BW':  # Body Weight
-                    suvM = imgMUnits * ptWeight / injected_dose_decay  # pt weight in grams
-                    imageUnits = 'GML'
-                elif suvType == 'BSA':  # body surface area
-                    # Patient height
-                    # (BSA in m2) = [(weight in kg)^0.425 * (height in cm)^0.725 * 0.007184].
-                    # SUV-bsa = (PET image Pixels) * (BSA in m2) * (10000 cm2/m2) / (injected dose).
-                    ptHeight = headerSlcS.patientSize  # units of meter
-                    bsaMm = ptWeight**0.425 * (ptHeight * 100)**0.725 * 0.007184
-                    suvM = imgMUnits * bsaMm / injected_dose_decay
-                    imageUnits = 'CM2ML'
-                elif suvType == 'LBM':  # lean body mass by James method
-                    ptGender = headerSlcS.patientSex
-                    ptHeight = headerSlcS.patientSize
-                    if ptGender.upper() == 'M':
-                        # LBM in kg = 1.10 * (weight in kg) - 120 * [(weight in kg) / (height in cm)]^2.
-                        lbmKg = 1.10 * ptWeight - 120 * (ptWeight / (ptHeight * 100))**2
-                    else:
-                        # if gender == female
-                        # LBM in kg = 1.07 * (weight in kg) - 148 * [(weight in kg) / (height in cm)]^2.
-                        lbmKg = 1.07 * ptWeight - 148 * (ptWeight / (ptHeight * 100))**2
-                    suvM = imgMUnits * lbmKg / injected_dose_decay
-                    imageUnits = 'GML'
-                elif suvType == 'LBMJAMES128':  # lean body mass by James method
-                    imageUnits = 'GML'
-                elif suvType == 'LBMJANMA':  # lean body mass by Janmahasatian method
-                    ptHeight = headerSlcS['patientSize']
-                    bmi = (ptWeight * 2.20462 / (ptHeight * 39.3701)**2) * 703
-                    ptGender = headerSlcS['patientSex']
-                    if ptGender.upper() == 'M':
-                        lbmKg = (9270 * ptWeight) / (6680 + 216 * bmi)  # male
-                    else:
-                        lbmKg = (9270 * ptWeight) / (8780 + 244 * bmi)  # female
-                    suvM = imgMUnits * lbmKg / injected_dose_decay
-                    imageUnits = 'GML'
-                elif suvType == 'IBW':  # ideal body weight
-                    imageUnits = 'GML'
-                else:
+            # Step 2: when starting from an activity concentration, decay-correct
+            # the administered dose to the same time point as the voxel values.
+            if activityConcM is not None:
+                injectedDose = headerSlcS.injectedDose
+                if not isinstance(injectedDose, (int, float)) or injectedDose <= 0:
+                    warnings.warn('Radionuclide Total Dose is missing or non-positive; '
+                                  'SUV cannot be computed.')
                     return
+                if str(headerSlcS.imageType).upper() == 'NM SCAN':
+                    injectedDose = injectedDose * 1e6  # Convert MBq to Bq
+                # Some PT IODs record the dose in MBq rather than Bq.
+                if injectedDose < 1e5:
+                    injectedDose = injectedDose * 1e6
+
+                decayRefDateTime, errMsg = getDecayReferenceDateTime(headerSlcS)
+                if errMsg:
+                    warnings.warn(errMsg)
+                    return
+                if decayRefDateTime is None:
+                    # Decay Correction 'ADMIN': dose already matches the values.
+                    doseDecayed = injectedDose
+                else:
+                    admDateTime, warnMsg = getAdministrationDateTime(headerSlcS,
+                                                                    decayRefDateTime)
+                    if warnMsg:
+                        warnMsgs.append(warnMsg)
+                    if admDateTime is None:
+                        warnings.warn(warnMsg)
+                        return
+                    halfLife = headerSlcS.halfLife
+                    if not isinstance(halfLife, (int, float)) or halfLife <= 0:
+                        warnings.warn('Radionuclide Half Life is missing or non-positive; '
+                                      'SUV cannot be computed.')
+                        return
+                    uptakeSecs = (decayRefDateTime - admDateTime).total_seconds()
+                    doseDecayed = injectedDose * np.exp(-np.log(2) * uptakeSecs / halfLife)
+
+                weightG = getSuvNormalizationFactor('BW', headerSlcS)
+                if weightG is None:
+                    warnings.warn("Patient's Weight is missing or non-positive; "
+                                  'SUV cannot be computed.')
+                    return
+                suvBwM = activityConcM * weightG / doseDecayed
+
+            # Step 3: re-normalize the body-weight SUV if another type was asked for.
+            if suvDirectM is not None:
+                # Passed through unchanged; already in frameSuvType.
+                suvM = suvDirectM
+                imageUnits = 'CM2ML' if frameSuvType == 'BSA' else 'GML'
+            elif frameSuvType == 'BW':
+                suvM = suvBwM
+                imageUnits = 'GML'
+            else:
+                weightG = getSuvNormalizationFactor('BW', headerSlcS)
+                factor = getSuvNormalizationFactor(frameSuvType, headerSlcS)
+                if weightG is None or factor is None:
+                    warnings.warn(f'Patient attributes required for SUV type {frameSuvType} '
+                                  'are missing or invalid.')
+                    return
+                suvM = suvBwM * factor / weightG
+                imageUnits = 'CM2ML' if frameSuvType == 'BSA' else 'GML'
 
             suv3M[:, :, slcNum] = suvM
-            self.scanInfo[slcNum].imageUnits = imageUnits
-            self.scanInfo[slcNum].suvType = suvType
+            sliceUnits[slcNum] = imageUnits
+            sliceSuvTypes[slcNum] = frameSuvType
 
+        for warnMsg in set(warnMsgs):
+            warnings.warn(warnMsg)
+
+        # Commit only once every slice converted, so that an early return above
+        # leaves the scan and its metadata consistently unconverted.
+        for slcNum in range(numSlcs):
+            self.scanInfo[slcNum].imageUnits = sliceUnits[slcNum]
+            # Record the normalization actually applied, so 'AS_STORED' resolves
+            # to a concrete type rather than leaving the sentinel in metadata.
+            self.scanInfo[slcNum].suvType = sliceSuvTypes[slcNum]
+            # scanArray now holds SUV directly; the storage offset no longer applies.
+            self.scanInfo[slcNum].CTOffset = 0
         self.scanArray = suv3M
 
         return
@@ -764,6 +794,372 @@ def getITKDirection(scan):
     itk_direction = dir_cosine_mat.reshape(9, order="C")
     return itk_direction
 
+
+# ---------------------------------------------------------------------------
+# SUV computation helpers
+#
+# The routines below implement the SUV computation strategy described in the
+# IBSI-SUV manual (https://oncoray.github.io/suv_computation/suv.html), which
+# standardizes how DICOM PET images are converted to standardized uptake values.
+# ---------------------------------------------------------------------------
+
+# SUV normalizations accepted by Scan.convertToSUV. 'AS_STORED' is a sentinel
+# rather than a normalization: it resolves per frame to whichever type the
+# scanner already applied. None and '' are deliberately excluded as ambiguous.
+SUV_TYPES = frozenset({'BW', 'BSA', 'LBM', 'LBMJAMES128', 'LBMJANMA', 'IBW',
+                       'AS_STORED'})
+
+# Half-life threshold (s) below which a radionuclide is treated as short-lived,
+# i.e. the administration date may be inferred from the decay-correction date.
+SHORT_HALF_LIFE_THRESH = 41400
+# Tolerance (s) for a decay-reference datetime preceding administration.
+UPTAKE_TOLERANCE_SECS = -3600
+
+_DCM_DT_RE = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?(\.\d+)?([+-]\d{4})?$')
+_DCM_TM_RE = re.compile(r'^(\d{2})(\d{2})?(\d{2})?(\.\d+)?([+-]\d{4})?$')
+
+
+def parseDcmDateTime(dtStr):
+    """Parse a DICOM DT (date-time) string into a python datetime.
+
+    Any timezone offset suffix is ignored: within a PET series all datetimes
+    share the same offset, so dropping it leaves their differences unchanged.
+
+    Args:
+        dtStr (str): DICOM DT string, e.g. '20250101110000.000000+0100'.
+
+    Returns:
+        datetime.datetime | None: parsed datetime, or None when unparseable.
+    """
+    if dtStr is None:
+        return None
+    match = _DCM_DT_RE.match(str(dtStr).strip())
+    if match is None:
+        return None
+    year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    hour = int(match.group(4)) if match.group(4) else 0
+    minute = int(match.group(5)) if match.group(5) else 0
+    sec = int(match.group(6)) if match.group(6) else 0
+    frac = float(match.group(7)) if match.group(7) else 0.0
+    try:
+        return datetime.datetime(year, month, day, hour, minute, sec) \
+            + datetime.timedelta(seconds=frac)
+    except ValueError:
+        return None
+
+
+def parseDcmTimeOfDay(tmStr):
+    """Parse a DICOM TM (time) string into seconds since midnight.
+
+    Args:
+        tmStr (str): DICOM TM string, e.g. '110000.000000'.
+
+    Returns:
+        float | None: seconds elapsed since midnight, or None when unparseable.
+    """
+    if tmStr is None:
+        return None
+    match = _DCM_TM_RE.match(str(tmStr).strip())
+    if match is None:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2)) if match.group(2) else 0
+    sec = int(match.group(3)) if match.group(3) else 0
+    frac = float(match.group(4)) if match.group(4) else 0.0
+    return hour * 3600 + minute * 60 + sec + frac
+
+
+def combineDcmDateAndTime(dateStr, timeStr):
+    """Combine separate DICOM DA and TM strings into a datetime.
+
+    Args:
+        dateStr (str): DICOM DA string (YYYYMMDD).
+        timeStr (str): DICOM TM string (HHMMSS.FFFFFF).
+
+    Returns:
+        datetime.datetime | None: combined datetime, or None when either part is unparseable.
+    """
+    if not dateStr or not timeStr:
+        return None
+    secs = parseDcmTimeOfDay(timeStr)
+    if secs is None:
+        return None
+    dateOnly = parseDcmDateTime(str(dateStr).strip() + '000000')
+    if dateOnly is None:
+        return None
+    return dateOnly + datetime.timedelta(seconds=secs)
+
+
+def getAverageCountRateTime(frameDurationSecs, halfLife):
+    """Return the average count rate time (T_ave) for a PET frame.
+
+    The measured counts of a frame of duration T represent the average activity
+    over that frame, which corresponds to a single time point T_ave after the
+    frame started:  T_ave = (1/lambda) * ln( lambda*T / (1 - exp(-lambda*T)) ).
+
+    Args:
+        frameDurationSecs (float): Actual Frame Duration (0018,1242) in seconds.
+        halfLife (float): Radionuclide Half Life (0018,1075) in seconds.
+
+    Returns:
+        float: T_ave in seconds; 0 when the frame duration is unavailable.
+    """
+    # ScanInfo defaults these to '' rather than NaN when the tags are absent.
+    if not isinstance(frameDurationSecs, (int, float)) or frameDurationSecs <= 0 \
+            or not isinstance(halfLife, (int, float)) or halfLife <= 0:
+        return 0.0
+    decayConst = np.log(2) / halfLife
+    x = decayConst * frameDurationSecs
+    if x < 1e-9:
+        # Negligible decay over the frame: T_ave tends to the frame midpoint.
+        return frameDurationSecs / 2
+    return np.log(x / (1 - np.exp(-x))) / decayConst
+
+
+def getDecayReferenceDateTime(headerSlcS):
+    """Return the decay-correction reference datetime for one PET frame.
+
+    This is the time point the stored voxel values correspond to, and the time
+    point the administered dose must be decay-corrected to. It is determined
+    from Decay Correction (0054,1102) as follows:
+
+    - 'ADMIN': values are corrected to the administration time, so no dose
+      correction is needed and None is returned.
+    - 'START': values are corrected to the scan start datetime, resolved in
+      order of decreasing reliability: (1) the vendor private scan start
+      datetime (Siemens 0071,1022 / GE 0009,100D) or Decay Correction DateTime
+      (0018,9701); (2) the Acquisition DateTime when it equals the Series
+      DateTime; (3) back-computation from the frame timing attributes, using
+      t_acq - dt for GE and t_acq + T_ave - dt for other manufacturers.
+    - 'NONE': values are not decay corrected, so they correspond to the frame
+      measurement time, t_acq + T_ave.
+
+    Args:
+        headerSlcS (cerr.dataclasses.scan_info.ScanInfo): scanInfo for the frame.
+
+    Returns:
+        tuple: (datetime.datetime | None, str) reference datetime and an error
+            message. A None datetime with an empty message means no dose
+            correction is needed ('ADMIN'); a non-empty message means the
+            reference datetime could not be determined.
+    """
+    decayCorrection = str(headerSlcS.petDecayCorrection).upper()
+    if decayCorrection == 'ADMIN':
+        # Dose already corresponds to the administration time.
+        return None, ''
+
+    halfLife = headerSlcS.halfLife
+
+    # Enhanced PET replaces Decay Correction (0054,1102) with Decay Corrected
+    # (0018,9758), which makes the reference datetime explicit.
+    decayCorrected = str(headerSlcS.petDecayCorrected).upper()
+    if decayCorrected == 'YES':
+        scanStart = parseDcmDateTime(headerSlcS.petDecayCorrectionDateTime)
+        if scanStart is None:
+            return None, 'Decay Correction DateTime is required for decay-corrected ' \
+                         'Enhanced PET images but is absent or unparseable.'
+        return scanStart, ''
+    if decayCorrected == 'NO':
+        # Values are not decay corrected, so they occurred at the frame
+        # measurement time given by the Frame Reference DateTime.
+        frameRefDateTime = parseDcmDateTime(headerSlcS.frameReferenceDateTime)
+        if frameRefDateTime is not None:
+            return frameRefDateTime, ''
+        frameAcqDateTime = parseDcmDateTime(headerSlcS.frameAcquisitionDateTime)
+        frameAcqDuration = headerSlcS.frameAcquisitionDuration
+        frameAcqDuration = frameAcqDuration / 1000 \
+            if isinstance(frameAcqDuration, (int, float)) and frameAcqDuration != '' else None
+        if frameAcqDateTime is None or frameAcqDuration is None:
+            return None, 'Frame Reference DateTime, or Frame Acquisition DateTime with ' \
+                         'Frame Acquisition Duration, is required for Enhanced PET images ' \
+                         'that are not decay corrected.'
+        return frameAcqDateTime + datetime.timedelta(
+            seconds=getAverageCountRateTime(frameAcqDuration, halfLife)), ''
+
+    acqDateTime = combineDcmDateAndTime(headerSlcS.acquisitionDate,
+                                        headerSlcS.acquisitionTime)
+    seriesDateTime = combineDcmDateAndTime(headerSlcS.seriesDate,
+                                           headerSlcS.seriesTime)
+    frameDuration = headerSlcS.actualFrameDuration
+    frameDuration = frameDuration / 1000 if isinstance(frameDuration, (int, float)) \
+        and frameDuration != '' else None
+    tAve = getAverageCountRateTime(frameDuration, halfLife)
+
+    if decayCorrection == 'NONE':
+        # Values occurred at the frame measurement time.
+        if acqDateTime is None or frameDuration is None:
+            return None, 'Acquisition DateTime and Actual Frame Duration are required to ' \
+                         'determine the measurement time of non-decay-corrected images.'
+        return acqDateTime + datetime.timedelta(seconds=tAve), ''
+
+    # Decay Correction is 'START' (or unspecified, which is treated as 'START').
+    # 1. Vendor private scan start datetime / Decay Correction DateTime.
+    for privateDateTime in (headerSlcS.petDecayCorrectionDateTime,
+                            headerSlcS.siemensPETDecayCorrectionDateTime,
+                            headerSlcS.gePETDecayCorrectionDateTime):
+        scanStart = parseDcmDateTime(privateDateTime)
+        if scanStart is not None:
+            return scanStart, ''
+
+    # 2. Acquisition DateTime when it agrees with the Series DateTime.
+    if acqDateTime is not None and seriesDateTime is not None \
+            and acqDateTime == seriesDateTime:
+        return acqDateTime, ''
+
+    # 3. Back-compute the scan start from the frame timing attributes.
+    frameRefTime = headerSlcS.frameReferenceTime
+    if acqDateTime is not None and isinstance(frameRefTime, (int, float)) \
+            and frameRefTime != '':
+        manufacturer = str(headerSlcS.manufacturer).upper()
+        isGE = 'GE' in manufacturer.split() or manufacturer.startswith('GE ')
+        if isGE:
+            # GE corrects to one frame reference time before Acquisition DateTime.
+            offsetSecs = -frameRefTime / 1000
+        elif frameDuration is not None:
+            offsetSecs = tAve - frameRefTime / 1000
+        else:
+            # T_ave cannot be evaluated without the Actual Frame Duration.
+            return None, 'Actual Frame Duration is required to back-compute the scan ' \
+                         'start datetime; SUV cannot be computed reliably.'
+        return acqDateTime + datetime.timedelta(seconds=offsetSecs), ''
+
+    # Fall back to the Series DateTime when nothing better is available.
+    if seriesDateTime is None:
+        return None, 'The decay-correction reference datetime cannot be determined.'
+    return seriesDateTime, ''
+
+
+def getAdministrationDateTime(headerSlcS, decayRefDateTime):
+    """Return the radiopharmaceutical administration datetime for one PET frame.
+
+    Implements the IBSI-SUV strategy for reconciling the administration datetime
+    with the decay-correction reference datetime, which is needed because one or
+    both date components are frequently altered during post-processing:
+
+    - Radiopharmaceutical Start DateTime (0018,1078) is trusted when the
+      resulting uptake time is plausible, i.e. no earlier than one hour before
+      the reference datetime and shorter than two half-lives.
+    - Otherwise (or when only Radiopharmaceutical Start Time (0018,1072) is
+      available) the date of the reference datetime is combined with the
+      administration time of day, provided the radionuclide is short-lived.
+      A day is subtracted when the uptake would otherwise be negative, which
+      covers uptake periods spanning midnight.
+
+    Args:
+        headerSlcS (cerr.dataclasses.scan_info.ScanInfo): scanInfo for the frame.
+        decayRefDateTime (datetime.datetime): decay-correction reference datetime.
+
+    Returns:
+        tuple: (datetime.datetime | None, str) administration datetime and a
+            warning message ('' when none).
+    """
+    halfLife = headerSlcS.halfLife
+    injDateTime = parseDcmDateTime(headerSlcS.injectionDateTime)
+
+    hasHalfLife = isinstance(halfLife, (int, float)) and halfLife > 0
+    if injDateTime is not None and hasHalfLife:
+        uptakeSecs = (decayRefDateTime - injDateTime).total_seconds()
+        if UPTAKE_TOLERANCE_SECS <= uptakeSecs < 2 * halfLife:
+            # Both date components are consistent; use the datetime as stored.
+            return injDateTime, ''
+
+    # The stored dates disagree; the administration date can only be inferred
+    # for short-lived radionuclides, where uptake cannot span a whole day.
+    injTimeOfDay = parseDcmTimeOfDay(headerSlcS.injectionTime)
+    if injTimeOfDay is None:
+        return None, 'Radiopharmaceutical administration datetime is unavailable.'
+    if not hasHalfLife or halfLife >= SHORT_HALF_LIFE_THRESH:
+        return None, 'Radiopharmaceutical administration date is inconsistent with the ' \
+                     'decay-correction datetime and the radionuclide is not short-lived; ' \
+                     'SUV cannot be computed reliably.'
+
+    warnMsg = 'Radiopharmaceutical administration date is missing or inconsistent with ' \
+              'the decay-correction datetime; assuming administration on the same date.'
+    admDateTime = decayRefDateTime.replace(hour=0, minute=0, second=0, microsecond=0) \
+        + datetime.timedelta(seconds=injTimeOfDay)
+    refTimeOfDay = (decayRefDateTime
+                    - decayRefDateTime.replace(hour=0, minute=0, second=0,
+                                               microsecond=0)).total_seconds()
+    if refTimeOfDay - injTimeOfDay < UPTAKE_TOLERANCE_SECS:
+        # Uptake period spans midnight: the tracer was given the previous day.
+        admDateTime -= datetime.timedelta(days=1)
+        warnMsg = 'Radiopharmaceutical administration date is missing or inconsistent ' \
+                  'with the decay-correction datetime; assuming the uptake period ' \
+                  'spans midnight.'
+    return admDateTime, warnMsg
+
+
+def getSuvNormalizationFactor(suvType, headerSlcS):
+    """Return the SUV normalization factor, in grams, for the requested SUV type.
+
+    Args:
+        suvType (str): 'BW', 'BSA', 'LBM', 'LBMJAMES128', 'LBMJANMA' or 'IBW'.
+        headerSlcS (cerr.dataclasses.scan_info.ScanInfo): scanInfo for the frame.
+
+    Returns:
+        float | None: normalization factor in grams (cm^2 for 'BSA'), or None
+            when the required patient attributes are missing.
+
+    Note:
+        For 'BSA' the returned value is BSA in cm^2, matching the SUVbsa
+        definition Ac * BSA(m^2) * 1e4 / dose.
+    """
+    weightKg = headerSlcS.patientWeight
+    if not isinstance(weightKg, (int, float)) or weightKg <= 0:
+        return None
+    if weightKg >= 1000:
+        # Patient's Weight is occasionally recorded in grams.
+        weightKg = weightKg / 1000
+
+    suvType = str(suvType).upper()
+    if suvType == 'BW':
+        return weightKg * 1000
+
+    # The remaining normalizations additionally require the patient's height.
+    heightM = headerSlcS.patientSize
+    if not isinstance(heightM, (int, float)) or heightM <= 0:
+        return None
+    heightCm = heightM * 100
+    sex = str(headerSlcS.patientSex).upper()
+
+    def factorForSex(isMale):
+        if suvType == 'LBM':  # lean body mass by Morgan
+            return 1.10 * weightKg - 120 * (weightKg / heightCm) ** 2 if isMale \
+                else 1.07 * weightKg - 148 * (weightKg / heightCm) ** 2
+        if suvType == 'LBMJAMES128':  # lean body mass by James / Morgan
+            return 1.10 * weightKg - 128 * (weightKg / heightCm) ** 2 if isMale \
+                else 1.07 * weightKg - 148 * (weightKg / heightCm) ** 2
+        if suvType == 'LBMJANMA':  # lean body mass by Janmahasatian
+            bmi = weightKg / heightM ** 2
+            return (9270 * weightKg) / (6680 + 216 * bmi) if isMale \
+                else (9270 * weightKg) / (8780 + 244 * bmi)
+        if suvType == 'IBW':  # ideal body weight
+            return 48.0 + 1.06 * (heightCm - 152) if isMale \
+                else 45.5 + 0.91 * (heightCm - 152)
+        return None
+
+    if suvType == 'BSA':
+        # Du Bois formula, in m^2, scaled to cm^2.
+        return 0.007184 * heightCm ** 0.725 * weightKg ** 0.425 * 1e4
+
+    if sex == 'M':
+        factorKg = factorForSex(True)
+    elif sex == 'F':
+        factorKg = factorForSex(False)
+    elif sex == 'O':
+        # No consensus exists for Patient's Sex 'O'; the mean of the
+        # sex-specific factors is a reasonable compromise.
+        maleFactor, femaleFactor = factorForSex(True), factorForSex(False)
+        factorKg = None if maleFactor is None or femaleFactor is None \
+            else (maleFactor + femaleFactor) / 2
+    else:
+        # Absent or non-conformant Patient's Sex: the factor is sex-dependent,
+        # so it cannot be determined.
+        factorKg = None
+
+    return None if factorKg is None else factorKg * 1000
+
+
 def dcm_hhmmss(time_str):
     """Parse a DICOM time string (HHMMSS) into its components and total seconds.
 
@@ -861,6 +1257,16 @@ def populateScanInfoFields(s_info, ds):
     if hasattr(ds,"NumberOfSlices"): s_info.petNumSlices = ds.NumberOfSlices
     if hasattr(ds,"DecayCorrection"): s_info.petDecayCorrection = ds.DecayCorrection
     if hasattr(ds,"CorrectedImage"): s_info.petCorrectedImage = ds.CorrectedImage
+    # Decay Corrected (0018,9758) replaces Decay Correction (0054,1102) in Enhanced PET
+    if ("0018","9758") in ds: s_info.petDecayCorrected = ds["0018","9758"].value
+    # Frame timing attributes needed to derive the decay-correction reference datetime.
+    # These are type 2/3 attributes, so they may be present but empty.
+    if ("0054","1300") in ds and ds["0054","1300"].value is not None:
+        s_info.frameReferenceTime = float(ds["0054","1300"].value)
+    if ("0018","1242") in ds and ds["0018","1242"].value is not None:
+        s_info.actualFrameDuration = float(ds["0018","1242"].value)
+    if ("0054","1321") in ds and ds["0054","1321"].value is not None:
+        s_info.decayFactor = float(ds["0054","1321"].value)
     if ("0054","1006") in ds: s_info.suvType = ds["0054","1006"].value
     if hasattr(ds,"WindowCenter"): s_info.windowCenter = ds.WindowCenter
     if hasattr(ds,"WindowWidth"): s_info.windowWidth = ds.WindowWidth
@@ -922,12 +1328,16 @@ def populateRadiopharmaFields(s_info, seq):
     if ("0054","0016") in seq:
         radiopharmaInfoSeq = seq["0054","0016"].value[0]
         if hasattr(radiopharmaInfoSeq,"RadiopharmaceuticalStartDateTime"):
+            s_info.injectionDateTime = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime
             s_info.injectionDate = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime[:8]
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartDateTime[8:]
         elif hasattr(radiopharmaInfoSeq,"RadiopharmaceuticalStartTime"):
             s_info.injectionTime = radiopharmaInfoSeq.RadiopharmaceuticalStartTime
-        s_info.injectedDose = float(radiopharmaInfoSeq.RadionuclideTotalDose)
-        s_info.halfLife = float(radiopharmaInfoSeq.RadionuclideHalfLife)
+        # Both are type 3 and may be absent or empty in non-conformant files.
+        if getattr(radiopharmaInfoSeq, 'RadionuclideTotalDose', None) is not None:
+            s_info.injectedDose = float(radiopharmaInfoSeq.RadionuclideTotalDose)
+        if getattr(radiopharmaInfoSeq, 'RadionuclideHalfLife', None) is not None:
+            s_info.halfLife = float(radiopharmaInfoSeq.RadionuclideHalfLife)
         if ("7053","1009") in seq: s_info.philipsActivityConcentrationScaleFactor = seq["7053","1009"].value
         if ("0018", "9701") in seq: s_info.petDecayCorrectionDateTime = seq["0018", "9701"].value
         if ("0071","1022") in seq: s_info.siemensPETDecayCorrectionDateTime = seq["0071","1022"].value # Siemens
@@ -935,6 +1345,33 @@ def populateRadiopharmaFields(s_info, seq):
         if ("7053","1000") in seq: s_info.philipsSUVScaleFactor = seq["7053","1000"].value
     return s_info
 
+
+def getFunctionalGroupItem(perFrameSeq, sharedSeq, seqKeyword):
+    """Return the first item of a functional-group macro sequence for a frame.
+
+    Enhanced multi-frame IODs (e.g. Enhanced PET Image, Enhanced CT/MR) may
+    store a given functional-group macro either in the Per-Frame Functional
+    Groups Sequence (0020,9111 item) when it varies frame-to-frame, or in the
+    Shared Functional Groups Sequence (5200,9229 item) when it is constant for
+    all frames. Per DICOM, a macro must appear in exactly one of the two. This
+    helper looks in the per-frame group first and falls back to the shared
+    group, so attributes such as Image Orientation (Patient) are imported
+    correctly regardless of where the encoder placed them.
+
+    Args:
+        perFrameSeq (pydicom.dataset.Dataset): item of PerFrameFunctionalGroupsSequence for a frame.
+        sharedSeq (pydicom.dataset.Dataset | None): item of SharedFunctionalGroupsSequence, or None.
+        seqKeyword (str): keyword of the functional-group sequence, e.g. 'PlaneOrientationSequence'.
+
+    Returns:
+        pydicom.dataset.Dataset | None: first item of the matching sequence, or None when absent.
+    """
+    for seq in (perFrameSeq, sharedSeq):
+        if seq is not None and seqKeyword in seq:
+            fgSeq = getattr(seq, seqKeyword)
+            if len(fgSeq) > 0:
+                return fgSeq[0]
+    return None
 
 def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.pixel_array, str):
     """
@@ -990,29 +1427,66 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
 
     else:
         numberOfFrames = ds.NumberOfFrames.real
+        sharedSeq = None
+        if 'SharedFunctionalGroupsSequence' in ds and len(ds.SharedFunctionalGroupsSequence) > 0:
+            sharedSeq = ds.SharedFunctionalGroupsSequence[0]
         scan_info = np.empty(numberOfFrames, dtype=scn_info.ScanInfo)
         for iFrame in range(numberOfFrames):
             s_info = scn_info.ScanInfo()
             s_info = populateScanInfoFields(s_info, ds)
             if 'PerFrameFunctionalGroupsSequence' in ds:
                 perFrameSeq = ds.PerFrameFunctionalGroupsSequence[iFrame]
+                # Real World Value Mapping may be per-frame or shared (e.g. Enhanced PET).
                 s_info = populateRealWorldFields(s_info, perFrameSeq)
-                if 'PixelValueTransformationSequence' in perFrameSeq:
-                    PixelValueTransformSeq = perFrameSeq.PixelValueTransformationSequence[0]
+                if 'RealWorldValueMappingSequence' not in perFrameSeq and sharedSeq is not None:
+                    s_info = populateRealWorldFields(s_info, sharedSeq)
+
+                # Pixel Value Transformation (rescale slope/intercept/type). Read from the
+                # per-frame group, falling back to the shared group when constant across frames.
+                PixelValueTransformSeq = getFunctionalGroupItem(
+                    perFrameSeq, sharedSeq, 'PixelValueTransformationSequence')
+                if PixelValueTransformSeq is not None:
                     if hasattr(PixelValueTransformSeq,'RescaleSlope'): s_info.rescaleSlope = PixelValueTransformSeq.RescaleSlope
                     if hasattr(PixelValueTransformSeq,'RescaleIntercept'): s_info.rescaleIntercept = PixelValueTransformSeq.RescaleIntercept
+                    if hasattr(PixelValueTransformSeq,'RescaleType'): s_info.rescaleType = PixelValueTransformSeq.RescaleType
                     if ("2005","100E") in PixelValueTransformSeq: s_info.scaleSlope = PixelValueTransformSeq["2005","100E"].value
                     if ("2005","100D") in PixelValueTransformSeq: s_info.scaleIntercept = PixelValueTransformSeq["2005","100D"].value
 
-                    s_info.imagePositionPatient = np.array(perFrameSeq.PlanePositionSequence[0].ImagePositionPatient)
-                    s_info.imageOrientationPatient = np.array(perFrameSeq.PlaneOrientationSequence[0].ImageOrientationPatient)
+                # Plane Position (Patient) - per-frame in Enhanced PET, shared fallback otherwise.
+                planePositionSeq = getFunctionalGroupItem(
+                    perFrameSeq, sharedSeq, 'PlanePositionSequence')
+                if planePositionSeq is not None and 'ImagePositionPatient' in planePositionSeq:
+                    s_info.imagePositionPatient = np.array(planePositionSeq.ImagePositionPatient)
+
+                # Plane Orientation (Patient) - typically shared in Enhanced PET, per-frame otherwise.
+                planeOrientationSeq = getFunctionalGroupItem(
+                    perFrameSeq, sharedSeq, 'PlaneOrientationSequence')
+                if planeOrientationSeq is not None and 'ImageOrientationPatient' in planeOrientationSeq:
+                    s_info.imageOrientationPatient = np.array(planeOrientationSeq.ImageOrientationPatient)
+
+                if s_info.imageOrientationPatient.size == 6 and s_info.imagePositionPatient.size == 3:
                     slice_normal = s_info.imageOrientationPatient[[1,2,0]] * s_info.imageOrientationPatient[[5,3,4]] \
                                    - s_info.imageOrientationPatient[[2,0,1]] * s_info.imageOrientationPatient[[4,5,3]]
                     s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
 
-                    if 'FrameVOILUTSequence' in perFrameSeq:
-                        s_info.windowWidth = float(perFrameSeq.FrameVOILUTSequence[0].WindowWidth)
-                        s_info.windowCenter = float(perFrameSeq.FrameVOILUTSequence[0].WindowCenter)
+                # Frame VOI LUT (window/level) - per-frame with shared fallback.
+                frameVOISeq = getFunctionalGroupItem(perFrameSeq, sharedSeq, 'FrameVOILUTSequence')
+                if frameVOISeq is not None:
+                    if hasattr(frameVOISeq, 'WindowWidth'): s_info.windowWidth = float(frameVOISeq.WindowWidth)
+                    if hasattr(frameVOISeq, 'WindowCenter'): s_info.windowCenter = float(frameVOISeq.WindowCenter)
+
+                # Frame Content carries the per-frame timing needed to establish the
+                # decay-correction reference datetime of an Enhanced PET frame.
+                frameContentSeq = getFunctionalGroupItem(perFrameSeq, sharedSeq,
+                                                         'FrameContentSequence')
+                if frameContentSeq is not None:
+                    if ("0018","9074") in frameContentSeq:
+                        s_info.frameAcquisitionDateTime = frameContentSeq["0018","9074"].value
+                    if ("0018","9151") in frameContentSeq:
+                        s_info.frameReferenceDateTime = frameContentSeq["0018","9151"].value
+                    if ("0018","9220") in frameContentSeq and \
+                            frameContentSeq["0018","9220"].value is not None:
+                        s_info.frameAcquisitionDuration = float(frameContentSeq["0018","9220"].value)
             else: # NM scans
                 s_info = populateRealWorldFields(s_info, ds)
                 if 'DetectorInformationSequence' in ds:
@@ -1024,9 +1498,19 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
                     s_info.imagePositionPatient = imagePositionPatientStart + slice_normal * sliceSpacing
                     s_info.zValue = - np.sum(slice_normal * s_info.imagePositionPatient) / 10
 
-            if 'SharedFunctionalGroupsSequence' in ds:
-                PixelSpacing = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing
-                s_info.sliceThickness = ds.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness / 10
+            # Pixel Measures (spacing, slice thickness) - shared in Enhanced PET,
+            # but allow a per-frame override and fall back to top-level tags.
+            pixelMeasuresSeq = getFunctionalGroupItem(
+                perFrameSeq if 'PerFrameFunctionalGroupsSequence' in ds else None,
+                sharedSeq, 'PixelMeasuresSequence')
+            if pixelMeasuresSeq is not None:
+                PixelSpacing = pixelMeasuresSeq.PixelSpacing
+                if hasattr(pixelMeasuresSeq, 'SliceThickness') and \
+                        isinstance(pixelMeasuresSeq.SliceThickness, (float, int)):
+                    s_info.sliceThickness = pixelMeasuresSeq.SliceThickness / 10
+                elif hasattr(pixelMeasuresSeq, 'SpacingBetweenSlices') and \
+                        isinstance(pixelMeasuresSeq.SpacingBetweenSlices, (float, int)):
+                    s_info.sliceThickness = pixelMeasuresSeq.SpacingBetweenSlices / 10
             else:
                 PixelSpacing = ds.PixelSpacing
                 if isinstance(ds.SliceThickness, (float, int)):
@@ -1036,6 +1520,13 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
 
             s_info.grid1Units = PixelSpacing[1] / 10
             s_info.grid2Units = PixelSpacing[0] / 10
+
+            # PET Units (0054,1001) is absent from Enhanced PET Image (Units is a per-frame
+            # concept there); derive the storage units from the Pixel Value Transformation
+            # Rescale Type (e.g. BQML) so SUV conversion has the correct input units.
+            if s_info.imageType.upper() in ['PT SCAN', 'NM SCAN'] and \
+                    len(s_info.imageUnits) == 0 and len(s_info.rescaleType) > 0:
+                s_info.imageUnits = s_info.rescaleType
 
 
             # MR-specific tags

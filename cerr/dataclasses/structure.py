@@ -218,14 +218,19 @@ class Structure:
         num_slices = len(planC.scan[scan_num].scanInfo)
         contour_list = np.empty(num_slices,Contour)
 
+        # For multi-frame images (e.g. Enhanced PET) every slice belongs to the same
+        # SOP Instance, so the referenced SOP Instance UID cannot identify a slice and
+        # contours must be matched by their z-coordinate instead.
+        sopIdentifiesSlice = len(np.unique(scan_sop_inst_list)) == num_slices
+
         for slc_num in range(num_slices):
             contour_list[slc_num] = []
             scan_sop_inst = planC.scan[scan_num].scanInfo[slc_num].sopInstanceUID
-            if scan_sop_inst != "":
+            if scan_sop_inst != "" and sopIdentifiesSlice:
                 seg_matches = np.where(contr_sop_inst_list == scan_sop_inst)
             else:
                 seg_matches = [[]]
-            if scan_sop_inst == "" or len(seg_matches[0]) == 0:
+            if scan_sop_inst == "" or not sopIdentifiesSlice or len(seg_matches[0]) == 0:
                 matches = []
                 for iCtr,ctr in enumerate(dcm_contour_list):
                     if np.all((ctr.segments[:,2] - zValsV[slc_num])**2 < 1e-5):
