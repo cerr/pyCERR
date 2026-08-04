@@ -118,7 +118,9 @@ def paramInit(cfg):
                Bsolve=_DiffusionSolver(n, h, cfg.dt, cfg.sigma),
                niter_pcg=int(cfg.niter_pcg),
                maxUiter=int(cfg.maxUiter),
-               gnLambda0=float(getattr(cfg, "gnLambda0", 0.1)),
+               gnLambda0=float(getattr(cfg, "gnLambda0", 0.0)),
+               gnPrecond=int(getattr(cfg, "gnPrecond", 0) or 0),
+               gnCgTol=float(getattr(cfg, "gnCgTol", 1e-2)),
                chi=_chiToArray(getattr(cfg, "chi", None), N, int(cfg.nt)))
     return par
 
