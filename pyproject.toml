@@ -22,6 +22,14 @@ classifiers = [
 dependencies = [
     'scipy',
     'pydicom',
+    # Decoders for compressed DICOM pixel data (JPEG Lossless / JPEG-LS /
+    # JPEG 2000). pydicom needs one of these plugins to decode `pixel_array`
+    # for compressed transfer syntaxes; without it, reading such scans raises
+    # "Unable to decompress ... pixel data". python-gdcm is an alternative
+    # single-package decoder (also adds RLE): `pip install python-gdcm`.
+    'pylibjpeg',
+    'pylibjpeg-libjpeg',
+    'pylibjpeg-openjpeg',
     'python-dateutil',
     'h5py',
     'pandas',
