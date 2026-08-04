@@ -241,7 +241,16 @@ def prepareData(cfg, planC):
             if method == "gaussian":
                 frm = gaussian_filter(frm, sigma=0.1 * smooth)
             else:               # affine-invariant mean-curvature flow (MATLAB)
-                frm = affineDiffusion3d(frm, nSteps=int(round(smooth)),
+                # MATLAB affine_diffusion_3d(A, t_tot, dt, aff) integrates for a
+                # total evolution TIME t_tot, taking n_t = round(t_tot/dt) steps.
+                # cfg.smooth is that t_tot (MATLAB cfg.smooth), NOT a step count
+                # -- passing it straight in as nSteps under-smooths by 1/dt
+                # (e.g. smooth=1, dt=0.1 -> 1 step instead of 10). Verified
+                # against MATLAB reference output: reading `smooth` as t_tot
+                # reproduces its smoothed density exactly (for any dt), while
+                # treating it as a step count leaves the peaks under-smoothed.
+                nSteps = max(1, int(round(smooth / smoothDt)))
+                frm = affineDiffusion3d(frm, nSteps=nSteps,
                                         dt=smoothDt, affFlag=(method != "linear"))
         if int(cfg.do_resize):
             frm = _resize(frm, cfg.size_factor)

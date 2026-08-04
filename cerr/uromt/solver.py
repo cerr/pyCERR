@@ -156,10 +156,17 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
 
             H = LinearOperator((ntot, ntot), matvec=matvec)
             # Jacobi preconditioner from the (exactly known) regularization +
-            # damping diagonal - the MATLAB GNblock_ur PCG preconditioner. It
-            # conditions the velocity null-space the rank-deficient misfit term
-            # can't see, so the near-undamped GN system converges; floored at a
-            # fraction of its median to stay bounded where rho ~ 0.
+            # damping diagonal. NOTE: this is a pyCERR addition - MATLAB's
+            # GNblock_ur calls plain `pcg(H,-g,0.01,niter_pcg)` with NO
+            # preconditioner and NO Levenberg damping. It conditions the
+            # velocity null-space the rank-deficient misfit term can't see;
+            # floored at a fraction of its median to stay bounded where rho ~ 0.
+            # CAVEAT: because diagR carries the factor `alpha` and diagU does
+            # not, Minv is ~alpha larger on the velocity block, which biases the
+            # solution toward velocity and away from the source r (in testing
+            # against MATLAB reference output, disabling it substantially raised
+            # the recovered source energy and improved the data fit at equal
+            # cost). Revisit if the recovered source looks too small.
             md = diagReg + lam
             pos = md[md > 0]
             floor = 1e-2 * (float(np.median(pos)) if pos.size else 1.0)
