@@ -12,6 +12,7 @@ gradient was validated during development.
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from cerr.uromt.numerics import (paramInit, sourceAdvecDiff, getGamma,
                                   gradGamma, forwardSensitivity,
@@ -429,12 +430,17 @@ def _uniform_flow_result(n=(16, 16, 8), nt=4, vx=1.0, dt=0.4,
 
 
 def test_runEULA_speed_rate_flux():
-    """Eulerian maps: mean speed = |v|, flux = rho*v_eff, rate = 0."""
+    """Eulerian maps: speed/rate/peclet are time AVERAGES, but flux is the
+    per-interval time INTEGRAL (sum over the nt sub-steps), matching the
+    reference EulerFlux convention."""
     res = _uniform_flow_result(vx=1.0)
+    nt = res["nt"]
     Eul = runEULA(res)
-    assert np.allclose(Eul["speed"], 1.0)
+    assert np.allclose(Eul["speed"], 1.0)              # mean |v|
     assert np.allclose(Eul["rate"], 0.0)
-    assert np.allclose(Eul["flux"][0], 1.0)            # rho=1, v_eff=v=1
+    # rho=1, v_eff=v=1 -> flux integrates to nt (NOT 1: it is a sum, not a mean)
+    assert np.allclose(Eul["flux"][0], float(nt))
+    assert np.allclose(Eul["flux"][1], 0.0)
     assert np.all(np.isfinite(Eul["peclet"]))
     assert Eul["speed3"].shape == tuple(res["n"])
 
@@ -452,6 +458,10 @@ def test_runEULA_intervals():
     assert np.allclose(ei["speed"][0], 1.0)
     assert np.allclose(ei["rate"][0], 0.0)
     assert np.allclose(ei["rho"][0], 1.0)
+    # flux is the SUM over the interval's nt sub-steps (reference EulerFlux
+    # convention), so it scales with nt while the scalar maps do not.
+    assert np.allclose(ei["flux"][0][0], float(res["nt"]))
+    assert np.allclose(ei["flux"][0][1], 0.0)
 
 
 def test_runGLAD_pathline_displacement_and_direction():
@@ -937,6 +947,94 @@ def test_sensitivity_tlm_matches_finite_difference():
         rm = sourceAdvecDiff(rho0, xm[:nu], xm[nu:], par)[:, -1]
         maxErr = max(maxErr, np.abs(Jcol - (rp - rm) / (2 * eps)).max())
     assert maxErr < 1e-7
+
+
+def _sens_setup(seed, chi=None):
+    par = _par(chi=chi)
+    N, nt = par["N"], par["nt"]
+    rng = np.random.default_rng(seed)
+    rho0 = np.abs(rng.standard_normal(N)) + 0.5
+    u = 0.02 * rng.standard_normal(3 * N * nt)
+    r = 0.05 * rng.standard_normal(N * nt)
+    return par, rho0, u, r, rng
+
+
+def _block_dirs(direction, N, nt, rng):
+    """A perturbation confined to one block, so a defect in the velocity
+    sensitivities cannot be masked by the source ones (or vice versa)."""
+    du = np.zeros(3 * N * nt)
+    dr = np.zeros(N * nt)
+    if direction == "u":
+        du = rng.standard_normal(3 * N * nt)
+    else:
+        dr = rng.standard_normal(N * nt)
+    return du, dr
+
+
+@pytest.mark.parametrize("direction", ["u", "r"])
+@pytest.mark.parametrize("useChi", [False, True])
+def test_sensitivity_adjoint_dot_product_per_block(direction, useChi):
+    """<J v, w> == <v, J' w> with the perturbation confined to a single block.
+    The combined-block version of this test can hide an error in one block."""
+    N0 = int(np.prod((8, 8, 8)))
+    chi = (np.arange(N0) % 3 != 0).astype(float) if useChi else None
+    par, rho0, u, r, rng = _sens_setup(21, chi=chi)
+    N, nt = par["N"], par["nt"]
+    du, dr = _block_dirs(direction, N, nt, rng)
+    w = rng.standard_normal(N)
+    Jv = forwardSensitivity(rho0, u, r, du, dr, par)[:, -1]
+    Ju, Jr = adjointSensitivity(rho0, u, r, w, par)
+    lhs = float(Jv @ w)
+    rhs = float(du @ Ju + dr @ Jr)
+    assert abs(lhs - rhs) / max(abs(lhs), 1e-12) < 1e-10
+
+
+def test_sensitivity_r_direction_matches_finite_difference():
+    """The source-direction tangent model matches central finite differences
+    over the whole field (unlike the velocity direction, r involves no
+    departure-point clamping, so boundary voxels are differentiable too)."""
+    par, rho0, u, r, rng = _sens_setup(22)
+    N, nt = par["N"], par["nt"]
+    du, dr = _block_dirs("r", N, nt, rng)
+    tlm = forwardSensitivity(rho0, u, r, du, dr, par)[:, -1]
+    eps = 1e-6
+    rp = sourceAdvecDiff(rho0, u, r + eps * dr, par)[:, -1]
+    rm = sourceAdvecDiff(rho0, u, r - eps * dr, par)[:, -1]
+    fd = (rp - rm) / (2 * eps)
+    assert np.linalg.norm(tlm - fd) / np.linalg.norm(fd) < 1e-7
+
+
+@pytest.mark.parametrize("direction", ["u", "r"])
+def test_gauss_newton_quadratic_form_consistent(direction):
+    """v'(J'J)v computed through the adjoint equals ||J v||^2 -- the identity
+    the matrix-free Gauss-Newton Hessian relies on."""
+    par, rho0, u, r, rng = _sens_setup(23)
+    N, nt = par["N"], par["nt"]
+    du, dr = _block_dirs(direction, N, nt, rng)
+    Jv = forwardSensitivity(rho0, u, r, du, dr, par)[:, -1]
+    Ju, Jr = adjointSensitivity(rho0, u, r, Jv, par)
+    quadAdj = float(du @ Ju + dr @ Jr)
+    quadFwd = float(Jv @ Jv)
+    assert abs(quadAdj - quadFwd) / max(abs(quadFwd), 1e-12) < 1e-10
+
+
+@pytest.mark.parametrize("sigma", [0.0, 2e-3])
+def test_advection_conserves_mass(sigma):
+    """The advection operator is the mass-conserving push-forward S'@m, so with
+    no source the total mass is preserved at every sub-step (S has unit row
+    sums => 1'S'm = (S1)'m = 1'm). The pull-back S@m does NOT conserve mass;
+    using it made the model unable to reproduce growing density, which this
+    test guards against."""
+    par = _par(sigma=sigma)
+    N, nt = par["N"], par["nt"]
+    rng = np.random.default_rng(24)
+    rho0 = np.abs(rng.standard_normal(N)) + 0.5
+    u = 0.05 * rng.standard_normal(3 * N * nt)     # non-trivial transport
+    r = np.zeros(N * nt)                            # no source => mass conserved
+    rho = sourceAdvecDiff(rho0, u, r, par)
+    m0 = float(rho0.sum())
+    for k in range(nt):
+        assert abs(float(rho[:, k].sum()) - m0) / m0 < 1e-10
 
 
 def test_gauss_newton_reduces_objective_more_than_lbfgs():
