@@ -54,7 +54,7 @@
         "gnLambda0": "initial Levenberg-Marquardt damping for solver='gn', relative to the misfit Hessian scale 2*beta*hd; adaptively reduced toward pure Gauss-Newton on success and raised on failure. Smaller -> closer to MATLAB's undamped exact GN (less stable); 0 -> pure GN relying only on the kinetic regularization",
         "dTri": "boundary condition for advection: 1='closed', 3='open'",
         "reinitR": "0=initialize each interval with the previous evolved density (consecutive); 1=reset to the measured frame",
-        "smooth": "number of smoothing iterations/steps applied to each frame (0=off)",
+        "smooth": "total evolution TIME (t_tot) of the smoothing flow applied to each frame (0=off); the number of steps is round(smooth/smooth_dt), matching MATLAB affine_diffusion_3d(A, t_tot, dt, aff). NOTE: this is a time, not a step count",
         "smooth_method": "'affine' (affine-invariant mean-curvature flow, MATLAB affine_diffusion_3d), 'linear' (heat flow), or 'gaussian' (scipy stand-in)",
         "smooth_dt": "evolution step size for the affine/linear smoothing flow",
         "do_resize": "1=resize each frame/mask by size_factor",

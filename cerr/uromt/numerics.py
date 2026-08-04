@@ -145,7 +145,7 @@ def _chiToArray(chi, N, nt):
 #  Trilinear interpolation matrix S and its spatial derivative (dTrilinears3d)
 # --------------------------------------------------------------------------- #
 def _trilinear(par, posX, posY, posZ):
-    """Return (S, deriv) for points (posX,posY,posZ) in physical coords.
+    """Return (S, deriv, derivT) for points (posX,posY,posZ) in physical coords.
 
     S is a sparse (N x N) trilinear-interpolation matrix (S @ field samples
     `field` at the given points, closed/clamped boundaries). `deriv(field)`
@@ -182,36 +182,61 @@ def _trilinear(par, posX, posY, posZ):
     cc = np.concatenate([col for *_, col, _ in corners])
     S = sp.csr_matrix((data, (rr, cc)), shape=(N, N))
 
+    def _dweights(a, b, c):
+        """Per-corner d(weight)/d{x,y,z} (already divided by the spacing)."""
+        sx = (1.0 if a else -1.0)
+        sy = (1.0 if b else -1.0)
+        sz = (1.0 if c else -1.0)
+        wx = fx if a else (1 - fx)
+        wy = fy if b else (1 - fy)
+        wz = fz if c else (1 - fz)
+        return ((sx * wy * wz) / h[0], (wx * sy * wz) / h[1],
+                (wx * wy * sz) / h[2])
+
     def deriv(field):
+        """``D_d @ field`` for d = x,y,z, i.e. d(S@field)/d{x,y,z} per point.
+        Returns (3, N)."""
         dX = np.zeros(N)
         dY = np.zeros(N)
         dZ = np.zeros(N)
         for a, b, c, col, _ in corners:
             fv = field[col]
-            sx = (1.0 if a else -1.0)
-            sy = (1.0 if b else -1.0)
-            sz = (1.0 if c else -1.0)
-            wx = fx if a else (1 - fx)
-            wy = fy if b else (1 - fy)
-            wz = fz if c else (1 - fz)
-            dX += (sx * wy * wz) * fv
-            dY += (wx * sy * wz) * fv
-            dZ += (wx * wy * sz) * fv
-        return np.array([dX / h[0], dY / h[1], dZ / h[2]])
+            dwx, dwy, dwz = _dweights(a, b, c)
+            dX += dwx * fv
+            dY += dwy * fv
+            dZ += dwz * fv
+        return np.array([dX, dY, dZ])
 
-    return S, deriv
+    def derivT(vecs):
+        """``sum_d D_d' @ vecs[d]`` - the transpose of :func:`deriv`.
+
+        Needed by the tangent-linear model of the push-forward advection
+        ``a = S' @ m``: perturbing the departure points gives
+        ``delta(S'm) = sum_d D_d' (m .* delta pos_d)``. Each ``D_d`` has one
+        entry per (point, corner), so the transpose is a scatter-add."""
+        vecs = np.asarray(vecs)
+        out = np.zeros(N)
+        for a, b, c, col, _ in corners:
+            dwx, dwy, dwz = _dweights(a, b, c)
+            contrib = dwx * vecs[0] + dwy * vecs[1] + dwz * vecs[2]
+            out += np.bincount(col, weights=contrib, minlength=N)
+        return out
+
+    return S, deriv, derivT
 
 
-def _trilinearApply(par, posX, posY, posZ, field):
-    """Matrix-free forward trilinear interpolation: returns ``S(pos) @ field``
-    without assembling the sparse matrix S (it gathers ``field`` at the eight
-    surrounding cell centers and weight-sums). Equivalent to
-    ``_trilinear(par, posX, posY, posZ)[0] @ field`` to machine precision but far
-    cheaper, because the dominant cost of :func:`_trilinear` is the COO->CSR
-    assembly - which (post-DCT) dominated the forward-only line-search
-    evaluations. Used only where the explicit S / its transpose / its spatial
-    derivative are *not* needed (the gradient and sensitivity paths still build
-    the full matrices)."""
+def _trilinearApplyT(par, posX, posY, posZ, field):
+    """Matrix-free **push-forward** advection: returns ``S(pos)' @ field``
+    without assembling S. Each point scatters its mass onto the eight
+    surrounding cell centers with the trilinear weights (the transpose of the
+    gather that computes ``S @ field``).
+
+    This is the mass-conserving form used by the MATLAB ``SourceAdvecDiff.m``:
+    S has unit row sums, so ``1'S'm = (S1)'m = 1'm`` - total mass is preserved
+    exactly, which ``S @ m`` does *not* do. Equivalent to
+    ``_trilinear(par, posX, posY, posZ)[0].T @ field`` to machine precision but
+    far cheaper, since the dominant cost of :func:`_trilinear` is the COO->CSR
+    assembly."""
     n, h = par["n"], par["h"]
     n1, n2, n3 = n
     gx = np.clip(posX / h[0] - 0.5, 0, n1 - 1)
@@ -222,7 +247,8 @@ def _trilinearApply(par, posX, posY, posZ, field):
     k0 = np.clip(np.floor(gz).astype(int), 0, n3 - 2)
     fx, fy, fz = gx - i0, gy - j0, gz - k0
     base = i0 + n1 * j0 + n1 * n2 * k0
-    out = np.zeros(par["N"])
+    N = par["N"]
+    out = np.zeros(N)
     for a in (0, 1):
         wx = fx if a else (1 - fx)
         for b in (0, 1):
@@ -230,7 +256,8 @@ def _trilinearApply(par, posX, posY, posZ, field):
             for c in (0, 1):
                 wz = fz if c else (1 - fz)
                 col = base + a + n1 * b + n1 * n2 * c
-                out += (wx * wy * wz) * field[col]
+                out += np.bincount(col, weights=(wx * wy * wz) * field,
+                                   minlength=N)
     return out
 
 
@@ -255,12 +282,18 @@ def sourceAdvecDiff(rho0, u, r, par, interp=None):
     """Evolve rho through nt source -> advection -> diffusion steps.
     Returns rho (N x nt) for steps 1..nt.
 
+    The advection is the **push-forward** ``a = S' @ m`` (mass-conserving), as in
+    the MATLAB ``SourceAdvecDiff.m`` - *not* the semi-Lagrangian pull-back
+    ``S @ m``. S has unit row sums, so ``S'`` conserves total mass exactly while
+    ``S`` does not; using ``S`` makes the model unable to reproduce growing
+    density (e.g. contrast uptake), which the optimizer then compensates for with
+    spuriously large velocities and a near-zero source.
+
     When ``interp`` is not supplied (the forward-only line-search path) the
-    advection uses the matrix-free :func:`_trilinearApply` instead of assembling
-    the per-step sparse interpolation matrices, which is several times faster now
-    that the diffusion solve is cheap. When ``interp`` is supplied (gradient /
-    sensitivity paths, which already need the matrices) the explicit ``S @ m`` is
-    used - results are identical to machine precision either way."""
+    advection uses the matrix-free :func:`_trilinearApplyT` instead of assembling
+    the per-step sparse interpolation matrices. When ``interp`` is supplied
+    (gradient / sensitivity paths, which already need the matrices) the explicit
+    ``S.T @ m`` is used - identical to machine precision either way."""
     N, nt, dt = par["N"], par["nt"], par["dt"]
     U = u.reshape(3 * N, nt, order="F")
     r = r.reshape(N, nt, order="F")
@@ -273,16 +306,17 @@ def sourceAdvecDiff(rho0, u, r, par, interp=None):
         for k in range(nt):
             ck = 1.0 if chi is None else chi[:, k]
             m = (1.0 + dt * r[:, k] * ck) * prev
-            adv = _trilinearApply(par, Xc + dt * U[0:N, k], Yc + dt * U[N:2 * N, k],
-                                  Zc + dt * U[2 * N:3 * N, k], m)
+            adv = _trilinearApplyT(par, Xc + dt * U[0:N, k],
+                                   Yc + dt * U[N:2 * N, k],
+                                   Zc + dt * U[2 * N:3 * N, k], m)
             prev = Bsolve(adv)
             rho[:, k] = prev
         return rho
     for k in range(nt):
         ck = 1.0 if chi is None else chi[:, k]
         m = (1.0 + dt * r[:, k] * ck) * prev      # source (r scaled by chi)
-        S, _ = interp[k]
-        adv = S @ m                               # advection
+        S = interp[k][0]
+        adv = S.T @ m                             # advection (push-forward)
         cur = Bsolve(adv)                         # diffusion (B \ adv)
         rho[:, k] = cur
         prev = cur
@@ -302,12 +336,13 @@ def sourceAdvecDiff(rho0, u, r, par, interp=None):
 #  ...). Validated by a dot-product (adjoint) test and finite differences.
 # --------------------------------------------------------------------------- #
 def precomputeSensDeriv(rho0, r, par, interp, rho):
-    """Per-step trilinear spatial derivatives ``dS = d(S@m)/dpos`` of the source
-    field ``m = (1+dt*r*chi)*rho_{k-1}``. These are constant across all CG
-    matvecs within one Gauss-Newton outer step (they depend only on the fixed
-    ``rho``/``r``), so precomputing them once avoids recomputing the trilinear
-    derivative in every :func:`forwardSensitivity` / :func:`adjointSensitivity`
-    call. Returns a list of (3, N) arrays."""
+    """Per-step source fields ``m_k = (1+dt*r*chi)*rho_{k-1}``.
+
+    With the push-forward advection ``a = S'@m`` both the tangent and the adjoint
+    velocity terms are weighted by ``m`` (the tangent needs ``D_d'(m .* du_d)``,
+    the adjoint needs ``m .* (D_d @ b)``), and ``m`` is constant across all CG
+    matvecs of one Gauss-Newton step (it depends only on the fixed ``rho``/``r``).
+    Returns a list of (N,) arrays."""
     N, nt, dt = par["N"], par["nt"], par["dt"]
     R = r.reshape(N, nt, order="F")
     chi = par.get("chi")
@@ -315,8 +350,7 @@ def precomputeSensDeriv(rho0, r, par, interp, rho):
     out = []
     for k in range(nt):
         ck = 1.0 if chi is None else chi[:, k]
-        m = (1.0 + dt * R[:, k] * ck) * rhoPrev[:, k]
-        out.append(interp[k][1](m))                   # deriv(m) -> (3,N)
+        out.append((1.0 + dt * R[:, k] * ck) * rhoPrev[:, k])
     return out
 
 
@@ -345,11 +379,12 @@ def forwardSensitivity(rho0, u, r, du, dr, par, interp=None, rho=None,
         fac = 1.0 + dt * R[:, k] * ck
         prev = rhoPrev[:, k]
         dm = dt * ck * prev * dR[:, k] + fac * dprev      # d(source)
-        S, deriv = interp[k]
-        dS = dSlist[k] if dSlist is not None else deriv(fac * prev)
-        da = S @ dm
-        for d in range(3):
-            da = da + dt * dS[d] * dU[d * N:(d + 1) * N, k]
+        S, _deriv, derivT = interp[k]
+        m = dSlist[k] if dSlist is not None else fac * prev
+        # push-forward: a = S'@m, so
+        #   da = S'@dm + sum_d D_d' (m .* dt*du_d)
+        da = S.T @ dm
+        da = da + dt * derivT([m * dU[d * N:(d + 1) * N, k] for d in range(3)])
         dcur = Bsolve(da)                                 # d(diffusion)
         drho[:, k] = dcur
         dprev = dcur
@@ -379,12 +414,15 @@ def adjointSensitivity(rho0, u, r, wN, par, interp=None, rho=None, dSlist=None):
         fac = 1.0 + dt * R[:, k] * ck
         lam = (wN if k == nt - 1 else 0.0) + carry
         b = Bsolve(lam)                                   # adjoint of diffusion
-        S, deriv = interp[k]
+        S, deriv, _derivT = interp[k]
         prev = rhoPrev[:, k]
-        mbar = S.T @ b
-        dS = dSlist[k] if dSlist is not None else deriv(fac * prev)
+        # push-forward a = S'@m: adjoint to m is S@b (not S'@b), and the
+        # velocity term is weighted by m, with the derivative taken on b.
+        mbar = S @ b
+        m = dSlist[k] if dSlist is not None else fac * prev
+        dB = deriv(b)                                      # (3, N) = D_d @ b
         for d in range(3):
-            gU[d * N:(d + 1) * N, k] = dt * b * dS[d]      # adjoint to u
+            gU[d * N:(d + 1) * N, k] = dt * m * dB[d]      # adjoint to u
         gR[:, k] = ck * dt * prev * mbar                   # adjoint to r
         carry = fac * mbar                                 # adjoint to rho_{k-1}
     return gU.ravel(order="F"), gR.ravel(order="F")
@@ -453,15 +491,18 @@ def gradGamma(rho0, u, r, par, drhoN, interp=None):
             explicit = explicit + 2.0 * beta * hd * (rho[:, -1] - drhoN)
         lam = explicit + carry
         b = Bsolve(lam)                       # adjoint through diffusion (B sym)
-        S, deriv = interp[k]
+        S, deriv, _derivT = interp[k]
         prev = rhoPrev[:, k]
         m = (1.0 + dt * R[:, k] * ck) * prev  # source field at step k (chi-scaled)
-        mbar = S.T @ b                        # adjoint to m
-        # velocity gradient: direct kinetic + implicit (advection derivative)
-        dS = deriv(m)                         # (3, N) = d(S@m)/d{x,y,z}
+        mbar = S @ b                          # adjoint to m (a = S'@m)
+        # velocity gradient: direct kinetic + implicit (advection derivative).
+        # For the push-forward a = S'@m the adjoint w.r.t. the departure point is
+        # m .* (D_d @ b) -- the derivative acts on b and the weight is m (the
+        # pull-back form had these swapped).
+        dB = deriv(b)                         # (3, N) = D_d @ b
         for d in range(3):
             gU[d * N:(d + 1) * N, k] = (2.0 * hd * dt * rho[:, k] * U[d * N:(d + 1) * N, k]
-                                        + dt * b * dS[d])
+                                        + dt * m * dB[d])
         # source gradient: direct source penalty + implicit (m wrt r), chi-scaled
         gR[:, k] = ck * (2.0 * hd * dt * alpha * rho[:, k] * R[:, k]
                          + dt * prev * mbar)
