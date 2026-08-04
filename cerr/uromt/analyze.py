@@ -136,9 +136,21 @@ def runEULAIntervals(result, maskOnly=True):
 
     Keys: ``speed`` (|v|, advective), ``effSpeed`` (|v_eff|, flux velocity),
     ``rate`` (r), ``peclet`` (|v|/|diffusion|), ``flux`` (rho*v_eff, list of
-    (3,*n)), ``rho`` (density); plus grid metadata. (MATLAB ``EulerS`` is the
-    flux-velocity magnitude ``effSpeed``; ``EulerR``=rate, ``EulerPe``=peclet,
-    ``EulerRho``=rho, ``EulerFlux``=flux.)
+    (3,*n)), ``rho`` (density); plus grid metadata.
+
+    Correspondence with the reference MATLAB maps (verified voxel-wise against
+    saved reference output using its own recovered (u, r)):
+
+    * ``EulerS``  == ``speed``, the **raw** velocity magnitude |v| -- *not*
+      ``effSpeed``. (Matches at corr 1.0000, median ratio 1.000; ``effSpeed``
+      only agrees to ~0.4% here because this data is advection-dominated.)
+    * ``EulerR``  == ``rate``, ``EulerPe`` == ``peclet``, ``EulerRho`` == ``rho``.
+    * ``EulerFlux`` == ``nt * flux``: the reference **sums** the flux over the
+      ``nt`` sub-steps of an interval, while ``flux`` here is the time *average*
+      (divided by ``nt``). The spatial patterns agree to corr ~0.999; only this
+      constant factor differs. The average is kept because it is independent of
+      the sub-step count; multiply by ``nt`` to compare against ``EulerFlux``.
+      The same factor applies to the r-weighted flux (``EulerRFlux``).
     """
     n = [int(v) for v in result["n"]]
     h = [float(v) for v in result["spacing"]]
