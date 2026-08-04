@@ -85,7 +85,9 @@ def runEULA(result, maskOnly=True):
     Returns:
         dict ``Eul`` with flattened (N,) maps ``speed`` (mean |v|), ``rate``
         (mean r), ``peclet`` (mean |v|/|diffusion|), the mean flux vector
-        ``flux`` (3,N) = mean(rho * v_eff), their 3-D ROI-grid reshapes
+        ``flux`` (3,N) = per-interval time INTEGRAL sum(rho * v_eff) over each
+        interval's nt sub-steps, averaged across intervals (matches the
+        reference EulerFlux convention; scales with nt), their 3-D reshapes
         (``speed3``/``rate3``/``peclet3``), and grid metadata (``n``,
         ``spacing``, ``mask``, ``bbox``, ``frameScanNums``).
     """
@@ -107,11 +109,16 @@ def runEULA(result, maskOnly=True):
         peclet += adv / (dif + _pecletDenomFloor(dif, roiM))
         flux += rho * vEff
         nSteps += 1
+    nt = int(result["nt"])
     if nSteps:
         speed /= nSteps
         rate /= nSteps
         peclet /= nSteps
-        flux /= nSteps
+        # flux is the per-interval time INTEGRAL (sum over an interval's nt
+        # sub-steps), matching the reference EulerFlux; the scalar maps above
+        # stay time-averages. Dividing by nSteps/nt = the interval count leaves
+        # the mean per-interval flux integral.
+        flux /= max(nSteps / nt, 1)
 
     if maskOnly:
         m = roiM
@@ -145,12 +152,11 @@ def runEULAIntervals(result, maskOnly=True):
       ``effSpeed``. (Matches at corr 1.0000, median ratio 1.000; ``effSpeed``
       only agrees to ~0.4% here because this data is advection-dominated.)
     * ``EulerR``  == ``rate``, ``EulerPe`` == ``peclet``, ``EulerRho`` == ``rho``.
-    * ``EulerFlux`` == ``nt * flux``: the reference **sums** the flux over the
-      ``nt`` sub-steps of an interval, while ``flux`` here is the time *average*
-      (divided by ``nt``). The spatial patterns agree to corr ~0.999; only this
-      constant factor differs. The average is kept because it is independent of
-      the sub-step count; multiply by ``nt`` to compare against ``EulerFlux``.
-      The same factor applies to the r-weighted flux (``EulerRFlux``).
+    * ``EulerFlux`` == ``flux``: both are the **sum** over an interval's ``nt``
+      sub-steps (a time integral), not a time average -- unlike the scalar maps
+      above, which are averages. Note this makes ``flux`` scale with ``nt``, so
+      it is only comparable between runs that use the same sub-step count.
+      The same convention applies to the r-weighted flux (``EulerRFlux``).
     """
     n = [int(v) for v in result["n"]]
     h = [float(v) for v in result["spacing"]]
@@ -176,7 +182,9 @@ def runEULAIntervals(result, maskOnly=True):
             flux += rho_k * vEff
         for k in acc:
             acc[k] /= nt
-        flux /= nt
+        # flux is NOT divided by nt: the reference EulerFlux is the sum over the
+        # interval's nt sub-steps (a time integral), while the scalar maps are
+        # time averages.
         if maskOnly:
             for k in acc:
                 acc[k][~m] = 0.0
