@@ -437,11 +437,14 @@ def getGamma(rho0, u, r, par, drhoN, interp=None):
     Returns (Gamma, (Gamma1, Gamma2, Gamma3, Gamma4), rho).
 
     ``Gamma4 = eta*hd*dt * sum_k sum_d |Grad u_d(:,k)|^2`` penalizes the spatial
-    gradient of each velocity component (the H1 seminorm), so neighbouring
-    velocity vectors are pulled toward the same direction. The urOMT misfit
-    constrains velocity only where density flows, leaving it in the objective's
-    null space in low/flat-density voxels; this term regularizes that null
-    space. ``eta = 0`` (default) recovers the original objective exactly.
+    gradient of each velocity component (the H1 seminorm). It is an optional
+    pyCERR extension with no counterpart in the reference MATLAB implementation,
+    and is **off by default** (``eta = 0``), which recovers the reference
+    objective exactly. The urOMT misfit constrains velocity only where density
+    flows, so it is formally under-determined in low/flat-density voxels, but in
+    practice the recovered field is coherent once the advection is
+    mass-conserving; enable this only to deliberately bias the velocity toward
+    smoothness (e.g. for visualization).
     """
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     U = u.reshape(3 * N, nt, order="F")
