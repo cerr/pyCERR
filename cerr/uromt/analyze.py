@@ -3,7 +3,7 @@
 Ports of Parts 3 & 4 of the MATLAB urOMT ``driver_RatBrain.m`` (``runEULA.m`` /
 ``paramInitEULApar.m`` and ``runGLAD.m`` / ``paramInitGLADpar.m``), adapted from
 the MATLAB file-based pipeline to operate in-memory on the dict returned by
-:func:`cerr.uromt.solver.runUROMT`.
+:func:`cerr.uromt.solver.solveUROMT`.
 
 The urOMT advection-diffusion model
 ``rho_t + div(rho v) = sigma Lap(rho) + rho r`` has an equivalent advective form
@@ -32,15 +32,27 @@ def _cellCenters(n, h):
 _PECLET_FLOOR_FRAC = 0.1     # Peclet denom floor as a fraction of ROI-median dif
 
 
-def _pecletDenomFloor(dif, roi):
+def _pecletDenomFloor(dif, roi, frac=None):
     """Robust additive floor for the Peclet denominator |sigma grad log rho|:
     a fraction of the typical (ROI-median) diffusive speed. Without it, voxels
     in smooth-density regions (dif -> 0) produce enormous Peclet spikes (the old
-    1e-8 floor let them explode), giving a salt-and-pepper / patchy map."""
+    1e-8 floor let them explode), giving a salt-and-pepper / patchy map.
+
+    The fraction is the ``peclet_floor`` setting. It is a deliberate departure
+    from the reference implementation, which floors only at machine epsilon:
+    because the floor is *additive* it biases Peclet downward, most strongly in
+    exactly the high-Peclet voxels. Measured against the reference breast maps,
+    the through-origin slope goes 0.67 at the 0.1 default, 0.98 at 0.01, and
+    1.06 at 0 - so use a small value (or 0) when reproducing reference Peclet,
+    and the default when you want a display-stable map.
+    """
+    f = _PECLET_FLOOR_FRAC if frac is None else float(frac)
+    if f <= 0.0:
+        return _EPS
     d = dif[roi & (dif > 0)] if roi is not None else dif[dif > 0]
     if d.size == 0:
         return _EPS
-    return max(_PECLET_FLOOR_FRAC * float(np.median(d)), _EPS)
+    return max(f * float(np.median(d)), _EPS)
 
 
 def _gradLog(rho3, h):
@@ -75,12 +87,15 @@ def _globalSteps(result):
 # --------------------------------------------------------------------------- #
 #  Part 3: Eulerian post-processing (runEULA.m)
 # --------------------------------------------------------------------------- #
-def runEULA(result, maskOnly=True):
+def runEULA(result, maskOnly=True, pecletFloor=None):
     """Eulerian post-processing: time-averaged speed, rate, Peclet and flux maps.
 
     Args:
-        result (dict): output of :func:`cerr.uromt.solver.runUROMT`.
+        result (dict): output of :func:`cerr.uromt.solver.solveUROMT`.
         maskOnly (bool): zero the maps outside the ROI mask.
+        pecletFloor (float): override the Peclet denominator floor fraction
+            (default: the run's ``peclet_floor`` setting). See
+            :func:`_pecletDenomFloor`.
 
     Returns:
         dict ``Eul`` with flattened (N,) maps ``speed`` (mean |v|), ``rate``
@@ -94,6 +109,8 @@ def runEULA(result, maskOnly=True):
     n = [int(v) for v in result["n"]]
     h = [float(v) for v in result["spacing"]]
     sigma = float(result.get("sigma", 0.0))
+    pFloor = (result.get("pecletFloor") if pecletFloor is None
+              else pecletFloor)
     N = int(np.prod(n))
 
     roiM = (np.asarray(result["mask"]) > 0).ravel(order="F")
@@ -106,7 +123,7 @@ def runEULA(result, maskOnly=True):
         vEff, adv, dif = _stepFields(v, rho, n, h, sigma)
         speed += adv
         rate += r
-        peclet += adv / (dif + _pecletDenomFloor(dif, roiM))
+        peclet += adv / (dif + _pecletDenomFloor(dif, roiM, pFloor))
         flux += rho * vEff
         nSteps += 1
     nt = int(result["nt"])
@@ -136,7 +153,7 @@ def runEULA(result, maskOnly=True):
     return Eul
 
 
-def runEULAIntervals(result, maskOnly=True):
+def runEULAIntervals(result, maskOnly=True, pecletFloor=None):
     """Per-interval Eulerian maps (time-averaged over each interval's nt
     sub-steps), as the MATLAB ``runEULA`` writes one set of maps per time
     interval. Returns lists (one entry per interval) of 3-D ROI-grid arrays.
@@ -161,6 +178,8 @@ def runEULAIntervals(result, maskOnly=True):
     n = [int(v) for v in result["n"]]
     h = [float(v) for v in result["spacing"]]
     sigma = float(result.get("sigma", 0.0))
+    pFloor = (result.get("pecletFloor") if pecletFloor is None
+              else pecletFloor)
     nt = int(result["nt"])
     m = (np.asarray(result["mask"]) > 0).ravel(order="F")
     out = {k: [] for k in ("speed", "effSpeed", "rate", "peclet", "flux",
@@ -177,7 +196,7 @@ def runEULAIntervals(result, maskOnly=True):
             acc["speed"] += adv
             acc["effSpeed"] += np.sqrt(np.sum(vEff ** 2, axis=0))
             acc["rate"] += rr[:, k]
-            acc["peclet"] += adv / (dif + _pecletDenomFloor(dif, m))
+            acc["peclet"] += adv / (dif + _pecletDenomFloor(dif, m, pFloor))
             acc["rho"] += rho_k
             flux += rho_k * vEff
         for k in acc:
@@ -213,7 +232,7 @@ def runGLAD(result, spfs=2, nEuler=5, direction=1.0, minSpeed=0.0,
     effective velocity ``v_eff`` seeded in the ROI.
 
     Args:
-        result (dict): output of :func:`cerr.uromt.solver.runUROMT`.
+        result (dict): output of :func:`cerr.uromt.solver.solveUROMT`.
         spfs (int): seed every ``spfs``-th masked voxel per axis.
         nEuler (int): Euler sub-steps per urOMT time sub-step.
         direction (float): +1 follows the urOMT velocity, -1 reverses it.
@@ -269,6 +288,11 @@ def runGLAD(result, spfs=2, nEuler=5, direction=1.0, minSpeed=0.0,
         vEff, adv, dif = _stepFields(v, rho, n, h, sigma)
         vc = [vEff[c].reshape(n, order="F") for c in range(3)]
         sp3 = adv.reshape(n, order="F")
+        # NB: the pathline Peclet floors at machine epsilon, matching the
+        # reference. The Eulerian maps instead use the `peclet_floor`
+        # setting (an additive fraction of the median diffusive speed) to
+        # keep displayed maps stable, so the two are not identically
+        # scaled - see _pecletDenomFloor.
         pe3 = (adv / (dif + _EPS)).reshape(n, order="F")
         vinterp = _interpolators(vc, gc)
         sinterp = _interpolators([sp3], gc)[0]

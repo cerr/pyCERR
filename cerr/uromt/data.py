@@ -8,7 +8,7 @@ ROI is a ``planC.structure``; everything else mirrors the MATLAB steps
 """
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, zoom
+from scipy.ndimage import uniform_filter, gaussian_filter, zoom
 
 from cerr.contour import rasterseg as rs
 from cerr.utils.mask import fillHoles, computeBoundingBox
@@ -46,6 +46,130 @@ def externalBaselineCount(normMethod, baselineFrames, basePts, firstSelPos):
     if int(basePts) > 0 and int(firstSelPos) >= int(basePts):
         return int(basePts)
     return 0
+
+
+def smoothSize(m, cap, radices=(2, 3, 5)):
+    """Smallest length >= ``m`` (and <= ``cap``) whose only prime factors are
+    ``radices``. Returns ``m`` unchanged when no such length fits under the cap.
+    """
+    m, cap = int(m), int(cap)
+    if m >= cap:
+        return cap
+    for v in range(m, cap + 1):
+        t = v
+        for p in radices:
+            while t % p == 0:
+                t //= p
+        if t == 1:
+            return v
+    return m
+
+
+def fftFriendlyRange(lo, hi, extent, radices=(2, 3, 5)):
+    """Grow the half-open voxel range ``[lo, hi)`` to an FFT-friendly length,
+    staying inside ``[0, extent)`` and keeping the original range covered.
+
+    The urOMT diffusion solve inverts ``B = I + dt*sigma*Grad'Grad`` with a 3-D
+    DCT, whose cost is governed by the *prime factorization* of each grid
+    dimension rather than by the voxel count: a 61x59x46 box (61 and 59 prime)
+    costs ~15.7 ms per solve, while 64x60x48 - 11% more voxels - costs ~5.9 ms.
+    Since the diffusion solve runs twice per sub-step in every CG matvec, this
+    is a ~2.7x on the dominant term for a few percent more voxels.
+
+    Growing (never shrinking) the box only moves the Neumann boundary further
+    from the structure and brings in real neighbouring image data, so it does
+    not clip the ROI; it does change results slightly. Disable with the
+    ``fft_pad`` setting.
+    """
+    lo, hi, extent = int(lo), int(hi), int(extent)
+    want = smoothSize(hi - lo, extent, radices)
+    grow = want - (hi - lo)
+    if grow <= 0:
+        return lo, hi
+    lo2 = max(0, lo - grow // 2)
+    hi2 = min(extent, lo2 + want)
+    lo2 = max(0, hi2 - want)          # ran into the top: take the rest below
+    return lo2, hi2
+
+
+def _bboxPad(pad):
+    """Normalize the ``bbox_pad`` setting to ``(row, col, slice)`` voxels.
+
+    A scalar keeps the historical meaning - pad the two **in-plane** axes and
+    leave z alone. A 3-element sequence pads each axis independently, which is
+    what reproducing the reference ``getRange`` needs (it pads all three).
+    """
+    if pad is None:
+        return 0, 0, 0
+    if np.isscalar(pad):
+        p = int(pad)
+        return p, p, 0
+    vals = [int(v) for v in pad]
+    if len(vals) != 3:
+        raise ValueError("bbox_pad must be a scalar (in-plane) or a 3-element "
+                         "[row, col, slice]; got %r" % (pad,))
+    return tuple(vals)
+
+
+def dilateMask(mask, dilate):
+    """Grow a binary ROI mask by ``dilate`` voxels (the MATLAB ``cfg.dilate``).
+
+    Uses the reference's ellipsoidal structuring element - the voxels of
+    ``-d:d`` in each axis satisfying ``(x/d)^2 + (y/d)^2 + (z/d)^2 <= 1``, i.e.
+    a ball of radius ``d`` in *index* space (not physical space, so it is
+    anisotropic on anisotropic voxels - matching the reference).
+
+    ``dilate <= 0`` returns the mask unchanged. The urOMT solve always runs on
+    the whole ROI box; the mask decides which voxels the Eulerian/Lagrangian
+    maps report, so dilating it widens that reporting support. It is required
+    to reproduce the reference maps voxel-for-voxel.
+    """
+    d = int(dilate)
+    if d <= 0:
+        return mask
+    from scipy.ndimage import binary_dilation
+    ax = np.arange(-d, d + 1)
+    X, Y, Z = np.meshgrid(ax, ax, ax, indexing="ij")
+    strel = (X / d) ** 2 + (Y / d) ** 2 + (Z / d) ** 2 <= 1.0
+    return binary_dilation(np.asarray(mask) > 0,
+                           structure=strel).astype(np.uint8)
+
+
+def toftsPostProcess(im, cfg):
+    """Reference ``tofts`` post-steps applied after the signal->concentration
+    conversion, in the reference implementation's order.
+
+    ``concScale`` -> replace values above ``highValueThreshold`` by a local
+    ``highValueKernel``^3 box mean -> clip to ``outputClip``.
+
+    urOMT is invariant to a global scale of rho, so ``concScale`` only
+    conditions the solver - but it must match the reference for objective values
+    to be comparable, and it sets the scale that ``highValueThreshold`` and
+    ``outputClip`` are expressed in, so the three go together.
+
+    Note the reference runs the box mean on the *full* volume before cropping to
+    the ROI, whereas this runs after the crop, so voxels within
+    ``highValueKernel`` of the ROI face see a slightly different neighbourhood.
+    On the reference breast data that is a handful of voxels.
+    """
+    im = np.asarray(im, dtype=np.float64)
+    scale = float(getattr(cfg, "concScale", 1.0) or 1.0)
+    if scale != 1.0:
+        im = im * scale
+    thr = getattr(cfg, "highValueThreshold", None)
+    if thr is not None:
+        k = int(getattr(cfg, "highValueKernel", 2) or 2)
+        hi = im > float(thr)
+        if hi.any():
+            # MATLAB convn(im, ones(k,k,k)/k^3, 'same'); origin=-1 aligns an
+            # even-sized window the same way.
+            im = np.where(hi, uniform_filter(im, size=k, mode="constant",
+                                             origin=-1), im)
+    clip = getattr(cfg, "outputClip", None)
+    if clip:
+        lo, hi_ = (clip + [None, None])[:2] if isinstance(clip, list) else clip
+        im = np.clip(im, lo, hi_)
+    return im
 
 
 def prepareData(cfg, planC):
@@ -106,19 +230,33 @@ def prepareData(cfg, planC):
         mins, maxs = 0, refShape[2] - 1
 
     # ---- crop the ROI mask to its bounding box --------------------------
-    # Optional bbox padding (pad in-plane bounding box by `bbox_pad` voxels each side,
-    # optionally use the full z).
-    pad = int(getattr(cfg, "bbox_pad", 0))
-    if pad > 0:
-        minr, maxr = max(0, minr - pad), min(refShape[0] - 1, maxr + pad)
-        minc, maxc = max(0, minc - pad), min(refShape[1] - 1, maxc + pad)
+    # Optional bbox padding. A scalar pads the two IN-PLANE axes only; a
+    # 3-element [row, col, slice] pads each axis independently (the reference
+    # getRange pads all three, e.g. [3, 3, 3] on the breast data).
+    padR, padC, padS = _bboxPad(getattr(cfg, "bbox_pad", 0))
+    if padR > 0:
+        minr, maxr = max(0, minr - padR), min(refShape[0] - 1, maxr + padR)
+    if padC > 0:
+        minc, maxc = max(0, minc - padC), min(refShape[1] - 1, maxc + padC)
+    if padS > 0:
+        mins, maxs = max(0, mins - padS), min(refShape[2] - 1, maxs + padS)
     if int(getattr(cfg, "bbox_full_z", 0)):
         mins, maxs = 0, refShape[2] - 1
 
     rs_, re_ = int(minr), int(maxr) + 1
     cs_, ce_ = int(minc), int(maxc) + 1
     ss_, se_ = int(mins), int(maxs) + 1
+    if int(getattr(cfg, "fft_pad", 1)):
+        rs_, re_ = fftFriendlyRange(rs_, re_, refShape[0])
+        cs_, ce_ = fftFriendlyRange(cs_, ce_, refShape[1])
+        ss_, se_ = fftFriendlyRange(ss_, se_, refShape[2])
     cfg.bbox = (rs_, re_, cs_, ce_, ss_, se_)
+
+    # Optional mask dilation (MATLAB cfg.dilate). Applied to the FULL-size mask
+    # *after* the bounding box is fixed, because the reference computes its
+    # ROI range from the undilated mask file and only then dilates - so this
+    # widens the ROI coverage without moving the solve domain.
+    mask = dilateMask(mask, int(getattr(cfg, "mask_dilate", 0)))
 
     croppedMask = mask[rs_:re_, cs_:ce_, ss_:se_]      # pre-resize (uint8)
     # Optional resizing
@@ -187,12 +325,29 @@ def prepareData(cfg, planC):
             combinedFrames = croppedFrames
             basePtsToUse = int(getattr(cfg, "basePts", 1))
 
-        # Normalize data
+        # Normalize data.
+        #
+        # The conversion runs over the WHOLE cropped box, not just the ROI mask:
+        # the mask is applied at the very end, after the smoothing flow. Masking
+        # here instead would zero the tissue surrounding the ROI, and the
+        # edge-preserving flow would then smooth every boundary voxel against an
+        # artificial zero background - measurably pulling them down (on the
+        # reference breast data: 35357 in-mask voxels changed, max 32.4, a
+        # through-origin slope of 0.979 against the reference density). The
+        # reference implementation converts and smooths the full box and masks
+        # last, and doing the same here reproduces its density to ~5e-9.
+        #
+        # `normalizeToBaseline` NaNs whatever the mask excludes, so the mask
+        # passed here is "has a usable pre-contrast baseline". That both keeps
+        # the surrounding tissue and reproduces the reference's guard against
+        # dividing by a zero baseline (an infinite ratio would otherwise clip to
+        # conc_clip and fabricate a large concentration out of background).
         scanArr4M = np.stack([np.asarray(f, dtype=np.float64)
                               for f in combinedFrames], axis=3)
         timePtsV = np.arange(scanArr4M.shape[3], dtype=float)
+        baseline3M = np.mean(scanArr4M[:, :, :, :basePtsToUse], axis=3)
         normUptake4M, _t, _b, basePtsUsed = normalizeToBaseline(
-            scanArr4M, croppedMask > 0, timePtsV, basePts=basePtsToUse,
+            scanArr4M, baseline3M > 0, timePtsV, basePts=basePtsToUse,
             method=normMethod, concDict=concDict)
         normUptake4M = np.nan_to_num(normUptake4M, nan=0.0)
         if normMethod == "RSE" and clip is not None:
@@ -237,6 +392,9 @@ def prepareData(cfg, planC):
     maskBool = cfg.mask == 0
     for frm0 in croppedFrames:
         frm = np.array(frm0, dtype=np.float64)      # copy (avoid mutating views)
+        # reference tofts post-steps (scale / despike / clip) run on the
+        # concentration BEFORE the smoothing flow
+        frm = toftsPostProcess(frm, cfg)
         if smooth > 0:
             if method == "gaussian":
                 frm = gaussian_filter(frm, sigma=0.1 * smooth)

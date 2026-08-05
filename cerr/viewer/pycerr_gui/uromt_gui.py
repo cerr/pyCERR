@@ -19,7 +19,7 @@ class _UROMTWorker(QtCore.QThread):
     def run(self):
         try:
             from cerr.uromt import buildConfig, prepareData
-            from cerr.uromt.solver import runUROMT
+            from cerr.uromt.solver import solveUROMT
             from cerr.uromt.analyze import runEULA, runGLAD
             from cerr.dataclasses.uromt import buildFromConfig, saveUROMTToPlan
             cfg = buildConfig(self.scanNumV, self.structNum, self.settingsFile)
@@ -32,7 +32,7 @@ class _UROMTWorker(QtCore.QThread):
                 cfg.size_factor = 0.5
                 cfg.maxUiter = min(int(getattr(cfg, "maxUiter", 6)), 4)
             cfg = prepareData(cfg, self.planC)
-            res = runUROMT(
+            res = solveUROMT(
                 cfg, statusCallback=lambda f, m: self.progress.emit(f, m))
             self.progress.emit(0.98, "Eulerian / Lagrangian post-processing ...")
             res["Eul"] = runEULA(res)
