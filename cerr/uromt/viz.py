@@ -24,7 +24,7 @@ def velocityVectors(result, interval=0, step=None, subsample=2,
     """Build a napari ``vectors_dict`` for one urOMT interval's velocity field.
 
     Args:
-        result (dict): output of :func:`cerr.uromt.solver.runUROMT`.
+        result (dict): output of :func:`cerr.uromt.solver.solveUROMT`.
         interval (int): which time interval's velocity to show.
         step (int): inner sub-step index (0..nt-1); ``None`` -> time-mean.
         subsample (int): keep every ``subsample``-th voxel per axis (thinning).
@@ -489,7 +489,7 @@ def drawUROMTSlice(fig, result, Eul=None, Lag=None, view="speed", axis=2,
 
     Args:
         fig: a matplotlib Figure (cleared and redrawn).
-        result (dict): runUROMT output.
+        result (dict): solveUROMT output.
         Eul (dict): runEULA output (needed for speed/rate/peclet/flux views).
         Lag (dict): runGLAD output (needed for the pathlines view).
         view (str): 'speed' | 'rate' | 'peclet' | 'velocity' | 'flux' | 'pathlines'.

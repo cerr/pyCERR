@@ -10,7 +10,7 @@ Fields:
 * ``UROMTSetup``    - inputs: model ``settings``, ``scanNumV`` (time-point scans),
   ``structNum`` (ROI), the resolved ``frameScanNums``, the preprocessed
   concentration frames ``vol``, the ROI ``mask``/``bbox``/``spacing``/``trueSize``.
-* ``UROMTResult``   - solver output of :func:`cerr.uromt.solver.runUROMT`
+* ``UROMTResult``   - solver output of :func:`cerr.uromt.solver.solveUROMT`
   (per-interval ``u``, ``r``, ``rho``, ``gamma`` plus grid metadata).
 * ``UROMTEulerian`` - :func:`cerr.uromt.analyze.runEULA` output (speed/rate/Peclet/flux maps).
 * ``UROMTLagrangian`` - :func:`cerr.uromt.analyze.runGLAD` output (pathlines, speed/Peclet lines).

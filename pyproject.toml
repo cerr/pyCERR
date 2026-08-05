@@ -43,6 +43,11 @@ dependencies = [
     'ipywidgets',
     'surface-distance-based-measures',
     'itk-strain',
+    # JIT-compiled, multi-threaded kernels for the urOMT solver
+    # (cerr.uromt.kernels): the trilinear gather/scatter/derivative operators
+    # that dominate its Gauss-Newton CG matvec. ~90x on the derivative operator
+    # versus the vectorized numpy form.
+    'numba',
     # Desktop Qt viewer (cerr.viewer.pycerr_gui): PyQt5 is the Qt binding;
     # pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk is pulled in
     # transitively by pyvista).
@@ -66,6 +71,29 @@ napari = [
 #   pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
 ants = [
     "antspyx",
+]
+# Optional GPU acceleration for the urOMT solver (cerr.uromt.gpu), enabled with
+# the `gpu` setting. Without it urOMT runs on the CPU (numba, multi-threaded)
+# and a `gpu=1` request warns and falls back.
+#
+# This extra targets a CUDA 13.x driver. For CUDA 12.x install `cupy-cuda12x`
+# plus the `nvidia-*-cu12` library wheels instead; for CUDA 11.x,
+# `cupy-cuda11x`. Check what your driver supports with:
+#   python -c "import ctypes;v=ctypes.c_int();ctypes.WinDLL('nvcuda.dll').cuDriverGetVersion(ctypes.byref(v));print(v.value)"
+#
+# The nvidia-* wheels are NOT optional on a machine that also has an older CUDA
+# toolkit installed: cupy resolves its libraries through cuda-pathfinder, which
+# prefers site-packages over CUDA_PATH/PATH, so shipping them here is what stops
+# a stale toolkit's NVRTC being loaded (see cerr/uromt/gpu.py).
+gpu = [
+    "cupy-cuda13x",
+    "nvidia-cuda-nvrtc",
+    "nvidia-cuda-runtime",
+    "nvidia-cufft",
+    "nvidia-cublas",
+    "nvidia-cusparse",
+    "nvidia-cusolver",
+    "nvidia-curand",
 ]
 
 [tool.setuptools]

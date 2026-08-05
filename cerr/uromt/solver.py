@@ -1,8 +1,8 @@
 """urOMT Part 2 - run the optimization.
 
-Port of ``runUROMT.m`` (the time-interval loop) and ``Inverse/GNblock_ur.m``
-(the per-interval velocity/source solver). Two per-interval solvers are
-available, selected by ``cfg.solver``:
+:func:`solveUROMT` is a port of ``runUROMT.m`` (the time-interval loop);
+``Inverse/GNblock_ur.m`` is the per-interval velocity/source solver. Two
+per-interval solvers are available, selected by ``cfg.solver``:
 
 * :func:`gnBlockExact` (``solver='gn'``, default) - the exact Gauss-Newton block
   of ``GNblock_ur.m``: the GN Hessian (analytic regularization diagonal plus the
@@ -15,10 +15,13 @@ available, selected by ``cfg.solver``:
 """
 
 import time
+import warnings
 
 import numpy as np
 from scipy.optimize import minimize
-from scipy.sparse.linalg import LinearOperator, cg
+from scipy.sparse.linalg import LinearOperator as _spLinOp, cg as _spcg
+
+from cerr.uromt.gpu import _normalizeCg
 
 from cerr.uromt.numerics import (paramInit, getGamma, gradGamma, _interpMats,
                                  sourceAdvecDiff, forwardSensitivity,
@@ -30,7 +33,13 @@ def gnBlockUr(rho0, u0, r0, par, drhoN, tag=""):
 
     Returns dict with optimized ``u`` (3N*nt,), ``r`` (N*nt,), evolved density
     ``rho`` (N x nt), the objective components and the optimizer result.
+
+    CPU only - scipy's L-BFGS-B works on host arrays. The ``useGPU`` setting
+    applies to :func:`gnBlockExact` (``solver='gn'``, the default).
     """
+    if par.get("bk") is not None and par["bk"].isGpu:
+        raise ValueError("solver='lbfgs' does not support useGPU='yes'; use "
+                         "solver='gn' (the default) or set useGPU='no'.")
     N, nt = par["N"], par["nt"]
     nu = 3 * N * nt
 
@@ -102,12 +111,18 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     alpha, beta = par["alpha"], par["beta"]
     chi = par.get("chi")
+    xp = par.get("xp", np)
+    bk = par.get("bk")
+    cg = bk.cg if bk is not None else _normalizeCg(_spcg)
+    LinearOperator = bk.LinearOperator if bk is not None else _spLinOp
     eta = float(par.get("eta", 0.0))         # velocity H1-smoothness weight
     Grad = par["Grad"]
     cSmooth = 2.0 * eta * hd * dt            # smoothness Hessian scale (const)
     nu = 3 * N * nt
-    u = np.asarray(u0, float).ravel().copy()
-    r = np.asarray(r0, float).ravel().copy()
+    u = xp.asarray(u0, dtype=xp.float64).ravel().copy()
+    r = xp.asarray(r0, dtype=xp.float64).ravel().copy()
+    rho0 = xp.asarray(rho0, dtype=xp.float64)
+    drhoN = xp.asarray(drhoN, dtype=xp.float64)
     t0 = time.time()
     nfev = 0
 
@@ -115,26 +130,27 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
         lmbda0 = float(par.get("gnLambda0", 0.0))
     usePrecond = bool(int(par.get("gnPrecond", 0)))   # MATLAB uses plain pcg
     cgTol = float(par.get("gnCgTol", 1e-2))           # MATLAB pcg tol
-    chiCol = (np.ones((N, nt)) if chi is None else chi)
+    chiCol = (xp.ones((N, nt)) if chi is None else chi)
     scale = 2.0 * beta * hd                 # misfit Hessian diagonal scale
     lmRel = float(lmbda0)                    # damping relative to `scale`
     for _ in range(int(par["maxUiter"])):
         interp = _interpMats(par, u.reshape(3 * N, nt, order="F"))
+        # one forward solve serves the objective and the gradient
         rho = sourceAdvecDiff(rho0, u, r, par, interp)
-        G0, _, _ = getGamma(rho0, u, r, par, drhoN, interp)
-        gU, gR = gradGamma(rho0, u, r, par, drhoN, interp)
-        grad = np.concatenate([gU, gR])
-        if np.linalg.norm(grad) < 1e-10:
+        G0, _, _ = getGamma(rho0, u, r, par, drhoN, interp, rho)
+        gU, gR = gradGamma(rho0, u, r, par, drhoN, interp, rho)
+        grad = xp.concatenate([gU, gR])
+        if float(xp.linalg.norm(grad)) < 1e-10:
             break
 
         # diagonal regularization Hessian (rho held fixed, GN style)
-        diagU = (2.0 * hd * dt * np.tile(rho, (3, 1))).ravel(order="F")
+        diagU = (2.0 * hd * dt * xp.tile(rho, (3, 1))).ravel(order="F")
         diagR = (2.0 * alpha * hd * dt * rho * chiCol).ravel(order="F")
-        diagReg = np.concatenate([diagU, diagR])
+        diagReg = xp.concatenate([diagU, diagR])
         if eta:                              # add H1 Laplacian diagonal (precond)
             lapDiag = par["lapDiag"]
-            smoothDiag = cSmooth * np.repeat(
-                np.tile(lapDiag, 3)[:, None], nt, axis=1).ravel(order="F")
+            smoothDiag = cSmooth * xp.repeat(
+                xp.tile(lapDiag, 3)[:, None], nt, axis=1).ravel(order="F")
             diagReg = diagReg.copy()
             diagReg[:nu] += smoothDiag
         # per-step trilinear derivatives are constant across the CG matvecs of
@@ -145,15 +161,18 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
         accepted = False
         for _lm in range(int(maxLM)):
             lam = lmRel * scale
+            # damped regularization diagonals are fixed for this CG solve
+            diagUlam = diagU + lam
+            diagRlam = diagR + lam
 
-            def matvec(x, lam=lam):
+            def matvec(x, dU=diagUlam, dR=diagRlam):
                 vu = x[:nu]
                 vr = x[nu:]
-                hu = (diagU + lam) * vu          # kinetic regularization + damping
-                hr = (diagR + lam) * vr
+                hu = dU * vu                     # kinetic regularization + damping
+                hr = dR * vr
                 if eta:                          # H1 smoothness Hessian (const)
                     VU = vu.reshape(3 * N, nt, order="F")
-                    sm = np.empty_like(VU)
+                    sm = xp.empty_like(VU)
                     for d in range(3):
                         sm[d * N:(d + 1) * N, :] = cSmooth * (
                             Grad.T @ (Grad @ VU[d * N:(d + 1) * N, :]))
@@ -163,7 +182,7 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
                                         rho, dSlist)[:, -1]
                 Ju, Jr = adjointSensitivity(rho0, u, r, 2.0 * beta * hd * Jv,
                                             par, interp, rho, dSlist)
-                return np.concatenate([hu + Ju, hr + Jr])
+                return xp.concatenate([hu + Ju, hr + Jr])
 
             H = LinearOperator((ntot, ntot), matvec=matvec)
             # Optional Jacobi preconditioner from the (exactly known)
@@ -177,11 +196,11 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
             if usePrecond:
                 md = diagReg + lam
                 pos = md[md > 0]
-                floor = 1e-2 * (float(np.median(pos)) if pos.size else 1.0)
-                Minv = 1.0 / np.maximum(md, floor)
+                floor = 1e-2 * (float(xp.median(pos)) if pos.size else 1.0)
+                Minv = 1.0 / xp.maximum(md, floor)
                 M = LinearOperator((ntot, ntot),
                                    matvec=lambda z, mv=Minv: mv * z)
-            dx, _ = cg(H, -grad, rtol=cgTol, maxiter=int(par["niter_pcg"]), M=M)
+            dx, _ = cg(H, -grad, cgTol, int(par["niter_pcg"]), M)
             gd = float(grad @ dx)               # directional derivative
 
             step = 0.7                          # MATLAB muls = 0.7, then halved
@@ -208,7 +227,8 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
             break
 
     G, comps, rho = getGamma(rho0, u, r, par, drhoN)
-    return dict(u=u, r=r, rho=rho, Gamma=G,
+    toHost = bk.toHost if bk is not None else (lambda a: a)
+    return dict(u=toHost(u), r=toHost(r), rho=toHost(rho), Gamma=G,
                 Gamma1=comps[0], Gamma2=comps[1], Gamma3=comps[2],
                 Gamma4=comps[3],
                 nfev=nfev, time=time.time() - t0, tag=tag)
@@ -217,12 +237,13 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
 _SOLVERS = {"lbfgs": gnBlockUr, "gn": gnBlockExact}
 
 
-def runUROMT(cfg, statusCallback=None):
+def solveUROMT(cfg, statusCallback=None):
     """Run urOMT over the consecutive frame intervals (runUROMT.m analog).
 
-    Requires ``cfg`` already populated by
+    This is Part 2 alone. Requires ``cfg`` already populated by
     :func:`cerr.uromt.data.prepareData` (``cfg.vol``, ``cfg.mask``,
-    ``cfg.trueSize``, ``cfg.spacing``).
+    ``cfg.trueSize``, ``cfg.spacing``); for the whole pipeline starting from a
+    planC use :func:`cerr.uromt.runUROMT`.
 
     Args:
         cfg (UROMTConfig): configuration with prepared data.
@@ -249,12 +270,14 @@ def runUROMT(cfg, statusCallback=None):
                frameScanNums=getattr(cfg, "frameScanNums", None),
                doResize=int(getattr(cfg, "do_resize", 0)),
                sizeFactor=float(getattr(cfg, "size_factor", 1.0)),
-               dt=par["dt"], nt=par["nt"], sigma=par["sigma"])
+               dt=par["dt"], nt=par["nt"], sigma=par["sigma"],
+               pecletFloor=float(getattr(cfg, "peclet_floor", 0.1)))
 
     u = np.zeros(3 * N * nt)
     r = np.zeros(N * nt)
     rhoEnd = frames[0]
     reinit = bool(int(cfg.reinitR))
+    warmStart = bool(int(getattr(cfg, "warm_start", 0)))
     for t in range(nIntervals):
         if statusCallback:
             statusCallback(t / nIntervals,
@@ -275,7 +298,32 @@ def runUROMT(cfg, statusCallback=None):
                              ("Gamma", "Gamma1", "Gamma2", "Gamma3", "Gamma4",
                               "nfev", "time")})
         rhoEnd = sol["rho"][:, -1]
-        u, r = sol["u"], sol["r"]      # warm-start next interval
+        if warmStart:
+            # Carry (u, r) into the next interval. This converges further per
+            # interval, but because `maxUiter` is small and acts as early
+            # stopping, the velocity ACCUMULATES along the chain: on the
+            # reference breast data the kinetic term grew monotonically
+            # (4.5e4 -> 3.2e5 over 13 intervals) while the reference's stayed
+            # flat, inflating the recovered speed severalfold. Set
+            # `warm_start: 0` to restart each interval from rest, which is what
+            # the reference implementation does.
+            u, r = sol["u"], sol["r"]
+        else:
+            u = np.zeros(3 * N * nt)
+            r = np.zeros(N * nt)
     if statusCallback:
         statusCallback(1.0, "urOMT done")
     return out
+
+
+def runUROMT(cfg, statusCallback=None):
+    """Deprecated alias for :func:`solveUROMT`.
+
+    Renamed so it is not confused with :func:`cerr.uromt.runUROMT`, the
+    whole-pipeline wrapper that starts from a planC.
+    """
+    warnings.warn("cerr.uromt.solver.runUROMT is deprecated; use "
+                  "cerr.uromt.solver.solveUROMT (Part 2) or "
+                  "cerr.uromt.runUROMT (the whole pipeline).",
+                  DeprecationWarning, stacklevel=2)
+    return solveUROMT(cfg, statusCallback)
