@@ -137,6 +137,28 @@ def test_createLattice_noVerticesFitRaises(phantomPlanC):
                           latticeSpacing=20.0, innerMargin=100.0, units='mm')
 
 
+def test_createLattice_avoidanceRing(phantomPlanC):
+    """The avoidance ring is a shell around the peaks: inside the GTV, disjoint
+    from the peaks, and part of the valley."""
+    planC = phantomPlanC
+    planC, verts = lat.createLattice(
+        planC, 0, sphereDiameter=12.0, latticeSpacing=20.0,
+        latticeType='bcc', innerMargin=8.0, units='mm',
+        addValley=True, addAvoidanceRing=True, ringThickness=3.0)
+
+    ringNum = _structIndex(planC, "GTV_lattice_ring")
+    gtv    = _mask(planC, "GTV")
+    peaks  = _mask(planC, "GTV_lattice_peaks")
+    valley = _mask(planC, "GTV_lattice_valley")
+    ring   = _mask(planC, "GTV_lattice_ring")
+
+    assert ring.sum() > 0
+    assert np.all(ring <= gtv)            # ring stays inside the target
+    assert not np.any(ring & peaks)       # ring excludes the peaks
+    assert np.all(ring <= valley)         # ring is part of the valley
+    assert ringNum >= 0
+
+
 def test_createLatticeVertices_unitsAgnostic(phantomPlanC):
     """The low-level vertex generator works directly in grid (cm) units."""
     import cerr.contour.rasterseg as rs
@@ -188,6 +210,20 @@ def test_latticeBoostObjectives_structure():
     assert objectives[0][0].d_min == pytest.approx(0.3 * 15.0)
 
 
+def test_latticeBoostObjectives_numericOarCap():
+    """A plain number in oarObjectives becomes an overdose cap (no pyRadPlan
+    Objective needed from the caller)."""
+    prp = pytest.importorskip("cerr.imrtp.pyradplan_bridge")
+    if not getattr(prp, "_PYRADPLAN_AVAILABLE", False):
+        pytest.skip("pyRadPlan not installed")
+    from pyRadPlan.optimization.objectives import SquaredOverdosing
+
+    objectives, _ = lat.latticeBoostObjectives(
+        peakStructNum=1, peakDose=15.0, oarObjectives={5: 2.0})
+    assert isinstance(objectives[5][0], SquaredOverdosing)
+    assert objectives[5][0].d_max == pytest.approx(2.0)
+
+
 def test_optimizeLatticeBoost_endToEnd(tmp_path):
     """Full lattice boost through the pyRadPlan bridge; peaks outdose valley."""
     pytest.importorskip("pyRadPlan")
@@ -216,6 +252,51 @@ def test_optimizeLatticeBoost_endToEnd(tmp_path):
     assert np.all(np.asarray(w) >= 0)
 
     # Mean dose in the peaks should exceed the valley (peak-to-valley effect).
+    import cerr.contour.rasterseg as rs
+    dose3M = planC.dose[doseNum].doseArray
+    peaks = rs.getStrMask(peakNum, planC)
+    valley = rs.getStrMask(valleyNum, planC)
+    assert dose3M[peaks].mean() > dose3M[valley].mean()
+
+
+def test_optimizeLatticeBoost_invalidEngine(phantomPlanC):
+    with pytest.raises(ValueError, match="engine"):
+        lat.optimizeLatticeBoost(phantomPlanC, 0, engine='montecarlo')
+
+
+def _addBodyStruct(planC):
+    """Add a BODY structure = the full water box, for the QIB/PortPy dataset."""
+    import cerr.contour.rasterseg as rs
+    gtv = rs.getStrMask(0, planC)
+    body = np.zeros_like(gtv)
+    body[8:-8, 8:-8, 4:-4] = True     # matches the water box in _makePhantomPlanC
+    body = body | gtv
+    pc.importStructureMask(body, 0, "BODY", planC)
+    return _structIndex(planC, "BODY")
+
+
+def test_optimizeLatticeBoost_qibEngine(tmp_path):
+    """QIB engine (native pyCERR PB + PortPy); peaks outdose valley."""
+    pytest.importorskip("portpy")
+
+    planC = _makePhantomPlanC(tmp_path)
+    bodyNum = _addBodyStruct(planC)
+    planC, verts = lat.createLattice(
+        planC, 0, sphereDiameter=12.0, latticeSpacing=20.0,
+        latticeType='bcc', innerMargin=8.0, units='mm', addValley=True,
+        addAvoidanceRing=True, ringThickness=3.0)
+    peakNum = _structIndex(planC, "GTV_lattice_peaks")
+    valleyNum = _structIndex(planC, "GTV_lattice_valley")
+    ringNum = _structIndex(planC, "GTV_lattice_ring")
+
+    # ring cap given as a plain number -> no pyRadPlan Objective needed
+    w, doseNum, planC = lat.optimizeLatticeBoost(
+        planC, peakNum, valleyStructNum=valleyNum, bodyStructNum=bodyNum,
+        scanNum=0, gantryAngles=(0.0, 90.0, 180.0, 270.0),
+        peakDose=15.0, valleyMaxDose=4.5, oarObjectives={ringNum: 2.0},
+        engine='qib', solver='SCS')
+
+    assert doseNum == len(planC.dose) - 1
     import cerr.contour.rasterseg as rs
     dose3M = planC.dose[doseNum].doseArray
     peaks = rs.getStrMask(peakNum, planC)

@@ -195,7 +195,10 @@ def createLattice(planC, structNum,
                   addIndividualSpheres=False,
                   vertexStructName=None,
                   valleyStructName=None,
-                  units='mm'):
+                  units='mm',
+                  addAvoidanceRing=False,
+                  ringThickness=3.0,
+                  ringStructName=None):
     """Create a lattice-radiotherapy vertex target from an existing structure.
 
     Generates a regular arrangement of high-dose spheres ("vertices"/"peaks")
@@ -221,9 +224,17 @@ def createLattice(planC, structNum,
         valleyStructName (str or None): Name for the valley structure.
             Defaults to ``"<target>_lattice_valley"``.
         units (str): Units for ``sphereDiameter``, ``latticeSpacing``,
-            ``innerMargin`` and ``offset``. 'mm' (default, clinical convention)
-            or 'cm' (pyCERR's native grid units). Values are converted to the
-            grid's centimetre coordinate system internally.
+            ``innerMargin``, ``offset`` and ``ringThickness``. 'mm' (default,
+            clinical convention) or 'cm' (pyCERR's native grid units). Values
+            are converted to the grid's centimetre coordinate system internally.
+        addAvoidanceRing (bool): When True add a thin "avoidance ring" shell of
+            thickness ``ringThickness`` immediately outside each vertex (inside
+            the target, excluding the peaks). Used as an OAR objective during
+            optimization, it sharpens the dose fall-off around each sphere and
+            deepens the valley.
+        ringThickness (float): Thickness of the avoidance ring (default 3 mm).
+        ringStructName (str or None): Name for the avoidance ring structure.
+            Defaults to ``"<target>_lattice_ring"``.
 
     Returns:
         tuple:
@@ -291,6 +302,18 @@ def createLattice(planC, structNum,
             planC = pc.importStructureMask(
                 sph3M, assocScanNum, "%s_vertex_%02d" % (targetName, i + 1), planC)
 
+    if addAvoidanceRing and np.any(peaks3M):
+        # Shell of thickness ``ringThickness`` around the peaks, restricted to
+        # the target and excluding the peaks themselves. distance_transform_edt
+        # on ~peaks gives, at every voxel, the distance to the nearest peak.
+        dx, dy, dz = _getVoxelSpacing(xV, yV, zV)
+        ringThickness_cm = ringThickness * scale
+        distToPeak = distance_transform_edt(~peaks3M, sampling=(dy, dx, dz))
+        ring3M = (distToPeak <= ringThickness_cm) & (~peaks3M) & targetMask3M
+        if ringStructName is None:
+            ringStructName = "%s_lattice_ring" % targetName
+        planC = pc.importStructureMask(ring3M, assocScanNum, ringStructName, planC)
+
     return planC, verticesXYZ
 
 
@@ -329,8 +352,11 @@ def latticeBoostObjectives(peakStructNum,
         gtvMinDose (float or None): Minimum GTV dose in Gy. Defaults to
             ``valleyMaxDose`` so the whole target receives at least the valley dose.
         peakPriority, valleyPriority, gtvPriority (float): Objective weights.
-        oarObjectives (dict or None): Optional extra ``{structNum: [Objective, ...]}``
-            for organs at risk, merged into the returned dict.
+        oarObjectives (dict or None): Optional extra organ-at-risk objectives,
+            ``{structNum: value}``, where ``value`` is either a list of
+            pyRadPlan ``Objective`` objects or a plain number interpreted as an
+            overdose dose cap in Gy (so callers can specify a cap without
+            importing pyRadPlan).
 
     Returns:
         tuple:
@@ -359,6 +385,8 @@ def latticeBoostObjectives(peakStructNum,
 
     if oarObjectives:
         for s, objs in oarObjectives.items():
+            if isinstance(objs, (int, float)):
+                objs = [prp.squaredOverdosing(float(objs))]
             objectives.setdefault(s, []).extend(objs)
 
     return objectives, targetStructNums
@@ -381,13 +409,21 @@ def optimizeLatticeBoost(planC, peakStructNum,
                          machine='Generic',
                          numOfFractions=1,
                          doseGridResolution=None,
-                         fractionGroupID='lattice'):
-    """End-to-end lattice boost optimization through the pyRadPlan bridge.
+                         fractionGroupID='lattice',
+                         engine='pyradplan',
+                         bodyStructNum=None,
+                         solver='SCS'):
+    """End-to-end lattice boost optimization with a choice of dose engine.
 
     Wires the peak/valley structures created by :func:`createLattice` into a
-    fluence-optimized plan: builds the pyRadPlan ``(ct, cst, pln)``, computes
-    the beamlet dose-influence matrix, optimizes the fluence for the
-    lattice-boost objectives, and imports the resulting dose into ``planC.dose``.
+    fluence-optimized plan and imports the resulting dose into ``planC.dose``.
+
+    Two engines are available:
+
+    - ``engine='pyradplan'`` (default) -- pyRadPlan's physical pencil-beam
+      engine + fluence optimizer. Requires ``pyRadPlan``.
+    - ``engine='qib'`` -- pyCERR's native QIB pencil-beam engine, optimized
+      through PortPy. Requires ``portpy`` (but **not** pyRadPlan).
 
     Beam geometry is read from ``planC.beams[beamsNum]`` unless ``gantryAngles``
     is given explicitly (in which case ``beamsNum`` is ignored).
@@ -402,17 +438,42 @@ def optimizeLatticeBoost(planC, peakStructNum,
             (see :func:`cerr.imrtp.pyradplan_bridge.planFromPlanC`).
         peakDose, valleyMaxDose, gtvMinDose, oarObjectives: dose objectives
             (see :func:`latticeBoostObjectives`).
-        structNums (list or None): structures to include in the cst; defaults
-            to the peak/valley/GTV (and any OAR) structures referenced by the
-            objectives.
-        bixelWidth, machine, numOfFractions, doseGridResolution: passed to
-            :func:`cerr.imrtp.pyradplan_bridge.planFromPlanC`.
+        structNums (list or None): structures to include; defaults to the
+            peak/valley/GTV (and any OAR/body) structures referenced.
+        bixelWidth, machine, doseGridResolution: pyRadPlan engine only.
+        numOfFractions: number of fractions.
         fractionGroupID (str): label stored on the imported dose.
+        engine (str): 'pyradplan' (default) or 'qib'.
+        bodyStructNum (int or None): external/BODY structure index. Used by the
+            QIB engine's PortPy dataset; ignored by the pyRadPlan engine.
+        solver (str): CVXPy solver name for the QIB (PortPy) engine
+            (e.g. 'SCS', 'MOSEK'); ignored by the pyRadPlan engine.
 
     Returns:
-        tuple: ``(w, doseNum, planC)`` -- optimized beamlet weights, index of
-        the imported dose in ``planC.dose`` and the container.
+        tuple: ``(w, doseNum, planC)`` -- optimized beamlet weights / intensities,
+        index of the imported dose in ``planC.dose`` and the container.
     """
+    engine = engine.lower()
+    if engine not in ('pyradplan', 'qib'):
+        raise ValueError("engine must be 'pyradplan' or 'qib', got %r" % engine)
+
+    if engine == 'qib':
+        return _optimizeLatticeBoostQIB(
+            planC, peakStructNum,
+            valleyStructNum=valleyStructNum,
+            gtvStructNum=gtvStructNum,
+            bodyStructNum=bodyStructNum,
+            scanNum=scanNum,
+            beamsNum=beamsNum,
+            gantryAngles=gantryAngles,
+            peakDose=peakDose,
+            valleyMaxDose=valleyMaxDose,
+            oarObjectives=oarObjectives,
+            structNums=structNums,
+            numOfFractions=numOfFractions,
+            solver=solver,
+            fractionGroupID=fractionGroupID)
+
     from cerr.imrtp import pyradplan_bridge as prp
 
     objectives, targetStructNums = latticeBoostObjectives(
@@ -447,4 +508,112 @@ def optimizeLatticeBoost(planC, peakStructNum,
     w, doseNum, planC = prp.optimizeAndImportDose(
         planC, ct, cst, stf, dij, pln, scanNum=scanNum,
         fractionGroupID=fractionGroupID)
+    return w, doseNum, planC
+
+
+def _optimizeLatticeBoostQIB(planC, peakStructNum,
+                             valleyStructNum=None,
+                             gtvStructNum=None,
+                             bodyStructNum=None,
+                             scanNum=0,
+                             beamsNum=0,
+                             gantryAngles=None,
+                             peakDose=15.0,
+                             valleyMaxDose=None,
+                             oarObjectives=None,
+                             structNums=None,
+                             numOfFractions=1,
+                             solver='SCS',
+                             fractionGroupID='lattice'):
+    """Lattice boost via pyCERR's native QIB engine + PortPy optimization.
+
+    Called by :func:`optimizeLatticeBoost` when ``engine='qib'``. The peaks are
+    the optimization target (driven to ``peakDose``); the valley and any OARs
+    become PortPy overdose objectives. Requires ``portpy`` (no pyRadPlan).
+
+    Note: PortPy's simple objective set does not express a GTV minimum-dose
+    floor, so ``gtvStructNum``/``gtvMinDose`` are not used by this engine.
+    """
+    import tempfile
+    from cerr.imrtp import imrtp_problem as imp
+    from cerr.imrtp.dosecalc import generateQIBInfluence
+    from cerr.imrtp import portpy_bridge as ppb
+
+    # Resolve beam angles (explicit, else the first control point of each beam).
+    if gantryAngles is None:
+        if not planC.beams:
+            raise ValueError("engine='qib' needs gantryAngles (or an RTPLAN in "
+                             "planC.beams) to define the beam geometry.")
+        gantryAngles = [float(getattr(np.atleast_1d(bs.ControlPointSequence)[0],
+                                      'GantryAngle', 0.0))
+                        for bs in np.atleast_1d(planC.beams[beamsNum].BeamSequence)]
+
+    peakName = planC.structure[peakStructNum].structureName
+
+    # Structures to include in the QIB influence + PortPy dataset.
+    if structNums is None:
+        structNums = [peakStructNum]
+        for s in (valleyStructNum, gtvStructNum, bodyStructNum):
+            if s is not None and s not in structNums:
+                structNums.append(s)
+        if oarObjectives:
+            for s in oarObjectives:
+                if s not in structNums:
+                    structNums.append(s)
+
+    # Relative (in-scan) structure index for addGoal.
+    scanStructs = [i for i, s in enumerate(planC.structure)
+                   if scn.getScanNumFromUID(s.assocScanUID, planC) == scanNum]
+
+    def _rel(absNum):
+        return scanStructs.index(absNum)
+
+    # Build the QIB IMRT problem: peaks are the target; the rest are goals.
+    im = imp.initIMRTProblem(planC)
+    gPeak = imp.addGoal(im, _rel(peakStructNum), planC)
+    gPeak.isTarget = "yes"
+    gPeak.xySampleRate = 2
+    for s in structNums:
+        if s != peakStructNum:
+            imp.addGoal(im, _rel(s), planC)
+
+    imp.addEquispacedBeams(im, len(gantryAngles), gantryAngles[0], planC)
+    for b, ang in zip(im.beams, gantryAngles):
+        b.gantryAngle = float(ang)
+    im.params.algorithm = "QIB"
+    for b in im.beams:
+        imp.conditionBeam(b, im, planC)
+
+    generateQIBInfluence(im, planC)
+
+    dataDir = tempfile.mkdtemp()
+    ppb.writePortpyFromQIB(planC, im, outDir=dataDir, patientId="Lattice_QIB",
+                           scanNum=scanNum, structNums=structNums,
+                           bodyStructNum=bodyStructNum)
+
+    # Map peak/valley/OAR caps into PortPy's {name: overdose_gy} objectives.
+    valleyMaxResolved = valleyMaxDose if valleyMaxDose is not None \
+        else 0.3 * peakDose
+    portpyOars = {}
+    if valleyStructNum is not None:
+        portpyOars[planC.structure[valleyStructNum].structureName] = \
+            float(valleyMaxResolved)
+    if oarObjectives:
+        for s, objs in oarObjectives.items():
+            if isinstance(objs, (int, float)):
+                cap = float(objs)
+            else:
+                cap = getattr(objs[0], 'd_max', None) if objs else None
+            if cap is not None:
+                portpyOars[planC.structure[s].structureName] = float(cap)
+
+    sol, doseNum, planC = ppb.optimizeAndImport(
+        planC, dataDir=dataDir, patientId="Lattice_QIB",
+        prescriptionGy=peakDose, numFractions=numOfFractions,
+        scanNum=scanNum, targetName=peakName,
+        oarObjectives=portpyOars, solver=solver,
+        fractionGroupID=fractionGroupID)
+
+    w = np.asarray(sol.get('optimal_intensity', []), dtype=float) \
+        if isinstance(sol, dict) else np.asarray([])
     return w, doseNum, planC
