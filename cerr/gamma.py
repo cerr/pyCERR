@@ -31,6 +31,152 @@ from scipy.ndimage import shift as _ndshift
 
 import cerr.contour.rasterseg as rs
 
+#: Above this many voxels in the up-sampled evaluated dose, fall back to the
+#: (slower, low-memory) shift-based search instead of the vectorized one.
+_MAX_FINE_ELEMS = 60_000_000
+
+
+def _upsampleAxisLinear(arr, F, axis):
+    """Node-aligned linear up-sampling of ``arr`` by integer factor ``F`` along
+    ``axis`` (fine index ``i*F`` reproduces original index ``i`` exactly).
+
+    NaNs propagate through interpolated samples but do not contaminate
+    node-aligned samples (the zero-weighted neighbor is not multiplied in).
+    """
+    if F == 1:
+        return arr
+    arr = np.moveaxis(arr, axis, 0)
+    n = arr.shape[0]
+    nFine = (n - 1) * F + 1
+    j = np.arange(nFine)
+    lo = j // F
+    frac = (j - lo * F) / float(F)          # in [0, 1)
+    hi = np.minimum(lo + 1, n - 1)
+    w = frac.reshape((-1,) + (1,) * (arr.ndim - 1))
+    # arr[lo] carries weight (1-w) > 0 everywhere; add the hi term only where
+    # w > 0 so a NaN "next" node cannot corrupt an exact (w==0) sample.
+    out = arr[lo] * (1.0 - w)
+    out = out + np.where(w > 0, arr[hi] * w, 0.0)
+    return np.moveaxis(out, 0, axis)
+
+
+def _upsampleLinear(arr, F):
+    """Separable node-aligned linear up-sampling by per-axis factors ``F``.
+
+    Interpolating one axis at a time keeps peak memory near the size of the
+    up-sampled array, avoiding the 3x-oversized coordinate grids that a single
+    3-D ``map_coordinates`` call would allocate.
+    """
+    out = arr
+    for axis in range(arr.ndim):
+        out = _upsampleAxisLinear(out, int(F[axis]), axis)
+    return out
+
+
+def _searchOffsets(step, maxSearchDistance, fineSpacingV):
+    """Search offsets sampled at ``step`` mm, snapped to the fine grid.
+
+    Returns a list of ``(disp0, disp1, disp2, distMm)`` where ``disp`` are the
+    integer fine-grid displacements and ``distMm`` is the snapped Euclidean
+    distance. Duplicate displacements (from the snapping) are removed.
+    """
+    nSteps = int(np.ceil(maxSearchDistance / step))
+    mmV = np.arange(-nSteps, nSteps + 1) * step
+    seen = set()
+    offsets = []
+    for m0 in mmV:
+        for m1 in mmV:
+            for m2 in mmV:
+                if np.sqrt(m0 * m0 + m1 * m1 + m2 * m2) > maxSearchDistance:
+                    continue
+                disp = (int(round(m0 / fineSpacingV[0])),
+                        int(round(m1 / fineSpacingV[1])),
+                        int(round(m2 / fineSpacingV[2])))
+                if disp in seen:
+                    continue
+                seen.add(disp)
+                distMm = np.sqrt((disp[0] * fineSpacingV[0]) ** 2 +
+                                 (disp[1] * fineSpacingV[1]) ** 2 +
+                                 (disp[2] * fineSpacingV[2]) ** 2)
+                if distMm <= maxSearchDistance:
+                    offsets.append((disp[0], disp[1], disp[2], distMm))
+    return offsets
+
+
+def _gammaSearchUpsample(doseRef3M, doseEval3M, ddAbs, dta, spacingV,
+                         maxSearchDistance, distSampleRate):
+    """Vectorized gamma search: interpolate the evaluated dose onto a fine grid
+    once, then evaluate every search offset as a strided slice (no per-offset
+    interpolation)."""
+    step = dta / float(distSampleRate)
+    n = np.asarray(doseRef3M.shape, dtype=int)
+    # Up-sample factor per axis so the fine spacing is at most ``step``.
+    F = np.maximum(1, np.ceil(spacingV / step)).astype(int)
+    fineSpacingV = spacingV / F
+    # Up-sample the evaluated dose once (separable, node-aligned) so the fine
+    # index i*F reproduces the original index i exactly.
+    evalFine = _upsampleLinear(doseEval3M, F)
+
+    offsets = _searchOffsets(step, maxSearchDistance, fineSpacingV)
+    dispArr = np.abs(np.array([(o[0], o[1], o[2]) for o in offsets]))
+    pad = dispArr.max(axis=0) if len(offsets) else np.zeros(3, int)
+    p0, p1, p2 = int(pad[0]), int(pad[1]), int(pad[2])
+    evalPad = np.pad(evalFine, ((p0, p0), (p1, p1), (p2, p2)),
+                     mode='constant', constant_values=np.nan)
+    del evalFine
+
+    gammaSq = np.full(doseRef3M.shape, np.inf)
+    for d0, d1, d2, distMm in offsets:
+        s0, s1, s2 = p0 + d0, p1 + d1, p2 + d2
+        shifted = evalPad[s0:s0 + (n[0] - 1) * F[0] + 1:F[0],
+                          s1:s1 + (n[1] - 1) * F[1] + 1:F[1],
+                          s2:s2 + (n[2] - 1) * F[2] + 1:F[2]]
+        dDose = shifted - doseRef3M
+        with np.errstate(divide='ignore', invalid='ignore'):
+            g2 = (distMm / dta) ** 2 + (dDose / ddAbs) ** 2
+        np.fmin(gammaSq, g2, out=gammaSq)
+    return gammaSq
+
+
+def _gammaSearchShift(doseRef3M, doseEval3M, ddAbs, dta, spacingV,
+                      maxSearchDistance, distSampleRate):
+    """Low-memory gamma search: shift (interpolate) the evaluated dose per
+    offset. Used as a fallback when up-sampling would be too large."""
+    step = dta / float(distSampleRate)
+    nSteps = int(np.ceil(maxSearchDistance / step))
+    offV = np.arange(-nSteps, nSteps + 1) * step
+    gammaSq = np.full(doseRef3M.shape, np.inf)
+    for o0 in offV:
+        for o1 in offV:
+            for o2 in offV:
+                distMm = np.sqrt(o0 * o0 + o1 * o1 + o2 * o2)
+                if distMm > maxSearchDistance:
+                    continue
+                voxShift = (-o0 / spacingV[0], -o1 / spacingV[1],
+                            -o2 / spacingV[2])
+                evalShift = _ndshift(doseEval3M, shift=voxShift, order=1,
+                                     mode='constant', cval=np.nan)
+                dDose = evalShift - doseRef3M
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    g2 = (distMm / dta) ** 2 + (dDose / ddAbs) ** 2
+                np.fmin(gammaSq, g2, out=gammaSq)
+    return gammaSq
+
+
+def _gammaSearch(doseRef3M, doseEval3M, ddAbs, dta, spacingV,
+                 maxSearchDistance, distSampleRate):
+    """Dispatch to the vectorized (up-sample) search, or the low-memory
+    shift-based search when the up-sampled grid would be too large."""
+    step = dta / float(distSampleRate)
+    n = np.asarray(doseRef3M.shape, dtype=int)
+    F = np.maximum(1, np.ceil(np.asarray(spacingV, float) / step)).astype(int)
+    fineElems = int(np.prod((n - 1) * F + 1))
+    if fineElems <= _MAX_FINE_ELEMS:
+        return _gammaSearchUpsample(doseRef3M, doseEval3M, ddAbs, dta,
+                                    spacingV, maxSearchDistance, distSampleRate)
+    return _gammaSearchShift(doseRef3M, doseEval3M, ddAbs, dta, spacingV,
+                             maxSearchDistance, distSampleRate)
+
 
 def gammaDose3d(doseRef3M, doseEval3M, spacingV,
                 distAgreement=3.0, doseAgreement=3.0,
@@ -94,30 +240,8 @@ def gammaDose3d(doseRef3M, doseEval3M, spacingV,
     else:
         raise ValueError("doseAgreementType must be 'global' or 'local'")
 
-    # Search offsets on an isotropic lattice (mm) within the search sphere.
-    step = dta / float(distSampleRate)
-    nSteps = int(np.ceil(maxSearchDistance / step))
-    offV = np.arange(-nSteps, nSteps + 1) * step
-
-    gammaSq = np.full(doseRef3M.shape, np.inf)
-    for o0 in offV:
-        for o1 in offV:
-            for o2 in offV:
-                distMm = np.sqrt(o0 * o0 + o1 * o1 + o2 * o2)
-                if distMm > maxSearchDistance:
-                    continue
-                # Sample eval at ref-index + offset: shift eval by -offset.
-                voxShift = (-o0 / spacingV[0], -o1 / spacingV[1],
-                            -o2 / spacingV[2])
-                evalShift = _ndshift(doseEval3M, shift=voxShift, order=1,
-                                     mode='constant', cval=np.nan)
-                dDose = evalShift - doseRef3M
-                distTerm = (distMm / dta) ** 2
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    ddTerm = (dDose / ddAbs) ** 2
-                g2 = distTerm + ddTerm
-                # fmin ignores NaN (out-of-bounds / zero-local-dose voxels).
-                np.fmin(gammaSq, g2, out=gammaSq)
+    gammaSq = _gammaSearch(doseRef3M, doseEval3M, ddAbs, dta, spacingV,
+                           maxSearchDistance, distSampleRate)
 
     gamma3M = np.sqrt(gammaSq)
     # Exclude voxels with no valid reference dose (NaN, e.g. resampled outside
