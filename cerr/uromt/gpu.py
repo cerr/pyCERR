@@ -37,8 +37,25 @@ Implementation. The device operators are fused CUDA kernels
 separable collapse (z, then y, then x), one launch per operator, and one launch
 per *whole* sensitivity sub-step. Scatters use ``atomicAdd`` on doubles, native
 from compute capability 6.0; on older devices the backend falls back to an
-equivalent array-expression path built on ``cupy.add.at``. Because atomics do not
-fix a summation order, repeated scatter results can differ at the ~1e-16 level.
+equivalent array-expression path built on ``cupy.add.at``.
+
+**Reproducibility.** Atomics do not fix a summation order, so a scatter is
+nondeterministic at the ~1e-16 level. That sounds harmless, but the urOMT
+velocity is very weakly determined - the rho-weighted kinetic term barely
+constrains ``u`` where rho -> 0 - and the solver amplifies it. Measured on the
+reference breast interval, two *identical* GPU runs from the same zero start
+differ by **21% in max|u|** while their objectives agree to five digits; the
+same pair on the CPU is bit-identical. So:
+
+* the objective, the density and the source are reproducible on either backend;
+* the recovered **velocity field is not reproducible run-to-run on the GPU**.
+
+Use the CPU when you need a repeatable velocity field (e.g. a figure, or a
+regression baseline); use the GPU for speed when run-to-run variation of ``u``
+at the tens-of-percent level is acceptable. This is a property of the inverse
+problem, not a defect in the kernels - see
+``test_gpu_backend_reproduces_the_cpu_solve``, which compares the *objective*
+rather than ``u`` for exactly this reason.
 
 **When the GPU is worth it.** Measured on a Quadro RTX 5000 (Turing, 16 GB)
 against a 24-core CPU, nt=10, one Gauss-Newton block solve:
