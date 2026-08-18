@@ -4,7 +4,7 @@ from cerr.viewer.pycerr_gui.slice_view import SliceView  # noqa: E402
 from cerr.viewer.pycerr_gui.colorbars import DoseColorbarWidget, ScanColorbarWidget  # noqa: E402
 from cerr.viewer.pycerr_gui.dialogs import (DvhDialog, ContourDialog, RegQaDialog,  # noqa: E402
                                             ScanDoseExportDialog, StructureExportDialog,
-                                            StructureConsensusDialog)
+                                            StructureConsensusDialog, GammaDialog)
 from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog  # noqa: E402
 from cerr.viewer.pycerr_gui.volume3d import Volume3DDialog  # noqa: E402
 
@@ -692,6 +692,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         toolsM.addAction("&Contouring (draw/edit structures)...",
                          self.show_contour_dialog)
         toolsM.addAction("&DVH...", self.show_dvh_dialog)
+        toolsM.addAction("&Gamma 3D (dose comparison)...",
+                         self.show_gamma_dialog)
         toolsM.addAction("Registration &QA (compare scans)...",
                          self.show_reg_dialog)
         toolsM.addAction("Structure &consensus (compare/STAPLE)...",
@@ -4011,6 +4013,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # Non-modal (like the other tools): a modal exec_() hangs when the
         # viewer runs inside an integrated event loop (show() / %gui qt).
         dlg = DvhDialog(self.planC, self)
+        self._toolWindows.append(dlg)
+        dlg.show()
+
+    def show_gamma_dialog(self):
+        """Open the 3-D gamma dose-comparison tool (cf. CERR ``Gamma 3D``):
+        per-structure pass rates plus gamma-map / fail-region overlays."""
+        if self.planC is None or len(self.planC.dose) < 2:
+            _show_info(self, "Gamma 3D",
+                       "Two doses are required to compute gamma "
+                       "(e.g. a clinical RTDOSE and a pyCERR dose).")
+            return
+        dlg = GammaDialog(self)
         self._toolWindows.append(dlg)
         dlg.show()
 

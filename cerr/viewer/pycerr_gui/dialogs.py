@@ -1,5 +1,6 @@
-"""Viewer dialogs: DVH, contouring, export and registration-QA tools."""
+"""Viewer dialogs: DVH, gamma, contouring, export and registration-QA tools."""
 from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
+from cerr import gamma as cerrGamma
 
 class DvhDialog(QtWidgets.QDialog):
     def __init__(self, planC, parent=None):
@@ -1208,3 +1209,216 @@ class StructureConsensusDialog(QtWidgets.QDialog):
             self.viewer._done()
             _show_error(self, "Structure Consensus",
                         f"Could not create consensus structure:\n{e}")
+
+
+# ---------------------------------------------------------------------------#
+#  Gamma 3D (dose comparison)                                                 #
+#  Port of MATLAB CERR's Dose -> Gamma 3D. Compares two doses with a          #
+#  dose-difference / distance-to-agreement criterion, tabulates pass rates    #
+#  per structure, and overlays the gamma map / fail region on the viewer.     #
+# ---------------------------------------------------------------------------#
+class GammaDialog(QtWidgets.QDialog):
+    """Non-modal 3-D gamma dose-comparison tool (cf. CERR ``Gamma 3D``)."""
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.viewer = viewer
+        self.planC = viewer.planC
+        self.setModal(False)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setWindowTitle("Gamma 3D (dose comparison)")
+        self.resize(860, 600)
+        self.gamma3M = None
+        self.scanNum = 0
+
+        lay = QtWidgets.QHBoxLayout(self)
+
+        # ----- left: dose selection, criteria, structures ----------------- #
+        left = QtWidgets.QVBoxLayout()
+
+        left.addWidget(QtWidgets.QLabel("Reference dose:"))
+        self.refCombo = QtWidgets.QComboBox()
+        left.addWidget(self.refCombo)
+        left.addWidget(QtWidgets.QLabel("Evaluated dose:"))
+        self.evalCombo = QtWidgets.QComboBox()
+        left.addWidget(self.evalCombo)
+        for i, d in enumerate(self.planC.dose):
+            label = f"{i}: {getattr(d, 'fractionGroupID', 'dose')}"
+            self.refCombo.addItem(label)
+            self.evalCombo.addItem(label)
+        if self.evalCombo.count() > 1:
+            self.evalCombo.setCurrentIndex(1)
+
+        crit = QtWidgets.QGroupBox("Criteria")
+        form = QtWidgets.QFormLayout(crit)
+        self.ddSpin = QtWidgets.QDoubleSpinBox()
+        self.ddSpin.setRange(0.1, 50.0); self.ddSpin.setValue(3.0)
+        self.ddSpin.setSuffix(" %")
+        form.addRow("Dose difference:", self.ddSpin)
+        self.dtaSpin = QtWidgets.QDoubleSpinBox()
+        self.dtaSpin.setRange(0.1, 50.0); self.dtaSpin.setValue(3.0)
+        self.dtaSpin.setSuffix(" mm")
+        form.addRow("Distance-to-agreement:", self.dtaSpin)
+        self.thrSpin = QtWidgets.QDoubleSpinBox()
+        self.thrSpin.setRange(0.0, 100.0); self.thrSpin.setValue(20.0)
+        self.thrSpin.setSuffix(" %")
+        form.addRow("Low-dose threshold:", self.thrSpin)
+        self.normCombo = QtWidgets.QComboBox()
+        self.normCombo.addItems(["global", "local"])
+        form.addRow("Normalization:", self.normCombo)
+        self.rateSpin = QtWidgets.QSpinBox()
+        self.rateSpin.setRange(1, 10); self.rateSpin.setValue(3)
+        form.addRow("Search samples / DTA:", self.rateSpin)
+        left.addWidget(crit)
+
+        left.addWidget(QtWidgets.QLabel("Structures (pass rate per ROI):"))
+        self.strList = QtWidgets.QListWidget()
+        for i, st in enumerate(self.planC.structure):
+            it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Unchecked)
+            it.setData(Qt.UserRole, i)
+            self.strList.addItem(it)
+        left.addWidget(self.strList, 1)
+
+        self.btnCompute = QtWidgets.QPushButton("Compute gamma")
+        self.btnCompute.clicked.connect(self.compute)
+        left.addWidget(self.btnCompute)
+
+        ovRow = QtWidgets.QHBoxLayout()
+        self.btnMap = QtWidgets.QPushButton("Show gamma map")
+        self.btnMap.clicked.connect(self.show_map)
+        self.btnMap.setEnabled(False)
+        self.btnFail = QtWidgets.QPushButton("Show fail region (γ>1)")
+        self.btnFail.clicked.connect(self.show_fail)
+        self.btnFail.setEnabled(False)
+        ovRow.addWidget(self.btnMap)
+        ovRow.addWidget(self.btnFail)
+        left.addLayout(ovRow)
+
+        lw = QtWidgets.QWidget(); lw.setLayout(left); lw.setFixedWidth(330)
+        lay.addWidget(lw)
+
+        # ----- right: results table --------------------------------------- #
+        right = QtWidgets.QVBoxLayout()
+        self.summary = QtWidgets.QLabel("Select two doses and press "
+                                        "'Compute gamma'.")
+        self.summary.setWordWrap(True)
+        right.addWidget(self.summary)
+        self.table = QtWidgets.QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(
+            ["Structure", "# voxels", "pass rate (%)"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        right.addWidget(self.table, 1)
+        rw = QtWidgets.QWidget(); rw.setLayout(right)
+        lay.addWidget(rw, 1)
+
+    # ------------------------------------------------------------------ ui --
+    def _selected_structs(self):
+        out = []
+        for i in range(self.strList.count()):
+            it = self.strList.item(i)
+            if it.checkState() == Qt.Checked:
+                out.append(it.data(Qt.UserRole))
+        return out
+
+    def _scan_num_for_dose(self, doseNum):
+        try:
+            return scn.getScanNumFromUID(
+                self.planC.dose[doseNum].assocScanUID, self.planC)
+        except Exception:  # noqa: BLE001
+            return 0
+
+    # -------------------------------------------------------------- compute --
+    def compute(self):
+        refNum = self.refCombo.currentIndex()
+        evalNum = self.evalCombo.currentIndex()
+        if refNum == evalNum:
+            _show_info(self, "Gamma 3D",
+                       "Choose two different doses (reference vs evaluated).")
+            return
+        self.scanNum = self._scan_num_for_dose(refNum)
+        try:
+            self.viewer._busy("Computing 3D gamma ...")
+            gamma3M, passRate = cerrGamma.gammaDose3dForScan(
+                refNum, evalNum, self.scanNum, self.planC,
+                distAgreement=float(self.dtaSpin.value()),
+                doseAgreement=float(self.ddSpin.value()),
+                thresholdFraction=float(self.thrSpin.value()) / 100.0,
+                doseAgreementType=self.normCombo.currentText(),
+                distSampleRate=int(self.rateSpin.value()))
+            self.gamma3M = gamma3M
+            self._fill_table(passRate)
+            self.btnMap.setEnabled(True)
+            self.btnFail.setEnabled(True)
+            self.viewer._done("Gamma computed.")
+        except Exception as e:  # noqa: BLE001
+            self.viewer._done()
+            _show_error(self, "Gamma 3D", f"Gamma computation failed:\n{e}")
+
+    def _fill_table(self, passRate):
+        rows = cerrGamma.gammaByStructure(
+            self.gamma3M, self._selected_structs(), self.planC)
+        nEvalAll = int(np.count_nonzero(~np.isnan(self.gamma3M)))
+        crit = "%.1f%%/%.1fmm" % (self.ddSpin.value(), self.dtaSpin.value())
+        self.summary.setText(
+            "Gamma %s (%s), threshold %.0f%%: overall pass rate "
+            "<b>%.1f%%</b> over %d voxels."
+            % (crit, self.normCombo.currentText(), self.thrSpin.value(),
+               100.0 * passRate, nEvalAll))
+        self.table.setRowCount(len(rows) + 1)
+        self._set_row(0, "ALL (evaluated)", nEvalAll, passRate)
+        for r, row in enumerate(rows, start=1):
+            self._set_row(r, row["structureName"], row["numEvaluated"],
+                          row["passRate"])
+
+    def _set_row(self, r, name, nvox, passRate):
+        pct = "n/a" if (passRate != passRate) else "%.1f" % (100.0 * passRate)
+        for c, txt in enumerate([str(name), str(int(nvox)), pct]):
+            item = QtWidgets.QTableWidgetItem(txt)
+            if c > 0:
+                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(r, c, item)
+
+    # ------------------------------------------------------------- overlays --
+    def _refresh(self, msg):
+        self.viewer.planC = self.planC
+        self.viewer.maskCache.clear()
+        self.viewer.after_load(keep_view=True)
+        self.viewer._done(msg)
+
+    def show_map(self):
+        if self.gamma3M is None:
+            return
+        xV, yV, zV = self.planC.scan[self.scanNum].getScanXYZVals()
+        gmap = np.nan_to_num(self.gamma3M, nan=0.0)
+        try:
+            self.viewer._busy("Adding gamma map ...")
+            self.planC = pc.importDoseArray(
+                gmap, xV, yV, zV, self.planC, self.scanNum,
+                {"fractionGroupID": "Gamma %.0f%%/%.0fmm"
+                 % (self.ddSpin.value(), self.dtaSpin.value()),
+                 "units": "gamma"})
+            doseNum = len(self.planC.dose) - 1
+            self._refresh("Added gamma map to planC.dose[%d]." % doseNum)
+            self.viewer.set_dose(doseNum)
+        except Exception as e:  # noqa: BLE001
+            self.viewer._done()
+            _show_error(self, "Gamma 3D", f"Could not add gamma map:\n{e}")
+
+    def show_fail(self):
+        if self.gamma3M is None:
+            return
+        failMask = np.nan_to_num(self.gamma3M, nan=0.0) > 1.0
+        if not failMask.any():
+            _show_info(self, "Gamma 3D", "No failing voxels (γ > 1).")
+            return
+        try:
+            self.viewer._busy("Adding fail region ...")
+            self.planC = pc.importStructureMask(
+                failMask, self.scanNum, "Gamma>1 (fail)", self.planC)
+            strNum = len(self.planC.structure) - 1
+            self._refresh("Added fail region to planC.structure[%d]." % strNum)
+        except Exception as e:  # noqa: BLE001
+            self.viewer._done()
+            _show_error(self, "Gamma 3D", f"Could not add fail region:\n{e}")
