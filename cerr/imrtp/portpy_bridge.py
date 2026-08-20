@@ -243,9 +243,16 @@ def writePortpyDataset(planC, outDir: str, patientId: str,
         for s in structNums:
             calcMask |= masks[s].astype(bool)
     if rowIndexMap is not None:
-        # rows are defined by an external influence matrix (e.g. pyRadPlan):
-        # keep those row indices, mask out voxels outside the calc box
+        # fixed version
+        # rows are defined by an external influence matrix (QIB / pyRadPlan).
+        # Assign every calc-box voxel to its nearest dose-point row
+        from scipy.spatial import cKDTree
         idxMap = np.where(calcMask, rowIndexMap.astype(np.int64), -1)
+        have = np.array(np.nonzero(idxMap >= 0))
+        need = np.array(np.nonzero(calcMask & (idxMap < 0)))
+        if have.size and need.size:
+            _, nn = cKDTree(have.T).query(need.T)
+            idxMap[tuple(need)] = idxMap[tuple(have[:, nn])]
     else:
         idxMap = _ctToDoseVoxelMap(calcMask)
 
