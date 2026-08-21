@@ -11,7 +11,10 @@ Pipeline stages:
   load & preprocess frames + mask).
 * **Part 2** - :func:`cerr.uromt.solver.solveUROMT` (run the urOMT optimization).
 * **Part 3** - :func:`cerr.uromt.analyze.runEULA` (Eulerian speed/rate/Peclet/flux maps).
-* **Part 4** - :func:`cerr.uromt.analyze.runGLAD` (Lagrangian transport pathlines).
+* **Part 4** - :func:`cerr.uromt.analyze.runGLAD` (Lagrangian transport
+  pathlines, sampling every quantity in
+  :data:`cerr.uromt.analyze.QUANTITIES` along them so any of them can colour
+  the pathlines *or* the velocity/flux vectors without re-integrating).
 * **Part 5** - :mod:`cerr.uromt.viz` (napari overlays of the fields & pathlines).
 
 Top-level convenience::
@@ -51,6 +54,12 @@ def runUROMT(planC, structNum=None, scanNumV=None, settingsFile=None,
         settingsFile (str): urOMT model-settings JSON (``None`` -> bundled).
         analyze (bool): also run :func:`runEULA`/:func:`runGLAD`.
         saveToPlanC (bool): store the run on ``planC.urOMT``.
+            ``verbose`` is one of these settings, not a separate parameter:
+            ``runUROMT(..., verbose=False)`` silences the progress output, and a
+            settings JSON carrying ``"verbose": 0`` does the same. Keeping it a
+            plain setting is what lets ``runUROMT(planC, **settingsFromJson)``
+            work when that JSON contains a ``verbose`` key - an explicit
+            parameter of the same name would collide with it.
         **settingsOverrides: individual model settings to override without
             editing the JSON, e.g. ``useGPU='yes'``, ``numThreads=4``,
             ``maxUiter=3``, ``fft_pad=0``.
@@ -59,14 +68,30 @@ def runUROMT(planC, structNum=None, scanNumV=None, settingsFile=None,
         int: the index into ``planC.urOMT`` when ``saveToPlanC`` (access the run
         as ``planC.urOMT[idx]``); otherwise the raw result dict.
     """
-    from cerr.uromt.solver import solveUROMT    # lazy (heavy numerics)
+    # lazy (heavy numerics) - keep solver off the package import path
+    from cerr.uromt.solver import solveUROMT, _hms
     from cerr.dataclasses.uromt import buildFromConfig, saveUROMTToPlan
+    import time
+
     cfg = buildConfig(scanNumV, structNum, settingsFile, **settingsOverrides)
+    verbose = bool(int(getattr(cfg, "verbose", 1)))
+    say = (lambda m: print(m, flush=True)) if verbose else (lambda m: None)
+    t0 = time.time()
+    say("urOMT Part 1: preparing data...")
     cfg = prepareData(cfg, planC)      # infers scanNumV when it is None
-    result = solveUROMT(cfg)
-    Eul = runEULA(result) if analyze else None
-    Lag = runGLAD(result) if analyze else None
+    say("urOMT Part 1 done in %s | grid %s, %d frame(s)"
+        % (_hms(time.time() - t0), "x".join(map(str, cfg.trueSize)),
+           len(cfg.vol)))
+    result = solveUROMT(cfg, verbose=verbose)
+    Eul = Lag = None
     if analyze:
+        t0 = time.time()
+        say("urOMT Part 3: Eulerian maps...")
+        Eul = runEULA(result)
+        say("urOMT Part 4: Lagrangian pathlines...")
+        Lag = runGLAD(result)
+        say("urOMT Parts 3-4 done in %s | %d pathline(s)"
+            % (_hms(time.time() - t0), len(Lag.get("SL", []))))
         result["Eul"], result["Lag"] = Eul, Lag
     if saveToPlanC:
         obj = buildFromConfig(cfg, result, Eul, Lag)

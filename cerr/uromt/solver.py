@@ -237,7 +237,32 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
 _SOLVERS = {"lbfgs": gnBlockUr, "gn": gnBlockExact}
 
 
-def solveUROMT(cfg, statusCallback=None):
+def _hms(sec):
+    """Compact duration: '18 s', '3m 42s', '1h 05m'."""
+    sec = float(max(sec, 0.0))
+    if sec < 60:
+        return "%.0f s" % sec
+    if sec < 3600:
+        return "%dm %02ds" % (int(sec // 60), int(sec % 60))
+    return "%dh %02dm" % (int(sec // 3600), int((sec % 3600) // 60))
+
+
+def _frameTag(scanNums, t):
+    """' (scans 30->2)' when the frame scan numbers are known, else ''.
+
+    These are planC SCAN INDICES, not time points. Series are frequently stored
+    out of acquisition order, so consecutive time points often carry
+    non-monotonic scan numbers - hence 'scans', not 'frames', which would read
+    as if the run had jumped backwards in time. The interval counter alongside
+    it is what conveys temporal order.
+    """
+    try:
+        return " (scans %d->%d)" % (scanNums[t], scanNums[t + 1])
+    except (TypeError, IndexError):
+        return ""
+
+
+def solveUROMT(cfg, statusCallback=None, verbose=None):
     """Run urOMT over the consecutive frame intervals (runUROMT.m analog).
 
     This is Part 2 alone. Requires ``cfg`` already populated by
@@ -245,10 +270,19 @@ def solveUROMT(cfg, statusCallback=None):
     ``cfg.trueSize``, ``cfg.spacing``); for the whole pipeline starting from a
     planC use :func:`cerr.uromt.runUROMT`.
 
+    Progress is reported **after each interval's velocity field is solved**,
+    with the interval's wall time, objective and an ETA, so a long run is not a
+    silent wait. ``statusCallback`` is called both before an interval starts and
+    after it completes; when no callback is given the same line is printed.
+
     Args:
         cfg (UROMTConfig): configuration with prepared data.
         statusCallback (callable): optional ``f(fraction, message)`` progress
-            hook.
+            hook. Called with ``(t/nIntervals, "...")`` as interval ``t`` starts
+            and ``((t+1)/nIntervals, "...done...")`` as it finishes.
+        verbose (bool): print per-interval progress to stdout. Default: the
+            ``verbose`` setting (on unless turned off), suppressed automatically
+            when ``statusCallback`` is given, since the caller is displaying it.
 
     Returns:
         dict: results with per-interval lists ``u`` (3 x N x nt), ``r``
@@ -278,10 +312,19 @@ def solveUROMT(cfg, statusCallback=None):
     rhoEnd = frames[0]
     reinit = bool(int(cfg.reinitR))
     warmStart = bool(int(getattr(cfg, "warm_start", 0)))
+    if verbose is None:
+        verbose = bool(int(getattr(cfg, "verbose", 1)))
+    report = (statusCallback if statusCallback
+              else ((lambda _f, m: print(m, flush=True)) if verbose
+                    else None))
+    scanNums = getattr(cfg, "frameScanNums", None)
+    tStart = time.time()
     for t in range(nIntervals):
-        if statusCallback:
-            statusCallback(t / nIntervals,
-                           "urOMT interval %d/%d" % (t + 1, nIntervals))
+        if report:
+            report(t / nIntervals,
+                   "urOMT interval %d/%d%s: solving..."
+                   % (t + 1, nIntervals, _frameTag(scanNums, t)))
+        tIvl = time.time()
         rho0 = frames[t] if (reinit or t == 0) else rhoEnd
         drhoN = frames[t + 1]
         sol = blockSolver(rho0, u, r, par, drhoN, tag="interval %d" % (t + 1))
@@ -297,6 +340,16 @@ def solveUROMT(cfg, statusCallback=None):
         out["gamma"].append({k: sol[k] for k in
                              ("Gamma", "Gamma1", "Gamma2", "Gamma3", "Gamma4",
                               "nfev", "time")})
+        if report:
+            dt_ = time.time() - tIvl
+            done = t + 1
+            eta = (time.time() - tStart) / done * (nIntervals - done)
+            report(done / nIntervals,
+                   "urOMT interval %d/%d%s done in %s | Gamma %.4g, "
+                   "nfev %d | elapsed %s%s"
+                   % (done, nIntervals, _frameTag(scanNums, t), _hms(dt_),
+                      sol["Gamma"], sol["nfev"], _hms(time.time() - tStart),
+                      ", ETA %s" % _hms(eta) if done < nIntervals else ""))
         rhoEnd = sol["rho"][:, -1]
         if warmStart:
             # Carry (u, r) into the next interval. This converges further per
@@ -311,8 +364,9 @@ def solveUROMT(cfg, statusCallback=None):
         else:
             u = np.zeros(3 * N * nt)
             r = np.zeros(N * nt)
-    if statusCallback:
-        statusCallback(1.0, "urOMT done")
+    if report:
+        report(1.0, "urOMT done: %d interval(s) in %s"
+               % (nIntervals, _hms(time.time() - tStart)))
     return out
 
 

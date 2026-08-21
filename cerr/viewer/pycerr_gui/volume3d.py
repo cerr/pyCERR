@@ -475,6 +475,32 @@ class Volume3DDialog(QtWidgets.QDialog):
         if self.isVisible():
             self._refreshTimer.start()
 
+    def update_uromt(self):
+        """Swap ONLY the urOMT overlay actors, then render.
+
+        The debounced rebuild above is useless for an animation: the pathline
+        growth ticks every 40 ms, so each tick restarted the 150 ms timer and
+        the scene never rebuilt until playback stopped - the paths simply did
+        not move here. A full ``render_scene`` per frame is not an option
+        either (it rebuilds the scan volume, structures and dose), and none of
+        that changes while the overlay animates.
+        """
+        if not self.isVisible():
+            return
+        pl = self.plotter
+        try:
+            for nm in UROMT_3D_ACTORS:
+                pl.remove_actor(nm, render=False)
+            if getattr(self.viewer, "uromtOverlay", None) is not None:
+                self.viewer._add_uromt_3d_vtk(pl)
+                # re-added actors are new mappers: reapply the clip box, else
+                # the overlay ignores a clip the rest of the scene obeys
+                if self._clipPlanes is not None:
+                    self._apply_clip_planes(self._clipPlanes)
+            pl.render()
+        except Exception:  # noqa: BLE001
+            self._refreshTimer.start()          # fall back to a full rebuild
+
     def _on_struct_alpha(self, val):
         """Set the 3D structure-surface opacity. Updates the existing surface
         actors in place (cheap) rather than rebuilding the whole scene; falls
