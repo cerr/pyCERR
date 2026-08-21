@@ -182,4 +182,8 @@ def buildConfig(scanNumV=None, structNum=None, settingsFile=None, **overrides):
         raise ValueError("unknown urOMT setting(s): %s"
                          % ", ".join(sorted(unknown)))
     settings.update(overrides)
-    return UROMTConfig(settings, scanNumV, structNum)
+    cfg = UROMTConfig(settings, scanNumV, structNum)
+    # Where the settings came from, so a stored run can point back at its own
+    # JSON instead of at whatever the working directory happens to be.
+    cfg.settingsFile = settingsFile or _DEFAULT_SETTINGS
+    return cfg

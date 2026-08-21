@@ -176,6 +176,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                      "peclet": "Peclet (-)", "velocity": "|v| (mm/t)",
                      "flux": "flux (a.u. mm/t)",
                      "fluxmag": "|flux| (a.u. mm/t)",
+                     "surfflux": "surface flux (a.u. mm3/t)",
                      "pathlines": "speed (mm/t)"}
 
     def _uromtEulIntervals(self, index, res):
@@ -187,6 +188,45 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             cache = self._uromtEulIvlCache = {}
         if index not in cache:
             cache[index] = runEULAIntervals(res)
+        return cache[index]
+
+    def _uromtHeadCeiling(self):
+        """Hard arrowhead-length ceiling in data units (cm).
+
+        Two of the scan's FINEST voxels: the arrowheads annotate this data, so
+        the resolution of the data is the scale a reader judges them at. A
+        fixed millimetre number is either huge on a fine scan or invisible on a
+        coarse one.
+        """
+        from cerr.uromt.viz import _HEAD_MAX_VOXELS, _HEAD_MAX_FALLBACK_CM
+        scans = getattr(self.planC, "scan", None) or []
+        cur = getattr(self, "scanNum", None)
+        idx = cur if (cur is not None and 0 <= cur < len(scans)) else 0
+        try:
+            sp = np.asarray(scans[idx].getScanSpacing(), dtype=float)
+            sp = sp[np.isfinite(sp) & (sp > 0)]
+            if sp.size:
+                return float(_HEAD_MAX_VOXELS * sp.min())
+        except Exception:  # noqa: BLE001 (scan geometry may be incomplete)
+            pass
+        return _HEAD_MAX_FALLBACK_CM
+
+    def _uromtSurfaceFlux(self, index, res):
+        """Per-interval in/out/net flux through the ROI SURFACE (cached).
+
+        ``|flux|`` is a magnitude and says nothing about direction; in- and
+        outflux only exist relative to a surface, so this integrates the
+        outward normal component of ``rho * v_eff`` over the boundary of the
+        run's ROI mask. Sign convention is outward-positive: ``net > 0`` means
+        the region is losing tracer over that interval.
+        """
+        from cerr.uromt.analyze import intervalSurfaceFlux
+        cache = getattr(self, "_uromtSurfFluxCache", None)
+        if cache is None:
+            cache = self._uromtSurfFluxCache = {}
+        if index not in cache:
+            cache[index] = intervalSurfaceFlux(
+                self._uromtEulIntervals(index, res))
         return cache[index]
 
     def _uromtRoiMaskToScan(self, res, scanShape):
@@ -202,8 +242,62 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         full[rs_:re_, cs_:ce_, ss_:se_] = m > 0.5
         return full
 
+    #: Quantities offered as the colour channel of the vector and pathline
+    #: overlays, with the label shown on the colorbar.
+    _UROMT_COLOR_LABELS = {"speed": "|v| (mm/t)",
+                           "effSpeed": "|v_eff| (mm/t)",
+                           "peclet": "Peclet (-)", "rate": "rate r (1/t)",
+                           "rho": "rho (a.u.)", "flux": "|flux| (a.u. mm/t)"}
+
+    def _uromtVectorColor(self, ov, index, res, scanShape, ivl, colorBy,
+                          stat, view):
+        """Colour the velocity/flux quiver by any Eulerian quantity.
+
+        The vector twin of the pathline colour-by: a pathline reduces a
+        quantity over its own vertices, a vector reduces the same quantity over
+        the run's time intervals at its voxel ('along' = the displayed
+        interval). Both read the same per-step definitions
+        (``analyze._stepQuantities``), so an arrow and the pathline segment
+        through its voxel report the same number. Sets ``colorMap3`` (full scan
+        grid), ``colorRange`` and ``diverging`` on the overlay; arrow LENGTH is
+        untouched and still carries the drawn field's magnitude.
+        """
+        from cerr.uromt import analyze, viz
+        q = str(colorBy or "speed")
+        if q not in analyze.QUANTITIES:
+            return
+        st = str(stat or "median").lower().replace(" path", "")
+        ei = self._uromtEulIntervals(index, res)
+        estats = analyze.eulerianStats(ei, q)
+        if estats is None:
+            return
+        roiMap = (estats["along"][ivl] if st == "along"
+                  else estats.get(st, estats["median"]))
+        full = viz.eulerianMapToScan(
+            {"%s3" % q: roiMap, "bbox": res["bbox"]}, field=q,
+            scanShape=scanShape)
+        # Colour only where an arrow is drawn, and scale to the p99 of those
+        # voxels: the ROI boundary carries a handful of extreme values that
+        # would otherwise flatten the whole map to one colour.
+        mag = np.sqrt(sum(np.asarray(c) ** 2 for c in ov["comps"]))
+        vox = full[mag > 0]
+        vox = vox[np.isfinite(vox)]
+        if not vox.size:
+            return
+        if q == "rate":                              # signed: symmetric range
+            a = float(np.nanpercentile(np.abs(vox), 99)) or 1.0
+            ov["colorRange"] = (-a, a)
+            ov["diverging"] = True
+        else:
+            ov["colorRange"] = (0.0, float(np.nanpercentile(vox, 99)) or 1.0)
+        ov["colorMap3"] = full
+        ov["label"] = "%s (%s)" % (self._UROMT_COLOR_LABELS.get(q, q), st)
+
     def set_uromt_overlay(self, index, view="speed", alpha=0.6, interval=0,
-                          subsample=1):
+                          subsample=1, grow=1.0, lengthScale=1.0,
+                          lineWidth=2.0,
+                          pathSpfs=None, pathColorBy="median",
+                          colorBy="speed"):
         """Overlay a stored ``planC.urOMT[index]`` result on the 2-D scan views.
 
         ``view`` is one of 'speed' | 'rate' | 'peclet' (Eulerian colourwash),
@@ -214,7 +308,65 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         pathlines are a whole-run summary. The velocity/flux quiver is restricted
         to the ROI mask (the calculation grid). A global ``vrange`` + ``label``
         are stored so the colour-coding is consistent across slices and drives the
-        dialog colorbar. ``subsample`` thins the quiver (1 = one arrow/voxel)."""
+        dialog colorbar. ``subsample`` thins the quiver (1 = one arrow/voxel).
+
+        For the pathlines view, each path ends in a narrow arrowhead showing its
+        direction (no seed marker: one marker per path obscured the paths
+        themselves), and ``grow`` in [0, 1] truncates
+        every path to its leading fraction so the paths can be animated growing
+        outward from their seeds. Because every pathline carries the same number
+        of vertices, that fraction is a **time** fraction: fast paths draw
+        proportionally more arc length than slow ones at each step of the sweep.
+
+        ``lengthScale`` multiplies the drawn extent of both the velocity/flux
+        arrows and the pathlines (paths scale about their seed, keeping their
+        shape). It is purely a display control - the stored result is untouched.
+
+        Pathlines are drawn at their TRUE extent (``lengthScale`` 1.0). Real
+        transport is often well under a voxel, so raise ``lengthScale`` to see
+        it - the factor is then appended to the overlay label, since a scaled
+        path ends where the particle did NOT go.
+
+        Pathlines are drawn for the voxels ON the displayed slice only - a
+        vertex counts when it rounds to this slice index - matching the
+        velocity/flux quiver, which is sliced outright. A path crossing the
+        slice contributes just its in-slice portion, and its end arrow marks
+        where it leaves the slice, which is not necessarily its true terminus.
+
+        ``lineWidth`` scales the stroke of both the vector arrows and the
+        pathlines together, in 2-D and 3-D; 2.0 is the default (1.0 is the
+        base weight, which is too fine to read over anatomy at typical zoom).
+
+        Density in 3-D is governed solely by ``subsample`` - no arrow or path
+        count is capped, so N=1 on a large ROI draws tens of thousands of glyphs
+        and will render slowly. Raise ``subsample`` if it drags.
+
+        ``pathColorBy`` selects how pathlines are coloured: ``'along'`` shades
+        each path along its length (one matplotlib Path per segment, ~2.3x the
+        draw cost) while ``'mean'``, ``'median'`` (default) and ``'max'`` give
+        each path a single colour from that statistic of its speed, drawn as one
+        polyline - 10x fewer Path objects. The statistic is over the whole path,
+        so it does not change as ``grow`` sweeps.
+
+        ``colorBy`` picks WHICH quantity drives the colour of the pathlines
+        *and* of the velocity/flux vectors: 'speed' |v|, 'effSpeed' |v_eff|,
+        'peclet', 'rate', 'rho' or 'flux' (|rho v_eff|). ``pathColorBy`` picks
+        HOW it is reduced, and means the same thing for both overlays: 'mean',
+        'median' or 'max' over a path's vertices / over a vector's time
+        intervals, or 'along' for the un-reduced value - per vertex along the
+        path, per displayed interval for a vector. Both overlays read the same
+        per-quantity numbers (Part 4's ``Lag['streams']`` for paths, the
+        per-interval Eulerian maps for vectors), so a vector and the pathline
+        segment through the same voxel report the same value.
+
+        ``pathSpfs`` overrides the pathline density; ``None`` (the default, and
+        what the dialog uses) means the pathlines share the vectors'
+        ``subsample``, so one density control governs both. It is applied the
+        same way per view: in 2-D it thins IN-PLANE
+        among the paths seeded on the displayed slice (N=1 = one path per ROI
+        voxel of that slice), in 3-D it thins the seeds in all three directions
+        (N=2 = one eighth of the ROI). It is display-only - Part 4 integrates
+        every ROI voxel once, so changing N never re-integrates."""
         from cerr.uromt import viz
         from cerr.uromt.analyze import runGLAD
         runs = getattr(self.planC, "urOMT", None) or []
@@ -228,9 +380,27 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         nIv = len(res["u"])
         ivl = int(np.clip(interval, 0, max(0, nIv - 1)))
         ov = {"view": view, "alpha": float(alpha), "index": int(index),
+              "headMaxData": self._uromtHeadCeiling(),
               "subsample": max(1, int(subsample)),
+              "lengthScale": float(lengthScale),
+              "lineWidth": float(lineWidth),
               "label": self._UROMT_LABELS.get(view, view)}
-        if view in ("speed", "rate", "peclet", "fluxmag"):
+        if view == "surfflux":
+            sf = self._uromtSurfaceFlux(index, res)
+            ov["map3"] = viz.eulerianMapToScan(
+                {"surfflux3": sf["map3"][ivl], "bbox": res["bbox"]},
+                field="surfflux", scanShape=scanShape)
+            nz = ov["map3"][ov["map3"] != 0]
+            a = float(np.nanpercentile(np.abs(nz), 99)) if nz.size else 1.0
+            ov["vrange"] = (-a, a)          # signed: leaving vs entering
+            ov["diverging"] = True
+            inF, outF, net = (sf["influx"][ivl], sf["outflux"][ivl],
+                              sf["net"][ivl])
+            ov["surfaceFlux"] = {"influx": inF, "outflux": outF, "net": net}
+            ov["label"] = ("surf flux: in %.3g / out %.3g / net %.3g (%s)"
+                           % (inF, outF, net,
+                              "loss" if net > 0 else "gain"))
+        elif view in ("speed", "rate", "peclet", "fluxmag"):
             ei = self._uromtEulIntervals(index, res)
             if view == "fluxmag":                      # |flux| colourwash
                 fmag = np.sqrt(np.sum(np.asarray(ei["flux"][ivl]) ** 2, axis=0))
@@ -272,17 +442,115 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 for c in comps:
                     c *= clampF
             ov["comps"] = comps
-            ov["vrange"] = (0.0, cap)
+            ov["vrange"] = (0.0, cap)                # arrow LENGTH scaling
+            # Colour channel: any Eulerian quantity, reduced over time the same
+            # way the pathline statistics reduce over a path ('along' = this
+            # interval). The arrows keep their magnitude as length, so both
+            # channels stay readable. Skipped when the choice is plain |v| of
+            # the drawn field, which the quiver already colours by.
+            self._uromtVectorColor(ov, index, res, scanShape, ivl,
+                                   colorBy, pathColorBy, view)
         elif view == "pathlines":
+            # Part 4 integrates EVERY ROI voxel; thinning is a display choice
+            # applied per view (in-plane in 2-D, all three directions in 3-D),
+            # so changing the density never re-integrates.
             Lag = Lag or runGLAD(res)
-            ov["segs"] = viz.pathlinesToScanVox(Lag, sf, dr)
-            vals = ov["segs"][1]
-            ov["vrange"] = (0.0, float(np.nanpercentile(vals, 99))
-                            if len(vals) else 1.0)
+            if pathSpfs is not None:      # density is per-view display thinning
+                ov["subsample"] = max(1, int(pathSpfs))
+            # Mapping ROI paths onto the scan grid depends only on the run's
+            # bbox/resize, never on a display control, so cache it per run
+            # rather than redoing 66k paths on every control change.
+            pkey = (int(index), float(sf), int(dr))
+            pcache = getattr(self, "_uromtPathCache", None)
+            if pcache is None:
+                pcache = self._uromtPathCache = {}
+            if pcache.get("key") != pkey:
+                pcache["key"] = pkey
+                pcache["val"] = viz.pathlinesToScanVox(Lag, sf, dr,
+                                                       perVertex=True)
+            segs, vals, spds = pcache["val"]
+            ov["segs"] = (segs, vals)
+            # Seed voxel of every path, built ONCE: the 2-D overlay selects the
+            # paths for a slice from this instead of looping over all of them
+            # on every redraw (~98% of paths are rejected per slice).
+            # Seed voxels come from Part 4 (Lag['seedVox']); they are in ROI
+            # coords, so shift to the scan grid the paths were mapped onto.
+            sv0 = Lag.get("seedVox")
+            if sv0 is not None and len(sv0):
+                bb = Lag.get("bbox") or (0, 0, 0, 0, 0, 0)
+                ov["pathSeedVox"] = (np.asarray(sv0) / (sf if dr else 1.0)
+                                     + np.array([bb[0], bb[2], bb[4]])
+                                     ).round().astype(int)
+            else:                       # runs stored before Part 4 cached it
+                ov["pathSeedVox"] = (np.rint(np.array([s[0] for s in segs]))
+                                     .astype(int) if segs else
+                                     np.zeros((0, 3), dtype=int))
+            # Draw ~_PATH_MAX_SEGS segments per path: the recorded vertices
+            # (one per integration sub-step) oversample curves that span a
+            # couple of voxels, and each one costs a matplotlib Path.
+            nv = int(segs[0].shape[0]) if segs else 2
+            ov["pathDecim"] = max(1, nv // _PATH_MAX_SEGS)
+            ov["grow"] = float(grow)
+            # NOTE: pathlines are SHORT - on the reference breast case 88% of
+            # seeds move under one voxel - so at 1x they can render as near
+            # dots. That is their TRUE physical extent; exaggerating it is the
+            # user's explicit choice through `lengthScale`, not something the
+            # display does silently (an auto-fit ends a path where the particle
+            # did not go, and the factor was easy to miss in the label).
+            # Colour channel: WHICH quantity (colorBy) reduced HOW
+            # (pathColorBy). Both come from Part 4's per-quantity streams, so
+            # switching either is a look-up - nothing is re-integrated and
+            # nothing is re-reduced except the first per-segment array of a
+            # quantity, which is then cached on the run.
+            from cerr.uromt import analyze
+            q = str(colorBy or "speed")
+            if q not in analyze.QUANTITIES:
+                q = "speed"
+            ov["pathColorBy"] = str(pathColorBy).lower().replace(" path", "")
+            ov["colorQuantity"] = q
+            stat = analyze.pathStats(Lag, q)
+            vert = analyze.streamOf(Lag, q)
+            if stat is None or vert is None:      # quantity not sampled by an
+                q = "speed"                       # older stored run
+                ov["colorQuantity"] = q
+                stat = analyze.pathStats(Lag, q) or viz.pathSpeedStats(spds)
+                vert = analyze.streamOf(Lag, q)
+            nVert = int(segs[0].shape[0]) if segs else 0
+            # Per-vertex values of the chosen quantity, as an (M, nVert) array:
+            # the drawing code indexes it exactly like the old per-path list,
+            # without materializing 66k Python objects.
+            ov["pathVertVals"] = (analyze.alignStreamToVertices(vert, nVert)
+                                  if vert is not None and nVert
+                                  else spds)
+            ov["pathStat"] = stat
+            ov["pathSegVals"] = analyze.segmentValues(Lag, q)
+            # Scale to the p99 of whatever is actually being colour-coded: the
+            # per-vertex samples for 'along', else the chosen statistic. Using
+            # the wrong one wastes most of the colormap (per-path means are
+            # compressed toward the middle of the per-vertex range).
+            if ov["pathColorBy"] == "along":
+                ref = np.asarray(ov["pathVertVals"]).ravel()
+            else:
+                ref = stat.get(ov["pathColorBy"], stat["median"])
+            ref = np.asarray(ref)[np.isfinite(ref)] if len(ref) else ref
+            if q == "rate":                       # signed: symmetric range
+                a = (float(np.nanpercentile(np.abs(ref), 99))
+                     if len(ref) else 1.0) or 1.0
+                ov["vrange"] = (-a, a)
+                ov["diverging"] = True
+            else:
+                ov["vrange"] = (0.0, float(np.nanpercentile(ref, 99))
+                                if len(ref) else 1.0)
+            # The length scale is disclosed in the label whenever it is not
+            # 1x: a scaled path ends where the particle did NOT go.
+            ls = float(lengthScale)
+            ov["label"] = "%s (%s)%s" % (
+                self._UROMT_COLOR_LABELS.get(q, q), ov["pathColorBy"],
+                ("" if abs(ls - 1.0) < 1e-6 else " [paths x%g]" % ls))
         else:
             return
         self.uromtOverlay = ov
-        self.refresh_views()
+        self._refresh_uromt_views()
         if getattr(self, "_uromtDialog", None) is not None:   # update its colorbar
             self._uromtDialog._updateColorbar(ov)
 
@@ -290,7 +558,47 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         """Remove the urOMT overlay from the scan views."""
         if getattr(self, "uromtOverlay", None) is not None:
             self.uromtOverlay = None
-            self.refresh_views()
+            self._refresh_uromt_views()
+
+    def _refresh_uromt_views(self):
+        """Redraw for a urOMT overlay change only.
+
+        A 3-D scene is updated by swapping just the overlay actors: rebuilding
+        it wholesale costs the scan volume, structure surfaces, dose and cut
+        planes, none of which the overlay touches - and in the 3-D Volume
+        window that rebuild is debounced by 150 ms, so an animation ticking
+        every 40 ms kept restarting it and the pathlines never moved there at
+        all. 2-D views (and the matplotlib 3-D fallback, which has no actors to
+        swap) take the normal redraw.
+        """
+        for orient in list(self.activeWins):
+            view = self.views[orient]
+            pl = getattr(view, "vtk_widget", None)
+            if view.is3d and view.uses_vtk and pl is not None:
+                if self._swap_uromt_actors(pl):
+                    continue
+            self.refresh_views(only=orient)
+        dlg = getattr(self, "_volume3dDialog", None)
+        if dlg is not None:
+            try:
+                dlg.update_uromt()
+            except Exception:  # noqa: BLE001 (dialog may be closing)
+                self._volume3dDialog = None
+
+    def _swap_uromt_actors(self, pl):
+        """Replace the urOMT actors in one pyvista scene. False if the scene is
+        not built yet (nothing to swap into), so the caller redraws it fully."""
+        try:
+            if not len(pl.actors):
+                return False
+            for nm in UROMT_3D_ACTORS:
+                pl.remove_actor(nm, render=False)
+            if getattr(self, "uromtOverlay", None) is not None:
+                self._add_uromt_3d_vtk(pl)
+            pl.render()
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _draw_uromt_overlay(self, winId, ax, extent, hV, vV, slicer):
         from cerr.uromt import viz
@@ -302,15 +610,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                              alpha=self.uromtOverlay.get("alpha", 0.6),
                              colorbar=False)   # colorbar lives in the urOMT dialog
 
-    def _uromt_3d_geometry(self, maxArrows=1500, maxPaths=400):
+    def _uromt_3d_geometry(self, maxArrows=None, maxPaths=None):
         """3-D urOMT overlay geometry (vectors / pathlines) in physical coords
         from the cached overlay; delegates to :func:`cerr.uromt.viz.overlayTo3D`
         (kept there so the coordinate mapping / arrow scaling is headless
         testable)."""
         from cerr.uromt import viz
-        return viz.overlayTo3D(getattr(self, "uromtOverlay", None),
-                               self.xV, self.yV, self.zV,
-                               maxArrows=maxArrows, maxPaths=maxPaths)
+        ov = getattr(self, "uromtOverlay", None)
+        return viz.overlayTo3D(ov, self.xV, self.yV, self.zV,
+                               maxArrows=maxArrows, maxPaths=maxPaths,
+                               lengthScale=float((ov or {}).get("lengthScale",
+                                                                1.0)))
 
     def _add_uromt_3d_vtk(self, pl):
         """Add urOMT vectors / scalar maps / pathlines to the pyvista 3-D scene.
@@ -323,10 +633,14 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             return
         ov = self.uromtOverlay
         lo, hi = ov.get("vrange", (None, None))
-        cmap = "bwr" if ov.get("view") == "rate" else "turbo"
+        cmap = ("bwr" if (ov.get("view") == "rate" or ov.get("diverging"))
+                else "turbo")
         # In 3-D the overlay shares the global cutting-plane opacity (the "Plane
         # opacity" slider), not the dialog's 2-D opacity spinbox.
         op = float(self.plane3dOpacity)
+        lw = float(ov.get("lineWidth", 1.0))   # shared stroke control
+        from cerr.uromt.viz import _headCeiling
+        headCeil = _headCeiling(ov)            # hard head ceiling, data units
         clim = (lo, hi) if (lo is not None and hi is not None and hi > lo) \
             else None
         # No pyvista scalar bar: the single colour legend lives in the urOMT
@@ -343,12 +657,31 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             g = geom["vectors"]
             pd = pv.PolyData(g["points"])
             pd["vec"] = g["vec"]
-            pd["mag"] = g["mag"]
+            # Arrows are coloured by the overlay's colour quantity when it has
+            # one, else by their own magnitude; the arrow LENGTH is the vector
+            # magnitude either way.
+            pd["mag"] = g.get("color", g["mag"])
+            vclim = ov.get("colorRange") if "color" in g else clim
             pd.set_active_vectors("vec")
+            # A chunkier head than pv.Arrow's default proportions: these are
+            # fractions of the arrow's own length, so the glyph stays in
+            # proportion at any length scale, but the stock 0.3/0.1 head was
+            # hard to pick out among thousands of arrows.
+            #
+            # `tip_length` is a fraction, so it alone cannot honour the hard
+            # millimetre ceiling the 2-D overlay obeys - a long arrow gets a
+            # proportionally long head. Shrink the fraction against the LONGEST
+            # arrow so no head in the scene exceeds the ceiling.
+            from cerr.uromt.viz import capTipFraction
+            maxLen = (float(np.max(np.linalg.norm(g["vec"], axis=1)))
+                      if len(g["vec"]) else 0.0)
+            tipFrac = capTipFraction(0.4, maxLen, headCeil)
+            tipRad = 0.16 * (tipFrac / 0.4)      # keep the head's shape
             arrows = pd.glyph(orient="vec", scale="vec", factor=1.0,
-                              geom=pv.Arrow(tip_length=0.3, tip_radius=0.1,
-                                            shaft_radius=0.03))
-            pl.add_mesh(arrows, scalars="mag", cmap=cmap, clim=clim, opacity=op,
+                              geom=pv.Arrow(tip_length=tipFrac,
+                                            tip_radius=tipRad,
+                                            shaft_radius=0.05 * lw))
+            pl.add_mesh(arrows, scalars="mag", cmap=cmap, clim=vclim, opacity=op,
                         show_scalar_bar=False, pickable=False,
                         name="uromt_vec", render=False)
         if "paths" in geom:
@@ -361,28 +694,94 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             pd = pv.PolyData()
             pd.points = np.vstack(pts_list)
             pd.lines = np.concatenate(conn).astype(np.int64)
-            pl.add_mesh(pd, color="#ffd23f", line_width=2, opacity=op,
-                        pickable=False, show_scalar_bar=False,
-                        name="uromt_paths", render=False)
+            # Colour along the path by speed (was a flat yellow), on the same
+            # scale as the 2-D overlay and the dialog colorbar.
+            vals = geom.get("pathVals")
+            if vals is not None:
+                pd["speed"] = np.concatenate(vals).astype(float)
+                pl.add_mesh(pd, scalars="speed", cmap=cmap, clim=clim,
+                            # 1.5x, not 3x: the multiplier was set when
+                            # lineWidth defaulted to 1.0, so the new default of
+                            # 2.0 drew paths at twice the intended weight and
+                            # dense ROIs rendered as a solid mass.
+                            line_width=1.5 * lw, opacity=op,
+                            pickable=False,
+                            show_scalar_bar=False, name="uromt_paths",
+                            render=False)
+            else:
+                pl.add_mesh(pd, color="#ffd23f", line_width=2, opacity=op,
+                            pickable=False, show_scalar_bar=False,
+                            name="uromt_paths", render=False)
+            # Direction markers: a small dark sphere at the seed and a cone at
+            # the end. Kept small on purpose - large per-path markers were what
+            # previously blanketed the coloured geometry in 3-D.
+            if "pathEnd" in geom and len(geom["paths"]) <= _PATH_CONE_MAX:
+                # A single NARROW arrowhead at the end of each path - no seed
+                # marker. Two markers per path outnumbered and obscured the
+                # paths themselves. The cone is sized off the MEDIAN PATH
+                # LENGTH (a marker should be a fraction of the thing it marks,
+                # not of the scan FOV, which is what blanketed the scene).
+                starts = np.asarray(geom["pathStart"], dtype=float)
+                ends = np.asarray(geom["pathEnd"], dtype=float)
+                lens = np.linalg.norm(ends - starts, axis=1)
+                medLen = float(np.median(lens[lens > 0])) if (lens > 0).any() \
+                    else 0.0
+                if medLen <= 0:
+                    medLen = 0.01 * float(max(np.ptp(self.xV),
+                                              np.ptp(self.yV)) or 1.0)
+                tips = np.asarray([p[-1] - p[max(len(p) - 2, 0)]
+                                   for p in geom["paths"]], dtype=float)
+                nrm = np.linalg.norm(tips, axis=1, keepdims=True)
+                ep = pv.PolyData(ends)
+                ep["dir"] = tips / np.where(nrm == 0, 1.0, nrm)
+                ep["speed"] = (np.asarray([v[-1] for v in vals], dtype=float)
+                               if vals is not None else np.zeros(len(ends)))
+                # Per-path cone length, not one length for all: a path shorter
+                # than the median would otherwise get a head longer than
+                # itself, whose base sits behind its own seed. Most visible
+                # while the growth animation runs, when every path is short.
+                # Same hard physical ceiling the 2-D heads obey (cm units).
+                ep["clen"] = np.minimum(
+                    _PATH_CONE_FRAC * np.minimum(lens, medLen), headCeil)
+                ep.set_active_vectors("dir")
+                # `center=(-0.5, 0, 0)` puts the cone's APEX on the glyph
+                # point, so the head ENDS on the path's last vertex and its
+                # base sits back along the path. pv.Cone centers on its
+                # centroid by default, which straddled the tip - measured, the
+                # head stuck out half its length beyond where the particle
+                # actually went.
+                cones = ep.glyph(orient="dir", scale="clen", factor=1.0,
+                                 geom=pv.Cone(center=(-0.5, 0.0, 0.0),
+                                              direction=(1.0, 0.0, 0.0),
+                                              radius=_PATH_CONE_RADIUS,
+                                              height=1.0, resolution=12))
+                pl.add_mesh(cones, scalars="speed", cmap=cmap, clim=clim,
+                            opacity=op, pickable=False, show_scalar_bar=False,
+                            name="uromt_path_end", render=False)
 
     def _add_uromt_3d_mpl(self, ax):
         """Add urOMT vectors / pathlines to the matplotlib 3-D fallback."""
         import matplotlib
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
-        geom = self._uromt_3d_geometry(maxArrows=600, maxPaths=150)
+        geom = self._uromt_3d_geometry()      # uncapped; density = subsample
         if geom is None:
             return
         ov = self.uromtOverlay
         lo, hi = ov.get("vrange", (None, None))
         op = float(self.plane3dOpacity)   # 3-D overlay shares plane opacity
-        cmName = "bwr" if ov.get("view") == "rate" else "turbo"
+        lw = float(ov.get("lineWidth", 1.0))   # shared stroke control
+        from cerr.uromt.viz import _headCeiling
+        headCeil = _headCeiling(ov)            # hard head ceiling, data units
+        cmName = ("bwr" if (ov.get("view") == "rate" or ov.get("diverging"))
+                  else "turbo")
         getc = (matplotlib.colormaps[cmName]
                 if hasattr(matplotlib, "colormaps") else cm.get_cmap(cmName))
 
-        def _norm(vals):
-            vlo = lo if lo is not None else float(np.min(vals))
-            vhi = hi if (hi is not None and hi > vlo) else float(np.max(vals))
+        def _norm(vals, rng=None):
+            rlo, rhi = rng if rng is not None else (lo, hi)
+            vlo = rlo if rlo is not None else float(np.min(vals))
+            vhi = rhi if (rhi is not None and rhi > vlo) else float(np.max(vals))
             return mcolors.Normalize(vmin=vlo, vmax=max(vhi, vlo + 1e-9))
 
         if "scalar" in geom:                            # speed / rate / Peclet
@@ -396,12 +795,53 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             # colour each arrow by magnitude (no start/stop markers in 3-D: they
             # would hide the coloured arrows). A fig.colorbar is avoided here too
             # (it would accumulate an axes every refresh); the dialog carries it.
+            cv = g.get("color", g["mag"])         # colour quantity or |v|
+            crng = ov.get("colorRange") if "color" in g else None
+            # `arrow_length_ratio` is a fraction of each arrow, so cap it
+            # against the longest one to honour the millimetre ceiling.
+            from cerr.uromt.viz import capTipFraction
+            ratio = capTipFraction(
+                0.4, float(np.max(np.linalg.norm(v, axis=1))) if len(v) else 0,
+                headCeil)
             ax.quiver(p[:, 0], p[:, 1], p[:, 2], v[:, 0], v[:, 1], v[:, 2],
-                      colors=getc(_norm(g["mag"])(g["mag"])), linewidth=0.6,
+                      colors=getc(_norm(cv, crng)(cv)),
+                      linewidth=0.6 * lw, arrow_length_ratio=ratio,
                       normalize=False, alpha=op)
-        for p in geom.get("paths", []):
-            ax.plot3D(p[:, 0], p[:, 1], p[:, 2], color="#ffd23f", lw=0.8,
-                      alpha=op)
+        if "paths" in geom:
+            from mpl_toolkits.mplot3d.art3d import Line3DCollection
+            vals = geom.get("pathVals")
+            nrm = _norm(np.concatenate(vals)) if vals is not None else None
+            segs3, cols = [], []
+            for i, p in enumerate(geom["paths"]):
+                segs3.extend(np.stack([p[:-1], p[1:]], axis=1))
+                if nrm is not None:
+                    v = np.asarray(vals[i], dtype=float)
+                    cols.extend(getc(nrm(0.5 * (v[:-1] + v[1:]))))
+            if segs3:
+                ax.add_collection3d(Line3DCollection(
+                    np.asarray(segs3),
+                    colors=(cols if cols else "#ffd23f"),
+                    linewidths=0.9 * lw, alpha=op))
+            if "pathEnd" in geom and len(geom["paths"]) <= _PATH_CONE_MAX:
+                # One narrow arrow per path, drawn ON the path's own last
+                # segment (see viz.drawUROMTOverlay): an arrow of some other
+                # length, however capped, is a stroke that does not lie on the
+                # trajectory and reads as a separate glyph.
+                e = np.asarray(geom["pathEnd"], dtype=float)
+                d = np.asarray([p[-1] - p[max(len(p) - 2, 0)]
+                                for p in geom["paths"]], dtype=float)
+                ec = (getc(nrm(np.asarray([v[-1] for v in vals])))
+                      if nrm is not None else "k")
+                # the head is a fraction of each (short) tail segment; cap it
+                # against the longest so it obeys the millimetre ceiling too
+                from cerr.uromt.viz import capTipFraction
+                hRatio = capTipFraction(
+                    0.5, float(np.max(np.linalg.norm(d, axis=1))) if len(d)
+                    else 0, headCeil)
+                ax.quiver(e[:, 0] - d[:, 0], e[:, 1] - d[:, 1],
+                          e[:, 2] - d[:, 2], d[:, 0], d[:, 1], d[:, 2],
+                          colors=ec, linewidth=0.7 * lw,
+                          arrow_length_ratio=hRatio, alpha=op)
 
     def set_window_preset(self, name):
         """Apply a named CT window preset (see CT_WINDOW_PRESETS)."""

@@ -7,7 +7,8 @@ persist through pickle) instead of living on the viewer.
 
 Fields:
 
-* ``UROMTSetup``    - inputs: model ``settings``, ``scanNumV`` (time-point scans),
+* ``UROMTSetup``    - inputs: model ``settings`` (and ``settingsFile``, the
+  JSON they were read from), ``scanNumV`` (time-point scans),
   ``structNum`` (ROI), the resolved ``frameScanNums``, the preprocessed
   concentration frames ``vol``, the ROI ``mask``/``bbox``/``spacing``/``trueSize``.
 * ``UROMTResult``   - solver output of :func:`cerr.uromt.solver.solveUROMT`
@@ -52,6 +53,7 @@ def buildFromConfig(cfg, result, Eul=None, Lag=None):
     """
     setup = dict(
         settings=getattr(cfg, "settings", {}),
+        settingsFile=getattr(cfg, "settingsFile", None),
         scanNumV=list(getattr(cfg, "scanNumV", []) or []),
         structNum=getattr(cfg, "structNum", None),
         frameScanNums=list(getattr(cfg, "frameScanNums", []) or []),

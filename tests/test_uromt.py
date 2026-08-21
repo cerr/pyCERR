@@ -10,6 +10,8 @@ the finite-difference check is restricted to interior voxels - exactly as the
 gradient was validated during development.
 """
 import inspect
+import json
+import os
 from types import SimpleNamespace
 
 import numpy as np
@@ -659,6 +661,433 @@ def test_uromt_overlay_vectors_no_markers():
     assert len(quivers) >= 1                         # the arrows are drawn
 
 
+def test_pathlines_per_vertex_speed_and_grow():
+    """``perVertex`` returns one speed per pathline VERTEX (not the per-path
+    mean), aligned to the vertex count, and ``growPathline`` truncates a path to
+    its leading fraction so it can be animated out from the seed."""
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    res = _uniform_flow_result(vx=1.0)
+    Lag = runGLAD(res, spfs=2, nEuler=2)
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    assert len(spds) == len(segs) == len(vals)
+    for seg, sp in zip(segs, spds):
+        assert sp.shape == (seg.shape[0],)          # one speed per vertex
+        assert np.all(np.isfinite(sp))
+    # the 2-tuple form is unchanged for existing callers
+    assert len(viz.pathlinesToScanVox(Lag, 1.0, 0)) == 2
+
+    pts, sp = segs[0], spds[0]
+    half, halfSp = viz.growPathline(pts, sp, 0.5)
+    assert 2 <= half.shape[0] < pts.shape[0]
+    assert halfSp.shape[0] == half.shape[0]
+    assert np.array_equal(half, pts[:half.shape[0]])   # keeps the LEADING part
+    whole, _ = viz.growPathline(pts, sp, 1.0)
+    assert whole.shape[0] == pts.shape[0]
+    tiny, _ = viz.growPathline(pts, sp, 0.0)
+    assert tiny.shape[0] == 2                          # still drawable
+
+
+
+def _pathHeads(ax):
+    """The pathline arrowhead triangles drawn on `ax`: (M,3,2) vertices.
+
+    Heads are a PolyCollection (one triangle per path, sized off THAT path),
+    not a quiver: quiver head dimensions are global to the collection and fixed
+    in axes units, so on sub-voxel paths one head covered its whole path.
+    """
+    from matplotlib.collections import PolyCollection
+    polys = [c for c in ax.collections if isinstance(c, PolyCollection)]
+    if not polys:
+        return np.zeros((0, 3, 2)), polys
+    tris = np.asarray([np.asarray(pp.vertices)[:3]
+                       for pp in polys[0].get_paths()])
+    return tris, polys[0]
+
+
+def _headLengths(tris):
+    """Length of each head triangle, tip to the middle of its base."""
+    if not len(tris):
+        return np.zeros(0)
+    return np.hypot(*(tris[:, 0] - 0.5 * (tris[:, 1] + tris[:, 2])).T)
+
+
+def test_uromt_overlay_pathline_end_arrows_and_colouring():
+    """The pathline overlay draws a LineCollection coloured along each path and
+    a single NARROW arrowhead at each path's end - no seed marker and no dot
+    scatters, which previously outnumbered and obscured the paths."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import PathCollection, LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    scanShape = (40, 36, 20)
+    n = (16, 14, 10)
+    bbox = (8, 24, 10, 24, 5, 15)
+    res = _uniform_flow_result(n=n, nt=4, bbox=bbox)
+    Lag = runGLAD(res, spfs=1, nEuler=2)  # spfs=1: seed EVERY slice, else this slice is empty
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    xV = np.linspace(0, 3.6, 36)
+    yV = np.linspace(5, 0, 40)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    k = scanShape[2] // 2
+
+    def draw(ov):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(ax, ov, k, xV, yV, ext,
+                             lambda m: m[:, :, k], 1, 0, 2, scanShape)
+        return ax
+
+    base = {"view": "pathlines", "alpha": 0.6, "segs": (segs, vals),
+            "pathSpeeds": spds, "vrange": (0.0, 1.5),
+            "pathColorBy": "along"}      # per-SEGMENT entries
+    ax = draw(dict(base))
+    from matplotlib.collections import PolyCollection
+    lines = [c for c in ax.collections if isinstance(c, LineCollection)
+             and not isinstance(c, (Quiver, PolyCollection))]
+    tris, heads = _pathHeads(ax)
+    dots = [c for c in ax.collections if isinstance(c, PathCollection)]
+    assert len(lines) == 1                       # one collection, per-seg colour
+    assert len(lines[0].get_segments()) > 1      # split into coloured segments
+    assert len(tris) > 0                         # one head triangle per path
+    assert len(dots) == 0                        # no start/end dot markers
+    # the head is narrow: full width is a fraction of its length
+    assert viz._HEAD_ASPECT <= 1.0
+    w = np.hypot(*(tris[:, 1] - tris[:, 2]).T)
+    assert np.allclose(w, viz._HEAD_ASPECT * _headLengths(tris))
+    # at most one arrow per drawn path, and paths whose final step is
+    # degenerate (no direction to point) correctly get none
+    nPaths = len(lines[0].get_segments()) // (segs[0].shape[0] - 1)
+    assert 0 < len(tris) <= nPaths
+
+    # grow truncates the paths but each still keeps its end arrow
+    axFull = draw(dict(base, grow=1.0))
+    axPart = draw(dict(base, grow=0.25))
+    nFull = len(axFull.collections[0].get_segments())
+    nPart = len(axPart.collections[0].get_segments())
+    assert 0 < nPart < nFull
+    assert len(_pathHeads(axPart)[0]) > 0
+
+
+def test_subsample_is_in_plane_in_2d_and_all_three_dirs_in_3d():
+    """'vec every N' means one arrow per Nth voxel OF THE DISPLAYED SLICE in
+    2-D (so N=1 shows every voxel on that slice), and per Nth voxel in all
+    three directions in 3-D."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (24, 20, 12)
+    N = int(np.prod(shape))
+    v = np.zeros((3, N, 2))
+    v[0] = 1.0                                   # nonzero everywhere
+    comps = viz.fieldToScan(v[:, :, 0], list(shape),
+                            (0, shape[0], 0, shape[1], 0, shape[2]), shape)
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    zV = np.arange(shape[2], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    k = shape[2] // 2
+
+    def n2d(sub):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "velocity", "alpha": 1.0, "comps": comps,
+                 "subsample": sub, "vrange": (0.0, 2.0)},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        q = [c for c in ax.collections if isinstance(c, Quiver)]
+        return q[0].N if q else 0
+
+    def n3d(sub, cap=100000):
+        g = viz.overlayTo3D({"view": "velocity", "comps": comps,
+                             "subsample": sub}, xV, yV, zV, maxArrows=cap)
+        return len(g["vectors"]["points"])
+
+    def strided(axes, sub):
+        out = 1
+        for a in axes:
+            out *= len(range(0, shape[a], sub))
+        return out
+
+    for sub in (1, 2, 3):
+        assert n2d(sub) == strided((0, 1), sub)      # in-plane only
+        assert n3d(sub) == strided((0, 1, 2), sub)   # all three directions
+    # 2-D at N=1 really is every voxel of the slice
+    assert n2d(1) == shape[0] * shape[1]
+    # 3-D is UNCAPPED by default - density comes only from subsample
+    assert n3d(1, cap=None) == shape[0] * shape[1] * shape[2]
+    assert viz.overlayTo3D.__defaults__[:2] == (None, None)
+    # a cap is still available to callers that want one
+    assert n3d(1, cap=500) == 500
+
+
+def test_runGLAD_defaults_do_not_thin_pathlines():
+    """runGLAD used to compound three thinnings - spfs=2 (x1/8), a 4000-seed
+    cap, and slTolVox=1.0 which drops the ~88% of seeds moving under a voxel -
+    leaving pathlines ~48x sparser than the velocity arrows on the same ROI."""
+    import inspect
+    from cerr.uromt.analyze import runGLAD
+
+    d = inspect.signature(runGLAD).parameters
+    assert d["spfs"].default == 1          # every ROI voxel, like subsample=1
+    assert d["slTolVox"].default == 0.0    # keep sub-voxel paths
+    assert d["maxSeeds"].default is None   # no cap
+
+    n = (10, 10, 6)
+    res = _uniform_flow_result(n=n, nt=4, bbox=(0, 10, 0, 10, 0, 6))
+    allSeeds = runGLAD(res, nEuler=1)
+    assert len(allSeeds["SL"]) == int(np.prod(n))     # one per ROI voxel
+    # spfs thins as N**3, and a cap still works when asked for
+    assert len(runGLAD(res, spfs=2, nEuler=1)["SL"]) == 5 * 5 * 3
+    assert len(runGLAD(res, nEuler=1, maxSeeds=50)["SL"]) == 50
+
+
+def test_runGLAD_seed_mask_keeps_pathlines_inside_the_structure():
+    """`result['mask']` is the DILATED ROI mask, so with mask_dilate set some
+    pathlines start outside the drawn contour. Passing the undilated structure
+    as `seedMask` keeps every seed inside it."""
+    from cerr.uromt.analyze import runGLAD
+
+    n = (16, 16, 8)
+    res = _uniform_flow_result(n=n, nt=4, bbox=(0, 16, 0, 16, 0, 8))
+    inner = np.zeros(n, dtype=bool)
+    inner[4:12, 4:12, 2:6] = True          # the "structure"
+    dilated = np.zeros(n, dtype=bool)
+    dilated[2:14, 2:14, 1:7] = True        # what the solve reports on
+    res["mask"] = dilated.astype(np.uint8)
+
+    wide = runGLAD(res, spfs=1, nEuler=2, slTolVox=0.0)
+    tight = runGLAD(res, spfs=1, nEuler=2, slTolVox=0.0, seedMask=inner)
+
+    def seedsOutside(Lag):
+        s = np.rint(np.array([p[0] for p in Lag["SL"]])).astype(int)
+        return int((~inner[s[:, 0], s[:, 1], s[:, 2]]).sum())
+
+    assert len(wide["SL"]) > len(tight["SL"])   # dilated mask seeds more
+    assert seedsOutside(wide) > 0               # ...and some sit outside
+    assert seedsOutside(tight) == 0             # explicit mask is respected
+
+
+def test_line_width_scales_vectors_and_pathlines_together():
+    """One `lineWidth` control thickens the vector arrows and the pathline
+    strokes/end arrows together; 1.0 is the default weight."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    shape = (24, 20, 12)
+    n = (16, 14, 10)
+    bbox = (4, 20, 3, 17, 1, 11)
+    res = _uniform_flow_result(n=n, nt=4, bbox=bbox)
+    comps = viz.fieldToScan(res["u"][0].mean(2), n, bbox, shape)
+    Lag = runGLAD(res, spfs=1, nEuler=2, slTolVox=0.0)   # seed every slice
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    k = shape[2] // 2
+
+    def draw(ov):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(ax, ov, k, xV, yV, ext, lambda m: m[:, :, k],
+                             1, 0, 2, shape)
+        return ax
+
+    vec = {"view": "velocity", "alpha": 1.0, "comps": comps,
+           "vrange": (0.0, 2.0)}
+    thin = [c for c in draw(vec).collections if isinstance(c, Quiver)][0]
+    thick = [c for c in draw(dict(vec, lineWidth=3.0)).collections
+             if isinstance(c, Quiver)][0]
+    assert thick.width == pytest.approx(3.0 * thin.width)
+
+    pth = {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+           "pathSpeeds": spds, "vrange": (0.0, 1.5)}
+    def lc(ov):
+        return [c for c in draw(ov).collections
+                if isinstance(c, LineCollection) and not isinstance(c, Quiver)]
+    t1 = lc(pth)[0].get_linewidth()[0]
+    t3 = lc(dict(pth, lineWidth=3.0))[0].get_linewidth()[0]
+    assert t3 == pytest.approx(3.0 * t1)
+
+
+def test_pathlines_selected_by_seed_slice_and_drawn_whole():
+    """2-D shows the paths that START on the displayed slice, each drawn in
+    FULL (no clipping at the slice boundary), thinned IN-PLANE by subsample."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (30, 30, 12)
+    k, nVert = 6, 9
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    # a 4x4 grid of seeds on every slice; each path drifts 3 slices away
+    segs, vals, spds = [], [], []
+    for z0 in range(shape[2]):
+        for r in range(0, 8, 2):
+            for c in range(0, 8, 2):
+                segs.append(np.column_stack([
+                    np.linspace(r, r + 6, nVert),      # moves in-plane...
+                    np.full(nVert, float(c)),
+                    np.linspace(z0, z0 + 3, nVert)]))  # ...and across slices
+                vals.append(1.0)
+                spds.append(np.ones(nVert))
+    vals = np.asarray(vals)
+
+    def draw(sub):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathSpeeds": spds, "vrange": (0.0, 2.0), "subsample": sub},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        from matplotlib.collections import PolyCollection
+        lc = [c for c in ax.collections
+              if isinstance(c, LineCollection)
+              and not isinstance(c, (Quiver, PolyCollection))]
+        return ((len(lc[0].get_segments()) if lc else 0),
+                len(_pathHeads(ax)[0]))
+
+    entries1, arrows1 = draw(1)
+    # 16 seeds on this slice; at the default (median) colouring each path is a
+    # single polyline entry, and it carries the path's FULL vertex count
+    assert arrows1 == 16
+    assert entries1 == 16
+    # ...and the whole path is drawn even though it leaves the slice
+    assert np.ptp(segs[0][:, 2]) > 1
+
+    # in-plane thinning: seeds at rows/cols 0,2,4,6 -> N=2 keeps 0,2,4,6 (all),
+    # N=4 keeps 0 and 4 only, in each in-plane axis
+    assert draw(2)[1] == 16
+    assert draw(4)[1] == 4
+
+
+def test_grow_is_a_time_fraction_so_fast_paths_outrun_slow():
+    """Every runGLAD pathline carries the same vertex count, so the ``grow``
+    fraction is a TIME fraction: at any grow step the arc length drawn is
+    proportional to that path's speed."""
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    n, nt = (24, 24, 4), 6
+    N = int(np.prod(n))
+    gr, _gc, _gs = np.meshgrid(*[np.arange(s) for s in n], indexing="ij")
+    fast = (gr.ravel(order="F") < n[0] / 2).astype(float)
+    v = np.zeros((3, N, nt))
+    v[1] = (0.2 + 0.8 * fast)[:, None]           # 1.0 vs 0.2 -> 5x
+    res = dict(u=[v], r=[np.zeros((N, nt))], rho=[np.ones((N, nt))],
+               n=list(n), spacing=[1.0, 1.0, 1.0],
+               mask=np.ones(n, dtype=np.uint8),
+               bbox=(0, n[0], 0, n[1], 0, n[2]), frameScanNums=[0, 1],
+               doResize=0, sizeFactor=1.0, dt=0.5, nt=nt, sigma=2e-3)
+    Lag = runGLAD(res, spfs=4, nEuler=2, slTolVox=0.0)
+    lens = {p.shape[0] for p in Lag["SL"]}
+    assert len(lens) == 1                        # equal vertex counts == time
+
+    segs, _vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    isFast = np.array([s[0, 0] < n[0] / 2 for s in segs])
+
+    def arc(p):
+        return float(np.sum(np.linalg.norm(np.diff(p, axis=0), axis=1)))
+
+    for frac in (0.25, 0.5, 1.0):
+        a = np.array([arc(viz.growPathline(s, sv, frac)[0])
+                      for s, sv in zip(segs, spds)])
+        ratio = a[isFast].mean() / max(a[~isFast].mean(), 1e-9)
+        assert 4.0 < ratio < 6.0, (frac, ratio)
+
+
+def test_pathline_and_vector_length_scale():
+    """``lengthScale`` shrinks pathlines about their SEED (shape preserved, seed
+    fixed) and shortens the 3-D arrows proportionally."""
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    pts = np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 0.0], [3.0, 2.0, 1.0]])
+    half = viz.scalePathline(pts, 0.5)
+    assert np.allclose(half[0], pts[0])                   # seed anchored
+    assert np.allclose(half - half[0], 0.5 * (pts - pts[0]))
+    assert np.allclose(viz.scalePathline(pts, 1.0), pts)  # no-op
+
+    scanShape = (40, 36, 20)
+    n = (16, 14, 10)
+    bbox = (8, 24, 10, 24, 5, 15)
+    res = _uniform_flow_result(n=n, nt=4, bbox=bbox)
+    Lag = runGLAD(res, spfs=2, nEuler=2, slTolVox=0.0)
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    comps = viz.fieldToScan(res["u"][0].mean(2), res["n"], bbox, scanShape)
+    xV = np.linspace(0, 3.6, scanShape[1])
+    yV = np.linspace(5, 0, scanShape[0])
+    zV = np.linspace(0, 2, scanShape[2])
+    ov = {"view": "pathlines", "segs": (segs, vals), "pathSpeeds": spds,
+          "comps": comps, "vrange": (0.0, 1.5)}
+
+    full = viz.overlayTo3D(ov, xV, yV, zV, lengthScale=1.0)
+    small = viz.overlayTo3D(ov, xV, yV, zV, lengthScale=0.25)
+    assert np.allclose(np.asarray(small["pathStart"]),
+                       np.asarray(full["pathStart"]))      # seeds pinned
+    dFull = np.linalg.norm(np.asarray(full["pathEnd"])
+                           - np.asarray(full["pathStart"]), axis=1)
+    dSmall = np.linalg.norm(np.asarray(small["pathEnd"])
+                            - np.asarray(small["pathStart"]), axis=1)
+    moved = dFull > 1e-9
+    assert moved.any()
+    assert np.allclose(dSmall[moved] / dFull[moved], 0.25)
+    aFull = np.linalg.norm(full["vectors"]["vec"], axis=1)
+    aSmall = np.linalg.norm(small["vectors"]["vec"], axis=1)
+    nz = aFull > 1e-12
+    assert np.allclose(aSmall[nz] / aFull[nz], 0.25)
+
+
+def test_overlay_to_3d_pathlines_carry_speed_and_markers():
+    """The 3-D geometry exposes per-vertex speeds and start/end points so the
+    renderers can colour along the path and mark direction, and honours grow."""
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    n = (16, 14, 10)
+    bbox = (8, 24, 10, 24, 5, 15)
+    scanShape = (40, 36, 20)
+    res = _uniform_flow_result(n=n, nt=4, bbox=bbox)
+    Lag = runGLAD(res, spfs=2, nEuler=2, slTolVox=0.0)
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    xV = np.linspace(0, 3.6, scanShape[1])
+    yV = np.linspace(5, 0, scanShape[0])
+    zV = np.linspace(0, 2, scanShape[2])
+    ov = {"view": "pathlines", "segs": (segs, vals), "pathSpeeds": spds}
+
+    g = viz.overlayTo3D(ov, xV, yV, zV)
+    assert len(g["pathVals"]) == len(g["paths"])
+    for p, v in zip(g["paths"], g["pathVals"]):
+        assert len(v) == p.shape[0]              # one speed per drawn vertex
+    assert np.asarray(g["pathStart"]).shape == (len(g["paths"]), 3)
+    assert np.asarray(g["pathEnd"]).shape == (len(g["paths"]), 3)
+
+    part = viz.overlayTo3D(dict(ov, grow=0.4), xV, yV, zV)
+    assert part["paths"][0].shape[0] < g["paths"][0].shape[0]
+    # an overlay without per-vertex speeds still yields colourable values
+    plain = viz.overlayTo3D({"view": "pathlines", "segs": (segs, vals)},
+                            xV, yV, zV)
+    assert len(plain["pathVals"][0]) == plain["paths"][0].shape[0]
+
+
 def test_uromt_overlay_colorbar_and_density():
     """The 2-D overlay draws a colorbar legend (patches + text) using the global
     vrange, and the vector ``subsample`` thins the arrows/markers."""
@@ -732,7 +1161,10 @@ def test_overlay_to_3d_vectors_scaled_in_bounds_and_paths():
     g = geom["vectors"]
     arrowLen = np.linalg.norm(g["vec"], axis=1)
     assert np.all(np.isfinite(g["vec"])) and np.all(np.isfinite(g["tip"]))
-    assert arrowLen.max() <= 0.05 * spanFOV + 1e-9     # longest ~5% of FOV
+    # longest arrow is the shared FOV fraction, the same one the 2-D quiver
+    # uses so "length x" means the same thing in both views
+    assert arrowLen.max() <= viz._VECTOR_FOV_FRAC * spanFOV + 1e-9
+    assert arrowLen.max() > 0.9 * viz._VECTOR_FOV_FRAC * spanFOV
     # arrow tips stay within the physical field of view
     assert g["tip"][:, 0].min() >= min(xV) - 0.05 * spanFOV
     assert g["tip"][:, 0].max() <= max(xV) + 0.05 * spanFOV
@@ -1835,6 +2267,116 @@ def test_peclet_floor_flows_from_the_result_dict():
     assert np.allclose(override, small, rtol=0, atol=1e-12)
 
 
+def _tiny_solver_cfg(nIntervals=3, n=(6, 6, 4)):
+    """A minimal prepared cfg so Part 2 can actually be run in a unit test."""
+    from cerr.uromt.config import buildConfig
+
+    cfg = buildConfig(list(range(nIntervals + 1)), None, None,
+                      nt=2, maxUiter=1, niter_pcg=3, fft_pad=0)
+    rng = np.random.default_rng(0)
+    cfg.vol = [1.0 + 0.1 * rng.random(n) for _ in range(nIntervals + 1)]
+    cfg.mask = np.ones(n, dtype=np.uint8)
+    cfg.trueSize = list(n)
+    cfg.spacing = [1.0, 1.0, 1.0]
+    cfg.bbox = (0, n[0], 0, n[1], 0, n[2])
+    cfg.frameScanNums = list(range(5, 5 + nIntervals + 1))
+    return cfg
+
+
+def test_solver_reports_progress_after_each_interval(capsys):
+    """Each interval prints a completion line (time, objective, ETA) so a long
+    run is not a silent wait; verbose=0 stays silent."""
+    from cerr.uromt.solver import solveUROMT
+
+    nIv = 3
+    solveUROMT(_tiny_solver_cfg(nIv), verbose=True)
+    out = capsys.readouterr().out
+    done = [ln for ln in out.splitlines() if " done in " in ln]
+    assert len(done) == nIv                      # one per interval, not just one
+    assert "interval 1/3" in done[0] and "interval 3/3" in done[-1]
+    assert "Gamma" in done[0] and "ETA" in done[0]
+    # scan INDICES, labelled as such: series are often stored out of
+    # acquisition order, so these are not necessarily ascending
+    assert "scans 5->6" in done[0]
+    assert "ETA" not in done[-1]                 # nothing left to wait for
+    assert "urOMT done: 3 interval(s)" in out
+
+    solveUROMT(_tiny_solver_cfg(nIv), verbose=False)
+    assert capsys.readouterr().out == ""
+
+
+def test_status_callback_fires_before_and_after_each_interval(capsys):
+    """A statusCallback receives both the start and the completion of every
+    interval, with monotonic fractions ending at 1.0, and suppresses printing
+    (the caller - e.g. the GUI progress bar - is displaying it instead)."""
+    from cerr.uromt.solver import solveUROMT
+
+    seen = []
+    solveUROMT(_tiny_solver_cfg(3), statusCallback=lambda f, m: seen.append(
+        (f, m)), verbose=True)
+    assert capsys.readouterr().out == ""          # callback wins over printing
+    fracs = [f for f, _ in seen]
+    assert fracs == sorted(fracs) and fracs[0] == 0.0 and fracs[-1] == 1.0
+    assert len([m for _, m in seen if " done in " in m]) == 3
+    assert len([m for _, m in seen if m.endswith("solving...")]) == 3
+
+
+def test_verbose_is_a_setting_not_a_runUROMT_parameter():
+    """`verbose` must stay a plain SETTING. Declaring it as an explicit
+    runUROMT parameter breaks the common `runUROMT(planC, **settingsFromJson)`
+    call with 'got multiple values for keyword argument', because those JSONs
+    now carry a verbose key."""
+    import inspect
+    import cerr.uromt as u
+    from cerr.uromt.config import buildConfig
+
+    params = inspect.signature(u.runUROMT).parameters
+    assert "verbose" not in params, (
+        "verbose must reach runUROMT through **settingsOverrides, not as a "
+        "named parameter - otherwise **settings containing 'verbose' collides")
+    assert any(p.kind is inspect.Parameter.VAR_KEYWORD
+               for p in params.values())
+    # both spellings still land on the config
+    assert int(buildConfig([0, 1], None, None, verbose=0).verbose) == 0
+    assert int(buildConfig([0, 1], None, None, verbose=False).verbose) == 0
+    assert int(buildConfig([0, 1], None, None, verbose=1).verbose) == 1
+
+
+def test_shipped_settings_json_can_be_splatted_into_runUROMT():
+    """A settings JSON must be usable as `runUROMT(planC, **settings)` - every
+    non-underscore key has to be accepted by buildConfig."""
+    import json
+    import os
+    from cerr.uromt.config import buildConfig
+    import cerr.uromt as _u
+
+    path = os.path.join(os.path.dirname(_u.__file__), "settings",
+                        "uromt_model_settings.json")
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    over = {k: v for k, v in raw.items() if not k.startswith("_")}
+    assert "verbose" in over
+    cfg = buildConfig([0, 1], None, None, **over)     # must not raise
+    assert int(cfg.verbose) == 1
+
+
+def test_verbose_setting_defaults_on_and_is_documented():
+    """`verbose` ships enabled so users see progress without opting in."""
+    import json
+    import os
+    from cerr.uromt.config import loadModelSettings
+
+    assert int(loadModelSettings()["verbose"]) == 1
+    # loadModelSettings strips the _-prefixed keys, so read the file for the doc
+    import cerr.uromt as _u
+    path = os.path.join(os.path.dirname(_u.__file__), "settings",
+                        "uromt_model_settings.json")
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    assert raw["verbose"] == 1
+    assert "verbose" in raw["_field_doc"]
+
+
 def test_warm_start_is_off_by_default_and_controls_the_interval_chain():
     """`maxUiter` is an early-stopping regularizer, so carrying (u, r) between
     intervals gives later intervals more cumulative optimizer effort than
@@ -1903,3 +2445,1500 @@ def test_tofts_post_process_matches_the_reference_order():
     cfg2 = SimpleNamespace(concScale=1.0, outputClip=[0.0, 2.0])
     assert np.array_equal(toftsPostProcess(np.array([-5.0, 1.0, 9.0]), cfg2),
                           np.array([0.0, 1.0, 2.0]))
+
+
+def test_pathline_colour_by_statistic_uses_one_object_per_path():
+    """'along' shades each path per SEGMENT (one matplotlib Path each);
+    median/mean/max give the path one colour as a single polyline entry, which
+    is what makes them ~2x cheaper to draw."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (30, 30, 12)
+    k, nVert, nSeed = 6, 9, 6
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    segs, vals, spds = [], [], []
+    for c in range(nSeed):
+        segs.append(np.column_stack([np.linspace(2, 12, nVert),
+                                     np.full(nVert, float(c)),
+                                     np.full(nVert, float(k))]))
+        vals.append(1.0)
+        spds.append(np.linspace(0.5, 2.5, nVert))   # accelerating
+    vals = np.asarray(vals)
+
+    def nPaths(colorBy):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathSpeeds": spds, "vrange": (0.0, 3.0),
+                 "pathColorBy": colorBy},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        lc = [c for c in ax.collections
+              if isinstance(c, LineCollection) and not isinstance(c, Quiver)]
+        return len(lc[0].get_segments())
+
+    assert nPaths("along") == nSeed * (nVert - 1)   # one entry per segment
+    for stat in ("median", "mean", "max"):
+        assert nPaths(stat) == nSeed                # one entry per path
+
+    # the statistic is computed over the whole path, and they differ on a
+    # deliberately accelerating profile
+    s = np.linspace(0.5, 2.5, nVert)
+    assert np.median(s) < np.max(s) and abs(np.mean(s) - np.median(s)) < 1e-9
+
+    # the default is median
+    import inspect
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+    p = inspect.signature(PyCerrViewer.set_uromt_overlay).parameters
+    assert p["pathColorBy"].default == "median"
+
+
+def test_path_speed_stats_are_vectorized_and_correct():
+    """`pathSpeedStats` reduces all paths at once when they share a vertex
+    count (they do - runGLAD integrates every seed over the same steps). The
+    per-path Python fallback cost ~1.5 s on a 66k-path ROI, which made the
+    cheap-to-draw flat colouring slower than the gradient it replaces."""
+    from cerr.uromt import viz
+
+    rng = np.random.default_rng(0)
+    equal = [rng.random(9) for _ in range(50)]
+    st = viz.pathSpeedStats(equal)
+    assert np.allclose(st["mean"], [np.mean(s) for s in equal])
+    assert np.allclose(st["median"], [np.median(s) for s in equal])
+    assert np.allclose(st["max"], [np.max(s) for s in equal])
+
+    # ragged input still works (the slow path), and agrees
+    ragged = [rng.random(4), rng.random(7), rng.random(9)]
+    st = viz.pathSpeedStats(ragged)
+    assert np.allclose(st["median"], [np.median(s) for s in ragged])
+    assert viz.pathSpeedStats([])["mean"].size == 0
+
+
+def test_runGLAD_precomputes_display_derivatives():
+    """Part 4 stores the per-path derivatives the viewer needs, so changing a
+    display control never recomputes them. On a 66k-path ROI these cost ~0.57 s
+    per rebuild, and the viewer rebuilds on every control change."""
+    from cerr.uromt.analyze import runGLAD
+
+    n = (10, 10, 6)
+    res = _uniform_flow_result(n=n, nt=4, bbox=(0, 10, 0, 10, 0, 6))
+    Lag = runGLAD(res, nEuler=2)
+    M = len(Lag["SL"])
+    nVert = Lag["SL"][0].shape[0]
+
+    for key in ("speedStats", "pecletStats", "segSpeed", "seedVox", "dispVox"):
+        assert key in Lag, key
+    for k in ("mean", "median", "max"):
+        assert Lag["speedStats"][k].shape == (M,)
+    assert np.asarray(Lag["segSpeed"]).shape == (M, nVert - 1)
+    assert Lag["seedVox"].shape == (M, 3)
+    assert Lag["seedVox"].dtype.kind == "i"
+    assert Lag["dispVox"].shape == (M,)
+
+    # ...and they agree with computing them the slow way
+    assert np.allclose(Lag["speedStats"]["median"],
+                       [np.median(s) for s in Lag["sstream"]])
+    from cerr.uromt.analyze import alignSpeedToVertices
+    a0 = alignSpeedToVertices(Lag["sstream"][0], nVert)
+    assert np.allclose(np.asarray(Lag["segSpeed"])[0],
+                       0.5 * (a0[:-1] + a0[1:]))
+    assert np.allclose(Lag["dispVox"],
+                       [np.linalg.norm(p[-1] - p[0]) for p in Lag["SL"]])
+    # dispVox is in VOXELS; displen is the same displacement in mm
+    assert np.allclose(Lag["displen"],
+                       np.linalg.norm(np.asarray(Lag["disp"]), axis=1))
+
+
+def test_pathlines_to_scan_vox_vectorized_matches_per_path():
+    """The equal-length fast path in pathlinesToScanVox must agree exactly with
+    the ragged per-path fallback."""
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD
+
+    n = (8, 8, 4)
+    res = _uniform_flow_result(n=n, nt=4, bbox=(2, 10, 3, 11, 1, 5))
+    Lag = runGLAD(res, nEuler=2)
+    fast = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+    ragged = dict(Lag)                      # force the fallback branch
+    ragged["SL"] = list(Lag["SL"][:-1]) + [Lag["SL"][-1][:-1]]
+    ragged["sstream"] = list(Lag["sstream"][:-1]) + [Lag["sstream"][-1][:-1]]
+    slow = viz.pathlinesToScanVox(ragged, 1.0, 0, perVertex=True)
+    for a, b in zip(fast[0][:-1], slow[0][:-1]):
+        assert np.allclose(a, b)
+    assert np.allclose(fast[1][:-1], slow[1][:-1])
+
+
+def test_overlay_reuses_precomputed_lagrangian_fields():
+    """The viewer must consume Part 4's precomputed derivatives rather than
+    rebuilding them: a Lag carrying them yields the same overlay as one without
+    (the fallback path), so old stored runs still work."""
+    import numpy as np
+    from cerr.uromt import viz
+    from cerr.uromt.analyze import runGLAD, pathSpeedStats
+
+    n = (10, 10, 6)
+    res = _uniform_flow_result(n=n, nt=4, bbox=(0, 10, 0, 10, 0, 6))
+    Lag = runGLAD(res, nEuler=2)
+    segs, vals, spds = viz.pathlinesToScanVox(Lag, 1.0, 0, perVertex=True)
+
+    # precomputed vs recomputed statistics agree
+    assert np.allclose(Lag["speedStats"]["median"],
+                       pathSpeedStats(spds)["median"])
+    # seedVox (ROI coords) maps onto the scan-grid seeds the drawing uses
+    bb = Lag["bbox"]
+    fromLag = (np.asarray(Lag["seedVox"])
+               + np.array([bb[0], bb[2], bb[4]])).round().astype(int)
+    fromSegs = np.rint(np.array([s[0] for s in segs])).astype(int)
+    assert np.array_equal(fromLag, fromSegs)
+    # dispVox matches the drawn net displacement
+    assert np.allclose(Lag["dispVox"],
+                       [np.linalg.norm(s[-1] - s[0]) for s in segs])
+
+
+# --------------------------------------------------------------------------- #
+#  Colour-by-any-quantity: shared precompute for pathlines AND vectors
+# --------------------------------------------------------------------------- #
+def test_runGLAD_samples_every_quantity_once():
+    """Part 4 samples EVERY displayable quantity along the trajectories, so the
+    GUI's colour-by is a look-up. The speed/Peclet-only keys stay as views."""
+    from cerr.uromt.analyze import (runGLAD, QUANTITIES, pathStats, streamOf,
+                                    segmentValues)
+
+    res = _uniform_flow_result(n=(12, 12, 6), nt=3, vx=1.0)
+    Lag = runGLAD(res, spfs=3, nEuler=2)
+    M, nVert = len(Lag["SL"]), Lag["nVert"]
+    assert M > 0 and nVert == int(Lag["SL"][0].shape[0])
+
+    for q in QUANTITIES:
+        st = Lag["streams"][q]
+        assert st.shape == (M, nVert - 1)          # one sample per sub-step
+        assert np.all(np.isfinite(st))
+        stat = pathStats(Lag, q)
+        assert np.allclose(stat["mean"], st.mean(1))
+        assert np.allclose(stat["max"], st.max(1))
+
+    # legacy keys are the same numbers, not a second copy
+    assert np.allclose(np.asarray(Lag["sstream"]), Lag["streams"]["speed"])
+    assert np.allclose(np.asarray(Lag["pestream"]), Lag["streams"]["peclet"])
+    assert np.allclose(Lag["speedStats"]["median"],
+                       pathStats(Lag, "speed")["median"])
+
+    # per-segment values align to the drawn VERTICES (the samples are padded
+    # first) and are segment midpoints
+    seg = segmentValues(Lag, "rho")
+    assert seg.shape == (M, nVert - 1)
+    assert segmentValues(Lag, "rho") is seg        # cached, not recomputed
+    assert np.allclose(Lag["segSpeed"], segmentValues(Lag, "speed"))
+
+    # uniform flow: |v| = vx, rho = 1, so flux = |rho v_eff| = |v_eff|
+    assert np.allclose(streamOf(Lag, "speed"), 1.0)
+    assert np.allclose(streamOf(Lag, "rho"), 1.0)
+    assert np.allclose(streamOf(Lag, "flux"), streamOf(Lag, "effSpeed"))
+
+
+def test_vector_and_pathline_quantities_come_from_one_definition():
+    """A vector at a voxel and the pathline segment through it must read the
+    same number: both are reductions of ``_stepQuantities`` on the same
+    (velocity, density, rate) sub-steps."""
+    from cerr.uromt.analyze import (runEULAIntervals, runGLAD, eulerianStats,
+                                    streamOf)
+
+    res = _uniform_flow_result(n=(10, 10, 5), nt=2, vx=0.7)
+    ei = runEULAIntervals(res)
+    Lag = runGLAD(res, spfs=2, nEuler=2)
+
+    for q, expect in (("speed", 0.7), ("rho", 1.0)):
+        es = eulerianStats(ei, q)
+        assert np.allclose(es["mean"][ei["mask"] > 0], expect)
+        assert np.allclose(streamOf(Lag, q), expect)   # same value on the path
+        # 'along' is the un-reduced per-interval form, one entry per interval
+        assert len(es["along"]) == len(res["u"])
+        assert es["median"].shape == tuple(ei["n"])
+
+    # |flux| from the Eulerian side is the magnitude of the flux VECTOR
+    fe = eulerianStats(ei, "flux")
+    assert np.allclose(fe["max"],
+                       np.sqrt(np.sum(np.asarray(ei["flux"][0]) ** 2, axis=0)))
+    assert eulerianStats(ei, "notAQuantity") is None
+
+
+def test_vector_overlay_colours_by_a_map_not_by_magnitude():
+    """The velocity/flux quiver keeps magnitude as arrow LENGTH but takes its
+    colour from ``colorMap3`` when the overlay carries one, on ``colorRange``."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (8, 8, 3)
+    k = 1
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    comps = [np.zeros(shape), np.ones(shape), np.zeros(shape)]  # |v| = 1
+    cmap3 = np.zeros(shape)
+    cmap3[:, :, k] = np.arange(64).reshape(8, 8)                # colour source
+
+    def draw(ov):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(ax, ov, k, xV, yV, ext, lambda m: m[:, :, k],
+                             1, 0, 2, shape)
+        return [c for c in ax.collections if isinstance(c, Quiver)][0]
+
+    base = {"view": "velocity", "alpha": 1.0, "comps": comps,
+            "vrange": (0.0, 1.0)}
+    q = draw(dict(base))
+    assert np.allclose(q.get_array(), 1.0)             # colour = |v| by default
+
+    q = draw(dict(base, colorMap3=cmap3, colorRange=(0.0, 63.0),
+                  label="Peclet (-)"))
+    assert np.allclose(np.sort(q.get_array()), np.arange(64))
+    assert q.get_clim() == (0.0, 63.0)                 # scaled to colorRange
+    # length still comes from the vector magnitude, which is uniform here
+    assert np.allclose(np.hypot(q.U, q.V), 1.0)
+
+
+def test_signed_quantity_gets_a_diverging_map_on_both_overlays():
+    """Rate r is a source *or* a sink, so colouring by it uses a diverging map
+    over a symmetric range wherever it appears - not a 0..max ramp."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (20, 20, 6)
+    k, nVert = 3, 5
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    segs = [np.column_stack([np.linspace(2, 8, nVert), np.full(nVert, 4.0),
+                             np.full(nVert, float(k))])]
+    stat = {"median": np.array([0.0]), "mean": np.array([0.0]),
+            "max": np.array([0.0])}
+    fig = Figure()
+    ax = fig.add_subplot(111)
+    viz.drawUROMTOverlay(
+        ax, {"view": "pathlines", "alpha": 1.0,
+             "segs": (segs, np.array([0.0])), "pathStat": stat,
+             "pathColorBy": "median", "diverging": True,
+             "colorQuantity": "rate", "vrange": (-2.0, 2.0)},
+        k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+    lc = [c for c in ax.collections
+          if isinstance(c, LineCollection) and not isinstance(c, Quiver)][0]
+    # zero sits at the MIDDLE of the symmetric range: white in 'bwr', not the
+    # blue end a 0..max normalization would give it
+    rgb = np.asarray(lc.get_colors())[0][:3]
+    assert np.allclose(rgb, 1.0, atol=0.02)
+
+
+def test_gui_colour_by_menu_matches_the_sampled_quantities():
+    """Every quantity offered in the dialog is one Part 4 actually samples, and
+    the same choice drives vectors and pathlines."""
+    import inspect
+    from cerr.uromt.analyze import QUANTITIES
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    keys = [k for _lbl, k in UROMTDialog._COLOR_QUANTITIES]
+    assert keys == list(QUANTITIES)
+    assert set(keys) <= set(PyCerrViewer._UROMT_COLOR_LABELS)
+
+    p = inspect.signature(PyCerrViewer.set_uromt_overlay).parameters
+    assert p["colorBy"].default == "speed"
+    assert p["pathColorBy"].default == "median"     # the reduction, unchanged
+
+
+def test_set_uromt_overlay_colour_by_is_a_lookup_for_both_overlays():
+    """End-to-end through the viewer: the same ``colorBy`` quantity colours the
+    velocity quiver and the pathlines, from the precomputed per-quantity store,
+    with the colour scale kept separate from the arrow-length scale."""
+    from types import SimpleNamespace
+    from cerr.uromt.analyze import runGLAD
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    res = _uniform_flow_result(n=(16, 16, 8), nt=2, vx=1.0,
+                               bbox=(2, 18, 3, 19, 1, 9))
+    run = SimpleNamespace(UROMTResult=res,
+                          UROMTLagrangian=runGLAD(res, spfs=4, nEuler=2))
+    # The overlay builder is pure Python on top of numpy; borrow it onto a stub
+    # so it runs headless (a real PyCerrViewer needs its Qt super().__init__).
+    class _Stub:
+        refresh_views = staticmethod(lambda **k: None)
+        _refresh_uromt_views = staticmethod(lambda: None)
+    for name in ("set_uromt_overlay", "_uromtVectorColor",
+                 "_uromtEulIntervals", "_uromtRoiMaskToScan",
+                 "_uromtHeadCeiling", "_UROMT_LABELS", "_UROMT_COLOR_LABELS"):
+        setattr(_Stub, name, getattr(PyCerrViewer, name))
+    v = _Stub()
+    v.planC = SimpleNamespace(urOMT=[run])
+    v.scan3M = np.zeros((20, 22, 10))
+    v.uromtOverlay = None
+
+    v.set_uromt_overlay(0, view="velocity", colorBy="peclet",
+                        pathColorBy="max")
+    ov = v.uromtOverlay
+    assert ov["colorMap3"].shape == v.scan3M.shape
+    assert ov["colorRange"][1] > 0
+    assert ov["vrange"] != ov["colorRange"]          # length vs colour scales
+    assert "Peclet" in ov["label"] and "(max)" in ov["label"]
+
+    v.set_uromt_overlay(0, view="pathlines", colorBy="rho",
+                        pathColorBy="mean")
+    ov = v.uromtOverlay
+    assert ov["colorQuantity"] == "rho"
+    nPaths = len(ov["segs"][0])
+    assert ov["pathVertVals"].shape == (nPaths, ov["segs"][0][0].shape[0])
+    assert len(ov["pathStat"]["mean"]) == nPaths
+    assert np.allclose(ov["pathVertVals"], 1.0)      # rho = 1 everywhere
+    assert "rho" in ov["label"]
+
+    # a signed quantity picks the symmetric range + diverging map
+    v.set_uromt_overlay(0, view="pathlines", colorBy="rate")
+    assert v.uromtOverlay["diverging"] is True
+    lo, hi = v.uromtOverlay["vrange"]
+    assert lo == -hi
+
+    # an unknown quantity falls back to speed rather than failing to draw
+    v.set_uromt_overlay(0, view="pathlines", colorBy="nonsense")
+    assert v.uromtOverlay["colorQuantity"] == "speed"
+
+
+def test_sampling_more_quantities_does_not_change_the_values():
+    """All quantities (and the velocity driving the integration) go through ONE
+    stacked interpolator - the weights are computed once for every channel. The
+    trajectories and the samples must be bit-for-bit what per-channel
+    interpolation gave."""
+    from cerr.uromt.analyze import runGLAD
+
+    res = _uniform_flow_result(n=(10, 10, 5), nt=2, vx=0.9)
+    few = runGLAD(res, spfs=2, nEuler=3, quantities=("speed",))
+    allq = runGLAD(res, spfs=2, nEuler=3)
+    assert len(few["SL"]) == len(allq["SL"])
+    for a, b in zip(few["SL"], allq["SL"]):
+        assert np.array_equal(a, b)                 # same trajectories
+    assert np.array_equal(few["streams"]["speed"], allq["streams"]["speed"])
+    assert set(allq["streams"]) == set(runGLAD.__defaults__[-1])
+
+    # quantities=None is the full set, not an empty store
+    assert set(runGLAD(res, spfs=4, nEuler=1, quantities=None)["streams"]) \
+        == set(allq["streams"])
+
+
+def test_pathlines_draw_at_true_extent_by_default():
+    """Auto-fit is gone: pathlines are drawn at 1x (their true physical extent)
+    and any exaggeration is the user's explicit `lengthScale`, disclosed in the
+    label - an auto-scaled path ends where the particle did not go."""
+    import inspect
+    from types import SimpleNamespace
+    from cerr.uromt.analyze import runGLAD
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    p = inspect.signature(PyCerrViewer.set_uromt_overlay).parameters
+    assert "pathAutoFit" not in p
+    assert p["lengthScale"].default == 1.0
+    assert not hasattr(PyCerrViewer, "_PATH_FIT_FRAC")
+
+    res = _uniform_flow_result(n=(12, 12, 6), nt=2, vx=1.0,
+                               bbox=(2, 14, 3, 15, 1, 7))
+    run = SimpleNamespace(UROMTResult=res,
+                          UROMTLagrangian=runGLAD(res, spfs=3, nEuler=2))
+
+    class _Stub:
+        refresh_views = staticmethod(lambda **k: None)
+        _refresh_uromt_views = staticmethod(lambda: None)
+    for name in ("set_uromt_overlay", "_uromtVectorColor",
+                 "_uromtEulIntervals", "_uromtRoiMaskToScan",
+                 "_uromtHeadCeiling", "_UROMT_LABELS", "_UROMT_COLOR_LABELS"):
+        setattr(_Stub, name, getattr(PyCerrViewer, name))
+    v = _Stub()
+    v.planC = SimpleNamespace(urOMT=[run])
+    v.scan3M = np.zeros((16, 18, 9))
+    v.uromtOverlay = None
+
+    v.set_uromt_overlay(0, view="pathlines")
+    ov = v.uromtOverlay
+    assert ov["lengthScale"] == 1.0           # true extent, nothing applied
+    assert "paths x" not in ov["label"]       # nothing to disclose at 1x
+
+    v.set_uromt_overlay(0, view="pathlines", lengthScale=8.0)
+    ov = v.uromtOverlay
+    assert ov["lengthScale"] == 8.0
+    assert "[paths x8]" in ov["label"]        # exaggeration stays visible
+
+
+def test_one_density_control_governs_vectors_and_pathlines():
+    """`pathSpfs=None` (what the dialog now passes) means the pathlines use the
+    same `subsample` as the vectors - one 'every N' for both overlays."""
+    from types import SimpleNamespace
+    from cerr.uromt.analyze import runGLAD
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    res = _uniform_flow_result(n=(12, 12, 6), nt=2, vx=1.0,
+                               bbox=(2, 14, 3, 15, 1, 7))
+    run = SimpleNamespace(UROMTResult=res,
+                          UROMTLagrangian=runGLAD(res, spfs=2, nEuler=2))
+
+    class _Stub:
+        refresh_views = staticmethod(lambda **k: None)
+        _refresh_uromt_views = staticmethod(lambda: None)
+    for name in ("set_uromt_overlay", "_uromtVectorColor",
+                 "_uromtEulIntervals", "_uromtRoiMaskToScan",
+                 "_uromtHeadCeiling", "_UROMT_LABELS", "_UROMT_COLOR_LABELS"):
+        setattr(_Stub, name, getattr(PyCerrViewer, name))
+    v = _Stub()
+    v.planC = SimpleNamespace(urOMT=[run])
+    v.scan3M = np.zeros((16, 18, 9))
+    v.uromtOverlay = None
+
+    for view in ("velocity", "pathlines"):
+        v.set_uromt_overlay(0, view=view, subsample=3)
+        assert v.uromtOverlay["subsample"] == 3, view
+    # an explicit override is still available programmatically
+    v.set_uromt_overlay(0, view="pathlines", subsample=3, pathSpfs=1)
+    assert v.uromtOverlay["subsample"] == 1
+
+
+def test_uromt_settings_editor_round_trips_values_and_types():
+    """The settings editor parses cells with json.loads, so numbers stay
+    numbers and word settings stay strings; keys it does not show (the time
+    selection, which the main dialog drives) must survive the round trip."""
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTSettingsDialog as SD
+
+    assert SD._parse("0.02") == 0.02 and isinstance(SD._parse("0.02"), float)
+    assert SD._parse("3") == 3 and isinstance(SD._parse("3"), int)
+    assert SD._parse("[0, 5]") == [0, 5]
+    assert SD._parse("yes") == "yes"          # not JSON -> the string as typed
+    assert SD._parse(" true ") is True
+    assert SD._fmt("nn") == "nn" and SD._fmt(4) == "4"
+    assert json.loads(SD._fmt([1, 2])) == [1, 2]
+    assert "time" in SD._HIDDEN               # driven by the main dialog
+
+
+def test_preview_mode_is_gone_from_the_uromt_gui():
+    """The half-resolution 'Preview' run was removed: no control, and no
+    silent do_resize / maxUiter overrides in the worker."""
+    import inspect
+    from cerr.viewer.pycerr_gui import uromt_gui
+
+    src = inspect.getsource(uromt_gui)
+    assert "previewCheck" not in src
+    assert "size_factor = 0.5" not in src
+    assert "preview" not in inspect.signature(
+        uromt_gui._UROMTWorker.__init__).parameters
+    # the worker takes an edited settings dict instead
+    assert "settings" in inspect.signature(
+        uromt_gui._UROMTWorker.__init__).parameters
+
+
+class _FakeSlider:
+    """Duck-typed stand-in for a QSlider, so the dialog's animation logic can
+    be exercised without a QApplication."""
+
+    def __init__(self, value=0, maximum=100):
+        self._v = value
+        self._max = maximum
+        self.calls = []
+
+    def value(self):
+        return self._v
+
+    def maximum(self):
+        return self._max
+
+    def setValue(self, v):
+        self._v = int(v)
+        self.calls.append(int(v))
+
+
+class _FakePlayBtn:
+    def __init__(self):
+        self.checked = True
+
+    def isChecked(self):
+        return self.checked
+
+    def setChecked(self, v):
+        self.checked = bool(v)
+
+
+def _animStub(isPathline, value=0, maximum=3, nTp=4):
+    """The dialog's animation methods bound onto plain objects."""
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    class _Stub:
+        _SUB_STEPS = UROMTDialog._SUB_STEPS
+    for name in ("_onGrowTick", "_onGrowChanged", "_growFraction"):
+        setattr(_Stub, name, getattr(UROMTDialog, name))
+    st = _Stub()
+    st._isPathlineView = lambda: isPathline
+    st.growSlider = _FakeSlider(value, maximum)
+    st.tpSlider = _FakeSlider(0, max(0, nTp - 1))
+    st.playBtn = _FakePlayBtn()
+    # the tick reschedules itself off the finished frame (single-shot timer)
+    st._growTimer = SimpleNamespace(start=lambda: None)
+    st._tpScanNums = list(range(nTp))
+    st._onOverlayChanged = lambda: st.__dict__.setdefault("redrawn", 0)
+    return st
+
+
+def test_play_loops_both_pathline_growth_and_timepoints():
+    """Play cycles the run's time axis and never stops itself: the pathlines
+    regrow from their seeds, the field overlays cycle their timepoints."""
+    st = _animStub(False, value=0, maximum=3)
+    seen = []
+    for _ in range(6):
+        st._onGrowTick()
+        seen.append(st.growSlider.value())
+    assert seen == [1, 2, 3, 0, 1, 2], seen    # wraps instead of stopping
+    assert st.playBtn.isChecked()
+
+    st = _animStub(True, value=28, maximum=30)
+    st._onGrowTick()
+    assert st.growSlider.value() == 29
+    st._onGrowTick()
+    assert st.growSlider.value() == 30         # end of the run
+    st._onGrowTick()
+    assert st.growSlider.value() == 0          # regrows from the seeds
+    assert st.playBtn.isChecked()
+
+    # nothing to animate
+    st = _animStub(False, value=0, maximum=0)
+    st._onGrowTick()
+    assert not st.playBtn.isChecked()
+    assert st.growSlider.calls == []
+
+
+def test_pathline_growth_is_cumulative_over_the_run_time_axis():
+    """The slider is the run's TIME axis in both modes. For pathlines its
+    fraction is what is drawn from each seed - the cumulative trajectory up to
+    that time - and the displayed scan follows the interval it lands in."""
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+    sub = UROMTDialog._SUB_STEPS
+    nTp, nIvl = 4, 3
+
+    st = _animStub(True, value=nIvl * sub, maximum=nIvl * sub, nTp=nTp)
+    assert st._growFraction() == 1.0                 # whole paths
+    st.growSlider.setValue(nIvl * sub // 2)
+    assert abs(st._growFraction() - 0.5) < 1e-9      # half of every path
+
+    # growing the paths never touches the displayed scan: a pathline is a
+    # whole-run trajectory, so it belongs to no single frame, and swapping the
+    # backdrop mid-animation only makes the growth harder to follow
+    st = _animStub(True, value=0, maximum=nIvl * sub, nTp=nTp)
+    st._onGrowChanged(sub + 3)
+    st._onGrowChanged(2 * sub)
+    assert st.tpSlider.calls == []                   # scan left where it was
+    assert st.redrawn == 0                           # only the paths redraw
+
+    # in field mode the slider IS the timepoint and growth does not apply
+    st = _animStub(False, value=2, maximum=nIvl, nTp=nTp)
+    assert st._growFraction() == 1.0
+    st._onGrowChanged(2)
+    assert st.tpSlider.calls == [2]
+    st.tpSlider._v = 2
+    st._onGrowChanged(2)                             # already there -> no
+    assert st.tpSlider.calls == [2]                  # redundant scan reload
+
+
+def test_growPathline_keeps_the_path_from_its_seed():
+    """Growth shows the trajectory travelled SO FAR, from the seed, not the leg
+    walked during the current interval."""
+    from cerr.uromt.viz import growPathline
+
+    pts = np.column_stack([np.arange(11.0), np.zeros(11), np.zeros(11)])
+    vals = np.arange(11.0)
+    got, gv = growPathline(pts, vals, 0.5)
+    assert np.array_equal(got, pts[:6])              # leading half, from vertex 0
+    assert np.array_equal(gv, vals[:6])
+    assert np.array_equal(got[0], pts[0])            # always anchored at the seed
+    whole, _ = growPathline(pts, vals, 1.0)
+    assert np.array_equal(whole, pts)
+    stub, _ = growPathline(pts, vals, 0.0)           # still drawable at t=0
+    assert stub.shape[0] == 2 and np.array_equal(stub[0], pts[0])
+
+
+def _drawGrownPaths(grow, nVert=31, nSeed=5, decim=3, lengthScale=1.0):
+    """Draw curved pathlines at a growth fraction; return the drawn polylines
+    and the direction-arrow (base, vector) arrays."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (40, 40, 10)
+    k = 5
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    t = np.linspace(0, 1, nVert)
+    segs = []
+    for i in range(nSeed):
+        # a curved path, each seeded on the displayed slice
+        segs.append(np.column_stack([4.0 + i + 3.0 * t,
+                                     6.0 + 2.0 * np.sin(3.0 * t),
+                                     np.full(nVert, float(k))]))
+    vals = np.ones(nSeed)
+    fig = Figure()
+    ax = fig.add_subplot(111)
+    viz.drawUROMTOverlay(
+        ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+             "pathStat": {"median": vals}, "pathColorBy": "median",
+             "pathDecim": decim, "grow": grow, "lengthScale": lengthScale,
+             "vrange": (0.0, 1.0)},
+        k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+    from matplotlib.collections import PolyCollection
+    lc = [c for c in ax.collections
+          if isinstance(c, LineCollection)
+          and not isinstance(c, (Quiver, PolyCollection))]
+    lines = [np.asarray(x) for x in lc[0].get_segments()] if lc else []
+    return lines, _pathHeads(ax)[0]
+
+
+def test_growing_paths_stay_anchored_at_their_seed():
+    """While the growth animation runs, each path must keep its start point and
+    extend from it toward its final coordinate - the drawn vertices are the
+    real trajectory so far, and the tip advances monotonically along it."""
+    full, _ = _drawGrownPaths(1.0)
+    # the undecimated trajectory, as the reference for "lies on the path":
+    # the drawn frames are decimated for speed, so their vertices need not
+    # coincide with the decimated FULL frame's vertices - but they must all sit
+    # on the real trajectory.
+    truth, _ = _drawGrownPaths(1.0, decim=1)
+    seeds = np.asarray([p[0] for p in full])
+    tips = {}
+    for g in (0.0, 0.1, 0.25, 0.5, 0.75, 1.0):
+        lines, _ = _drawGrownPaths(g)
+        assert len(lines) == len(full), g            # no path appears/vanishes
+        assert np.allclose([p[0] for p in lines], seeds), g   # start is fixed
+        tips[g] = np.asarray([p[-1] for p in lines])
+        # every drawn vertex lies ON the full trajectory (growth reveals the
+        # path, it does not redraw a different one)
+        for a, b in zip(lines, truth):
+            d = np.linalg.norm(b[None, :, :] - a[:, None, :], axis=2).min(1)
+            assert d.max() < 0.15, (g, d.max())
+
+    # the tip advances away from the seed and lands on the true end point
+    dist = {g: np.linalg.norm(tips[g] - seeds, axis=1) for g in tips}
+    for lo, hi in zip((0.0, 0.1, 0.25, 0.5, 0.75), (0.1, 0.25, 0.5, 0.75, 1.0)):
+        assert np.all(dist[hi] >= dist[lo] - 1e-9), (lo, hi)
+    assert np.allclose(tips[1.0], [p[-1] for p in full])
+
+
+def test_direction_arrow_is_anchored_on_the_paths_own_tail():
+    """The end arrow must terminate the path, not add a stroke of its own.
+
+    It used to be a separate stick of fixed length (a fraction of the field of
+    view) pointing along the last segment's direction from a base behind the
+    tip: on a curved or zigzag path that cut straight across the windings it
+    was meant to end. Now the shaft runs from one of the path's OWN vertices to
+    its tip - far enough back that matplotlib draws a full-size head (it
+    shrinks arrows whose shaft is under one head length), but never off the
+    trajectory.
+    """
+    from cerr.uromt import viz
+    for g in (0.1, 0.25, 0.5, 1.0):
+        lines, tris = _drawGrownPaths(g)
+        assert len(tris) == len(lines), g
+        for p, tri in zip(lines, tris):
+            assert np.allclose(tri[0], p[-1])         # the tip IS the path end
+            # the head points along the path's tail, not off in some direction
+            u = tri[0] - 0.5 * (tri[1] + tri[2])
+            tail = p[-1] - p[0]
+            assert np.dot(u, tail) > 0, (g, u, tail)
+        # a head never covers more than its share of the path's visible extent
+        ext = np.array([np.hypot(np.ptp(p[:, 0]), np.ptp(p[:, 1]))
+                        for p in lines])
+        assert np.all(_headLengths(tris) <= viz._TAIL_MAX_FRAC * ext + 1e-6)
+
+
+def test_pathline_head_is_sized_off_its_own_path():
+    """A quiver head is fixed in AXES units and global to the collection, so on
+    real urOMT data (paths ~1 voxel, head ~2.6 voxels) one head covered its
+    whole path and the display showed arrowheads with no paths. Each head is
+    now a triangle sized off ITS path."""
+    from cerr.uromt import viz
+
+    lines, tris = _drawGrownPaths(1.0, nVert=31, decim=3)
+    # the measure is the path's visible EXTENT, not its arc length: a tight
+    # squiggle can travel ten voxels inside a two-voxel box
+    ext = np.array([np.hypot(np.ptp(p[:, 0]), np.ptp(p[:, 1])) for p in lines])
+    arcs = np.array([np.sum(np.hypot(*np.diff(p, axis=0).T)) for p in lines])
+    assert np.all(ext <= arcs + 1e-9)
+    heads = _headLengths(tris)
+    kw = viz._arrowStyle(1.0)
+    ceiling = kw["headlength"] * kw["width"] * 39.0     # xV spans 0..39 there
+
+    # never more than its share of the path, never over the screen ceiling,
+    # and never over the hard millimetre ceiling
+    assert np.all(heads <= viz._TAIL_MAX_FRAC * ext + 1e-6)
+    assert np.all(heads <= ceiling + 1e-6)
+    assert np.all(heads <= viz._headCeiling(None) + 1e-9)
+    # ... it takes whichever of the three limits is smallest
+    assert np.allclose(heads, np.minimum(np.minimum(
+        ceiling, viz._TAIL_MAX_FRAC * ext), viz._headCeiling(None)))
+    assert np.all(heads > 0)
+
+
+def test_end_arrow_takes_the_colour_of_the_segment_it_ends():
+    """A head in a different colour from the path end reads as a separate
+    object; it must match the final segment's colour in both colour modes."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (30, 30, 8)
+    k, nVert, nSeed = 4, 9, 3
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    segs, spds = [], []
+    for c in range(nSeed):
+        segs.append(np.column_stack([np.linspace(3, 11, nVert),
+                                     np.full(nVert, 5.0 + c),
+                                     np.full(nVert, float(k))]))
+        spds.append(np.linspace(0.4, 2.6, nVert))        # accelerating
+    vals = np.asarray([1.0] * nSeed)
+
+    for colorBy in ("along", "median"):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathVertVals": spds, "vrange": (0.0, 3.0),
+                 "pathStat": {"median": np.full(nSeed, 1.5)},
+                 "pathColorBy": colorBy},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        from matplotlib.collections import PolyCollection
+        lc = [c for c in ax.collections
+              if isinstance(c, LineCollection)
+              and not isinstance(c, (Quiver, PolyCollection))][0]
+        heads = _pathHeads(ax)[1]
+        lineCols = np.asarray(lc.get_colors())
+        headCols = np.asarray(heads.get_facecolor())
+        # the head of path 0 matches the LAST entry drawn for path 0
+        nEntry = len(lineCols) // nSeed
+        assert np.allclose(headCols[0][:3], lineCols[nEntry - 1][:3],
+                           atol=1e-6), colorBy
+
+
+def test_3d_end_cone_terminates_on_the_path_tip():
+    """3-D counterpart of the 2-D end-arrow fix: the cone must END on the
+    path's last vertex, pointing back along it. ``pv.Cone`` centers on its
+    centroid, which straddled the tip - the head stuck out half its length
+    beyond where the particle actually went."""
+    pv = pytest.importorskip("pyvista")
+    from cerr.viewer.pycerr_gui.common import (_PATH_CONE_FRAC,
+                                               _PATH_CONE_RADIUS)
+
+    tip = 5.0
+    ep = pv.PolyData(np.array([[tip, 0.0, 0.0]]))
+    ep["dir"] = np.array([[1.0, 0.0, 0.0]])           # travelling +x
+    ep["clen"] = np.array([_PATH_CONE_FRAC * 4.0])
+    ep.set_active_vectors("dir")
+    cones = ep.glyph(orient="dir", scale="clen", factor=1.0,
+                     geom=pv.Cone(center=(-0.5, 0.0, 0.0),
+                                  direction=(1.0, 0.0, 0.0),
+                                  radius=_PATH_CONE_RADIUS, height=1.0,
+                                  resolution=12))
+    lo, hi = cones.bounds[0], cones.bounds[1]
+    assert abs(hi - tip) < 1e-6, hi                   # apex ON the tip
+    assert lo < tip                                   # body back along the path
+    assert abs((tip - lo) - _PATH_CONE_FRAC * 4.0) < 1e-6   # scaled per path
+
+
+def test_3d_pathline_arrow_lies_on_the_last_segment():
+    """The matplotlib 3-D fallback draws its arrow on the path's own final
+    segment, like the 2-D overlay - not as a stroke of some other length."""
+    from cerr.uromt import viz
+
+    nVert = 9
+    t = np.linspace(0, 1, nVert)
+    segs = [np.column_stack([2 + 6 * t, 3 + 2 * np.sin(4 * t),
+                             np.full(nVert, 4.0)]),
+            np.column_stack([5 + 2 * t, 6 + 3 * t, np.full(nVert, 4.0)])]
+    ov = {"view": "pathlines", "segs": (segs, np.ones(2)),
+          "pathVertVals": [np.linspace(0.5, 2.0, nVert)] * 2,
+          "subsample": 1, "grow": 1.0}
+    geom = viz.overlayTo3D(ov, np.arange(12.0), np.arange(12.0),
+                           np.arange(9.0))
+    paths, ends = geom["paths"], np.asarray(geom["pathEnd"])
+    assert len(paths) == 2
+    for p, e in zip(paths, ends):
+        assert np.allclose(e, p[-1])                  # the marker anchors here
+        d = p[-1] - p[-2]                             # ... along the last
+        assert np.linalg.norm(d) > 0                  # drawn segment
+
+
+def test_runs_record_the_settings_file_they_used(tmp_path):
+    """A stored run remembers WHICH JSON it was computed with, so the GUI's
+    browse/edit dialogs can open there instead of in the working directory."""
+    import json
+    from cerr.uromt.config import buildConfig, loadModelSettings, \
+        _DEFAULT_SETTINGS
+    from cerr.dataclasses.uromt import buildFromConfig
+
+    mine = tmp_path / "my_uromt_settings.json"
+    mine.write_text(json.dumps(loadModelSettings(None)))
+
+    cfg = buildConfig(None, 0, str(mine))
+    assert cfg.settingsFile == str(mine)
+    assert buildConfig(None, 0, None).settingsFile == _DEFAULT_SETTINGS
+
+    obj = buildFromConfig(cfg, {"u": []}, {}, {})
+    assert obj.UROMTSetup["settingsFile"] == str(mine)
+
+
+def test_settings_dialogs_open_where_the_settings_live(tmp_path):
+    """`_settingsPathOrDefault` prefers the run's own file, then the typed
+    path, then the bundled default - never the process working directory,
+    which is where the file dialogs used to land."""
+    import json
+    from cerr.uromt.config import loadModelSettings, _DEFAULT_SETTINGS
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    mine = tmp_path / "settings.json"
+    mine.write_text(json.dumps(loadModelSettings(None)))
+
+    class _Stub:
+        _settingsPathOrDefault = UROMTDialog._settingsPathOrDefault
+    st = _Stub()
+    st.settingsEdit = SimpleNamespace(text=lambda: "")
+
+    st._settingsPath = str(mine)                     # the run's own file wins
+    assert st._settingsPathOrDefault() == str(mine)
+
+    st._settingsPath = str(tmp_path / "gone.json")   # deleted -> next candidate
+    st.settingsEdit = SimpleNamespace(text=lambda: str(mine))
+    assert st._settingsPathOrDefault() == str(mine)
+
+    st.settingsEdit = SimpleNamespace(text=lambda: "(settings of run X)")
+    assert st._settingsPathOrDefault() == _DEFAULT_SETTINGS   # never cwd
+    assert os.path.isfile(st._settingsPathOrDefault())
+
+
+def test_run_button_confirms_before_starting():
+    """urOMT cannot be cancelled once the worker starts, and the inputs are now
+    prefilled from whichever run is selected - so Run asks first, defaulting to
+    No, and describes what it is about to do."""
+    import inspect
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    src = inspect.getsource(UROMTDialog._run)
+    assert "QMessageBox.question" in src
+    # the question comes BEFORE the worker is built and started
+    assert src.index("QMessageBox.question") < src.index("_UROMTWorker(")
+    assert "QMessageBox.No)" in src                  # No is the default button
+    assert "return" in src.split("QMessageBox.question")[1]
+
+    # the summary names the ROI, the frames and the settings source
+    class _Stub:
+        _runSummary = UROMTDialog._runSummary
+        _settingsPathOrDefault = staticmethod(lambda: "/tmp/s.json")
+    st = _Stub()
+    st._settings = None
+    st.settingsEdit = SimpleNamespace(text=lambda: "/data/uromt.json")
+    st.structCombo = SimpleNamespace(currentText=lambda: "3: Tumor")
+    st.viewer = SimpleNamespace(planC=SimpleNamespace(scan=[0] * 6))
+    txt = st._runSummary((2, 2, 6))
+    assert "3: Tumor" in txt
+    assert "3 of 6 scans" in txt and "2 interval(s)" in txt   # 2,4,6
+    assert "/data/uromt.json" in txt
+
+    st._settings = {"sigma": 1.0}                    # edited, unsaved
+    assert "edited" in st._runSummary((1, 1, 6))
+
+
+def test_arrow_heads_follow_the_length_scale():
+    """Quiver head sizes are multiples of the shaft WIDTH - an axes fraction -
+    so they do not follow the arrow's data length. Without scaling them, a 10x
+    'length x' drew 10x longer arrows with the same pinprick head and a 0.2x
+    one drew stubs that were nearly all head."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (16, 16, 4)
+    k = 2
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    comps = [np.zeros(shape), np.ones(shape), np.zeros(shape)]
+
+    def head(lengthScale):
+        """The head dims the STYLE asks for (before the per-view cap)."""
+        kw = viz._arrowStyle(2.0, lengthScale)
+        return (np.array([kw["headwidth"], kw["headlength"],
+                          kw["headaxislength"]]), kw["width"])
+
+    base, wBase = head(1.0)
+    big, wBig = head(2.0)
+    small, wSmall = head(0.5)
+    # LINEAR growth: a 2x longer arrow asks for a 2x head. It was briefly sqrt
+    # damped, which made x2 barely change the head at all.
+    assert np.allclose(big, base * 2.0), (big, base)
+    assert np.allclose(small, base * 0.5), (small, base)
+    # the SHAFT width is the line-width control's business, not the length's
+    assert wBig == wBase == wSmall
+
+    lo, hi = viz._ARROW_HEAD_SCALE
+    assert np.allclose(head(hi)[0], base * hi)        # linear up to the clamp
+    assert np.allclose(head(1000.0)[0], base * hi)    # ... then flat
+    assert np.allclose(head(0.001)[0], base * lo)
+    # what actually reaches the canvas is additionally capped against the
+    # arrows on screen - see test_vector_head_cannot_dwarf_the_arrow_it_ends
+
+    # line width scales the shaft, independently of the head
+    assert abs(viz._arrowStyle(4.0)["width"]
+               - 2.0 * viz._arrowStyle(2.0)["width"]) < 1e-12
+
+
+def test_pathline_end_arrow_heads_follow_the_length_scale():
+    """Pathlines scale about their seed, so their end heads must scale too."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (30, 30, 8)
+    k, nVert = 4, 11
+    # a FINE grid (0.02 cm voxels): the hard millimetre ceiling must not bind
+    # here, or there is no growth left to observe
+    xV = np.arange(shape[1]) * 0.02
+    yV = np.arange(shape[0]) * 0.02
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    segs = [np.column_stack([np.linspace(4, 9, nVert), np.full(nVert, 6.0),
+                             np.full(nVert, float(k))])]
+    vals = np.ones(1)
+
+    def head(lengthScale):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathStat": {"median": vals}, "pathColorBy": "median",
+                 "vrange": (0.0, 1.0), "lengthScale": lengthScale},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        return float(_headLengths(_pathHeads(ax)[0]).mean())
+
+    # a scaled path is longer, so its head - a fraction of it - grows with it
+    # a scaled path is longer, so its head - a fraction of it - grows with it,
+    # until the on-screen ceiling takes over
+    assert head(0.5) < head(1.0) < head(2.0) <= head(4.0)
+    assert np.allclose(head(0.5), head(1.0) * 0.5)
+    # and everything stays under the hard millimetre ceiling
+    for ls in (0.5, 1.0, 2.0, 4.0, 100.0):
+        assert head(ls) <= viz._headCeiling(None) + 1e-9, ls
+
+
+def test_scaled_paths_leave_the_view_instead_of_piling_on_its_edge():
+    """Mapping voxel indices with `np.interp` CLAMPS at the grid edge, so a
+    path scaled past the field of view collapsed onto the boundary - and its
+    end arrow degenerated to zero length and vanished. Coordinates outside the
+    grid are extrapolated instead, so the path is simply clipped by the axes."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.collections import LineCollection
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (30, 30, 8)
+    k, nVert = 4, 11
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    segs = [np.column_stack([np.linspace(4, 9, nVert), np.full(nVert, 6.0),
+                             np.full(nVert, float(k))])]
+    vals = np.ones(1)
+
+    def draw(lengthScale):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathStat": {"median": vals}, "pathColorBy": "median",
+                 "vrange": (0.0, 1.0), "lengthScale": lengthScale},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        from matplotlib.collections import PolyCollection
+        lc = [c for c in ax.collections
+              if isinstance(c, LineCollection)
+              and not isinstance(c, (Quiver, PolyCollection))]
+        return np.asarray(lc[0].get_segments()[0]), _pathHeads(ax)[0]
+
+    # the path runs along the VERTICAL axis here (vAxis=0), so column 1 is the
+    # one that leaves the view
+    pts, tris = draw(20.0)
+    assert pts[:, 1].max() > yV[-1], pts[:, 1].max()   # runs off the view
+    assert len(tris) == 1                              # ... head still drawn
+    assert _headLengths(tris)[0] > 0
+
+    # in-range geometry is untouched
+    pts1, _tris1 = draw(1.0)
+    assert pts1[:, 1].min() >= yV[0] and pts1[:, 1].max() <= yV[-1]
+    assert np.allclose(pts1[0], [6.0, 4.0])            # (h, v) = (col, row)
+
+
+def test_show_on_scan_is_the_dialogs_default_button():
+    """Displaying an existing run is the common action; Enter must not launch a
+    long, uncancellable solve."""
+    import inspect
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    src = inspect.getsource(UROMTDialog.__init__)
+    assert "self.showBtn.setDefault(True)" in src
+    assert "self.runBtn.setDefault(True)" not in src
+    assert "self.runBtn.setAutoDefault(False)" in src
+    # focus follows to the button as soon as there is a run to show
+    sel = inspect.getsource(UROMTDialog._onRunSelected)
+    assert "self.showBtn.setFocus()" in sel
+
+
+def test_arrow_heads_are_readable_at_the_default_size():
+    """The head multipliers are relative to a very thin shaft, so they have to
+    be generous to be picked out at typical zoom - but stay narrow enough not
+    to blot out the anatomy underneath."""
+    from cerr.uromt import viz
+
+    kw = viz._arrowStyle(1.0)
+    assert kw["headwidth"] >= 7.0            # raised twice from the original 4
+    assert kw["headlength"] > kw["headaxislength"] > kw["headwidth"]
+    assert kw["headwidth"] <= 9.0            # still a narrow head, not a blob
+    assert abs(kw["width"] - viz._NARROW_ARROW["width"]) < 1e-12
+
+
+def _boxFluxResult(n=(12, 12, 12), nt=2, nIvl=2, fx=2.0, box=(3, 9)):
+    """Result whose flux field is a uniform +row flow inside a box mask."""
+    N = int(np.prod(n))
+    lo, hi = box
+    mask = np.zeros(n, dtype=np.uint8)
+    mask[lo:hi, lo:hi, lo:hi] = 1
+    v = np.zeros((3, N, nt))
+    v[0] = fx
+    return dict(u=[v.copy() for _ in range(nIvl)],
+                r=[np.zeros((N, nt))] * nIvl,
+                rho=[np.ones((N, nt))] * nIvl,
+                n=list(n), spacing=[1.0, 2.0, 0.5], mask=mask,
+                bbox=(0, n[0], 0, n[1], 0, n[2]),
+                frameScanNums=list(range(nIvl + 1)), doResize=0,
+                sizeFactor=1.0, dt=0.4, nt=nt, sigma=0.0)
+
+
+def test_surface_flux_splits_influx_from_outflux():
+    """`|flux|` is unsigned - it says how fast tracer moves, not where it goes.
+    In/out only exist relative to a surface, so the boundary integral of the
+    outward normal flux is what separates them."""
+    from cerr.uromt.analyze import surfaceFlux
+
+    n = (12, 12, 12)
+    h = [1.0, 2.0, 0.5]                       # anisotropic on purpose
+    mask = np.zeros(n, dtype=bool)
+    mask[3:9, 3:9, 3:9] = True
+
+    # a uniform flow through the box: what enters must leave (divergence thm)
+    F = np.zeros((3,) + n)
+    F[0][mask] = 2.0
+    r = surfaceFlux(F, mask, h)
+    face = 2.0 * (h[1] * h[2]) * 36           # 6x6 faces at each end
+    assert abs(r["influx"] - face) < 1e-9
+    assert abs(r["outflux"] - face) < 1e-9
+    assert abs(r["net"]) < 1e-9
+
+    # a purely outward (source) field is all outflux; reversing it is all influx
+    grids = np.meshgrid(*[np.arange(k, dtype=float) for k in n], indexing="ij")
+    F = np.stack([np.where(mask, g - 5.5, 0.0) for g in grids])
+    src = surfaceFlux(F, mask, h)
+    snk = surfaceFlux(-F, mask, h)
+    assert src["influx"] == 0.0 and src["outflux"] > 0
+    assert snk["outflux"] == 0.0 and snk["influx"] > 0
+    assert abs(src["net"] + snk["net"]) < 1e-9   # outward-positive convention
+
+    # the display map is the per-voxel signed contribution: it sums to the net
+    # and lives on the boundary voxels only
+    assert abs(src["map3"].sum() - src["net"]) < 1e-9
+    assert not src["map3"][~mask].any()
+    inner = np.zeros(n, dtype=bool)
+    inner[4:8, 4:8, 4:8] = True
+    assert not src["map3"][inner].any()
+
+    # a mask running into the grid border still has a surface there
+    m2 = np.zeros(n, dtype=bool)
+    m2[:4, 3:9, 3:9] = True
+    F2 = np.zeros((3,) + n)
+    F2[0][m2] = 1.0
+    edge = surfaceFlux(F2, m2, h)
+    assert edge["influx"] > 0 and abs(edge["net"]) < 1e-9
+
+    # centered averaging halves every boundary face of a MASKED field, which is
+    # why the one-sided (inside-cell) value is the default
+    assert surfaceFlux(F, mask, h, centered=True)["outflux"] < src["outflux"]
+
+
+def test_interval_surface_flux_follows_the_run():
+    """One in/out/net triple per time interval, integrated over the run's ROI
+    mask by default."""
+    from cerr.uromt.analyze import runEULAIntervals, intervalSurfaceFlux
+
+    res = _boxFluxResult(nIvl=3)
+    ei = runEULAIntervals(res)
+    sf = intervalSurfaceFlux(ei)
+    assert all(len(sf[k]) == 3 for k in ("influx", "outflux", "net", "map3"))
+    # uniform flow through the box: balanced, every interval
+    assert all(abs(x) < 1e-9 for x in sf["net"])
+    assert all(v > 0 for v in sf["influx"])
+    assert sf["map3"][0].shape == tuple(ei["n"])
+
+    # a different region can be passed (e.g. the undilated structure mask)
+    small = np.zeros(res["n"], dtype=bool)
+    small[4:8, 4:8, 4:8] = True
+    sf2 = intervalSurfaceFlux(ei, mask=small)
+    assert sf2["influx"][0] > 0
+    assert sf2["influx"][0] != sf["influx"][0]      # a smaller surface
+
+
+def test_surface_flux_overlay_reports_in_out_and_net():
+    """The viewer exposes the split as a signed map plus the totals for the
+    displayed interval."""
+    from types import SimpleNamespace
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    res = _boxFluxResult(nIvl=2)
+    run = SimpleNamespace(UROMTResult=res, UROMTLagrangian={})
+
+    class _Stub:
+        refresh_views = staticmethod(lambda **k: None)
+        _refresh_uromt_views = staticmethod(lambda: None)
+    for name in ("set_uromt_overlay", "_uromtVectorColor", "_uromtEulIntervals",
+                 "_uromtSurfaceFlux", "_uromtRoiMaskToScan",
+                 "_uromtHeadCeiling", "_UROMT_LABELS", "_UROMT_COLOR_LABELS"):
+        setattr(_Stub, name, getattr(PyCerrViewer, name))
+    v = _Stub()
+    v.planC = SimpleNamespace(urOMT=[run])
+    v.scan3M = np.zeros(res["n"])
+    v.uromtOverlay = None
+
+    v.set_uromt_overlay(0, view="surfflux")
+    ov = v.uromtOverlay
+    assert ov["diverging"] is True                  # signed -> diverging map
+    lo, hi = ov["vrange"]
+    assert lo == -hi and hi > 0                     # symmetric about zero
+    sf = ov["surfaceFlux"]
+    assert sf["influx"] > 0 and sf["outflux"] > 0
+    assert abs(sf["net"] - (sf["outflux"] - sf["influx"])) < 1e-9
+    assert abs(sf["net"]) < 1e-6                    # uniform flow: balanced
+    assert "in " in ov["label"] and "out " in ov["label"]
+    # the map carries both signs: tracer leaves one face and enters the other
+    m = ov["map3"]
+    assert m.max() > 0 and m.min() < 0
+
+
+def test_export_writes_surface_flux_maps_and_totals(tmp_path):
+    """The NIfTI export carries the in/out split too: a signed surface-flux map
+    per interval plus a CSV of the totals (a scalar has nowhere else to go)."""
+    pytest.importorskip("SimpleITK")
+    from cerr.uromt.analyze import runEULAIntervals
+    from cerr.uromt.export import saveEulerianMapsNii
+
+    res = _boxFluxResult(nIvl=2)
+    ei = runEULAIntervals(res)
+
+    class _Scan:                      # minimal geometry stand-in
+        scanInfo = []                 # single-slice: no slice order to flip
+
+        def getScanArray(self):
+            return np.zeros(res["n"])
+
+        def getSitkImage(self):
+            import SimpleITK as sitk
+            return sitk.GetImageFromArray(
+                np.zeros((res["n"][2], res["n"][0], res["n"][1]),
+                         dtype=np.float32))
+
+    planC = SimpleNamespace(scan=[_Scan()])
+    paths = saveEulerianMapsNii(ei, planC, 0, str(tmp_path), prefix="run")
+    names = [os.path.basename(p) for p in paths]
+    assert "run_surfflux_t01.nii.gz" in names
+    assert "run_surfflux_t02.nii.gz" in names
+    assert "run_surface_flux.csv" in names
+
+    rows = (tmp_path / "run_surface_flux.csv").read_text().strip().split("\n")
+    assert rows[0] == "interval,influx,outflux,net_outward"
+    assert len(rows) == 3                       # header + one row per interval
+    inF, outF, net = (float(x) for x in rows[1].split(",")[1:])
+    assert inF > 0 and outF > 0
+    assert abs(net - (outF - inF)) < 1e-6       # outward-positive convention
+
+
+def test_3d_pathlines_obey_the_colour_reduction():
+    """The 'reduce' control has to mean the same thing in 3-D: a statistic
+    gives each path ONE colour, 'along path' shades it per vertex. 3-D used to
+    always shade per vertex, so switching to median/mean/max changed nothing
+    there and every path carried the full colour range along its length."""
+    from cerr.uromt import viz
+
+    nVert, nSeed = 9, 4
+    t = np.linspace(0, 1, nVert)
+    segs, vert = [], []
+    for i in range(nSeed):
+        segs.append(np.column_stack([2 + 5 * t, np.full(nVert, 3.0 + i),
+                                     np.full(nVert, 4.0)]))
+        vert.append(np.linspace(0.5 + i, 2.5 + i, nVert))   # accelerating
+    vert = np.asarray(vert)
+    stat = {"median": vert.mean(1), "mean": vert.mean(1), "max": vert.max(1)}
+    base = {"view": "pathlines", "segs": (segs, np.ones(nSeed)),
+            "pathVertVals": vert, "pathStat": stat, "subsample": 1,
+            "grow": 1.0}
+    xV = np.arange(12.0)
+    yV = np.arange(12.0)
+    zV = np.arange(9.0)
+
+    # a statistic -> one constant colour value per path, equal to the statistic
+    for key in ("median", "mean", "max"):
+        geom = viz.overlayTo3D(dict(base, pathColorBy=key), xV, yV, zV)
+        vals = geom["pathVals"]
+        assert len(vals) == nSeed
+        for i, v in enumerate(vals):
+            assert np.allclose(v, stat[key][i]), (key, i)
+
+    # 'along path' keeps the per-vertex samples
+    geom = viz.overlayTo3D(dict(base, pathColorBy="along path"), xV, yV, zV)
+    for i, v in enumerate(geom["pathVals"]):
+        assert np.ptp(v) > 0, i
+        assert np.allclose(v, vert[i])
+
+    # the end markers take the path's colour too
+    geom = viz.overlayTo3D(dict(base, pathColorBy="max"), xV, yV, zV)
+    ends = np.array([v[-1] for v in geom["pathVals"]])
+    assert np.allclose(ends, stat["max"])
+
+
+def test_3d_direction_cones_are_dropped_at_high_path_density():
+    """One solid cone per path is readable at a few hundred paths and is pure
+    clutter at ten thousand - it hides the paths it annotates."""
+    import inspect
+    from cerr.viewer.pycerr_gui.common import _PATH_CONE_MAX
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    assert 200 <= _PATH_CONE_MAX <= 20000
+    for fn in (PyCerrViewer._add_uromt_3d_vtk, PyCerrViewer._add_uromt_3d_mpl):
+        src = inspect.getsource(fn)
+        assert 'if "pathEnd" in geom and len(geom["paths"]) <= _PATH_CONE_MAX:'\
+            in src, fn.__name__
+    # the paths themselves are always drawn, whatever the density
+    assert '"paths" in geom' in inspect.getsource(
+        PyCerrViewer._add_uromt_3d_vtk)
+
+
+def test_animation_timer_paces_itself_off_the_finished_frame():
+    """A repeating timer keeps firing while a slow frame is still drawing, so
+    events queue up and the dialog stops responding to Stop. The timer is
+    single-shot and restarted only after the redraw returns."""
+    import inspect
+    from cerr.viewer.pycerr_gui.uromt_gui import UROMTDialog
+
+    assert "setSingleShot(True)" in inspect.getsource(UROMTDialog.__init__)
+    tick = inspect.getsource(UROMTDialog._onGrowTick)
+    # the restart comes AFTER the slider change that triggers the redraw
+    assert tick.index("setValue") < tick.index("_growTimer.start()")
+    assert "if self.playBtn.isChecked():" in tick
+
+    # a stopped animation must not reschedule itself
+    class _Stub:
+        _onGrowTick = UROMTDialog._onGrowTick
+    st = _Stub()
+    st.growSlider = _FakeSlider(3, 10)
+    st.playBtn = _FakePlayBtn()
+    st.playBtn.checked = False
+    started = []
+    st._growTimer = SimpleNamespace(start=lambda: started.append(1))
+    st._onGrowTick()
+    assert st.growSlider.value() == 4      # still advances the frame
+    assert not started                     # ... but schedules no more
+
+
+def test_vector_head_cannot_dwarf_the_arrow_it_ends():
+    """Quiver head dims are multiples of the shaft WIDTH - an axes fraction -
+    so they know nothing about how long the arrows are. With the head
+    multipliers raised, heads grew larger than the arrows themselves (measured
+    110% of the median arrow at x1). They are now capped against the arrows
+    actually on screen, at every length scale."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from cerr.uromt import viz
+
+    shape = (40, 40, 6)
+    k = 3
+    xV = np.arange(shape[1], dtype=float)
+    yV = np.arange(shape[0], dtype=float)
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    rr, cc = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]),
+                         indexing="ij")
+    comps = [np.zeros(shape) for _ in range(3)]
+    for s in range(shape[2]):
+        comps[0][:, :, s] = 0.5 * np.sin(cc / 5.0)
+        comps[1][:, :, s] = 0.5 * np.cos(rr / 5.0)
+
+    for ls in (0.5, 1.0, 2.0, 4.0, 8.0):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "velocity", "alpha": 1.0, "comps": comps,
+                 "vrange": (0.0, 1.0), "lengthScale": ls, "lineWidth": 2.0,
+                 "subsample": 2},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        q = [c for c in ax.collections if isinstance(c, Quiver)][0]
+        headData = q.headlength * q.width * float(np.ptp(xV))
+        medArrow = float(np.median(np.hypot(q.U, q.V))) / q.scale
+        assert headData <= viz._HEAD_MAX_ARROW_FRAC * medArrow + 1e-6, ls
+        assert headData > 0
+        # the head keeps its narrow shape when it is shrunk
+        assert q.headlength > q.headaxislength > q.headwidth
+
+
+def test_head_ceiling_is_two_of_the_scans_finest_voxels():
+    """The hard ceiling is not a fixed millimetre count - it is 2x the scan's
+    FINEST voxel, because the heads annotate that data and a fixed number is
+    either huge on a fine scan or invisible on a coarse one."""
+    from types import SimpleNamespace
+    from cerr.uromt import viz
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    class _Stub:
+        _uromtHeadCeiling = PyCerrViewer._uromtHeadCeiling
+    st = _Stub()
+
+    # anisotropic: the FINEST spacing wins
+    st.planC = SimpleNamespace(scan=[SimpleNamespace(
+        getScanSpacing=lambda: np.array([0.08, 0.08, 0.3]))])
+    st.scanNum = 0
+    assert abs(st._uromtHeadCeiling() - viz._HEAD_MAX_VOXELS * 0.08) < 1e-12
+
+    # a coarser scan gets a proportionally bigger head budget
+    st.planC = SimpleNamespace(scan=[SimpleNamespace(
+        getScanSpacing=lambda: np.array([0.5, 0.5, 0.5]))])
+    assert abs(st._uromtHeadCeiling() - viz._HEAD_MAX_VOXELS * 0.5) < 1e-12
+
+    # the DISPLAYED scan is the one measured
+    st.planC = SimpleNamespace(scan=[
+        SimpleNamespace(getScanSpacing=lambda: np.array([0.1, 0.1, 0.1])),
+        SimpleNamespace(getScanSpacing=lambda: np.array([0.4, 0.4, 0.4]))])
+    st.scanNum = 1
+    assert abs(st._uromtHeadCeiling() - viz._HEAD_MAX_VOXELS * 0.4) < 1e-12
+
+    # unusable geometry falls back rather than raising
+    st.planC = SimpleNamespace(scan=[SimpleNamespace(
+        getScanSpacing=lambda: np.array([0.0, np.nan, 0.0]))])
+    st.scanNum = 0
+    assert st._uromtHeadCeiling() == viz._HEAD_MAX_FALLBACK_CM
+    st.planC = SimpleNamespace(scan=[])
+    assert st._uromtHeadCeiling() == viz._HEAD_MAX_FALLBACK_CM
+
+
+def test_drawn_heads_obey_the_overlays_own_ceiling():
+    """Whatever the viewer computed travels on the overlay as `headMaxData`,
+    and every drawn head respects it."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib.quiver import Quiver
+    from matplotlib.collections import PolyCollection
+    from cerr.uromt import viz
+
+    shape = (120, 120, 6)
+    k = 3
+    xV = np.arange(shape[1]) * 0.1          # 1 mm voxels, ~12 cm across
+    yV = np.arange(shape[0]) * 0.1
+    ext = [xV[0], xV[-1], yV[-1], yV[0]]
+    rr, cc = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]),
+                         indexing="ij")
+    comps = [np.zeros(shape) for _ in range(3)]
+    for s in range(shape[2]):
+        comps[0][:, :, s] = 0.5 * np.sin(cc / 15.0)
+        comps[1][:, :, s] = 0.5 * np.cos(rr / 15.0)
+
+    for ceil in (0.1, 0.2, 0.6):           # cm: 1, 2, 6 mm
+        for ls in (0.05, 1.0, 20.0):
+            fig = Figure()
+            ax = fig.add_subplot(111)
+            viz.drawUROMTOverlay(
+                ax, {"view": "velocity", "alpha": 1.0, "comps": comps,
+                     "vrange": (0.0, 1.0), "lengthScale": ls,
+                     "lineWidth": 2.0, "subsample": 6,
+                     "headMaxData": ceil},
+                k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+            q = [c for c in ax.collections if isinstance(c, Quiver)][0]
+            head = q.headlength * q.width * float(np.ptp(xV))
+            assert head <= ceil + 1e-9, (ceil, ls, head)
+
+    # ... and the pathline triangles use the same value
+    nVert = 21
+    t = np.linspace(0, 1, nVert)
+    segs = [np.column_stack([(2.0 + 1.2 * t) / 0.1,
+                             (3.0 + 0.4 * np.sin(3 * t)) / 0.1,
+                             np.full(nVert, float(k))])]
+    vals = np.ones(1)
+    for ceil in (0.1, 0.5):
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        viz.drawUROMTOverlay(
+            ax, {"view": "pathlines", "alpha": 1.0, "segs": (segs, vals),
+                 "pathStat": {"median": vals}, "pathColorBy": "median",
+                 "vrange": (0.0, 2.0), "lineWidth": 2.0, "lengthScale": 50.0,
+                 "subsample": 1, "headMaxData": ceil},
+            k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
+        polys = [c for c in ax.collections if isinstance(c, PolyCollection)]
+        tris = np.asarray([np.asarray(pp.vertices)[:3]
+                           for pp in polys[0].get_paths()])
+        assert _headLengths(tris).max() <= ceil + 1e-9, ceil
+    # an overlay without the key still draws, on the fallback
+    assert viz._headCeiling({}) == viz._HEAD_MAX_FALLBACK_CM
+    assert viz._headCeiling({"headMaxData": 0}) == viz._HEAD_MAX_FALLBACK_CM
+    assert viz._headCeiling({"headMaxData": 0.37}) == 0.37
+
+
+def test_every_renderer_obeys_the_head_ceiling():
+    """The ceiling has to be global. The 2-D overlay honoured it while the 3-D
+    glyph renderers did not: their heads are a FRACTION of each arrow
+    (`tip_length` / `arrow_length_ratio`), so a long arrow got a proportionally
+    long head and the cap looked like it was not applied at all."""
+    import inspect
+    from cerr.uromt import viz
+    from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
+
+    # the fraction is clamped against the LONGEST arrow, so every head - not
+    # merely the typical one - lands at or under the ceiling
+    for ceil in (0.05, 0.2, 1.0):
+        for maxLen in (0.01, 0.5, 5.0, 50.0):
+            f = viz.capTipFraction(0.4, maxLen, ceil)
+            assert f * maxLen <= ceil + 1e-12, (ceil, maxLen)
+            assert f <= 0.4
+        assert viz.capTipFraction(0.4, 0.0, ceil) == 0.4   # nothing drawn yet
+        assert viz.capTipFraction(0.4, 1e9, ceil) > 0      # never zero
+        assert viz.capTipFraction(0.4, ceil, ceil) == 0.4  # short arrows intact
+
+    # ... and each 3-D site actually routes through it, with the overlay's own
+    # ceiling rather than the fallback
+    for fn in (PyCerrViewer._add_uromt_3d_vtk, PyCerrViewer._add_uromt_3d_mpl):
+        src = inspect.getsource(fn)
+        assert "capTipFraction" in src, fn.__name__
+        assert "headCeil = _headCeiling(ov)" in src, fn.__name__

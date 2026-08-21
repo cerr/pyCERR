@@ -149,6 +149,38 @@ N3D = 72   # max samples per dimension for the textured planes in the 3D view
 UROMT_AXES = {VIEW_AXIAL: (1, 0, 2), VIEW_SAGITTAL: (0, 2, 1),
               VIEW_CORONAL: (1, 2, 0)}
 
+# 3-D urOMT pathline direction arrow: ONE narrow cone at the end of each path
+# (no seed marker - two markers per path obscured the paths themselves). Sized
+# as a fraction of the MEDIAN PATH LENGTH, since a glyph scaled off the scan FOV
+# blankets the geometry it is meant to annotate. The small radius/height ratio
+# is what makes it read as a narrow arrowhead rather than a blob.
+_PATH_CONE_FRAC = 0.5
+
+# The `spfs` that runGLAD (and therefore Part 4) uses by default. The viewer
+# only re-integrates pathlines when the user asks for something other than this,
+# so the stored Lagrangian result is reused in the common case.
+_LAG_RUN_SPFS = 1
+
+# Target number of drawn segments per pathline. runGLAD records one vertex
+# per integration sub-step (33 for a 13-interval run) for curves only a
+# couple of voxels long, and matplotlib builds one Path per segment - so
+# the recorded sampling is far finer than the display needs.
+_PATH_MAX_SEGS = 10
+_PATH_CONE_RADIUS = 0.16
+
+# Every actor name the urOMT 3-D overlay adds to a pyvista scene. Listed once
+# so an overlay-only update can remove exactly these and leave the scan
+# volume, structures and dose alone.
+UROMT_3D_ACTORS = ("uromt_scalar", "uromt_vec", "uromt_paths",
+                   "uromt_path_end")
+
+# Above this many drawn pathlines the 3-D direction cones are dropped. One
+# solid cone per path is readable at a few hundred paths and is pure clutter at
+# ten thousand - it hides the paths it is meant to annotate, which is the whole
+# reason the markers were made small in the first place. Raise "every N" (or
+# this number) if the arrowheads are wanted at higher density.
+_PATH_CONE_MAX = 1500
+
 # Colormaps offered for fused scan overlays
 OVERLAY_CMAPS = ["hot", "jet", "cool", "spring", "winter", "copper",
                  "viridis", "gray"]

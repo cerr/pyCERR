@@ -53,11 +53,18 @@ def saveEulerianMapsNii(eul, planC, scanNum, outDir, prefix="uromt"):
         outDir (str): output directory (created if needed).
         prefix (str): file-name prefix.
 
+    Also writes the **surface flux**: ``<prefix>_surfflux_t<NN>.nii.gz``, the
+    per-voxel signed outward flux on the ROI boundary (positive = tracer
+    leaving, negative = entering), and ``<prefix>_surface_flux.csv`` with the
+    influx / outflux / net totals per interval. ``|flux|`` is a magnitude and
+    carries no direction, so this is what separates in from out - see
+    :func:`cerr.uromt.analyze.surfaceFlux`.
+
     Returns:
         list[str]: the written file paths - one 3-D NIfTI per metric per time
         interval, named ``<prefix>_<metric>_t<NN>.nii.gz`` (NN = 1-based interval
-        index). When the run has a single interval the ``_tNN`` suffix is still
-        added (``_t01``).
+        index), plus the surface-flux maps and CSV. When the run has a single
+        interval the ``_tNN`` suffix is still added (``_t01``).
     """
     import SimpleITK as sitk
     scan = planC.scan[scanNum]
@@ -80,6 +87,26 @@ def saveEulerianMapsNii(eul, planC, scanNum, outDir, prefix="uromt"):
                                 % (prefix, outName, t + 1))
             sitk.WriteImage(img, path)
             written.append(path)
+
+    # ---- surface flux: the in/out split |flux| cannot give ------------------
+    if eul.get("flux") and eul.get("mask") is not None:
+        from cerr.uromt.analyze import intervalSurfaceFlux
+        sf = intervalSurfaceFlux(eul)
+        for t in range(nIv):
+            full = _roiMapToScan(sf["map3"][t], bbox, scanShape)
+            img = _scangridToSitk(full, scan)
+            path = os.path.join(outDir, "%s_surfflux_t%02d.nii.gz"
+                                % (prefix, t + 1))
+            sitk.WriteImage(img, path)
+            written.append(path)
+        csvPath = os.path.join(outDir, "%s_surface_flux.csv" % prefix)
+        with open(csvPath, "w") as fh:
+            fh.write("interval,influx,outflux,net_outward\n")
+            for t in range(nIv):
+                fh.write("%d,%.10g,%.10g,%.10g\n"
+                         % (t + 1, sf["influx"][t], sf["outflux"][t],
+                            sf["net"][t]))
+        written.append(csvPath)
     return written
 
 
