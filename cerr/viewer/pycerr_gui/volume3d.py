@@ -451,7 +451,7 @@ class Volume3DDialog(QtWidgets.QDialog):
                     q.SetOrigin(p.GetOrigin())
                     q.SetNormal(-n[0], -n[1], -n[2])
                     coll.AddItem(q)
-            clipNames = ("scan", "oscan", "struct", "dose", "uromt")
+            clipNames = ("scan", "oscan", "struct", "dose", "uromt", "dvf")
             for name, actor in list(self.plotter.actors.items()):
                 # only cut the data actors; the dotted reference box, the
                 # widget's own handles and other helpers stay visible
@@ -489,10 +489,13 @@ class Volume3DDialog(QtWidgets.QDialog):
             return
         pl = self.plotter
         try:
-            for nm in UROMT_3D_ACTORS:
+            for nm in UROMT_3D_ACTORS + DVF_3D_ACTORS:
                 pl.remove_actor(nm, render=False)
             if getattr(self.viewer, "uromtOverlay", None) is not None:
                 self.viewer._add_uromt_3d_vtk(pl)
+            if getattr(self.viewer, "dvfOverlay", None) is not None:
+                self.viewer._add_uromt_3d_vtk(
+                    pl, ov=self.viewer.dvfOverlay, prefix="dvf")
                 # re-added actors are new mappers: reapply the clip box, else
                 # the overlay ignores a clip the rest of the scene obeys
                 if self._clipPlanes is not None:
@@ -798,6 +801,8 @@ class Volume3DDialog(QtWidgets.QDialog):
         try:
             if getattr(v, "uromtOverlay", None) is not None:
                 v._add_uromt_3d_vtk(pl)
+            if getattr(v, "dvfOverlay", None) is not None:
+                v._add_uromt_3d_vtk(pl, ov=v.dvfOverlay, prefix="dvf")
         except Exception:  # noqa: BLE001
             pass
         try:
