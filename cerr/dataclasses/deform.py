@@ -201,6 +201,34 @@ class Deform:
         deformDict = self.__dict__.copy()
         return deformDict
 
+#: ``deformOutFileType`` values whose objects carry a sampled vector field in
+#: ``dvfMatrix``: 'dvf' is a DICOM Deformable Spatial Registration, 'vf' a
+#: plastimatch / NIfTI vector field. The other kinds ('rigid', 'ants', or a
+#: B-spline coefficient file) describe the transform some other way and have no
+#: field to sample.
+DVF_FILE_TYPES = ('dvf', 'vf')
+
+
+def hasDvfMatrix(deform):
+    """Whether a Deform carries a sampled deformation vector field.
+
+    A ``planC.deform`` entry may be a rigid transform, a set of B-spline
+    coefficients or an ANTs transform chain, none of which have per-voxel
+    displacements. Anything that reads or displays ``dvfMatrix`` needs to know
+    the difference; this is that check, so callers do not each invent their own.
+
+    Args:
+        deform (Deform): a pyCERR deformation object.
+
+    Returns:
+        bool: True if ``dvfMatrix`` holds a populated ``(rows, cols, slices, 3)``
+        field.
+    """
+    dvf = getattr(deform, 'dvfMatrix', None)
+    return (dvf is not None and getattr(dvf, 'ndim', 0) == 4
+            and dvf.shape[-1] == 3 and dvf.size > 0)
+
+
 def flipSliceOrderFlag(deform):
     """Determine whether the slice ordering in the Deform object is reversed relative to DICOM.
 

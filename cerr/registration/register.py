@@ -540,7 +540,9 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
     zStart = zValsV[0]
 
-    mask3M = rs.getStrMask(structNum, planC)
+    # structNum is optional: without one the vectors cover the whole scan, and
+    # there is no mask to build.
+    mask3M = None if structNum is None else rs.getStrMask(structNum, planC)
 
     origRes = planC.scan[scanNum].getScanSpacing()
     pixelSpacingZ = origRes[2]
@@ -622,18 +624,9 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     yDeformV = finterp3(xSurfV,ySurfV,zSurfV,yDeformM,xFieldV,yFieldV,zFieldV)
     zDeformV = finterp3(xSurfV,ySurfV,zSurfV,zDeformM,xFieldV,yFieldV,zFieldV)
 
-    # Convert xDeformV,yDeformV,zDeformV to CERR virtual coordinates
-    onesV = np.ones_like(xDeformV)
-    zeroV = np.zeros_like(xDeformV)
-    dcmXyzM = np.vstack((xDeformV,yDeformV,zDeformV, onesV))
-    dcmZeroM = np.vstack((zeroV,zeroV,zeroV, onesV))
-    deformPos = np.matmul(np.linalg.inv(planC.scan[scanNum].cerrToDcmTransM), dcmXyzM)[:3]
-    zeroPos = np.matmul(np.linalg.inv(planC.scan[scanNum].cerrToDcmTransM), dcmZeroM)[:3]
-    cerrXYZM = deformPos - zeroPos
-    # DVF in mm (Note that CERR coordinate system is in cm.)
-    xDeformV = cerrXYZM[0,:]
-    yDeformV = cerrXYZM[1,:]
-    zDeformV = cerrXYZM[2,:]
+    # Convert xDeformV,yDeformV,zDeformV to CERR virtual coordinates (cm)
+    xDeformV, yDeformV, zDeformV = dvfToCerrVirtual(xDeformV, yDeformV,
+                                                    zDeformV, planC, scanNum)
     numPts = len(yDeformV)
     vectors = np.empty((numPts,2,3), dtype=np.float32)
     rcsFlag = True # an input argument?
@@ -655,3 +648,201 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
             vectors[i,0,:] = [ySurfV[i], xSurfV[i], zSurfV[i]]
             vectors[i,1,:] = [yDeformV[i], xDeformV[i], zDeformV[i]]
     return vectors
+
+
+def dvfToCerrVirtual(xDeformV, yDeformV, zDeformV, planC, scanNum):
+    """Convert DVF components from DICOM patient (LPS, mm) to pyCERR virtual
+    coordinates (cm).
+
+    ``Deform.dvfMatrix`` stores displacements as DICOM LPS millimetres whatever
+    the source (RTREG, plastimatch ``.vf``, NIfTI), while pyCERR's virtual
+    coordinate system - the one the viewers draw in - is right-handed and in
+    centimetres. The scan's ``cerrToDcmTransM`` carries both the rotation and
+    the cm->mm scaling, so inverting it and subtracting the image of the origin
+    (a displacement is a difference of positions, so the translation must drop
+    out) gives the displacement in virtual cm.
+
+    Args:
+        xDeformV, yDeformV, zDeformV (np.ndarray): 1-D arrays of DVF components
+            in DICOM patient coordinates (mm).
+        planC (cerr.plan_container.PlanC): pyCERR's plan container.
+        scanNum (int): index of the scan defining the virtual coordinate system.
+
+    Returns:
+        tuple: ``(xV, yV, zV)`` displacement components in pyCERR virtual
+        coordinates, in cm.
+    """
+    onesV = np.ones_like(xDeformV)
+    zeroV = np.zeros_like(xDeformV)
+    dcmXyzM = np.vstack((xDeformV, yDeformV, zDeformV, onesV))
+    dcmZeroM = np.vstack((zeroV, zeroV, zeroV, onesV))
+    invM = np.linalg.inv(planC.scan[scanNum].cerrToDcmTransM)
+    cerrXYZM = np.matmul(invM, dcmXyzM)[:3] - np.matmul(invM, dcmZeroM)[:3]
+    return cerrXYZM[0, :], cerrXYZM[1, :], cerrXYZM[2, :]
+
+
+#: Default ceiling on the number of sample points when ``getDvfGrid`` picks the
+#: output resolution itself. Three float32 components at this size are ~24 MB,
+#: and one arrow per sample is already denser than any slice view can show.
+DVF_GRID_MAX_POINTS = 2_000_000
+
+
+def getDvfGrid(deformS, planC, scanNum, outputResV=None, structNum=None,
+               surfFlag=False, subtractMedian=False, dtype=np.float32,
+               maxPoints=DVF_GRID_MAX_POINTS):
+    """Sample a deformation vector field on a regular grid, for slice display.
+
+    The grid counterpart of :func:`getDvfVectors`, which returns the same
+    vectors scattered (an ``(n, 2, 3)`` array for Napari's ``Vectors`` layer).
+    Sampling, restriction and median-subtraction follow that routine exactly -
+    the same ``outputResV`` / ``structNum`` / ``surfFlag`` controls, the same
+    coordinate transform - but the result comes back as three dense component
+    arrays plus the grid's own axes, so a viewer can quiver any plane of it
+    without searching a point cloud for the vectors near that plane.
+
+    Everything is in pyCERR's own convention: displacements are in **virtual
+    x, y, z centimetres** (x along the columns, increasing left to right; y
+    along the rows, DECREASING down the image; z along the slices), not
+    Napari's row/col/slice frame with its flipped y.
+
+    Args:
+        deformS (cerr.dataclasses.deform.Deform): pyCERR deformation object.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container.
+        scanNum (int): index of the scan whose grid frames the sampling.
+        outputResV (list): output grid resolution ``[dx, dy, dz]`` in cm; a 0
+            entry means that axis's native scan spacing. ``None`` (the default)
+            starts from the native spacing and coarsens all three axes by a
+            common factor until the grid fits ``maxPoints``.
+        structNum (int): optional index into ``planC.structure``. The sampling
+            is framed on that structure's bounding box and vectors outside the
+            structure itself are dropped.
+        surfFlag (bool): with ``structNum``, keep only the vectors on the
+            structure's SURFACE - the deformation of a boundary is usually what
+            a registration is judged on, and interior arrows hide it.
+        subtractMedian (bool): subtract the median displacement of the sampled
+            vectors, leaving the LOCAL deformation. A registration that is
+            mostly a bulk shift otherwise draws one uniform arrow field in which
+            no local detail is visible.
+        dtype: floating dtype of the returned components (default float32 -
+            display data, where float64 doubles the footprint for no gain).
+        maxPoints (int): sample-count ceiling used when ``outputResV`` is
+            ``None``.
+
+    Returns:
+        tuple: ``(comps, axes, info)`` where
+
+        - **comps** (*list*): ``[dRow, dCol, dSlc]``, each of shape
+          ``(len(yV), len(xV), len(zV))``, holding the displacement component
+          along the grid's row (virtual y), column (virtual x) and slice
+          (virtual z) directions in cm. Zero wherever no vector is drawn -
+          outside the DVF's field of view, or outside the selected structure.
+        - **axes** (*tuple*): ``(xV, yV, zV)``, the grid's physical coordinates
+          in cm (x ascending, y descending, z ascending, as elsewhere in
+          pyCERR).
+        - **info** (*dict*): ``'valid'`` (bool array, True where a vector was
+          sampled), ``'resolution'`` (the grid spacing actually used, cm),
+          ``'median'`` (the subtracted median displacement in virtual cm, zeros
+          when ``subtractMedian`` is False) and ``'nVectors'``.
+    """
+    xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
+    origRes = planC.scan[scanNum].getScanSpacing()
+
+    mask3M = None
+    if structNum is not None:
+        mask3M = rs.getStrMask(structNum, planC)
+        if surfFlag:
+            # getSurfacePoints returns the mask's boundary voxels; a surface
+            # mask keeps the same nearest-voxel lookup as the solid one.
+            rowV, colV, slcV = getSurfacePoints(mask3M)
+            surf3M = np.zeros_like(mask3M, dtype=bool)
+            surf3M[rowV, colV, slcV] = True
+            mask3M = surf3M
+        rmin, rmax, cmin, cmax, smin, smax, _ = computeBoundingBox(mask3M)
+        xValsV = xValsV[cmin:cmax + 1]
+        yValsV = yValsV[rmin:rmax + 1]
+        zValsV = zValsV[smin:smax + 1]
+
+    def _grid(resV):
+        return preprocess.getResampledGrid(np.asarray(resV, dtype=float),
+                                           xValsV, yValsV, zValsV, 'center')
+
+    if outputResV is None:
+        # Auto: the native spacing, coarsened isotropically until the sample
+        # count fits. Coarsening every axis by the same factor keeps the arrow
+        # spacing even, which a per-axis fit would not. The first factor is an
+        # estimate - getResampledGrid rounds each axis up, so keep growing it
+        # until the grid it actually returns fits.
+        nPts = len(xValsV) * len(yValsV) * len(zValsV)
+        factor = max(1.0, np.ceil((nPts / float(maxPoints)) ** (1 / 3.0)))
+        while True:
+            resV = [r * factor for r in origRes]
+            xR, yR, zR = _grid(resV)
+            if len(xR) * len(yR) * len(zR) <= maxPoints:
+                break
+            factor += 1.0
+    else:
+        resV = [outputResV[i] if outputResV[i] > 0 else origRes[i]
+                for i in range(3)]
+        xR, yR, zR = _grid(resV)
+    xM, yM, zM = np.meshgrid(xR, yR, zR)      # 'xy' -> (rows, cols, slices)
+    shape = xM.shape
+    xQ, yQ, zQ = xM.flatten(), yM.flatten(), zM.flatten()
+
+    # DVF grid. finterp3 takes the x/y axes as (start, delta, end) and needs the
+    # end points nudged outward so boundary samples are not rejected as
+    # out-of-bounds; z is passed in full (slice spacing may be non-uniform).
+    xV, yV, zV = deformS.getDVFXYZVals()
+    zV = np.asarray(zV, dtype=float).copy()          # copy: do not edit deformS
+    delta = 1e-8
+    zV[0] = zV[0] - 1e-3
+    zV[-1] = zV[-1] + 1e-3
+    xFieldV = np.asarray([xV[0] - delta, xV[1] - xV[0], xV[-1] + delta])
+    yFieldV = np.asarray([yV[0] + delta, yV[1] - yV[0], yV[-1] - delta])
+    defV = [finterp3(xQ, yQ, zQ, deformS.dvfMatrix[:, :, :, comp],
+                     xFieldV, yFieldV, zV) for comp in range(3)]
+    # NaN marks a sample outside the DVF's field of view, where there is no
+    # deformation to show. Tracked as a mask rather than folded into the values,
+    # so a genuinely zero displacement stays distinguishable from no data.
+    valid = np.isfinite(defV[0]) & np.isfinite(defV[1]) & np.isfinite(defV[2])
+    defV = [np.nan_to_num(d) for d in defV]
+    xDeformV, yDeformV, zDeformV = dvfToCerrVirtual(defV[0], defV[1], defV[2],
+                                                    planC, scanNum)
+
+    if mask3M is not None:
+        # Nearest scan voxel of each sample point: the structure mask is on the
+        # scan grid, and interpolating it onto a coarser grid would erode a
+        # one-voxel-thick surface away entirely.
+        valid &= _nearestMaskValues(mask3M, xQ, yQ, zQ, planC, scanNum)
+
+    medianV = np.zeros(3)
+    if subtractMedian and valid.any():
+        medianV = np.array([np.median(yDeformV[valid]),
+                            np.median(xDeformV[valid]),
+                            np.median(zDeformV[valid])])
+        yDeformV = yDeformV - medianV[0]
+        xDeformV = xDeformV - medianV[1]
+        zDeformV = zDeformV - medianV[2]
+
+    comps = []
+    for d in (yDeformV, xDeformV, zDeformV):          # [row(y), col(x), slc(z)]
+        d = np.where(valid, d, 0.0)
+        comps.append(d.reshape(shape).astype(dtype))
+    info = {"valid": valid.reshape(shape), "resolution": list(resV),
+            "median": medianV, "nVectors": int(valid.sum())}
+    return comps, (xR, yR, zR), info
+
+
+def _nearestMaskValues(mask3M, xQ, yQ, zQ, planC, scanNum):
+    """Value of a scan-grid mask at each query point, by nearest voxel."""
+    xValsV, yValsV, zValsV = planC.scan[scanNum].getScanXYZVals()
+    cIdx = np.clip(np.rint((xQ - xValsV[0]) / (xValsV[1] - xValsV[0])),
+                   0, len(xValsV) - 1).astype(int)
+    rIdx = np.clip(np.rint((yQ - yValsV[0]) / (yValsV[1] - yValsV[0])),
+                   0, len(yValsV) - 1).astype(int)
+    sIdx = np.clip(np.searchsorted(zValsV, zQ), 0, len(zValsV) - 1)
+    # searchsorted gives the upper neighbour; step back where the lower one is
+    # nearer (slice spacing may be non-uniform, so this cannot be a division).
+    lower = np.clip(sIdx - 1, 0, len(zValsV) - 1)
+    takeLower = np.abs(zQ - zValsV[lower]) < np.abs(zQ - zValsV[sIdx])
+    sIdx = np.where(takeLower, lower, sIdx)
+    return mask3M[rIdx, cIdx, sIdx].astype(bool)
