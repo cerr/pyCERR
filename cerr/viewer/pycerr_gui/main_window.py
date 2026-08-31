@@ -74,6 +74,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._toolWindows = []       # keep IMRTP/ROE windows alive
         self.contourCtl = None       # active ContourDialog (or None)
         self.regCtl = None           # active RegQaDialog (or None)
+        self.uromtOverlay = None     # cached urOMT result overlay (or None)
+        self.dvfOverlay = None       # cached deformation-field overlay (or None)
         # IMRTP beam overlays: list of {"polylines": [Nx3,...], "color": rgb}
         self.beams = []
         # re-render 3D views shortly after slice scrolling stops
@@ -591,10 +593,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         try:
             if not len(pl.actors):
                 return False
-            for nm in UROMT_3D_ACTORS:
+            for nm in UROMT_3D_ACTORS + DVF_3D_ACTORS:
                 pl.remove_actor(nm, render=False)
             if getattr(self, "uromtOverlay", None) is not None:
                 self._add_uromt_3d_vtk(pl)
+            if getattr(self, "dvfOverlay", None) is not None:
+                self._add_uromt_3d_vtk(pl, ov=self.dvfOverlay, prefix="dvf")
             pl.render()
             return True
         except Exception:  # noqa: BLE001
@@ -610,28 +614,228 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                              alpha=self.uromtOverlay.get("alpha", 0.6),
                              colorbar=False)   # colorbar lives in the urOMT dialog
 
-    def _uromt_3d_geometry(self, maxArrows=None, maxPaths=None):
-        """3-D urOMT overlay geometry (vectors / pathlines) in physical coords
-        from the cached overlay; delegates to :func:`cerr.uromt.viz.overlayTo3D`
-        (kept there so the coordinate mapping / arrow scaling is headless
-        testable)."""
+    # ---- deformation vector field overlay on the main slice views -------
+    #: Colour channels offered for the DVF quiver: key -> colorbar label. These
+    #: are the same quantities the Napari DVF layer carries as point features
+    #: (``length``/``dx``/``dy``/``dz``, all in mm), plus their signed forms -
+    #: whether a voxel moved left or right is usually the question a
+    #: registration QA reader is actually asking.
+    _DVF_COLOR_LABELS = {"length": "length (mm)",
+                         "dx": "|dx| (mm)", "dy": "|dy| (mm)",
+                         "dz": "|dz| (mm)",
+                         "dx_signed": "dx, R->L (mm)",
+                         "dy_signed": "dy, P->A (mm)",
+                         "dz_signed": "dz, I->S (mm)"}
+
+    #: colour key -> (index into ``comps``, signed?). Component order is
+    #: [row (virtual y), col (virtual x), slice (virtual z)].
+    _DVF_COLOR_COMPS = {"dx": (1, False), "dy": (0, False), "dz": (2, False),
+                        "dx_signed": (1, True), "dy_signed": (0, True),
+                        "dz_signed": (2, True)}
+
+    def set_dvf_overlay(self, deformNum, scanNum=None, resolution=None,
+                        structNum=None, surfFlag=False, subtractMedian=False,
+                        alpha=0.9, subsample=1, lengthScale=1.0, lineWidth=2.0,
+                        colorBy="length", trueScale=True):
+        """Overlay ``planC.deform[deformNum]``'s vector field on the 2-D views.
+
+        The pyCERR-GUI counterpart of the Napari ``Vectors`` layer that
+        :func:`cerr.viewer.pycerr_napari.showNapari` builds from
+        ``vectors_dict``: the same displacements, sampled the same way
+        (:func:`cerr.registration.register.getDvfGrid`, the grid twin of
+        ``getDvfVectors``), drawn as a per-slice quiver instead of a scattered
+        3-D vector layer. Vectors are in pyCERR's virtual x, y, z centimetres
+        throughout - not Napari's row/col/slice frame with its flipped y - so
+        an arrow points where the anatomy moved on screen.
+
+        ``resolution`` is the sampling grid spacing ``[dx, dy, dz]`` in cm (a 0
+        entry = that axis's native scan spacing); ``None`` picks a spacing that
+        keeps the field a sensible size. ``structNum`` restricts the sampling to
+        a structure, and ``surfFlag`` to that structure's surface alone.
+        ``subtractMedian`` removes the median displacement, leaving the LOCAL
+        deformation - a registration that is mostly a bulk shift otherwise draws
+        one uniform arrow field with no visible detail. The sampled field is
+        cached, so only these four controls re-interpolate.
+
+        ``trueScale`` (the default) draws each arrow at its real length in
+        centimetres: a 3 mm displacement is a 3 mm arrow, comparable between
+        slices, scans and registrations. Turn it off to scale the longest arrow
+        to a fixed fraction of the field of view instead, which is the only way
+        to see the *pattern* of a sub-millimetre field. ``lengthScale``
+        multiplies the drawn length in both modes.
+
+        ``subsample`` thins the drawn arrows on top of the sampling resolution
+        (in-plane in 2-D, all three directions in 3-D) without re-interpolating,
+        so it is the cheap density control; ``colorBy`` picks the colour channel
+        - 'length' or a component 'dx' / 'dy' / 'dz' (absolute, as in the Napari
+        layer's features) or 'dx_signed' / 'dy_signed' / 'dz_signed', which get
+        a symmetric range and a diverging colormap. Colour values are in mm;
+        arrow LENGTH always carries the full displacement whatever the colour
+        shows.
+
+        Because the sampling grid is coarser than the scan, a slice that carries
+        no sampled plane shows the NEAREST one - the arrows stay on screen while
+        scrolling instead of blinking on and off.
+        """
+        from cerr.registration.register import getDvfGrid
+        from cerr.dataclasses.deform import hasDvfMatrix
+        deforms = getattr(self.planC, "deform", None) or []
+        if deformNum is None or deformNum < 0 or deformNum >= len(deforms):
+            return None
+        # A rigid or B-spline deformation has no per-voxel displacements to
+        # draw; the dialog does not offer one, but a script can still ask.
+        if not hasDvfMatrix(deforms[deformNum]):
+            return None
+        scanNum = self.scanNum if scanNum is None else int(scanNum)
+        structNum = None if structNum is None else int(structNum)
+        surfFlag = bool(surfFlag) and structNum is not None
+        resKey = None if resolution is None else tuple(float(r)
+                                                       for r in resolution)
+        key = (int(deformNum), int(scanNum), resKey, structNum, surfFlag,
+               bool(subtractMedian))
+        cache = getattr(self, "_dvfGridCache", None)
+        if cache is None:
+            cache = self._dvfGridCache = {}
+        if key not in cache:
+            cache.clear()          # one field at a time: these are large arrays
+            cache[key] = getDvfGrid(deforms[deformNum], self.planC, scanNum,
+                                    outputResV=(None if resolution is None
+                                                else list(resolution)),
+                                    structNum=structNum, surfFlag=surfFlag,
+                                    subtractMedian=subtractMedian)
+        comps, axes, info = cache[key]
+        valid = info["valid"]
+        if not valid.any():
+            self.clear_dvf_overlay()
+            return None
+        mag = np.sqrt(sum(np.asarray(c, dtype=float) ** 2 for c in comps))
+        ov = {"view": "dvf", "comps": comps, "axes": axes, "info": info,
+              "deformNum": int(deformNum), "scanNum": int(scanNum),
+              "structNum": structNum, "surfFlag": surfFlag,
+              "subtractMedian": bool(subtractMedian),
+              "alpha": float(alpha), "subsample": max(1, int(subsample)),
+              "lengthScale": float(lengthScale), "lineWidth": float(lineWidth),
+              "trueScale": bool(trueScale),
+              "headMaxData": self._uromtHeadCeiling(),
+              "resolution": info["resolution"]}
+        # Arrow LENGTH is clipped at ``vrange``, so that has to be the true max:
+        # clipping a DVF would silently understate exactly the displacements a
+        # QA reader is looking for. The COLOUR gets its own, robust range.
+        ov["vrange"] = (0.0, float(mag[valid].max()) or 1.0)
+        q = str(colorBy or "length")
+        # Colour values are in MILLIMETRES - the unit a registration is judged
+        # in, and the one the Napari layer's features use - while the geometry
+        # stays in the viewer's centimetres.
+        if q in self._DVF_COLOR_COMPS:
+            ci, signed = self._DVF_COLOR_COMPS[q]
+            cMap = 10.0 * np.asarray(comps[ci], dtype=float)
+            if not signed:
+                cMap = np.abs(cMap)
+            # Scale to THIS component, not to the length: a field that moves
+            # 2 mm along z and 20 mm in-plane would otherwise paint the whole z
+            # map one mid-scale colour and show nothing at all.
+            a = float(np.nanpercentile(np.abs(cMap[valid]), 99)) or 1.0
+            ov["colorMap3"] = cMap
+            ov["colorRange"] = (-a, a) if signed else (0.0, a)
+            ov["diverging"] = bool(signed)
+        else:
+            q = "length"
+            ov["colorMap3"] = 10.0 * mag
+            ov["colorRange"] = (0.0, float(np.nanpercentile(
+                10.0 * mag[valid], 99)) or 1.0)
+        ov["colorBy"] = q
+        label = self._DVF_COLOR_LABELS.get(q, q)
+        if subtractMedian:
+            label += " - median"
+        ov["label"] = label
+        self.dvfOverlay = ov
+        self._refresh_uromt_views()
+        return ov
+
+    def clear_dvf_overlay(self):
+        """Remove the deformation vector field overlay from the scan views."""
+        if getattr(self, "dvfOverlay", None) is not None:
+            self.dvfOverlay = None
+            self._refresh_uromt_views()
+
+    def _dvf_slice_grid(self, winId):
+        """(hV, vV, slicer, gridShape) for the DVF overlay in one 2-D view.
+
+        The DVF is sampled on a grid of its OWN - a resampling of the scan's
+        coordinates, usually coarser - so the overlay cannot reuse the view's
+        scan-grid slicer: this returns the sampled grid's own coordinate axes
+        and a slicer that takes the sampled plane nearest the displayed slice.
+        ``None`` if that grid is too thin to draw on.
+        """
+        ov = getattr(self, "dvfOverlay", None)
+        if ov is None:
+            return None
+        hA, vA, tA = UROMT_AXES[self.views[winId].orientation]
+        xg, yg, zg = ov["axes"]
+        axisVals = {0: yg, 1: xg, 2: zg}     # scan axis -> physical coords (cm)
+        scanVals = {0: self.yV, 1: self.xV, 2: self.zV}
+        if min(len(axisVals[a]) for a in (hA, vA, tA)) < 1 \
+                or len(axisVals[hA]) < 2 or len(axisVals[vA]) < 2:
+            return None
+        # Matched by physical COORDINATE, not by index: the two grids have
+        # different spacings, so the displayed slice usually falls between
+        # sampled planes. Showing the nearest one keeps the arrows on screen
+        # while scrolling instead of blinking on and off.
+        k = int(np.clip(self.slices[winId], 0, len(scanVals[tA]) - 1))
+        kk = int(np.argmin(np.abs(np.asarray(axisVals[tA])
+                                  - float(scanVals[tA][k]))))
+        if tA == 2:
+            slicer = lambda m: m[:, :, kk]                    # noqa: E731
+        elif tA == 1:
+            slicer = lambda m: m[:, kk, :].T                  # noqa: E731
+        else:
+            slicer = lambda m: m[kk, :, :].T                  # noqa: E731
+        return axisVals[hA], axisVals[vA], slicer, ov["comps"][0].shape
+
+    def _draw_dvf_overlay(self, winId, ax, extent):
         from cerr.uromt import viz
-        ov = getattr(self, "uromtOverlay", None)
-        return viz.overlayTo3D(ov, self.xV, self.yV, self.zV,
+        grid = self._dvf_slice_grid(winId)
+        if grid is None:
+            return
+        hV, vV, slicer, shape = grid
+        hA, vA, tA = UROMT_AXES[self.views[winId].orientation]
+        ov = self.dvfOverlay
+        # k is only read by the pathline branch, which a DVF never has.
+        viz.drawUROMTOverlay(ax, ov, 0, hV, vV, extent, slicer, hA, vA, tA,
+                             shape, alpha=ov.get("alpha", 0.9),
+                             colorbar=False)  # colorbar lives in the QA dialog
+
+    def _uromt_3d_geometry(self, maxArrows=None, maxPaths=None, ov=None):
+        """3-D overlay geometry (vectors / pathlines) in physical coords from a
+        cached overlay; delegates to :func:`cerr.uromt.viz.overlayTo3D` (kept
+        there so the coordinate mapping / arrow scaling is headless testable).
+
+        ``ov`` defaults to the urOMT overlay. An overlay sampled on a grid of
+        its own - the DVF, which is strided - carries its own coordinate axes
+        in ``ov['axes']``; everything else is indexed on the scan grid."""
+        from cerr.uromt import viz
+        ov = getattr(self, "uromtOverlay", None) if ov is None else ov
+        xV, yV, zV = (ov or {}).get("axes", (self.xV, self.yV, self.zV))
+        return viz.overlayTo3D(ov, xV, yV, zV,
                                maxArrows=maxArrows, maxPaths=maxPaths,
                                lengthScale=float((ov or {}).get("lengthScale",
                                                                 1.0)))
 
-    def _add_uromt_3d_vtk(self, pl):
-        """Add urOMT vectors / scalar maps / pathlines to the pyvista 3-D scene.
+    def _add_uromt_3d_vtk(self, pl, ov=None, prefix="uromt"):
+        """Add overlay vectors / scalar maps / pathlines to the pyvista 3-D scene.
 
         Colour-coding uses the same global ``vrange`` + colormap as the dialog
         colorbar. Velocity arrows are coloured by magnitude (no start/stop sphere
-        markers in 3-D - they would blanket and hide the coloured arrows)."""
-        geom = self._uromt_3d_geometry()
+        markers in 3-D - they would blanket and hide the coloured arrows).
+
+        ``ov`` and ``prefix`` default to the urOMT overlay and its actor names;
+        the DVF overlay passes its own so both can share one scene - a pyvista
+        actor name is unique, so a shared name would make one overlay silently
+        replace the other."""
+        ov = getattr(self, "uromtOverlay", None) if ov is None else ov
+        geom = self._uromt_3d_geometry(ov=ov)
         if geom is None:
             return
-        ov = self.uromtOverlay
         lo, hi = ov.get("vrange", (None, None))
         cmap = ("bwr" if (ov.get("view") == "rate" or ov.get("diverging"))
                 else "turbo")
@@ -652,7 +856,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             pl.add_mesh(pts, scalars="val", cmap=cmap, clim=clim, opacity=op,
                         point_size=9, render_points_as_spheres=True,
                         show_scalar_bar=False, pickable=False,
-                        name="uromt_scalar", render=False)
+                        name="%s_scalar" % prefix, render=False)
         if "vectors" in geom:
             g = geom["vectors"]
             pd = pv.PolyData(g["points"])
@@ -683,7 +887,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                                             shaft_radius=0.05 * lw))
             pl.add_mesh(arrows, scalars="mag", cmap=cmap, clim=vclim, opacity=op,
                         show_scalar_bar=False, pickable=False,
-                        name="uromt_vec", render=False)
+                        name="%s_vec" % prefix, render=False)
         if "paths" in geom:
             pts_list, conn, off = [], [], 0
             for p in geom["paths"]:
@@ -706,12 +910,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                             # dense ROIs rendered as a solid mass.
                             line_width=1.5 * lw, opacity=op,
                             pickable=False,
-                            show_scalar_bar=False, name="uromt_paths",
-                            render=False)
+                            show_scalar_bar=False,
+                            name="%s_paths" % prefix, render=False)
             else:
                 pl.add_mesh(pd, color="#ffd23f", line_width=2, opacity=op,
                             pickable=False, show_scalar_bar=False,
-                            name="uromt_paths", render=False)
+                            name="%s_paths" % prefix, render=False)
             # Direction markers: a small dark sphere at the seed and a cone at
             # the end. Kept small on purpose - large per-path markers were what
             # previously blanketed the coloured geometry in 3-D.
@@ -757,17 +961,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                                               height=1.0, resolution=12))
                 pl.add_mesh(cones, scalars="speed", cmap=cmap, clim=clim,
                             opacity=op, pickable=False, show_scalar_bar=False,
-                            name="uromt_path_end", render=False)
+                            name="%s_path_end" % prefix, render=False)
 
-    def _add_uromt_3d_mpl(self, ax):
-        """Add urOMT vectors / pathlines to the matplotlib 3-D fallback."""
+    def _add_uromt_3d_mpl(self, ax, ov=None):
+        """Add overlay vectors / pathlines to the matplotlib 3-D fallback.
+
+        ``ov`` defaults to the urOMT overlay; the DVF overlay passes its own."""
         import matplotlib
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
-        geom = self._uromt_3d_geometry()      # uncapped; density = subsample
+        ov = getattr(self, "uromtOverlay", None) if ov is None else ov
+        geom = self._uromt_3d_geometry(ov=ov)  # uncapped; density = subsample
         if geom is None:
             return
-        ov = self.uromtOverlay
         lo, hi = ov.get("vrange", (None, None))
         op = float(self.plane3dOpacity)   # 3-D overlay shares plane opacity
         lw = float(ov.get("lineWidth", 1.0))   # shared stroke control
@@ -958,19 +1164,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ----------------------------------------------- registration QA / DVH --
     def start_reg_qa(self, base=None, moving=None, mode="Mirrorscope",
-                     size=None, base_frac=None):
+                     size=None, base_frac=None, **dvfKwargs):
         """Open and configure the registration QA tool programmatically.
 
         base/moving: scan indices; mode: 'Mirrorscope'|'Sidebyside'|
         'AlternateGrid'|'Toggle'; size: mirror-box/tile size (cm);
         base_frac: Toggle-mode base weight (0..1). Returns the RegQaDialog.
+
+        The deformation-vector-field overlay is driven by the ``deform``,
+        ``dvf_region``, ``dvf_step``, ``dvf_color_by``, ``dvf_every``,
+        ``dvf_length`` and ``dvf_true_scale`` keywords - see
+        :meth:`RegQaDialog.configure` and
+        :meth:`PyCerrViewer.set_dvf_overlay`.
         """
         if self.planC is None or len(self.planC.scan) < 2:
             raise ValueError("Registration QA needs at least two scans.")
         if self.regCtl is None or not self.regCtl.isVisible():
             RegQaDialog(self).show()       # sets self.regCtl
         self.regCtl.configure(base=base, moving=moving, mode=mode, size=size,
-                              base_frac=base_frac)
+                              base_frac=base_frac, **dvfKwargs)
         return self.regCtl
 
     def stop_reg_qa(self):
@@ -2163,6 +2375,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 and self.structScanFilterChk.isChecked():  # filter follows scan
             self._populate_struct_list(preserve=True)
         self._populate_overlay_rows()   # base scan is excluded from overlays
+        # A DVF overlay is sampled on ONE scan's grid, so it is meaningless
+        # over a different scan; drop it and let the QA dialog resample.
+        ovDvf = getattr(self, "dvfOverlay", None)
+        if ovDvf is not None and ovDvf.get("scanNum") != idx:
+            self.dvfOverlay = None
         if self.regCtl is not None:     # keep QA base in sync with the scan
             self.regCtl.sync_base(idx)
         self.refresh_views()
@@ -3439,6 +3656,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             if getattr(self, "uromtOverlay", None) is not None:
                 self._draw_uromt_overlay(orient, ax, extent, hV, vV, slicer)
 
+            # ---- deformation vector field (registration QA) ----
+            # Drawn from its own strided grid, so it brings its own axes and
+            # slicer rather than the scan-grid ones.
+            if getattr(self, "dvfOverlay", None) is not None:
+                self._draw_dvf_overlay(orient, ax, extent)
+
             # ---- structure contours ----
             ctl = self.contourCtl
             editStrNum = (ctl.structNum if ctl is not None and ctl.isVisible()
@@ -4163,6 +4386,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # ---- urOMT velocity / flux arrows + pathlines ----
         if getattr(self, "uromtOverlay", None) is not None:
             self._add_uromt_3d_vtk(pl)
+        # ---- deformation vector field (registration QA) ----
+        if getattr(self, "dvfOverlay", None) is not None:
+            self._add_uromt_3d_vtk(pl, ov=self.dvfOverlay, prefix="dvf")
 
         # wire the plane-drag hooks once per widget
         if pl.pick_plane is None:
@@ -4409,6 +4635,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         if getattr(self, "uromtOverlay", None) is not None:   # urOMT 3-D overlay
             self._add_uromt_3d_mpl(ax)
+        if getattr(self, "dvfOverlay", None) is not None:     # DVF 3-D overlay
+            self._add_uromt_3d_mpl(ax, ov=self.dvfOverlay)
 
         ax.set_box_aspect((abs(x1 - x0) or 1, abs(y1 - y0) or 1,
                            abs(z1 - z0) or 1))
@@ -4506,11 +4734,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def show_reg_dialog(self):
         """Open the registration QA tool (Mirrorscope / Side-by-side /
-        Alternate grid / Toggle), cf. the napari QA modes in cerr.viewer."""
-        if self.planC is None or len(self.planC.scan) < 2:
+        Alternate grid / Toggle, plus the deformation vector field overlay),
+        cf. the napari QA modes in cerr.viewer."""
+        # The image-comparison modes need two scans, but the DVF overlay needs
+        # only a deformation - a scan plus a loaded .vf is a normal case.
+        nScan = 0 if self.planC is None else len(self.planC.scan)
+        if nScan < 2 and not (self.planC is not None and self.planC.deform):
             _show_info(
                 self, "Registration QA",
-                "At least two scans are required to compare.")
+                "At least two scans are required to compare, or a loaded "
+                "deformation (planC.deform) to display.")
             return
         if self.regCtl is not None and self.regCtl.isVisible():
             self.regCtl.raise_()
