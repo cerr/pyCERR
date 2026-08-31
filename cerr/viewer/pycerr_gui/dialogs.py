@@ -1,6 +1,7 @@
 """Viewer dialogs: DVH, gamma, contouring, export and registration-QA tools."""
 from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
 from cerr import gamma as cerrGamma
+from cerr.dataclasses.deform import hasDvfMatrix
 
 class DvhDialog(QtWidgets.QDialog):
     def __init__(self, planC, parent=None):
@@ -815,7 +816,18 @@ class RegQaDialog(QtWidgets.QDialog):
         fl.addWidget(self.fadeSlider, 1)
         fl.addWidget(QtWidgets.QLabel("Moving"))
         ml.addWidget(self.fadeRow)
+        # The comparison modes need a second image; the DVF section below does
+        # not, so a single scan plus a loaded deformation still opens usefully.
+        if len(viewer.planC.scan) < 2:
+            modeBox.setEnabled(False)
+            modeBox.setToolTip(
+                "Comparing images needs a second scan; the deformation vector "
+                "field below works with one.")
+            for c in (self.baseCombo, self.movCombo):
+                c.setEnabled(False)
         lay.addWidget(modeBox)
+
+        lay.addWidget(self._build_dvf_box())
 
         hint = QtWidgets.QLabel(
             "Left-drag in any 2D view moves the split line\n"
@@ -837,6 +849,298 @@ class RegQaDialog(QtWidgets.QDialog):
         viewer.regCtl = self
         viewer.refresh_views()
 
+    # -------------------------------------------- deformation vector field ---
+    #: colour-channel choices for the DVF quiver: label -> set_dvf_overlay key.
+    #: The first four are the point features the Napari DVF layer carries; the
+    #: signed forms say which WAY a voxel moved, which the absolute ones cannot.
+    DVF_COLOR_BY = (("length (mm)", "length"),
+                    ("|dx| (mm)", "dx"),
+                    ("|dy| (mm)", "dy"),
+                    ("|dz| (mm)", "dz"),
+                    ("dx signed, R->L (mm)", "dx_signed"),
+                    ("dy signed, P->A (mm)", "dy_signed"),
+                    ("dz signed, I->S (mm)", "dz_signed"))
+
+    def _build_dvf_box(self):
+        """The deformation-vector-field section of the QA dialog.
+
+        Registration QA compares the two IMAGES; this shows the TRANSFORM that
+        relates them - the pyCERR-GUI counterpart of the Napari ``Vectors``
+        layer (``showNapari(..., vectors_dict=...)``). It draws
+        ``planC.deform[n]`` as a quiver on every 2-D view and in the 3-D scene.
+        """
+        box = QtWidgets.QGroupBox("Deformation vector field (DVF)")
+        box.setToolTip(
+            "Overlay a stored deformation (planC.deform) as arrows on the "
+            "slice views - one arrow per sampled voxel, pointing along the "
+            "displacement.")
+        v = QtWidgets.QVBoxLayout(box)
+        v.setContentsMargins(6, 4, 6, 4)
+        deforms = getattr(self.viewer.planC, "deform", None) or []
+        # Only the entries that actually carry a vector field are listed. A
+        # rigid transform or a B-spline coefficient file is a perfectly good
+        # planC.deform, but it has no dvfMatrix to draw, so offering it could
+        # only produce an error.
+        fields = [i for i, d in enumerate(deforms) if hasDvfMatrix(d)]
+
+        form = QtWidgets.QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        self.dvfCombo = QtWidgets.QComboBox()
+        self.dvfCombo.addItem("None (off)", -1)
+        for i in fields:
+            self.dvfCombo.addItem("%d: %s" % (i, self._dvfLabel(deforms[i])), i)
+        self.dvfCombo.setEnabled(bool(fields))
+        self.dvfCombo.currentIndexChanged.connect(self._on_dvf_field_changed)
+        form.addRow("Field:", self.dvfCombo)
+
+        # Sampling grid: restricting to a structure and/or coarsening the stride
+        # are the only controls that re-interpolate, so they sit together.
+        self.dvfStructCombo = QtWidgets.QComboBox()
+        self.dvfStructCombo.addItem("Whole scan", -1)
+        for i, st in enumerate(self.viewer.planC.structure):
+            self.dvfStructCombo.addItem("%d: %s" % (i, st.structureName), i)
+        self.dvfStructCombo.setToolTip(
+            "Sample the field only inside this structure (framed on its "
+            "bounding box, so a finer resolution fits in the same budget).")
+        self.dvfStructCombo.currentIndexChanged.connect(self._on_dvf_region)
+        regionRow = QtWidgets.QHBoxLayout()
+        regionRow.setContentsMargins(0, 0, 0, 0)
+        regionRow.addWidget(self.dvfStructCombo, 1)
+        self.dvfSurfChk = QtWidgets.QCheckBox("surface only")
+        self.dvfSurfChk.setToolTip(
+            "Keep only the vectors on the structure's surface. A registration "
+            "is usually judged on how a boundary moved, and interior arrows "
+            "hide it.")
+        self.dvfSurfChk.toggled.connect(self._apply_dvf)
+        regionRow.addWidget(self.dvfSurfChk)
+        form.addRow("Region:", regionRow)
+
+        self.dvfResSpin = QtWidgets.QDoubleSpinBox()
+        self.dvfResSpin.setRange(0.0, 5.0)
+        self.dvfResSpin.setDecimals(2)
+        self.dvfResSpin.setSingleStep(0.1)
+        self.dvfResSpin.setValue(0.0)
+        self.dvfResSpin.setSpecialValueText("Auto")
+        self.dvfResSpin.setSuffix(" cm")
+        self.dvfResSpin.setToolTip(
+            "Spacing of the sampling grid, in cm (isotropic). Auto starts from "
+            "the scan's own spacing and coarsens it until the field is a "
+            "manageable size. This, the region and 'subtract median' are the "
+            "only controls that re-interpolate the field.")
+        self.dvfResSpin.valueChanged.connect(self._apply_dvf)
+        form.addRow("Resolution:", self.dvfResSpin)
+
+        self.dvfMedianChk = QtWidgets.QCheckBox(
+            "Subtract median displacement (show local deformation)")
+        self.dvfMedianChk.setToolTip(
+            "Remove the median displacement of the sampled vectors. A "
+            "registration that is mostly a bulk shift otherwise draws one "
+            "uniform arrow field in which no local detail is visible.")
+        self.dvfMedianChk.toggled.connect(self._apply_dvf)
+        form.addRow("", self.dvfMedianChk)
+
+        self.dvfColorCombo = QtWidgets.QComboBox()
+        for label, key in self.DVF_COLOR_BY:
+            self.dvfColorCombo.addItem(label, key)
+        self.dvfColorCombo.setToolTip(
+            "What the arrow COLOUR shows. Arrow length always carries the full "
+            "displacement; a signed component gets a symmetric diverging scale.")
+        self.dvfColorCombo.currentIndexChanged.connect(self._apply_dvf)
+        form.addRow("Colour by:", self.dvfColorCombo)
+        v.addLayout(form)
+
+        # Display-only controls: these never re-interpolate (the resampled field
+        # is cached), so they are safe to drive continuously.
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(QtWidgets.QLabel("Show every:"))
+        self.dvfEverySpin = QtWidgets.QSpinBox()
+        self.dvfEverySpin.setRange(1, 20)
+        self.dvfEverySpin.setValue(1)
+        self.dvfEverySpin.setToolTip(
+            "Thin the drawn arrows further without re-interpolating.")
+        self.dvfEverySpin.valueChanged.connect(self._apply_dvf)
+        row.addWidget(self.dvfEverySpin)
+        row.addWidget(QtWidgets.QLabel("Length x:"))
+        self.dvfLenSpin = QtWidgets.QDoubleSpinBox()
+        self.dvfLenSpin.setRange(0.1, 100.0)
+        self.dvfLenSpin.setDecimals(1)
+        self.dvfLenSpin.setSingleStep(0.5)
+        self.dvfLenSpin.setValue(1.0)
+        self.dvfLenSpin.setToolTip(
+            "Multiply the drawn arrow length. At true scale, x1 is the real "
+            "displacement - raise it to see a sub-millimetre field.")
+        self.dvfLenSpin.valueChanged.connect(self._apply_dvf)
+        row.addWidget(self.dvfLenSpin)
+        row.addStretch(1)
+        v.addLayout(row)
+
+        row2 = QtWidgets.QHBoxLayout()
+        row2.setContentsMargins(0, 0, 0, 0)
+        self.dvfTrueChk = QtWidgets.QCheckBox("True scale (1:1)")
+        self.dvfTrueChk.setChecked(True)
+        self.dvfTrueChk.setToolTip(
+            "On: an arrow is as long as the displacement it represents, so its "
+            "length is readable in cm off the ruler and comparable between "
+            "views and cases. Off: the longest arrow is scaled to a fixed "
+            "fraction of the field of view, which shows the PATTERN of a very "
+            "small field but not its size.")
+        self.dvfTrueChk.toggled.connect(self._apply_dvf)
+        row2.addWidget(self.dvfTrueChk)
+        row2.addWidget(QtWidgets.QLabel("Line w:"))
+        self.dvfWidthSpin = QtWidgets.QDoubleSpinBox()
+        self.dvfWidthSpin.setRange(0.5, 6.0)
+        self.dvfWidthSpin.setDecimals(1)
+        self.dvfWidthSpin.setSingleStep(0.5)
+        self.dvfWidthSpin.setValue(2.0)
+        self.dvfWidthSpin.valueChanged.connect(self._apply_dvf)
+        row2.addWidget(self.dvfWidthSpin)
+        row2.addWidget(QtWidgets.QLabel("Opacity:"))
+        self.dvfAlphaSpin = QtWidgets.QDoubleSpinBox()
+        self.dvfAlphaSpin.setRange(0.05, 1.0)
+        self.dvfAlphaSpin.setDecimals(2)
+        self.dvfAlphaSpin.setSingleStep(0.1)
+        self.dvfAlphaSpin.setValue(0.9)
+        self.dvfAlphaSpin.valueChanged.connect(self._apply_dvf)
+        row2.addWidget(self.dvfAlphaSpin)
+        row2.addStretch(1)
+        v.addLayout(row2)
+
+        self.dvfCbarFig = Figure(figsize=(3.2, 0.55))
+        self.dvfCbarCanvas = FigureCanvas(self.dvfCbarFig)
+        self.dvfCbarCanvas.setFixedHeight(56)
+        v.addWidget(self.dvfCbarCanvas)
+        if fields:
+            note = "Off."
+        elif deforms:
+            # Say WHY they are missing: "no deformation loaded" would be wrong
+            # and would send the user looking for an import that already worked.
+            note = ("No deformation vector field loaded (%d deformation(s) "
+                    "present, none with a vector field)."
+                    % len(deforms))
+        else:
+            note = "No deformation loaded."
+        self.dvfStatus = QtWidgets.QLabel(note)
+        self.dvfStatus.setWordWrap(True)
+        v.addWidget(self.dvfStatus)
+
+        self._dvfControls = (self.dvfStructCombo, self.dvfSurfChk,
+                             self.dvfResSpin, self.dvfMedianChk,
+                             self.dvfColorCombo, self.dvfEverySpin,
+                             self.dvfLenSpin, self.dvfTrueChk,
+                             self.dvfWidthSpin, self.dvfAlphaSpin)
+        self._set_dvf_controls_enabled(False)
+        return box
+
+    @staticmethod
+    def _dvfLabel(deform):
+        """A one-line identity for a Deform: what made it, and how big it is."""
+        who = (getattr(deform, "algorithm", "") or
+               getattr(deform, "registrationTool", "") or "deformation")
+        try:
+            shape = "x".join(str(int(n)) for n in deform.dvfMatrix.shape[:3])
+        except Exception:  # noqa: BLE001 (an empty / partial Deform)
+            shape = "?"
+        return "%s [%s]" % (who, shape)
+
+    def _set_dvf_controls_enabled(self, on):
+        for w in getattr(self, "_dvfControls", ()):
+            w.setEnabled(bool(on))
+
+    def _on_dvf_field_changed(self, *_):
+        on = self.dvfCombo.currentData() not in (None, -1)
+        self._set_dvf_controls_enabled(on)
+        self._on_dvf_region(apply=False)
+        self._apply_dvf()
+
+    def _on_dvf_region(self, *_, apply=True):
+        """'Surface only' is meaningless without a structure to take the
+        surface of, so it follows the region selector."""
+        hasStruct = self.dvfStructCombo.currentData() not in (None, -1)
+        on = hasStruct and self.dvfCombo.currentData() not in (None, -1)
+        self.dvfSurfChk.setEnabled(on)
+        if not hasStruct and self.dvfSurfChk.isChecked():
+            self.dvfSurfChk.setChecked(False)     # -> _apply_dvf
+            return
+        if apply:
+            self._apply_dvf()
+
+    def _apply_dvf(self, *_):
+        """(Re)build the DVF overlay from the current control values.
+
+        Only the field / region / stride re-interpolate; the resampled field is
+        cached on the viewer, so the display controls come back through here for
+        free rather than needing a separate fast path.
+        """
+        v = self.viewer
+        idx = self.dvfCombo.currentData()
+        if idx in (None, -1):
+            v.clear_dvf_overlay()
+            self._update_dvf_colorbar(None)
+            self.dvfStatus.setText("Off.")
+            return
+        structNum = self.dvfStructCombo.currentData()
+        res = self.dvfResSpin.value()
+        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            ov = v.set_dvf_overlay(
+                int(idx), scanNum=v.scanNum,
+                resolution=None if res <= 0 else [res, res, res],
+                structNum=None if structNum in (None, -1) else int(structNum),
+                surfFlag=self.dvfSurfChk.isChecked(),
+                subtractMedian=self.dvfMedianChk.isChecked(),
+                alpha=self.dvfAlphaSpin.value(),
+                subsample=self.dvfEverySpin.value(),
+                lengthScale=self.dvfLenSpin.value(),
+                lineWidth=self.dvfWidthSpin.value(),
+                colorBy=self.dvfColorCombo.currentData(),
+                trueScale=self.dvfTrueChk.isChecked())
+        except Exception as exc:  # noqa: BLE001 (report, never kill the dialog)
+            v.clear_dvf_overlay()
+            self._update_dvf_colorbar(None)
+            self.dvfStatus.setText("Could not sample this field: %s" % exc)
+            return
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        if ov is None:
+            self._update_dvf_colorbar(None)
+            self.dvfStatus.setText(
+                "This field is zero over the sampled region - nothing to draw.")
+            return
+        self._update_dvf_colorbar(ov)
+        resV = ov["resolution"]
+        msg = ("%s grid at %.2f x %.2f x %.2f cm, %d vectors. Max |d| = "
+               "%.2f mm." % ("x".join(str(n) for n in ov["comps"][0].shape),
+                             resV[0], resV[1], resV[2], ov["info"]["nVectors"],
+                             10.0 * ov["vrange"][1]))
+        if ov["subtractMedian"]:
+            med = 10.0 * np.linalg.norm(ov["info"]["median"])
+            msg += " Median displacement removed: %.2f mm." % med
+        self.dvfStatus.setText(msg)
+
+    def _update_dvf_colorbar(self, ov):
+        """Draw the DVF colour scale (the colour channel's range, which is not
+        the arrow-length range)."""
+        import matplotlib
+        from matplotlib import colorbar as mcbar, colors as mcolors
+        self.dvfCbarFig.clear()
+        vr = (ov or {}).get("colorRange")
+        if not vr or vr[1] is None or vr[1] <= vr[0]:
+            self.dvfCbarCanvas.draw_idle()
+            return
+        cmName = "bwr" if ov.get("diverging") else "turbo"
+        cmObj = (matplotlib.colormaps[cmName]
+                 if hasattr(matplotlib, "colormaps")
+                 else matplotlib.cm.get_cmap(cmName))
+        ax = self.dvfCbarFig.add_axes([0.04, 0.45, 0.92, 0.32])
+        cb = mcbar.ColorbarBase(
+            ax, cmap=cmObj,
+            norm=mcolors.Normalize(vmin=vr[0], vmax=vr[1]),
+            orientation="horizontal")
+        cb.set_label(ov.get("label", "DVF"), fontsize=8)
+        cb.ax.tick_params(labelsize=7)
+        self.dvfCbarCanvas.draw_idle()
+
     # ------------------------------------------------------------ state ----
     MODES = ("Mirrorscope", "Sidebyside", "AlternateGrid", "Toggle")
 
@@ -850,9 +1154,23 @@ class RegQaDialog(QtWidgets.QDialog):
         return "Mirrorscope"
 
     def configure(self, base=None, moving=None, mode=None, size=None,
-                  base_frac=None):
+                  base_frac=None, deform=None, dvf_region=None,
+                  dvf_resolution=None, dvf_color_by=None, dvf_every=None,
+                  dvf_length=None, dvf_true_scale=None, dvf_surface=None,
+                  dvf_subtract_median=None):
         """Programmatically set base/moving scans, display mode, mirror-box /
-        tile size (cm) and toggle blend fraction (base weight, 0..1)."""
+        tile size (cm) and toggle blend fraction (base weight, 0..1).
+
+        ``deform`` selects the deformation vector field to overlay (an index
+        into ``planC.deform``, or -1 / None to leave it alone; pass ``'off'`` to
+        turn it off). ``dvf_region`` is a structure index (or -1 for the whole
+        scan) to restrict the sampling to, ``dvf_surface`` keeps only that
+        structure's surface, ``dvf_resolution`` the sampling grid spacing in cm
+        (0 = auto), ``dvf_subtract_median`` removes the bulk displacement,
+        ``dvf_color_by`` one of 'length' | 'dx' | 'dy' | 'dz' (or their
+        '..._signed' forms), ``dvf_every`` the display thinning, ``dvf_length``
+        the arrow length multiplier and ``dvf_true_scale`` whether arrows are
+        drawn 1:1."""
         if base is not None:
             self.baseCombo.setCurrentIndex(int(base))   # -> _on_base_changed
         if moving is not None:
@@ -869,6 +1187,45 @@ class RegQaDialog(QtWidgets.QDialog):
         if base_frac is not None:
             self.fadeSlider.setValue(
                 int(round((1.0 - float(base_frac)) * 100)))
+        # DVF controls: set them all first, then apply once - each setter is
+        # wired to _apply_dvf, and re-sampling the field per control would be
+        # both slow and confusing to watch.
+        dvfArgs = (deform, dvf_region, dvf_resolution, dvf_color_by,
+                   dvf_every, dvf_length, dvf_true_scale, dvf_surface,
+                   dvf_subtract_median)
+        if any(a is not None for a in dvfArgs):
+            widgets = [self.dvfCombo] + list(self._dvfControls)
+            for w in widgets:
+                w.blockSignals(True)
+            try:
+                if deform is not None:
+                    idx = -1 if deform == "off" else int(deform)
+                    self.dvfCombo.setCurrentIndex(
+                        max(0, self.dvfCombo.findData(idx)))
+                    self._set_dvf_controls_enabled(idx != -1)
+                if dvf_region is not None:
+                    self.dvfStructCombo.setCurrentIndex(
+                        max(0, self.dvfStructCombo.findData(int(dvf_region))))
+                    self.dvfSurfChk.setEnabled(int(dvf_region) != -1)
+                if dvf_surface is not None:
+                    self.dvfSurfChk.setChecked(bool(dvf_surface))
+                if dvf_subtract_median is not None:
+                    self.dvfMedianChk.setChecked(bool(dvf_subtract_median))
+                if dvf_resolution is not None:
+                    self.dvfResSpin.setValue(float(dvf_resolution))
+                if dvf_color_by is not None:
+                    self.dvfColorCombo.setCurrentIndex(
+                        max(0, self.dvfColorCombo.findData(dvf_color_by)))
+                if dvf_every is not None:
+                    self.dvfEverySpin.setValue(int(dvf_every))
+                if dvf_length is not None:
+                    self.dvfLenSpin.setValue(float(dvf_length))
+                if dvf_true_scale is not None:
+                    self.dvfTrueChk.setChecked(bool(dvf_true_scale))
+            finally:
+                for w in widgets:
+                    w.blockSignals(False)
+            self._apply_dvf()
         self.viewer.refresh_views()
 
     def _on_base_changed(self, idx):
@@ -882,6 +1239,10 @@ class RegQaDialog(QtWidgets.QDialog):
         self.baseCombo.blockSignals(True)
         self.baseCombo.setCurrentIndex(idx)
         self.baseCombo.blockSignals(False)
+        # The DVF is sampled on the base scan's grid, and the viewer drops the
+        # overlay when the scan changes underneath it - resample on the new one.
+        if self.dvfCombo.currentData() not in (None, -1):
+            self._apply_dvf()
 
     def _on_mode_changed(self, *_):
         self.fadeRow.setVisible(self.toggleBtn.isChecked())
@@ -1017,6 +1378,10 @@ class RegQaDialog(QtWidgets.QDialog):
         for v in self.viewer.views.values():
             v.qa_split_cb = None
             v._qa_drag = False
+        # The overlay is driven from here, so leaving it on screen would leave
+        # the user with arrows and no controls (and a resampled field in memory).
+        self.viewer.clear_dvf_overlay()
+        self.viewer._dvfGridCache = {}
         self.viewer.regCtl = None
         self.viewer.refresh_views()
         event.accept()

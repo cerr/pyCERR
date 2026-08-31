@@ -170,6 +170,50 @@ so e.g. a PET moving scan set to `hot` reads against a `gray` base. Choosing a
 different base scan re-references the viewer to that scan's grid. Closing the dialog
 restores the normal display and left-drag panning.
 
+### Deformation vector field (DVF)
+The same dialog can overlay a stored deformation (`planC.deform`, loaded from a
+DICOM REG object, a plastimatch `.vf` or a NIfTI vector field) as arrows on every
+2D view and in the 3D scene — the pyCERR-GUI counterpart of the napari `Vectors`
+layer that `showNapari(..., vectors_dict=...)` builds. The QA modes above compare
+the two *images*; this shows the *transform* that relates them.
+
+- **Field** — which `planC.deform` entry to draw (`None (off)` clears it).
+  Only entries that carry a vector field are listed (`deformOutFileType`
+  `dvf`, a DICOM Deformable Spatial Registration, or `vf`, a plastimatch /
+  NIfTI vector field). A rigid, ANTs or B-spline-coefficient deformation has
+  no per-voxel displacements, so there is nothing to draw for it.
+- **Region** — restrict the sampling to a structure (framed on its bounding
+  box), and optionally to that structure's **surface only**: a registration is
+  usually judged on how a boundary moved, and interior arrows hide it.
+- **Resolution** — the spacing of the sampling grid in cm. `Auto` starts from
+  the scan's own spacing and coarsens it until the field is a manageable size.
+- **Subtract median displacement** — remove the median of the sampled vectors,
+  leaving the *local* deformation. A registration that is mostly a bulk shift
+  otherwise draws one uniform arrow field in which no local detail is visible.
+  (This is the `vectorsMinusMedian` step of the napari recipe.)
+- **Colour by** — the arrow colour: `length`, `|dx|`, `|dy|`, `|dz|` (the same
+  point features the napari `Vectors` layer carries, all in mm), or their signed
+  forms `dx`/`dy`/`dz`, which get a symmetric diverging scale keyed to that
+  component's own range. Arrow *length* always carries the full displacement.
+
+*Region*, *Resolution* and *Subtract median* are the only controls that
+re-interpolate; everything else redraws from the cached field. Because the
+sampling grid is coarser than the scan, a slice that falls between sampled
+planes shows the nearest one rather than blinking off.
+- **True scale (1:1)** — on (the default), an arrow is exactly as long as the
+  displacement it represents, so its length reads in cm off the ruler and is
+  comparable between slices, scans and registrations. Off, the longest arrow is
+  scaled to a fixed fraction of the field of view, which shows the *pattern* of a
+  sub-millimetre field but not its size. **Length ×** multiplies the drawn length
+  in either mode.
+- **Show every**, **Line w**, **Opacity** — display-only thinning and styling.
+
+The colorbar under the controls is the colour channel's scale in mm (not the
+arrow length scale, which is in cm), and the status line reports the grid size,
+the resolution used, the number of vectors and the maximum displacement in mm. Displacements are resampled onto the
+base scan's grid, so changing the base scan resamples the field; closing the
+dialog removes the overlay.
+
 ## Base scan colormap & opacity
 The Scan panel has a **Colormap** picker and an **Opacity** slider that apply to the
 base scan in every 2D view, independent of the registration QA tool — useful for

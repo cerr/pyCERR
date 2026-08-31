@@ -104,8 +104,10 @@ v.colorbar.update(); v.refresh_views()
 
 | Method | Description |
 |--------|-------------|
-| `start_reg_qa(base=None, moving=None, mode="Mirrorscope", size=None, base_frac=None)` | Open and configure the registration QA tool. `base`/`moving` are scan indices; `mode` is `"Mirrorscope"`/`"Sidebyside"`/`"AlternateGrid"`/`"Toggle"`; `size` is the mirror-box/tile size (cm); `base_frac` is the Toggle-mode base weight (`0..1`). Returns the `RegQaDialog`. |
+| `start_reg_qa(base=None, moving=None, mode="Mirrorscope", size=None, base_frac=None, **dvf)` | Open and configure the registration QA tool. `base`/`moving` are scan indices; `mode` is `"Mirrorscope"`/`"Sidebyside"`/`"AlternateGrid"`/`"Toggle"`; `size` is the mirror-box/tile size (cm); `base_frac` is the Toggle-mode base weight (`0..1`). The DVF overlay is driven by the `deform`, `dvf_region`, `dvf_surface`, `dvf_resolution`, `dvf_subtract_median`, `dvf_color_by`, `dvf_every`, `dvf_length` and `dvf_true_scale` keywords. Returns the `RegQaDialog`. |
 | `stop_reg_qa()` | Close the registration QA tool. |
+| `set_dvf_overlay(deformNum, scanNum=None, resolution=None, structNum=None, surfFlag=False, subtractMedian=False, alpha=0.9, subsample=1, lengthScale=1.0, lineWidth=2.0, colorBy="length", trueScale=True)` | Overlay `planC.deform[deformNum]` as arrows on the 2D views and the 3D scene, without the dialog. `resolution` is the sampling grid spacing `[dx,dy,dz]` in cm (`None` = auto, 0 = that axis's native spacing), `structNum`/`surfFlag` restrict it to a structure or its surface, `subtractMedian` removes the bulk displacement, `colorBy` is `'length'`/`'dx'`/`'dy'`/`'dz'` or their `'_signed'` forms (colour values in mm), `subsample` thins the drawn arrows and `trueScale` draws them 1:1 in cm. Returns the overlay dict (`None` if the index is invalid). |
+| `clear_dvf_overlay()` | Remove the deformation vector field overlay. |
 
 ### DVH
 
@@ -296,6 +298,33 @@ v.start_reg_qa(mode="Sidebyside")
 v.start_reg_qa(mode="Toggle", base_frac=0.30)
 v.stop_reg_qa()
 ```
+
+### 5.9b Deformation vector field on the slice views
+
+```python
+v = show(planC)                          # planC with a loaded planC.deform
+# arrows on a 0.5 cm grid, drawn 1:1 in cm, coloured by displacement length:
+v.start_reg_qa(base=0, moving=1, deform=0, dvf_resolution=0.5)
+v.save_screenshot("dvf_axial.png", target="views")
+
+# the local deformation on a structure's surface, colour by the S-I component:
+v.start_reg_qa(deform=0, dvf_region=2, dvf_surface=True,
+               dvf_subtract_median=True, dvf_color_by="dz_signed",
+               dvf_length=5.0)
+
+# no dialog: drive the overlay directly (e.g. inside a batch QA loop)
+v.set_dvf_overlay(0, resolution=[0.5, 0.5, 0.5], structNum=2,
+                  colorBy="length")
+v.clear_dvf_overlay()
+```
+
+The overlay is the grid twin of the napari recipe
+(`register.getDvfVectors(...)` -> `showNapari(..., vectors_dict=...)`): the same
+sampling controls (`outputResV`, `structNum`, `surfFlag`), the same
+median-subtraction, and the same `length`/`dx`/`dy`/`dz` features in mm - but in
+pyCERR's virtual x, y, z frame rather than napari's row/col/slice one, and
+sampled onto a grid so each slice can be quivered directly. The underlying
+sampler, `cerr.registration.register.getDvfGrid()`, is usable on its own.
 
 ### 5.10 Export DVHs to CSV (no GUI interaction)
 

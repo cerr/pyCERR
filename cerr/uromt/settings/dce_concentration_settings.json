@@ -1,0 +1,45 @@
+{
+    "_comment": "DCE-MRI signal -> contrast-concentration settings for urOMT Part 1. These describe how a raw signal series is turned into the transported density (rho). The defaults reproduce the reference MATLAB urOMT 'tofts' preprocessing (DCEMRIsignal2cct.m + the getData wrapper) bit-exactly; see _field_doc for what each knob does and cerr/scripts/uromt_matlab_compare.py for the validation harness.",
+
+    "method": "tofts",
+
+    "baselineFrames": 2,
+    "T10": 1.6666666666666667,
+    "r1": 3.8,
+    "TR": 0.00613,
+    "FA": 10.0,
+
+    "signalRatioClip": 4.0,
+    "concScale": 150.0,
+    "highValueThreshold": 210.0,
+    "highValueKernel": 2,
+    "outputClip": [0.0, 10000.0],
+
+    "smooth": 1,
+    "smooth_dt": 0.1,
+    "smooth_method": "affine",
+
+    "mask_dilate": 2,
+
+    "_field_doc": {
+        "method": "'tofts' = SPGR (spoiled gradient-echo) inversion of the signal ratio to contrast concentration, then the reference's scale/threshold post-steps below. This is mathematically the same model as pyCERR's normMethod='CC' (cerr.mri_metrics.dce_mri.intToConc) -- verified bit-identical -- with the reference's extra scaling and high-value smoothing applied afterwards. 'RSE' = plain signal ratio S(t)/S0 with none of the post-steps; 'none' = raw signal.",
+
+        "baselineFrames": "number of leading (temporally ordered) frames averaged to form the pre-contrast baseline S0. The reference uses 2 (mean of frames 1 and 2); this was confirmed empirically to beat frame1 alone and means over 3-5 frames.",
+        "T10": "pre-contrast longitudinal relaxation time T10 in SECONDS. Reference value 1/0.6 s (a constant, not a per-voxel map).",
+        "r1": "contrast relaxivity r1. Reference value 3.8.",
+        "TR": "repetition time in SECONDS (the reference passes DICOM RepetitionTime/1000; 6.13 ms -> 0.00613). null = read from scan metadata.",
+        "FA": "flip angle in DEGREES. null = read from scan metadata.",
+
+        "signalRatioClip": "clip S(t)/S0 at this value before the SPGR inversion (the reference's S_Spre_thresh). Guards the inversion where the ratio is implausibly large. null = no clip.",
+        "concScale": "multiply the concentration by this constant (the reference's `im = C*150`). urOMT velocity is invariant to a global rho scale, so this only conditions the solver -- but it must match the reference for objective values (Gamma) to be comparable.",
+        "highValueThreshold": "voxels exceeding this value (AFTER concScale) are replaced by the local mean over a highValueKernel^3 box, to tame isolated spikes. Reference: 210. null = disabled.",
+        "highValueKernel": "edge length in voxels of the box-mean used for highValueThreshold replacement (reference: 2, i.e. a 2x2x2 mean).",
+        "outputClip": "[min, max] clip applied to the final concentration, AFTER the high-value smoothing (reference: negatives to 0, cap 10000). Note the reference does NOT clip negatives before this point, so negative concentrations participate in the box mean.",
+
+        "smooth": "total evolution TIME t_tot of the edge-preserving smoothing flow applied to each concentration frame (number of steps = round(smooth/smooth_dt)). Reference cfg.smooth = 1. 0 = off.",
+        "smooth_dt": "step size of the smoothing flow; only the product (t_tot) affects the result, not the step count.",
+        "smooth_method": "'affine' = affine-invariant mean-curvature flow (reference affine_diffusion_3d), 'linear' = heat flow, 'gaussian' = scipy stand-in.",
+
+        "mask_dilate": "grow the ROI mask by this radius with an ellipsoidal structuring element ((x/d)^2+(y/d)^2+(z/d)^2 <= 1 over -d:d) before the maps are reported -- the reference's cfg.dilate. Applied after the bbox is fixed, so it widens map coverage without moving the solve domain. Reference: 2. 0 = off."
+    }
+}
