@@ -3809,10 +3809,39 @@ def test_vector_head_cannot_dwarf_the_arrow_it_ends():
         q = [c for c in ax.collections if isinstance(c, Quiver)][0]
         headData = q.headlength * q.width * float(np.ptp(xV))
         medArrow = float(np.median(np.hypot(q.U, q.V))) / q.scale
-        assert headData <= viz._HEAD_MAX_ARROW_FRAC * medArrow + 1e-6, ls
-        assert headData > 0
+        floor = viz._HEAD_MIN_LENGTH_MULT * q.width * float(np.ptp(xV))
+        assert headData <= max(viz._HEAD_MAX_ARROW_FRAC * medArrow,
+                               floor) + 1e-6, ls
+        # never shrunk into invisibility: a head is at least a few shaft widths
+        assert q.headlength >= viz._HEAD_MIN_LENGTH_MULT - 1e-6, ls
         # the head keeps its narrow shape when it is shrunk
         assert q.headlength > q.headaxislength > q.headwidth
+
+
+def test_capped_head_never_shrinks_below_the_shaft():
+    """The hard ceiling used to shrink ONLY the head dims, which are multiples
+    of the shaft width - on a wide FOV with fine voxels (2 voxels of ceiling
+    over a 30 cm axis) that left headlength ~1.5x width, i.e. a head narrower
+    than the shaft carrying it, and the arrows drew as bare line segments
+    (user-reported: "arrows have disappeared from velocity and flux vectors").
+    The head stops at a legibility floor and the ceiling yields there, leaving
+    a head that is still readable - and the shaft width, which "line w" owns,
+    is never touched."""
+    from cerr.uromt import viz
+
+    base = viz._arrowStyle(2.0, 1.0)
+    for spanH, ceil in ((30.0, 0.2), (12.0, 0.1), (60.0, 0.2), (12.0, 0.4)):
+        kw = viz._capHead(base, ceil, spanH)
+        headData = kw["headlength"] * kw["width"] * spanH
+        floorData = viz._HEAD_MIN_LENGTH_MULT * kw["width"] * spanH
+        assert headData <= max(ceil, floorData) + 1e-9, (spanH, ceil)
+        # a head is still a head: several shaft widths long, narrow shape kept
+        assert kw["headlength"] >= viz._HEAD_MIN_LENGTH_MULT - 1e-6, (spanH, ceil)
+        assert kw["headlength"] > kw["headaxislength"] > kw["headwidth"] > 1.0
+        assert kw["width"] == base["width"]   # "line w" is left alone
+
+    # a ceiling that does not bind leaves the style untouched
+    assert viz._capHead(base, 10.0, 1.0) == base
 
 
 def test_head_ceiling_is_two_of_the_scans_finest_voxels():
@@ -3888,7 +3917,10 @@ def test_drawn_heads_obey_the_overlays_own_ceiling():
                 k, xV, yV, ext, lambda m: m[:, :, k], 1, 0, 2, shape)
             q = [c for c in ax.collections if isinstance(c, Quiver)][0]
             head = q.headlength * q.width * float(np.ptp(xV))
-            assert head <= ceil + 1e-9, (ceil, ls, head)
+            # ... down to the legibility floor, below which the ceiling yields
+            # rather than erase the arrowhead (see _capHead).
+            floor = viz._HEAD_MIN_LENGTH_MULT * q.width * float(np.ptp(xV))
+            assert head <= max(ceil, floor) + 1e-9, (ceil, ls, head)
 
     # ... and the pathline triangles use the same value
     nVert = 21

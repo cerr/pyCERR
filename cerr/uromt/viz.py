@@ -79,6 +79,18 @@ _HEAD_MAX_ARROW_FRAC = 0.6
 _HEAD_MAX_VOXELS = 2.0
 _HEAD_MAX_FALLBACK_CM = 0.2
 
+# Legibility floor for a capped quiver head: shorter than this many shaft
+# widths and the "head" is narrower than the shaft that carries it, i.e. the
+# arrow reads as a plain line.
+#
+# Where the ceiling can only be met by a head this short, the ceiling is what
+# yields: a ceiling honoured by erasing the arrowhead annotates nothing, and
+# the alternative - thinning the shaft to buy head multiples - would break
+# "line w" (the clamp is absolute, so every line width collapses onto the same
+# drawn shaft). The floor is in shaft widths, so it stays small: at the default
+# line width a floored head is ~1% of the view.
+_HEAD_MIN_LENGTH_MULT = 5.0
+
 
 def _headCeiling(ov=None):
     """Hard head-length ceiling in data units (cm) for this overlay."""
@@ -108,14 +120,24 @@ def capTipFraction(frac, maxLen, ceiling=None):
 
 
 def _capHead(kw, maxHeadData, spanH):
-    """Shrink a quiver's head dims so the head is at most ``maxHeadData`` long
-    in DATA units. Scales all three head dimensions together, keeping the
-    narrow shape; the shaft width is untouched."""
-    widthData = float(kw["width"]) * float(max(spanH, 1e-12))
-    if widthData <= 0 or maxHeadData <= 0:
+    """Shrink a quiver glyph so its head is at most ``maxHeadData`` long in
+    DATA units, without letting the head disappear.
+
+    Head dims are multiples of the shaft ``width`` (an axes fraction), so
+    capping the head alone eventually asks for a head only one or two shaft
+    widths long - which draws as a bare line segment with no arrowhead at all
+    (reported on a wide FOV with fine voxels: 2 voxels of ceiling over a 30 cm
+    axis leaves headlength ~1.5x width). Once the cap would take the head under
+    :data:`_HEAD_MIN_LENGTH_MULT` shaft widths, the head stops there and the
+    ceiling yields - a head shorter than its own shaft is no arrowhead at all.
+    The shaft width is untouched, so "line w" keeps its meaning.
+    """
+    span = float(max(spanH, 1e-12))
+    width = float(kw["width"])
+    if width <= 0 or maxHeadData <= 0:
         return kw
-    maxMult = maxHeadData / widthData
-    if kw["headlength"] <= maxMult:
+    maxMult = max(maxHeadData / (width * span), _HEAD_MIN_LENGTH_MULT)
+    if float(kw["headlength"]) <= maxMult:
         return kw
     f = maxMult / float(kw["headlength"])
     out = dict(kw)
