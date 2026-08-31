@@ -709,7 +709,8 @@ def overlayTo3D(ov, xV, yV, zV, maxArrows=None, maxPaths=None,
             # SAME fraction the 2-D quiver uses, so "length x" means the same
             # thing in both views. It used to be 5% here, which made every 3-D
             # arrow 40% shorter than its 2-D counterpart at the same setting.
-            vecS = vec * (_VECTOR_FOV_FRAC * spanFOV * lengthScale / mmax)
+            vecS = (vec * lengthScale if ov.get("trueScale")
+                    else vec * (_VECTOR_FOV_FRAC * spanFOV * lengthScale / mmax))
             out["vectors"] = dict(points=pts, vec=vecS, mag=m, tip=pts + vecS)
             # Colour channel, when the overlay carries a scalar map to colour
             # the arrows by (any Eulerian quantity). Sampled at the SAME voxels
@@ -863,6 +864,13 @@ def drawUROMTOverlay(ax, ov, k, hV, vV, extent, slicer, hAxis, vAxis,
         # divide it (quiver draws shorter arrows for a larger `scale`).
         lenScale = max(float(ov.get("lengthScale", 1.0)), 1e-6)
         scale = gmax / (_VECTOR_FOV_FRAC * (spanH or 1.0) * lenScale)
+        # `trueScale` draws the vectors 1:1 in data units instead of scaling the
+        # longest one to a fixed fraction of the field of view. A urOMT velocity
+        # has no meaningful length on a centimetre axis, but a DEFORMATION does -
+        # an arrow that is 3 mm long because the voxel moved 3 mm is the whole
+        # point of a DVF display, and it stays comparable between scans.
+        if ov.get("trueScale"):
+            scale = 1.0 / lenScale
         # Colour-by: an arrow is coloured by its own magnitude unless the
         # overlay carries a scalar map to colour it with (`colorMap3`, on the
         # full scan grid - speed, effSpeed, Peclet, rate, rho or |flux|, already

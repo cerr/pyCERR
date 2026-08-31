@@ -174,6 +174,12 @@ _PATH_CONE_RADIUS = 0.16
 UROMT_3D_ACTORS = ("uromt_scalar", "uromt_vec", "uromt_paths",
                    "uromt_path_end")
 
+# The deformation-vector-field overlay shares the urOMT 3-D builder, so its
+# actors carry the same suffixes under a "dvf" prefix - distinct names let the
+# two overlays coexist in one scene (pyvista actor names are unique, so a shared
+# name would make whichever is added last replace the other).
+DVF_3D_ACTORS = tuple(nm.replace("uromt_", "dvf_") for nm in UROMT_3D_ACTORS)
+
 # Above this many drawn pathlines the 3-D direction cones are dropped. One
 # solid cone per path is readable at a few hundred paths and is pure clutter at
 # ten thousand - it hides the paths it is meant to annotate, which is the whole
