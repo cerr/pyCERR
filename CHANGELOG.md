@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Deformation vector field display in pyCERR-GUI**, in the Registration QA
+  tool (Tools > Registration QA). A stored `planC.deform` is drawn as a quiver
+  on all three 2D views and in the 3D scene - the counterpart of the napari
+  `Vectors` layer that `showNapari(..., vectors_dict=...)` builds. Arrows can be
+  drawn at true 1:1 scale (a 3 mm displacement is a 3 mm arrow) or normalized to
+  the field of view; sampled at a chosen resolution, restricted to a structure
+  or to its surface, with the median (bulk) displacement optionally subtracted
+  to leave the local deformation; and coloured by `length`, `|dx|`, `|dy|`,
+  `|dz|` or their signed forms, in mm. Scriptable via
+  `PyCerrViewer.set_dvf_overlay()` / `clear_dvf_overlay()` and the new
+  `deform`/`dvf_*` keywords of `start_reg_qa()`. Only deformations that carry a
+  vector field (`deformOutFileType` `'dvf'` or `'vf'`) are offered - a rigid,
+  ANTs or B-spline-coefficient transform has no per-voxel displacements.
+- `cerr.dataclasses.deform.hasDvfMatrix()` and `DVF_FILE_TYPES`, the shared
+  check for whether a `Deform` carries a sampled vector field.
+- `cerr.registration.register.getDvfGrid()`, which samples a `Deform` on a
+  regular grid as three dense component arrays in pyCERR virtual cm - the grid
+  twin of `getDvfVectors()`, which returns the same vectors scattered, and
+  taking the same `outputResV` / `structNum` / `surfFlag` controls. The shared
+  DICOM-LPS-mm to virtual-cm conversion is now `dvfToCerrVirtual()`, used by
+  both.
 - **Enhanced PET Image import** (SOP Class `1.2.840.10008.5.1.4.1.1.130`).
   Functional-group macros are now resolved through `getFunctionalGroupItem()`,
   which reads the Per-Frame Functional Groups Sequence first and falls back to
@@ -66,6 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cerr.registration.register.getDvfVectors()` raised `AttributeError` when
+  `structNum` was omitted, although the argument is documented as optional: the
+  structure mask was built before the check that needs it.
 - **Scan start datetime resolution when `DecayCorrection` is `START`.** The
   reference time is now taken, in order of decreasing reliability, from the
   vendor private scan start datetime (Siemens `0071,1022`, GE `0009,100D`) or
