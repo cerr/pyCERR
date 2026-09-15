@@ -92,7 +92,7 @@ def validateModelNum(modelNum):
 
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"Timed out while validating model number {modelNum}.")
     except FileNotFoundError:
@@ -131,7 +131,7 @@ def validateCredentials(modelNum, modelName, credentials):
         ["git", "ls-remote", repoUrl],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120,
         env=env
     )
 
