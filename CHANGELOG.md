@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cerr.registration.register.getDvfVectors()` raised `AttributeError` when
   `structNum` was omitted, although the argument is documented as optional: the
   structure mask was built before the check that needs it.
+- DICOM CT import raised `TypeError` when a series had no `SliceThickness`
+  (0018,0050) value. `parseScanInfoFields()` now falls back to
+  `SpacingBetweenSlices`, matching the guard in `loadSortedScanInfo()`.
 - **Scan start datetime resolution when `DecayCorrection` is `START`.** The
   reference time is now taken, in order of decreasing reliability, from the
   vendor private scan start datetime (Siemens `0071,1022`, GE `0009,100D`) or
