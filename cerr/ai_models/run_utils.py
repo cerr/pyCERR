@@ -132,8 +132,8 @@ def runSubprocessPrep(modelBase, prepScript, userInputs, verbose=False):
     scanNum = len(planC.scan) - 1
 
     # Export to NIfTI for pre-processing
-    ptID = os.path.basename(inputPath.rstrip('/\\'))
-    rawNiiFile = os.path.join(sessionInputDir, f"{ptID}_raw.nii.gz")
+    ptFileName = os.path.basename(inputPath.rstrip('/\\'))
+    rawNiiFile = os.path.join(sessionInputDir, ptFileName)
     planC.scan[scanNum].saveNii(rawNiiFile)
 
     # Locate the pre-processing entrypoint
@@ -226,10 +226,11 @@ def buildCommand(modelPath, userInputs):
     for arg in execConfig.get("arguments", []):
         argName = arg["name"]
 
+        if arg["required"] and argName not in userInputs:
+            raise ValueError(f"Missing required argument: {argName}")
+
         # Handle Positional Arguments
         if arg["type"] == "positional":
-            if arg["required"] and argName not in userInputs:
-                raise ValueError(f"Missing required argument: {argName}")
             cmd.append(str(userInputs[argName]))
 
         # Handle optional flags (e.g., --gpu 1)

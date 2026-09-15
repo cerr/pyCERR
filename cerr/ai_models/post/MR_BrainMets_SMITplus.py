@@ -1,3 +1,4 @@
+import glob
 import os
 import json
 import yaml
@@ -34,26 +35,27 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
         runSpec = yaml.safe_load(f)
     mapFileName = runSpec.get('outputs', {}).get('structureToLabelMap', 'structureToLabelMap.json')
 
-    mapFile = os.path.join(outDir, mapFileName)
-    if not os.path.isfile(mapFile):
-        raise FileNotFoundError(f"{mapFileName} not found in {outDir}")
-    with open(mapFile, 'r') as f:
-        mapJson = json.load(f)
-    labelsDict = {entry['structureName']: entry['value'] for entry in mapJson['strNameToLabelMap']}
+    niiSegDir = os.path.join(outDir, 'nii_seg')
+    mapFiles = glob.glob(os.path.join(niiSegDir, '*_labels.json'))
+    if not mapFiles:
+        raise FileNotFoundError(f"No *_labels.json found in {niiSegDir}")
+    with open(mapFiles[0], 'r') as f:
+        labelToName = json.load(f)
+    labelsDict = {name: int(label) for label, name in labelToName.items()}
 
     if not labelsDict:
         # No lesions detected
         return planC
 
-    # Copy to original MR if availalbe, otherwise use the stripped/cropped-space.
-    rawSegFile = os.path.join(outDir, 'seg_in_raw.nii.gz')
-    strippedSegFile = os.path.join(outDir, 'seg.nii.gz')
-    if os.path.isfile(rawSegFile):
-        segFile, assocScanNum = rawSegFile, scanNum
-    elif os.path.isfile(strippedSegFile):
-        segFile, assocScanNum = strippedSegFile, procScanNum
+    # Copy to original MR if available, otherwise use the stripped/cropped-space.
+    rawSegFiles = glob.glob(os.path.join(niiSegDir, '*_img_in_raw.nii.gz'))
+    strippedSegFiles = glob.glob(os.path.join(niiSegDir, '*_img.nii.gz'))
+    if rawSegFiles:
+        segFile, assocScanNum = rawSegFiles[0], scanNum
+    elif strippedSegFiles:
+        segFile, assocScanNum = strippedSegFiles[0], procScanNum
     else:
-        raise FileNotFoundError(f"No segmentation NIfTI found in {outDir}")
+        raise FileNotFoundError(f"No segmentation NIfTI found in {niiSegDir}")
 
     numOrigStructs = len(planC.structure)
     planC = pc.loadNiiStructure(segFile, assocScanNum, planC, labels_dict=labelsDict)

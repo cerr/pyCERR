@@ -1238,6 +1238,30 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
     return indMatchV
 
 
+def resolveStructRef(struct, planC):
+    """Resolve a structure reference (index or name) to its index in planC.
+
+    Args:
+        struct (int or str): Either an index into ``planC.structure``, or a
+            ``structureName`` to look up (case-insensitive).
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        int: Index into ``planC.structure``.
+    """
+    if isinstance(struct, str):
+        strList = [s.structureName for s in planC.structure]
+        matches = getMatchingIndex(struct, strList, 'exact')
+        if not matches:
+            raise ValueError("No structure named '%s' found in "
+                             "planC.structure." % struct)
+        if len(matches) > 1:
+            raise ValueError("Multiple structures named '%s' found in "
+                             "planC.structure: indices %s." % (struct, matches))
+        return matches[0]
+    return int(struct)
+
+
 def getClosedMask(structNum, structuringElementSizeCm, planC, saveFlag=False,\
               replaceFlag=None, procSructName=None):
     """
@@ -1405,7 +1429,7 @@ def getMasksOnScan(structNumV, planC):
     """Fetch masks for a list of structures, validating that they share a scan.
 
     Args:
-        structNumV (list[int]): Indices into ``planC.structure``.
+        structNumV (list[int or str]): Indices into ``planC.structure`` or structure names.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
 
     Returns:
@@ -1413,7 +1437,7 @@ def getMasksOnScan(structNumV, planC):
         boolean ``np.ndarray`` masks (one per structure, all the same shape)
         and ``assocScanNum`` is the shared associated scan index.
     """
-    structNumV = [int(s) for s in structNumV]
+    structNumV = [resolveStructRef(s, planC) for s in structNumV]
     if len(structNumV) < 2:
         raise ValueError("At least two structures are required for this "
                          "operation.")
@@ -1432,13 +1456,14 @@ def getMasksOnScan(structNumV, planC):
 def structUnion(structNumV, planC, unionStructName=None):
     """Compute the union of two or more structures and add it to planC.
     Args:
-        structNumV (list[int]): Indices of the structures (>= 2) to combine,
+        structNumV (list[int or str]): Indices of the structures or structure names (>= 2) to combine,
             in ``planC.structure``. All structures must share the same
             associated scan.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
         unionStructName (str or None): Name for the new structure. A descriptive
             default is generated when ``None``.
     """
+    structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
     unionMask3M = np.zeros(maskList[0].shape, dtype=bool)
     for m in maskList:
@@ -1453,7 +1478,7 @@ def structUnion(structNumV, planC, unionStructName=None):
 def structIntersect(structNumV, planC, intrStructName=None):
     """Compute the intersection of two or more structures and add it to planC.
     Args:
-        structNumV (list[int]): Indices of the structures (>= 2) to combine,
+        structNumV (list[int or str]): Indices of the structures or structure names (>= 2) to combine,
             in ``planC.structure``. All structures must share the same
             associated scan.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
@@ -1464,6 +1489,7 @@ def structIntersect(structNumV, planC, intrStructName=None):
         cerr.plan_container.PlanC: Updated plan container object with the
         intersection structure appended to ``planC.structure``.
     """
+    structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
     intersectMask3M = maskList[0].copy()
     for m in maskList[1:]:
@@ -1478,9 +1504,8 @@ def structIntersect(structNumV, planC, intrStructName=None):
 def structDiff(structNum1, structNum2, planC, diffStructName=None):
     """Compute the set difference (structNum1 - structNum2) and add it to planC.
     Args:
-        structNum1 (int): Index of the minuend structure in ``planC.structure``.
-        structNum2 (int): Index of the subtrahend structure in
-            ``planC.structure``. Must share the same associated scan as
+        structNum1 (int or str): Structure index or name in ``planC.structure``.
+        structNum2 (int): Structure index or name in ``planC.structure``. Must share the same associated scan as
             ``structNum1``.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
         diffStructName (str or None): Name for the new structure. A descriptive
@@ -1490,6 +1515,8 @@ def structDiff(structNum1, structNum2, planC, diffStructName=None):
         cerr.plan_container.PlanC: Updated plan container object with the
         difference structure appended to ``planC.structure``.
     """
+    structNum1 = resolveStructRef(structNum1, planC)
+    structNum2 = resolveStructRef(structNum2, planC)
     maskList, assocScanNum = getMasksOnScan([structNum1, structNum2], planC)
     diffMask3M = maskList[0] & ~maskList[1]
     if diffStructName is None:

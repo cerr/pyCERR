@@ -2164,20 +2164,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         # robust data range: drives the colorbar axis AND the default window
         # (a new scan defaults to showing its full data range).
-        lo, hi = np.percentile(self.scan3M, [0.5, 99.5])
+        lo, hi = np.nanpercentile(self.scan3M, [0.5, 99.5])
         self._scanDataRange = (float(lo), float(hi))
 
         # restore this scan's saved window; default a new scan to its full range
         if self.scanNum in self.wlByScan:
             self.windowCenter, self.windowWidth = self.wlByScan[self.scanNum]
         else:
-            self.windowCenter, self.windowWidth = \
-                (lo + hi) / 2.0, max(hi - lo, 1.0)
             mod = str(getattr(scanObj.scanInfo[0], "imageType", "")).upper()
             if "CT" not in mod:
                 lo, hi = np.nanpercentile(self.scan3M, [2, 98])
-                self.windowCenter, self.windowWidth = \
-                    (lo + hi) / 2, max(hi - lo, 1)
+            self.windowCenter, self.windowWidth = \
+                (lo + hi) / 2.0, max(hi - lo, 1.0)
             self.wlByScan[self.scanNum] = (self.windowCenter, self.windowWidth)
         for sp, val in ((self.centerSpin, self.windowCenter),
                         (self.widthSpin, self.windowWidth)):
@@ -2194,11 +2192,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.scanAlphaSlider.blockSignals(True)
         self.scanAlphaSlider.setValue(int(round(self.scanAlpha * 100)))
         self.scanAlphaSlider.blockSignals(False)
-
         # seed the base-scan colorbar, use the current
         # window as the colormap range with the current colormap.
         lo, hi = np.nanpercentile(self.scan3M, [0.5, 99.5])
         self._scanDataRange = (float(lo), float(hi))
+
         if getattr(self, "scanColorbar", None) is not None:
             self.scanColorbar.setScan(self.windowCenter, self.windowWidth,
                                       lo, hi)
@@ -4219,11 +4217,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             ys, a3M = ascending(ys, a3M, axis=0)
             xs, a3M = ascending(xs, a3M, axis=1)
             zs, a3M = ascending(zs, a3M, axis=2)
-            sMin = self._smallest_spacing(xs, ys, zs, a3M.shape)
-            if sMin > 0:
-                a3M, xs, ys, zs = self._resample_volume_isotropic(
-                    a3M, xs, ys, zs, sMin / frac)
-            grid = self._pv_volume(a3M, xs, ys, zs)
+
             wl = self.wlByScan.get(scanIdx)
             if wl is not None:
                 vmin, vmax = wl[0] - wl[1] / 2.0, wl[0] + wl[1] / 2.0
@@ -4232,8 +4226,21 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 if res is not None:
                     vmin, vmax = res[1], res[2]
                 else:
-                    vmin, vmax = float(a3M.min()), float(a3M.max())
-            return grid, (float(vmin), float(max(vmax, vmin + 1e-6)))
+                    finiteVals = a3M[np.isfinite(a3M)]
+                    if finiteVals.size == 0:
+                        vmin, vmax = 0.0, 1.0
+                    else:
+                        vmin, vmax = float(finiteVals.min()), float(finiteVals.max())
+                vmax  = max(vmax, vmin + 1e-6)
+
+            a3M = np.nan_to_num(a3M, nan=vmin)
+            sMin = self._smallest_spacing(xs, ys, zs, a3M.shape)
+            if sMin > 0:
+                a3M, xs, ys, zs = self._resample_volume_isotropic(
+                    a3M, xs, ys, zs, sMin / frac)
+            grid = self._pv_volume(a3M, xs, ys, zs)
+
+            return grid, (float(vmin), float(vmax))
         except Exception:  # noqa: BLE001
             return None
 

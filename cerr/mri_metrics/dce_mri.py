@@ -40,7 +40,7 @@ def getAcqTime(planC, timeKey, scanIdxV=None, returnBasis=False):
 
 
     Returns:
-        timeV (np.ndarray) : Timing of each scan (min))
+        timeV (np.ndarray) : Timing of each scan (min)). Note: Order matches input scans. For chronological sorting, see:getScanOrder.
         basis (str): only if ``returnBasis`` is True.
     """
 
@@ -93,15 +93,18 @@ def getAcqTime(planC, timeKey, scanIdxV=None, returnBasis=False):
         if not skipAcq:
             if len(np.unique(acqTimesV)) < nScans:
                 skipAcq = True
-                print(f"Acquisition time is not unique across scans. Skipping...")
+                print(f"Acquisition time is not unique across scans.")
             elif hasTemporalPos:
                 sortedAcqTimesV = acqTimesV[sortOrder]
                 if not np.all(np.diff(sortedAcqTimesV) > 0):
                     skipAcq = False
                     print(f"WARNING: Acquisition time ordering does not agree with temporalPositionIdentifier."
                           f"Set timeKey=""temporalPositionIdentifier"" to use this tag for ordering instead.")
-        if timeKey=='acquisitionTime':
+        if timeKey == 'acquisitionTime':
                 skipAcq = False
+        else:
+            if not skipAcq:
+                print('Skipping...')
 
         # Extract triggerTime unless acquisitionTime is specified
         if skipAcq:
@@ -461,7 +464,6 @@ def getStartofUptakeFromMeanSignal(meanSigV, plotDict=None):
     ax.set_ylabel('ROI mean signal intensity')
     ax.set_title('Select start of uptake (3D ROI Volume Average)')
     ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend()
 
     if plotDict is not None and 'uptake_savepath' in plotDict:
         fileName = 'start_of_uptake.png'
@@ -554,7 +556,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
         normScan4M = np.zeros(scanArr4M.shape)
         for slc in range(numSlc):
             slcSeq3M = scanArr4M[:, :, slc, :].copy()
-            # Smooth to calc. baseline signal only
+            # Smooth signal (2D)
             if smoothFlag:
                 for t in range(slcSeq3M.shape[2]):
                     slcSeq3M[:, :, t] = gaussian_filter(slcSeq3M[:, :, t], sigma=fSigma,
@@ -575,7 +577,7 @@ def normalizeToBaseline(scanArr4M, mask3M, timePtsV, basePts=None, imgSmoothDict
 
             baseline3M[:, :, slc] = baselineM
 
-            normSig3M = scanArr4M[:, :, slc, :] / baselineM[:, :, np.newaxis]
+            normSig3M = slcSeq3M / baselineM[:, :, np.newaxis]
             if enhThresh is not None:
                 sizV = normSig3M.shape
                 normSigM = normSig3M.reshape(-1, normSig3M.shape[2], order='F')
@@ -622,17 +624,18 @@ def locatePeak(sigM, smoothFlag=False):
     nVox = sigM.shape[0]
     nTime = sigM.shape[1]
 
-    maxWin = 21
-    minWin = 5  # Ensure reasonable window size
+    maxWin = 7
+    minWin = 3  # Ensure reasonable window size
     calcNoiseLevel = lambda sigV: np.std(sigV - medfilt(sigV, kernel_size=3))
-    getWindowSize = lambda sigV: max(min(2 * round(0.05 * calcNoiseLevel(sigV) * len(sigV) / 2) + 1,
+    getWindowSize = lambda sigV: max(min(2 * round(0.02 * calcNoiseLevel(sigV) * len(sigV) / 2) + 1,
                                          maxWin, len(sigV) - 1), minWin)
+    getPolyorder = lambda w: min(3, w - 1)
     sigMax = 0.8 * np.nanmax(sigM, axis=1)
 
     if smoothFlag:
         filtSigM = np.apply_along_axis(
             lambda row: row if np.all(np.isnan(row)) else \
-                savgol_filter(row, window_length=getWindowSize(row), polyorder=3),
+                savgol_filter(row, window_length=getWindowSize(row), polyorder=getPolyorder(getWindowSize(row))),
             axis=1,
             arr=sigM)
     else:
@@ -836,8 +839,8 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     # Time halfway between peak and end of acquisition
     midTimeV = 0.5 * (TTPv + Tend)  # (nVox,) or scalar
     midTimeV = np.atleast_1d(np.asarray(midTimeV, dtype=float))
-    TMWv = procTimeV[np.argmin(np.abs(procTimeV[np.newaxis, :] - midTimeV[:, np.newaxis]), axis=1)]  # (nVox,)
-    TMWv[peakAtEndIdxV] = np.nan
+    TTHWv = procTimeV[np.argmin(np.abs(procTimeV[np.newaxis, :] - midTimeV[:, np.newaxis]), axis=1)]  # (nVox,)
+    TTHWv[peakAtEndIdxV] = np.nan
 
     # Wash-in/out gradients
     # Initial gradient estimated by linear regression of RSE between 10 % and 70 % PE (occurring prior to peak)
@@ -890,7 +893,7 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     elif sigType == 'CC':
         C0v = baselineV
         C2v = procSlcSigM[:, -1]
-        SERv = (C2v - C0v) / (PEv - C0v + EPS)
+        SERv = (C2v - C0v) / (PEv - C0v + EPS)     
     else:
         raise ValueError('Unknown signal type {sigType}.')
     SERv[nanIdxV] = np.nan
@@ -900,11 +903,14 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
     IAUCv = cumulative_trapezoid(y=procSlcSigM.T, x=procTimeV.T, axis=0, initial=0).T
     IAUCtthpV = np.full((nVox,), fill_value=np.nan)
     IAUCttpV = np.full((nVox,), fill_value=np.nan)
+    IAUCtthwV = np.full((nVox,), fill_value=np.nan)
     for i in range(nVox):
         IAUCtthpV[i] = IAUCv[i, np.nanargmax(procTimeV >= TTHPv[i])]
         IAUCttpV[i] = IAUCv[i, np.nanargmax(procTimeV >= TTPv[i])]
+        IAUCtthwV[i] = IAUCv[i, np.nanargmax(procTimeV >= TTHWv[i])]
     IAUCtthpV[nanIdxV] = np.nan
     IAUCttpV[nanIdxV] = np.nan
+    IAUCtthwV[nanIdxV] = np.nan
 
     PEv[nanIdxV] = np.nan
 
@@ -912,14 +918,15 @@ def semiQuantFeatures(procSlcSigM, procTimeV, baselineV, sigType='RSE'):
                    'SignalAtHalfPeak': SHPv,
                    'TimeToPeak': TTPv,
                    'TimeToHalfPeak': TTHPv,
-                   'MidWashoutTime': TMWv,
+                   'TimeToHalfWashout': TTHWv,
                    'SignalEnhancementRatio': SERv,
                    'WashInSlope': WISv,
                    'WashOutSlope': WOSv,
                    'InitialGradient': IGv,
                    'WashOutGradient': WOGv,
                    'AUCatPeak': IAUCttpV,
-                   'AUCatHalfPeak': IAUCtthpV}
+                   'AUCatHalfPeak': IAUCtthpV,
+                   'AUCatHalfWashout': IAUCtthwV}
 
     return featureDict, skipIdxV
 
@@ -1172,7 +1179,7 @@ def plotSampleFeatures(origSigM, procSlcSigM, origTimeV, procTimeV, featureDict,
         plt.plot(origTimeV, origSigM[idx, :], color='gray', alpha=0.7,
                  linewidth=2, linestyle='dashed', label='Original')
         plt.plot(procTimeV, procSlcSigM[idx, :], color='black', linewidth=1, label='SmoothResamp')
-        plt.axis.legend(['Original','Processed'])
+        #plt.axis.legend(['Original','Processed'])
 
         #PE
         plt.annotate('Peak', xy=(featureDict['TimeToPeak'][idx], featureDict['PeakEnhancement'][idx]))
@@ -1335,6 +1342,12 @@ def createFeatureMaps(featureList, structNum, planC, importFlag=False, type='sca
         if importFlag:
             if type.lower() == 'scan':
                 planC = pc.importScanArray(mapDict[key], xV, yV, zV, key, assocScan, planC)
+                newScan = planC.scan[-1]
+                newScan.assocBaseScanUID = planC.scan[assocScan].scanUID
+                provenance = (f"assocStructUID={planC.structure[structNum].strUID};"
+                              + f"assocStructName={planC.structure[structNum].structureName}")
+                for si in newScan.scanInfo:
+                    si.seriesDescription = provenance
             elif type.lower() == 'dose':
                 planC = pc.importDoseArray(mapDict[key], xV, yV, zV, planC, assocScan,
                                            doseInfo={'fractionGroupID': key})
@@ -1387,7 +1400,7 @@ def collectUserInput(saveDir):
     return 0
 
 
-def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None, ):
+def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None):
     """Batch-process a cohort of DCE-MRI datasets to facilitate interactive start-of-uptake selection.
 
     For each patient sub-directory located under ``baseDir``, this function loads the corresponding DICOM
@@ -1428,14 +1441,15 @@ def batchSelectStartOfUptake(baseDir, saveDir, timeV=None, strName=None, ):
 
             ptDir = os.path.join(baseDir, pt)
             planC = pc.loadDcmDir(ptDir)
+
             strList = [structure.structureName for structure in planC.structure]
             if strName is not None:
-                strNum = cerrStr.getMatchingIndex(strName, strList, matchCriteria='exact')
+                strNum = cerrStr.getMatchingIndex(strName, strList, matchCriteria='exact')[0]
             else:
                 strNum = 0
             mask = getStrMask(strNum, planC)
 
-            figSavePath = os.path.join(saveDir, pt + '.png')
+            figSavePath = os.path.join(saveDir, pt+ '.png')
 
             # Load time sequence
             scanArr4M, timeOutV, mask3M, maskSlcV = loadTimeSeq(planC, strNum, timeV)
