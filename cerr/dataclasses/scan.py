@@ -1400,7 +1400,10 @@ def parseScanInfoFields(ds, multiFrameFlg=False) -> (scn_info.ScanInfo, Dataset.
 
         scan_info.grid1Units = ds.PixelSpacing[1] / 10
         scan_info.grid2Units = ds.PixelSpacing[0] / 10
-        scan_info.sliceThickness = ds.SliceThickness / 10
+        if isinstance(ds.get('SliceThickness'), (float, int)):
+            scan_info.sliceThickness = ds.SliceThickness / 10
+        elif isinstance(ds.get('SpacingBetweenSlices'), (float, int)):
+            scan_info.sliceThickness = ds.SpacingBetweenSlices / 10
         scan_info.imageOrientationPatient = np.array(ds.ImageOrientationPatient)
         scan_info.imagePositionPatient = np.array(ds.ImagePositionPatient)
         slice_normal = scan_info.imageOrientationPatient[[1,2,0]] * scan_info.imageOrientationPatient[[5,3,4]] \
