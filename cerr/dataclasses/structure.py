@@ -459,6 +459,35 @@ class Segment:
 
     points: np.ndarray = field(default_factory=get_empty_np_array)
 
+def _toJsonNative(obj):
+    """Convert numpy and pydicom values that json cannot encode to native types.
+
+    Structure metadata reaches the JSON encoders from several loaders, and not
+    all of them produce plain Python values: a color triplet may hold
+    ``np.int64``, a field restored from HDF5 may be an ``ndarray``, and a DICOM
+    SEG display color is a pydicom ``MultiValue``.
+
+    Args:
+        obj: value the encoder could not serialize.
+
+    Returns:
+        A JSON-serializable equivalent, or ``None`` if ``obj`` is not one of the
+        handled types (the caller then raises as before).
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    # pydicom MultiValue and similar non-list sequences (str is already native)
+    if hasattr(obj, '__iter__') and hasattr(obj, '__len__') and not isinstance(obj, (str, bytes, dict)):
+        return list(obj)
+    return None
+
+
 class jsonSerializeSegment(json.JSONEncoder):
     def default(self, segObj):
         """Serialize a :class:`Segment` instance to a JSON-compatible dictionary.
@@ -479,9 +508,11 @@ class jsonSerializeSegment(json.JSONEncoder):
         if isinstance(segObj, Segment):
             segDict['points'] = segObj.points.tolist()
             return segDict
-        else:
-            type_name = segObj.__class__.__name__
-            raise TypeError("Unexpected type {0}".format(type_name))
+        native = _toJsonNative(segObj)
+        if native is not None:
+            return native
+        type_name = segObj.__class__.__name__
+        raise TypeError("Unexpected type {0}".format(type_name))
 
 class jsonSerializeContour(json.JSONEncoder):
     def default(self, ctrObj):
@@ -506,9 +537,11 @@ class jsonSerializeContour(json.JSONEncoder):
                 segList.append(json.dumps(seg, cls=jsonSerializeSegment))
             ctrDict['segments'] = segList
             return ctrDict
-        else:
-            type_name = ctrObj.__class__.__name__
-            raise TypeError("Unexpected type {0}".format(type_name))
+        native = _toJsonNative(ctrObj)
+        if native is not None:
+            return native
+        type_name = ctrObj.__class__.__name__
+        raise TypeError("Unexpected type {0}".format(type_name))
 
 fieldsList = ['structureName', 'patientName', 'assocScanUID', 'strUID',
               'ROIInterpretedType', 'structureColor',
@@ -545,9 +578,13 @@ class jsonSerializeStruct(json.JSONEncoder):
                     ctrList.append('')
             strDict['contour'] = ctrList
             return strDict
-        else:
-            type_name = strObj.__class__.__name__
-            raise TypeError("Unexpected type {0}".format(type_name))
+        # Fields such as structureColor may hold numpy or pydicom values; the
+        # encoder calls default() again for each one it cannot encode.
+        native = _toJsonNative(strObj)
+        if native is not None:
+            return native
+        type_name = strObj.__class__.__name__
+        raise TypeError("Unexpected type {0}".format(type_name))
 
 def getJsonList(structNumV, planC):
     """Return a JSON-formatted string (or list of strings) for the specified structures.
@@ -1116,7 +1153,9 @@ def getColorForStructNum(structNum):
            [138,   207,    46]])
     # cycle colors
     colorIndex = np.mod(structNum, colorMat.shape[0])
-    return list(colorMat[colorIndex,:])
+    # Native ints, not np.int64: the triplet ends up on Structure.structureColor,
+    # which json cannot serialize as numpy scalars.
+    return [int(val) for val in colorMat[colorIndex, :]]
 
 
 def copyToScan(structNum, scanNum, planC):
