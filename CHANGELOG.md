@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-17
+
 ### Added
 
 - **Deformation vector field display in pyCERR-GUI**, in the Registration QA
@@ -87,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cerr.dataclasses.structure.getJsonList()` / `saveJson()` raised
+  `TypeError: Unexpected type int64` on any structure given a default color -
+  those imported from NIfTI or a mask, smoothed with B-splines, or read from an
+  RTSTRUCT without `ROIDisplayColor`. `getColorForStructNum()` now returns
+  native ints, and the JSON encoders convert numpy scalars, arrays and pydicom
+  sequences, so structures restored from HDF5 or pickles serialize too.
 - `cerr.registration.register.getDvfVectors()` raised `AttributeError` when
   `structNum` was omitted, although the argument is documented as optional: the
   structure mask was built before the check that needs it.
