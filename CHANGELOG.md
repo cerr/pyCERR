@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The Qt desktop viewer's dependencies are now an optional extra.** `PyQt5`,
+  `pyvista` and `pyvistaqt` moved out of the base install into
+  `pip install "pycerr[viewer]"`. PyQt5 publishes no aarch64 Linux wheel, so
+  `pip install pycerr` on arm64 Linux (Apple Silicon Docker images, ARM
+  servers) tried to build it from source and failed for want of `qmake`.
+  Everything that does not draw a Qt window is unaffected: the Python API,
+  batch/headless processing in containers, and the Jupyter viewer
+  (`cerr.viewer.pycerr_nbviewer`), which uses `ipywidgets` + matplotlib and
+  keeps `ipywidgets` as a base dependency. Launching the desktop viewer without
+  the extra now raises an ImportError naming the install command instead of
+  `No module named 'PySide2'`.
+
 ## [2.2.0] - 2026-09-17
 
 ### Added
