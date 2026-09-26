@@ -18,8 +18,20 @@ try:
     from PyQt5 import QtCore, QtGui, QtWidgets
     from PyQt5.QtCore import Qt
 except ImportError:  # pragma: no cover - PySide fallback
-    from PySide2 import QtCore, QtGui, QtWidgets  # type: ignore
-    from PySide2.QtCore import Qt  # type: ignore
+    try:
+        from PySide2 import QtCore, QtGui, QtWidgets  # type: ignore
+        from PySide2.QtCore import Qt  # type: ignore
+    except ImportError as exc:  # no Qt binding at all
+        # The Qt binding is an optional dependency (see pyproject's `viewer`
+        # extra), so say how to get it rather than surfacing a bare
+        # "No module named 'PySide2'".
+        raise ImportError(
+            "The pyCERR desktop viewer needs a Qt binding, which is not part of "
+            "the base install. Install it with:\n"
+            '    pip install "pycerr[viewer]"\n'
+            "For notebooks use the Qt-free viewer instead: "
+            "from cerr.viewer.pycerr_nbviewer import showNB"
+        ) from exc
 
 import logging
 

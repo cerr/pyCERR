@@ -8,9 +8,12 @@ A CERR-style (MATLAB CERR) slice viewer built on **pyCERR**, in a single file: `
 ## Setup (Windows, your paths)
 
 ```bat
-pip install PyQt5 matplotlib scipy
-pip install pyvista pyvistaqt   :: optional, GPU-accelerated 3D view
+pip install "pycerr[viewer]"    :: Qt binding + pyvista/pyvistaqt 3D view
 ```
+
+The base `pip install pycerr` is deliberately Qt-free, so it installs on
+platforms without a PyQt5 wheel (arm64 Linux) and in headless containers; the
+`viewer` extra adds what this desktop GUI needs.
 
 pyCERR itself: either `pip install pyCERR`, **or** use your local checkout — the script
 already points at it via:

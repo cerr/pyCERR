@@ -57,7 +57,8 @@ Features (mirroring the classic CERR slice viewer):
     view (updates as you scroll) and the full field pyramid in the 3D view
 
 Requirements:
-  pip install pyCERR PyQt5 matplotlib scipy
+  pip install "pycerr[viewer]"   -- Qt binding + pyvista/pyvistaqt 3D view
+                                    (the base pycerr install is Qt-free)
   -- or add your local pyCERR checkout to sys.path (see PYCERR_PATH below).
 
 Run:

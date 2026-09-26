@@ -48,12 +48,6 @@ dependencies = [
     # that dominate its Gauss-Newton CG matvec. ~90x on the derivative operator
     # versus the vectorized numpy form.
     'numba',
-    # Desktop Qt viewer (cerr.viewer.pycerr_gui): PyQt5 is the Qt binding;
-    # pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk is pulled in
-    # transitively by pyvista).
-    'PyQt5',
-    'pyvista',
-    'pyvistaqt'
 ]
 
 [project.urls]
@@ -61,6 +55,22 @@ dependencies = [
 "Bug Tracker" = "https://github.com/cerr/pyCERR/issues"
 
 [project.optional-dependencies]
+# Desktop Qt viewer (cerr.viewer.pycerr_gui) plus the ROE and IMRTP GUIs: PyQt5
+# is the Qt binding; pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk
+# comes in transitively via pyvista).
+#
+# Kept out of the base install because PyQt5 publishes no aarch64 Linux wheel:
+# on arm64 Linux (Apple Silicon Docker, ARM servers) `pip install pycerr` tried
+# to build it from source and failed for want of qmake. Everything that does
+# not draw a Qt window -- headless servers and containers, batch processing,
+# and the Jupyter viewer (cerr.viewer.pycerr_nbviewer, which needs only
+# ipywidgets + matplotlib) -- works without it:
+#   pip install "pycerr[viewer]"
+viewer = [
+    "PyQt5",
+    "pyvista",
+    "pyvistaqt",
+]
 napari = [
     "napari[all]",
     "napari-animation"
