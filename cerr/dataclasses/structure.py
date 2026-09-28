@@ -956,8 +956,9 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     """
 
     # Pad mask to account for boundary edges
-    paddedMask3M = mask3M.astype(int)
-    paddedMask3M = np.pad(paddedMask3M, ((1,1),(1,1),(0,0)), 'constant', constant_values = 0)
+    # uint8 rather than int64 keeps the copy small; only voxels == 1 are contoured below
+    paddedMask3M = np.pad(np.asarray(mask3M == 1, dtype=np.uint8), ((1, 1), (1, 1), (0, 0)),
+                          'constant', constant_values=0)
     dt = datetime.now()
     if isinstance(structNum,(int, float, np.integer, np.floating)):
         struct_meta = planC.structure[structNum]

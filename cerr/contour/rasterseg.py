@@ -29,77 +29,81 @@ def polyFill(rowV, colV, xSize, ySize):
         np.ndarray: Boolean mask of shape ``(xSize, ySize)`` where filled
         pixels are 1 and background pixels are 0.
     """
-    # Initialize the result matrix with zeros
+    # Vectorized scanline fill: O(edge crossings) rather than a Python loop over
+    # scanlines x edges. Scanlines run along the column (y) axis. Semantics:
+    # an edge covers scanlines ceil(top)..bottom but toggles only where y != bottom;
+    # a flat edge on an integer scanline draws ceil(min row)..floor(max row); an
+    # integer bottom vertex draws its own pixel; toggles within 1e-6 of an integer
+    # snap to it; sorted toggles pair up as ceil(t0)..floor(t1). An odd crossing
+    # count on a scanline raises IndexError. Pixels outside the image are clipped.
     result = np.zeros((xSize, ySize))
+    rowV = np.asarray(rowV, dtype=float)
+    colV = np.asarray(colV, dtype=float)
+    if len(rowV) == 0:
+        return result
 
-    # Some contours have more than one segment. Treat them as separate polygons on the same image.
-    # They shouldn't overlap, but if they do, the value of the resultant mask will be 1.0.
-    pointCount = len(rowV)
-    edgeList = np.zeros((pointCount, 4))
+    # Edges ordered top to bottom (y-wise); the polygon is closed
+    nxt = np.roll(np.arange(len(rowV)), -1)
+    p1x, p1y, p2x, p2y = rowV, colV, rowV[nxt], colV[nxt]
+    swap = ~(p1y <= p2y)
+    ax = np.where(swap, p2x, p1x)
+    ay = np.where(swap, p2y, p1y)
+    bx = np.where(swap, p1x, p2x)
+    by = np.where(swap, p1y, p2y)
+    if int(np.floor(np.max(by))) < int(np.ceil(np.min(ay))):
+        return result
 
-    # Iterate over each point in the contour
-    for point in range(pointCount):
-        if point == pointCount - 1:
-            p1x, p1y = rowV[point], colV[point]
-            p2x, p2y = rowV[0], colV[0]
-        else:
-            p1x, p1y = rowV[point], colV[point]
-            p2x, p2y = rowV[point + 1], colV[point + 1]
+    # Flat edges lying on an integer scanline
+    flat = ay == by
+    for e in np.nonzero(flat & (ay == np.round(ay)) & (ay >= 0) & (ay < ySize))[0]:
+        lo, hi = (bx[e], ax[e]) if ax[e] > bx[e] else (ax[e], bx[e])
+        result[max(int(np.ceil(lo)), 0):int(np.floor(hi)) + 1, int(ay[e])] = 1
 
-        # Ensure that the edge is ordered from top to bottom (y-wise)
-        if p1y <= p2y:
-            edgeList[point, :] = [p1x, p1y, p2x, p2y]
-        else:
-            edgeList[point, :] = [p2x, p2y, p1x, p1y]
+    # Bottom vertices on integer grid points
+    ax, ay, bx, by = ax[~flat], ay[~flat], bx[~flat], by[~flat]
+    vertex = (by == np.round(by)) & (bx == np.round(bx))         & (bx >= 0) & (bx < xSize) & (by >= 0) & (by < ySize)
+    result[bx[vertex].astype(int), by[vertex].astype(int)] = 1
 
-    # Get the relevant y-range to loop over
-    minY = int(np.ceil(np.min(edgeList[:, 1])))
-    maxY = int(np.floor(np.max(edgeList[:, 3])))
+    # Toggle points of each edge on every scanline it crosses
+    y0 = np.ceil(ay).astype(np.int64)
+    y1 = np.floor(by).astype(np.int64)
+    y1 = np.where(by == np.round(by), y1 - 1, y1)  # no toggle on the bottom scanline
+    k = np.maximum(y1 - y0 + 1, 0)
+    total = int(k.sum())
+    if total == 0:
+        return result
+    e = np.repeat(np.arange(len(k)), k)
+    y = y0[e] + (np.arange(total) - np.repeat(np.cumsum(k) - k, k))
+    invslope = (bx[e] - ax[e]) / (by[e] - ay[e])
+    t = ax[e] + invslope * (y.astype(float) - ay[e])
 
-    # Loop over the relevant lines in the image.
-    for y in range(minY, maxY + 1):
-        # Get the active edges that cover the current y value
-        indV = (edgeList[:, 1] <= y) & (edgeList[:, 3] >= y)
-        activeEdges = edgeList[indV, :]
+    # Snap to center if less than tolerance
+    t_round = np.round(t)
+    snap = np.abs(t_round - t) < 1e-6
+    t[snap] = t_round[snap]
 
-        # Create lists to store pixels to draw and intersections
-        drawlist = np.empty(0,dtype=int)
-        togglelist = np.empty(0,dtype=float)
+    # Sort toggles within each scanline and pair them up
+    order = np.lexsort((t, y))
+    t, y = t[order], y[order]
+    if np.any(np.unique(y, return_counts=True)[1] % 2):
+        raise IndexError("odd number of polygon crossings on a scanline")
+    x1 = np.ceil(t[0::2]).astype(np.int64)
+    x2 = np.floor(t[1::2]).astype(np.int64)
+    cols = y[0::2]
+    # Clip runs to the image
+    x1 = np.maximum(x1, 0)
+    x2 = np.minimum(x2, xSize - 1)
+    keep = (x1 <= x2) & (cols >= 0) & (cols < ySize)
+    x1, x2, cols = x1[keep], x2[keep], cols[keep]
+    if len(x1) == 0:
+        return result
 
-        # Iterate over the active edges
-        edgeCount = activeEdges.shape[0]
-        for edge in range(edgeCount):
-            p1x, p1y, p2x, p2y = activeEdges[edge, :]
-
-            # Check if it's a flat line
-            if p1y == p2y:
-                if p1x > p2x:
-                    drawlist = np.append(drawlist, np.arange(int(np.ceil(p2x)), int(np.floor(p1x)) + 1))
-                else:
-                    drawlist = np.append(drawlist, np.arange(int(np.ceil(p1x)), int(np.floor(p2x)) + 1))
-            elif p2y == y and p2x == round(p2x):
-                drawlist = np.append(drawlist,int(p2x))
-            elif p2y != y:
-                invslope = float(p2x - p1x) / float(p2y - p1y)
-                togglelist = np.append(togglelist, p1x + (invslope * (y - p1y)))
-
-        # Snap to center if less than tolerance
-        snap_tol = 1e-6
-        togglelistRound = np.round(togglelist)
-        ind_snap = np.abs(togglelistRound - togglelist) < snap_tol
-        togglelist[ind_snap] = togglelistRound[ind_snap]
-
-        # Sort the toggle points in order
-        togglelist.sort()
-
-        # Iterate over pairs in the toggle list and draw the pixels accordingly
-        for i in range(0, len(togglelist), 2):
-            x1, x2 = int(np.ceil(togglelist[i])), int(np.floor(togglelist[i + 1]))
-            result[x1:x2 + 1, y] = 1
-
-        # Turn on the pixels in the drawlist
-        result[drawlist, y] = 1
-
+    # Draw all runs at once with a difference array along rows
+    r0, r1, c0, c1 = int(x1.min()), int(x2.max()), int(cols.min()), int(cols.max())
+    runs = np.zeros((r1 - r0 + 2, c1 - c0 + 1), dtype=np.int32)
+    np.add.at(runs, (x1 - r0, cols - c0), 1)
+    np.add.at(runs, (x2 + 1 - r0, cols - c0), -1)
+    result[r0:r1 + 1, c0:c1 + 1][np.cumsum(runs, axis=0)[:-1] > 0] = 1
     return result
 
 # Example usage:
