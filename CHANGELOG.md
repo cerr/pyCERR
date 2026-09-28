@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-09-28
+
+### Changed
+
+- **Faster GLRLM and GLSZM.** `calcRLM` walks all runs of every grey level
+  together along flat-index strides, visiting each voxel once per direction
+  instead of once per level. `calcSZM` labels the zones of all levels in a
+  single `skimage.measure.label` pass, and `szmToScalarFeatures` drops empty
+  zone-size columns before building its temporaries. Both matrices are
+  identical to 2.2.2; about 10x faster on the IBSI 1 phantom.
+
 ## [2.2.2] - 2026-09-28
 
 ### Fixed
