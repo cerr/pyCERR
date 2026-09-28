@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **GLCM sum entropy dropped the p(x+y) = 2 term.** The emptiness check on the
+  indices of grey-level sum 2 used `np.any`, and the only cell with that sum
+  sits at index 0, so the term p(1,1)·log₂p(1,1) was left out whenever the
+  lowest grey level neighboured itself. Sum entropy was underestimated for
+  such structures. The same check in the difference-entropy loop is fixed too.
+- **NGTDM contrast skipped grey-level shifts.** The contrast double sum
+  skipped shift *k* whenever grey level *k* was empty, which dropped valid
+  pairs for any structure with empty grey levels (typically homogeneous
+  organs with fixed bin number).
+- **NGTDM level probabilities now follow IBSI.** `p` counted every voxel in
+  the structure but was normalised by the number of voxels with a valid
+  neighbourhood (N<sub>v,c</sub>), so it could sum to more than 1 in 2D/2.5D.
+  It now counts only voxels with at least one neighbour. All NGTDM features
+  can change slightly for 2D/2.5D calculations. With both NGTDM fixes, contrast
+  matches the IBSI 1 consensus values for configurations A, B and C.
+
+### Changed
+
+- **`polyFill` is vectorized**, 3-23x faster on typical contours, with
+  pixel-identical output (checked against the previous implementation in
+  `tests/test_poly_fill.py`). Contours extending past the image edge are now
+  clipped; previously they raised `IndexError` past the far edge and wrapped
+  around at negative indices.
+- **`importStructureMask` pads a uint8 mask** instead of an int64 copy,
+  cutting its memory use 8x. Output is unchanged.
+
 ## [2.2.1] - 2026-09-26
 
 ### Changed

@@ -178,7 +178,7 @@ def cooccurToScalarFeatures(cooccurM):
             px[n, col] = np.sum(cooccurM[indPxC[n], col])
             pXminusY[n, col] = np.sum(cooccurM[indCtrstC[n], col])
 
-            if np.any(indCtrstC[n]):
+            if len(indCtrstC[n]) > 0:
                 pXminusYlogPXminusY[n, col] = pXminusY[n, col] * np.log2(pXminusY[n, col] + np.finfo(float).eps)
             else:
                 pXminusYlogPXminusY[n, col] = 0
@@ -273,7 +273,7 @@ def cooccurToScalarFeatures(cooccurM):
             pXplusY[n - 1, off] = np.sum(cooccurM[indPxPlusYc[n - 1], off], axis=0)
 
             # Calculate p(x+y) log2(p(x+y))
-            if np.any(indPxPlusYc[n - 1]):
+            if len(indPxPlusYc[n - 1]) > 0:
                 pXplusYlogPXplusY[n - 1, off] = pXplusY[n - 1, off] * np.log2(pXplusY[n - 1, off] + np.finfo(float).eps)
             else:
                 pXplusYlogPXplusY[n - 1, off] = 0 #np.zeros(numCooccurs)

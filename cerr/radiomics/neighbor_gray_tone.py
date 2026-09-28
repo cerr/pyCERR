@@ -100,12 +100,10 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
             ind_lev_v = (vox_val_v == lev) & vox_mask_v.astype(bool)
             vals_v = q_m[ind_lev_v]
             s[lev - 1, :] += vals_v.sum().astype(s.dtype)
+            p[lev - 1] += ind_lev_v.sum()
 
-    # Calculate level probabilities (p)
-    numVoxels = np.sum(scan_array > 0)
-    for iLev in range(1, numGrLevels + 1):
-        scanLev3M = scan_array == iLev
-        p[iLev - 1] = np.sum(scanLev3M) / Nvc
+    # Level probabilities (p) over voxels with a valid neighbourhood (IBSI n_i / N_v,c)
+    p = p / Nvc
 
     return s, p, Nvc
 
@@ -127,8 +125,6 @@ def ngtdmToScalarFeatures(s, p, Nvc):
     term1 = 0
     term2 = 0
     for lev in range(1, numLevels + 1):
-        if p[lev-1] == 0:
-            continue
         term1 += np.sum(p * np.roll(p, lev) * (indV - np.roll(indV, lev))**2)
         term2 += s[lev - 1, 0]
     featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / Nvc
