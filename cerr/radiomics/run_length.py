@@ -27,74 +27,50 @@ def calcRLM(quantizedM, offsetsM, nL, rlmType=1):
 
     """
 
-    if rlmType != 1:
-        rlmOut = []
-
-    pad_width = [(1, 1)] * quantizedM.ndim
-    quantizedM = np.pad(quantizedM, pad_width, mode='constant', constant_values=0)
-
-    numRowsPad, numColsPad, numSlcsPad = 1, 1, 1
-    q = np.pad(quantizedM, ((numRowsPad, numRowsPad), (numColsPad, numColsPad), (numSlcsPad, numSlcsPad)),
-               mode='constant', constant_values=0)
+    # Zero-pad so every step from a ROI voxel lands inside the array. 0 marks
+    # voxels outside the ROI, so runs always end in the padding.
+    maxRunLen = int(np.ceil((np.max(quantizedM.shape) + 2) * 2))
+    pad = max(2, int(np.max(np.abs(offsetsM))) + 1)
+    q = np.pad(quantizedM, pad, mode='constant', constant_values=0)
     q[np.isnan(q)] = 0
     q = q.astype(np.uint16)
+    flatV = q.ravel()
+    stridesV = np.array(q.strides) // q.itemsize
+
+    # All ROI voxels (flat indices)
+    roiIndV = np.flatnonzero(flatV)
 
     numOffsets = offsetsM.shape[0]
-    maxRunLen = int(np.ceil(np.max(quantizedM.shape)*2))
-    #maxRunLen = 1000
-    #print('Max Run Length = ' + str(maxRunLen))
-
     rlmM = np.zeros((nL, maxRunLen))
-    if rlmType == 2:
-        rlmOut = [np.zeros((nL, maxRunLen)) for i in range(numOffsets)]
-
-    siz = np.array(q.shape)
-    rowV = np.arange(siz[0],dtype = np.uint16)[:,None]
-    colV = np.arange(siz[1],dtype = np.uint16)[None,:]
-
-    rowIndM = np.repeat(rowV,siz[1], axis = 1)[:,:,None]
-    colIndM = np.repeat(colV,siz[0], axis = 0)[:,:,None]
-    rowIndM = np.repeat(rowIndM, siz[2], axis = 2)
-    colIndM = np.repeat(colIndM, siz[2], axis = 2)
-    slcIndM = np.zeros(siz,dtype = np.uint16)
-    for slc in range(siz[2]):
-        slcIndM[:,:,slc] = slc
-
-
+    rlmOut = []
     for off in range(numOffsets):
         if rlmType == 2:
-            rlmM = rlmOut[off]
+            rlmM = np.zeros((nL, maxRunLen))
 
-        offset = offsetsM[off]
-        rolled_q = np.roll(q, offset, axis=(0, 1, 2))
-        for level in range(1, nL + 1):
-            #t = time.time()
-            prevM = (q == level).astype(int)
-            # diffM = prevM - np.roll(prevM, offset, axis=(0, 1, 2))
-            diffM = prevM - (rolled_q == level).astype(int)
-            startM = diffM == 1
-            #startIndV = np.where(startM)
-            #convergedV = np.full(len(startIndV[0]),False,dtype=bool)
-            rowStartV = rowIndM[startM]
-            colStartV = colIndM[startM]
-            slcStartV = slcIndM[startM]
-            startIndV = (rowStartV, colStartV, slcStartV)
-            stopM = diffM == -1
-            convergedV = np.full(len(rowStartV),False,dtype=bool)
-            count = 0
-            while not np.all(convergedV):
-                count += 1
-                nextIndV = startIndV + count * offset[:,None]
-                nextIndV[nextIndV < 0] = 0
-                nextIndV[nextIndV >= siz[:,None]] = 0 # assign 0 as it will have value of 0
-                newConvergedV = stopM[nextIndV[0,:],nextIndV[1,:],nextIndV[2,:]]
-                numConverged = (~convergedV[newConvergedV]).sum()
-                convergedV[newConvergedV] = True
-                rlmM[level - 1, count-1] += numConverged
+        # A step along this offset is a fixed stride in the flattened array
+        step = int(np.dot(offsetsM[off], stridesV))
+
+        # Run starts: ROI voxels whose predecessor along -offset has a different level
+        startIndV = roiIndV[flatV[roiIndV - step] != flatV[roiIndV]]
+        levelV = flatV[startIndV].astype(np.int64)
+
+        # Advance all open runs together, one step at a time. A run ends at the
+        # first voxel with a different level; count it and drop it from the active set.
+        # Each voxel is visited once per offset, independent of the number of levels.
+        curIndV = startIndV.copy()
+        lenV = np.ones(len(startIndV), dtype=np.int64)
+        activeV = np.arange(len(startIndV))
+        while activeV.size:
+            nextIndV = curIndV[activeV] + step
+            continuesV = flatV[nextIndV] == levelV[activeV]
+            endedV = activeV[~continuesV]
+            np.add.at(rlmM, (levelV[endedV] - 1, lenV[endedV] - 1), 1)
+            activeV = activeV[continuesV]
+            curIndV[activeV] = nextIndV[continuesV]
+            lenV[activeV] += 1
 
         if rlmType == 2:
-            #rlmOut.append(rlmM)
-            rlmOut[off] = rlmM
+            rlmOut.append(rlmM)
 
     if rlmType == 1:
         rlmOut = rlmM

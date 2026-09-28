@@ -3,7 +3,7 @@ This module contains routines for claculation of Size Zone texture features
 """
 
 import numpy as np
-from scipy.ndimage import label
+from skimage.measure import label
 
 def calcSZM(quantized3M, nL, szmType):
     """
@@ -24,33 +24,39 @@ def calcSZM(quantized3M, nL, szmType):
 
     """
 
-    if szmType == 1:
-        s = np.ones((3,3,3))
-    else:
-        s = np.ones((3,3))
+    # Zones are connected regions of equal grey level. skimage's label connects
+    # neighbours with EQUAL values, so one pass labels the zones of every level
+    # (connectivity 3 = 26-connected in 3D, 2 = 8-connected in 2D). 0 is outside the ROI.
+    q = np.nan_to_num(np.asarray(quantized3M, dtype=float), nan=0).astype(np.int32)
 
-    sizeV = quantized3M.shape
-    szmM = np.zeros((nL, quantized3M.size), dtype=int)
-    maxSiz = 0
-    for level in range(1, nL+1):
-        if szmType == 1:
-            connM, num_features = label(quantized3M == level, structure=s)
-        else:
-            connM = np.zeros(sizeV, dtype=int)
-            featOffset = 0
-            for slc in range(sizeV[2]):
-                connSlcM, num_features = label(quantized3M[:,:,slc] == level, structure=s)
-                indNoZero = connSlcM > 0
-                connSlcM[indNoZero] += featOffset
-                connM[:,:,slc] = connSlcM
-                featOffset += num_features
-        regionSizV = np.bincount(connM[connM > 0])
-        if len(regionSizV) > 0:
-            maxSiz = max(maxSiz, max(regionSizV))
-        counts = np.bincount(regionSizV)[1:]
-        szmM[level - 1, :len(counts)] = counts
-    szmM = szmM[:, :maxSiz]
+    if szmType == 1:
+        zoneSizeV, zoneLevelV = _zoneSizesAndLevels(q, connectivity=3)
+    else:
+        sizeL, levelL = [], []
+        for slc in range(q.shape[2]):
+            sizV, levV = _zoneSizesAndLevels(q[:, :, slc], connectivity=2)
+            sizeL.append(sizV)
+            levelL.append(levV)
+        zoneSizeV = np.concatenate(sizeL)
+        zoneLevelV = np.concatenate(levelL)
+
+    maxSiz = int(zoneSizeV.max()) if zoneSizeV.size else 0
+    szmM = np.zeros((nL, maxSiz), dtype=int)
+    np.add.at(szmM, (zoneLevelV - 1, zoneSizeV - 1), 1)
     return szmM
+
+
+def _zoneSizesAndLevels(q, connectivity):
+    """Size and grey level of every zone (connected region of equal non-zero level) in q."""
+    labelM = label(q, background=0, connectivity=connectivity)
+    labelV = labelM.ravel()
+    zoneSizeV = np.bincount(labelV)[1:]
+    # Grey level of each zone, read from any one of its voxels
+    roiIndV = np.flatnonzero(labelV)
+    voxelOfZoneV = np.zeros(zoneSizeV.size + 1, dtype=np.int64)
+    voxelOfZoneV[labelV[roiIndV]] = roiIndV
+    zoneLevelV = q.ravel()[voxelOfZoneV[1:]].astype(np.int64)
+    return zoneSizeV, zoneLevelV
 
 
 def szmToScalarFeatures(szmM, numVoxels):
@@ -72,8 +78,13 @@ def szmToScalarFeatures(szmM, numVoxels):
 
     featureS = {}
 
-    nL, maxLength = szmM.shape
-    lenV = np.arange(1, maxLength + 1, dtype = np.uint64)
+    # Keep only zone sizes that occur. Empty columns add nothing to any feature,
+    # and a single large zone would otherwise make every (nL x maxSize) temporary
+    # below hundreds of MB.
+    sizeIndV = np.flatnonzero(np.sum(szmM, axis=0))
+    szmM = szmM[:, sizeIndV]
+    nL = szmM.shape[0]
+    lenV = (sizeIndV + 1).astype(np.uint64)
     levV = np.arange(1, nL + 1, dtype = np.uint64)
     lenV = lenV[None,:]
     levV = levV[None,:]
