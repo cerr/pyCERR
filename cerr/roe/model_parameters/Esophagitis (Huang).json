@@ -14,7 +14,7 @@
 		},
 
 		"concurrentChemo": {
-					"weight": 1.5, "val": 0, "desc": {"No": 0, "Yes": 1}
+					"weight": 1.5, "val": null, "desc": {"No": 0, "Yes": 1}
 		},
 
 		"constant": {
