@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 
@@ -10,6 +11,14 @@ from cerr.dataclasses.structure import getMatchingIndex
 from cerr.dataclasses.dose import fractionNumCorrect, fractionSizeCorrect
 
 
+# Supported DVH-metric functions (for dynamic calculation)
+DVH_METRICS = {"meanDose": meanDose, "minDose": minDose, "maxDose": maxDose, "Dx": Dx, "Vx": Vx,
+               "gEUD": eud, "MOCx":MOCx, "MOHx":MOHx}
+
+
+# ============================================
+# Functional forms
+#==============================================
 def linearFn(paramDict, doseBinsV, volHistV):
     """
     Evaluate linear dosimetric model.
@@ -25,13 +34,17 @@ def linearFn(paramDict, doseBinsV, volHistV):
     # Get parameters
     intercept = paramDict['intercept']['val']
 
-    structDict = paramDict['structures']
-    structList = list(structDict.keys())
     sum = 0
-    for structName in structList:
-        dvhMetricFn = structDict[structName]['val']
-        slope = structDict[structName]['weight']
-        sum = sum + slope * eval(dvhMetricFn + "(doseBinsV, volHistV)")
+    # Loop over structures
+    for structName, metrics in paramDict['structures'].items():
+        for metricName, entry in metrics.items():
+            # Use pre-computed value if supplied
+            dvhMetric = entry.get('val')
+            # Otherwise, compute metrics using optional supplied parameters
+            if not isinstance(dvhMetric, (int, float)):
+                dvhMetric = DVH_METRICS[metricName](doseBinsV, volHistV, entry['params']) if 'params' in entry \
+                    else DVH_METRICS[metricName](doseBinsV, volHistV)
+            sum = sum + entry['weight'] * dvhMetric
 
     #Compute NTCP
     ntcp = intercept + sum
@@ -53,11 +66,13 @@ def LKBFn(paramDict, doseBinsV, volHistV):
 
     D50 = paramDict['D50']['val']
     m = paramDict['m']['val']
-    n = paramDict['n']['val']
 
     #Calc. EUD for selected struct/dose
-    equivDose = eud(doseBinsV, volHistV, 1/n)
-
+    (structName, metrics), = paramDict['structures'].items()
+    entry = metrics['gEUD']
+    metric = entry['val']
+    if not isinstance(metric, (int, float)):
+        equivDose = DVH_METRICS[metric](doseBinsV, volHistV, entry['params'])
     #Calc. NTCP
     tmpv = (equivDose - D50) / (m * D50)
     ntcp = 0.5 * (1 + erf(tmpv / np.sqrt(2)))
@@ -115,8 +130,9 @@ def logitFn(paramDict, doseBinList, volHistList):
                     volHistV = volHistList
 
                 if isinstance(predictorVal['val'], str):
+                    metric = predictorVal['val']
                     if 'params' not in predictorVal:
-                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
+                        paramList.append(DVH_METRICS[metric](doseBinsV, volHistV))
                     else:
                         # Pass extra parameters (e.g., numFractions, abRatio)
                         params = predictorVal['params']
@@ -125,7 +141,8 @@ def logitFn(paramDict, doseBinList, volHistList):
                         if 'abRatio' in paramDict:
                             params['abRatio'] = {'val': paramDict['abRatio']['val']}
 
-                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
+                        paramList.append(DVH_METRICS[metric](doseBinsV, volHistV, params))
+
 
         return weightList, paramList
 
@@ -181,9 +198,9 @@ def appeltLogit(paramDict, doseBinList, volHistList):
             if isinstance(parEntry['val'], (int, float)):
                 parList.append(parEntry['val'])
             else:
-                fnName = parEntry['val']
+                metric = parEntry['val']
                 if 'params' not in parEntry:
-                    parList.append(eval(fnName)(doseBinsV, volHistV))
+                    parList.append(DVH_METRICS[metric](doseBinsV, volHistV))
                 else:
                     # Copy number of fractions and abRatio
                     parParams = parEntry['params']
@@ -191,7 +208,8 @@ def appeltLogit(paramDict, doseBinList, volHistList):
                         parParams['numFractions'] = {'val': paramDict['numFractions']['val']}
                     if 'abRatio' in paramDict:
                         parParams['abRatio'] = {'val': paramDict['abRatio']['val']}
-                    parList.append(eval(fnName)(doseBinsV, volHistV, parParams))
+                    parList.append(DVH_METRICS[metric](doseBinsV, volHistV, parParams))
+
 
         return parList, coeffList
 
@@ -205,8 +223,8 @@ def appeltLogit(paramDict, doseBinList, volHistList):
             D50_0 = paramDict['D50_0']['val']
             gamma50_0 = paramDict['gamma50_0']['val']
 
-            orList, weightList = _getParCoeff(paramDict, 'OR', doseBinsV, volHistV)
-            orMult = [w for o, w in zip(orList, weightList) if o == 1]
+            weightList, orList = _getParCoeff(paramDict, 'OR', doseBinsV, volHistV)
+            orMult = [o for w, o in zip(weightList, orList) if w == 1]
             OR = np.prod(orMult)
 
             D50, gamma50 = _applyAppeltMod(D50_0, gamma50_0, OR)
@@ -214,7 +232,12 @@ def appeltLogit(paramDict, doseBinList, volHistList):
             D50 = paramDict['D50']['val']
             gamma50 = paramDict['gamma50']['val']
 
-    md = meanDose(doseBinsV, volHistV)
+    # Compute mean dose if not supplied
+    structName = next(iter(paramDict['structures']))
+    md = paramDict['structures'][structName]['meanDose'].get('val')
+    if not isinstance(md, (int, float)):
+        md = meanDose(doseBinsV, volHistV)
+
     ntcp = 1.0 / (1 + np.exp(4 * gamma50 * (1 - md / D50)))
 
     return ntcp
@@ -265,7 +288,7 @@ def coxFn(paramDict, doseBinList, volHistList):
             if isinstance(entry['val'], (int, float)):
                 par.append(entry['val'])
             else:
-                fnName = entry['val']
+                metric = entry['val']
                 if isinstance(doseBinList, list):
                     doseBinsV = doseBinList[numStr]
                     volHistV = volHistList[numStr]
@@ -275,14 +298,15 @@ def coxFn(paramDict, doseBinList, volHistList):
                     volHistV = volHistList
 
                 if 'params' not in entry:
-                    par.append(eval(fnName)(doseBinsV, volHistV))
+                    par.append(DVH_METRICS[metric](doseBinsV, volHistV))
                 else:
                     entryParams = entry['params']
                     if 'numFractions' in paramDict:
                         entryParams['numFractions'] = {'val': paramDict['numFractions']['val']}
                     if 'abRatio' in paramDict:
                         entryParams['abRatio'] = {'val': paramDict['abRatio']['val']}
-                    par.append(eval(fnName)(doseBinsV, volHistV, entryParams))
+                    par.append(DVH_METRICS[metric](doseBinsV, volHistV, entryParams))
+
 
         return coeff, par, paramList
 
@@ -357,8 +381,9 @@ def biexpFn(paramDict, doseBinList, volHistList):
                     volHistV = volHistList
 
                 if isinstance(predictorVal['val'], str):
+                    metric = predictorVal['val']
                     if 'params' not in predictorVal:
-                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV))
+                        paramList.append(DVH_METRICS[metric](doseBinsV, volHistV))
                     else:
                         # Pass extra parameters (e.g., numFractions, abRatio)
                         params = predictorVal['params']
@@ -367,7 +392,8 @@ def biexpFn(paramDict, doseBinList, volHistList):
                         if 'abRatio' in paramDict:
                             params['abRatio'] = {'val': paramDict['abRatio']['val']}
 
-                        paramList.append(eval(predictorVal['val'])(doseBinsV, volHistV, params))
+                        paramList.append(DVH_METRICS[metric](doseBinsV, volHistV, params))
+
 
         return weightList, paramList
 
@@ -773,7 +799,9 @@ def lungTCP(paramDict, doseBinsV, volHistV):
 
     return TCP
 
-
+#===========================================
+# Helper functions
+#===========================================
 def getTreatmentSchedule(nFrx, scheduleType):
     """Return RT treatment days for a given no. of fractions and schedule type.
     Args:
@@ -818,7 +846,66 @@ def getTreatmentSchedule(nFrx, scheduleType):
     return treatmentDays
 
 
-def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
+def getModelDir():
+    """Get path to ROE directory with model parameters.
+    Returns:
+        modelPath (pathlib.Path): Path to ROE directory with model parameters.
+"""
+    modelPath = importlib.resources.files("cerr.roe") / "model_parameters"
+    return modelPath
+
+
+def listModels():
+    """
+    List all available dosimetric models.
+
+    Returns:
+        List of model names.
+    """
+    return sorted(p.stem for p in getModelDir().glob("*.json"))
+
+
+def mapModelToFile(modelName):
+    """
+    Accept a model name and return path to JSON parameter file.
+
+    Args:
+        modelName (str) : Name of dosimetric model.
+    Returns:
+        str : Path to JSON parameter file.
+    """
+
+    # Treat as a model name
+    candidates = list(getModelDir().glob(f"{modelName}.json"))
+    if not candidates:
+        available = listModels()
+        raise ValueError(
+            f"Unknown model name {modelName!r}. "
+            f"Built-in models available:\n  " + "\n  ".join(available)
+        )
+    return str(candidates[0])
+
+#=================================================
+# Run models
+#=================================================
+
+def checkMissingPredictors(paramDict):
+    """Raise if any predictor has no value (val is None)."""
+    missing = []
+    for name, entry in paramDict.items():
+        if name.lower() == 'structures':
+            if isinstance(entry, dict):
+                for structName, structParams in entry.items():
+                    for parName, parEntry in structParams.items():
+                        if isinstance(parEntry, dict) and 'val' in parEntry and parEntry['val'] is None:
+                            missing.append(f"{structName} {parName}")
+        elif isinstance(entry, dict) and 'val' in entry and entry['val'] is None:
+            missing.append(name)
+    if missing:
+        raise ValueError("No value supplied for predictor(s): " + ", ".join(missing))
+
+
+def getCorrectedDVbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
     """
     Returns corrected dose bins and associated vol. histograms for structures involved.
     Args:
@@ -910,46 +997,6 @@ def get_corrected_dvbins(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, b
     return doseBinList, volHistList, model
 
 
-def getModelDir():
-    """Get path to ROE directory with model parameters.
-    Returns:
-        modelPath (pathlib.Path): Path to ROE directory with model parameters.
-"""
-    modelPath = importlib.resources.files("cerr.roe") / "model_parameters"
-    return modelPath
-
-
-def listModels():
-    """
-    List all available dosimetric models.
-
-    Returns:
-        List of model names.
-    """
-    return sorted(p.stem for p in getModelDir().glob("*.json"))
-
-
-def mapModelToFile(modelName):
-    """
-    Accept a model name and return path to JSON parameter file.
-
-    Args:
-        modelName (str) : Name of dosimetric model.
-    Returns:
-        str : Path to JSON parameter file.
-    """
-
-    # Treat as a model name
-    candidates = list(getModelDir().glob(f"{modelName}.json"))
-    if not candidates:
-        available = listModels()
-        raise ValueError(
-            f"Unknown model name {modelName!r}. "
-            f"Built-in models available:\n  " + "\n  ".join(available)
-        )
-    return str(candidates[0])
-
-
 def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mode=None):
     """Evaluate a dosimetric model, including fractionation correction where applicable.
 
@@ -967,11 +1014,21 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
         Model-based NTCP.
     """
 
+    # Read model parameters
     if isinstance(modelFile, str) and '.json' not in modelFile:
         modelFile = mapModelToFile(modelFile)
 
+    if isinstance(modelFile, dict):
+        model = copy.deepcopy(modelFile)
+    else:
+        with open(modelFile, 'r') as f:
+            model = json.load(f)
+
+    # Check for missing inputs
+    checkMissingPredictors(model['parameters'])
+
     # Get corrected dose bins and associated volumes for structures involved
-    doseBinList, volHistList, model = get_corrected_dvbins(modelFile, doseNum, planC,
+    doseBinList, volHistList, model = getCorrectedDVbins(model, doseNum, planC,
                                                            fSizeIn=fSizeIn, fNumIn=fNumIn,
                                                            binWidth=binWidth, mode=mode)
 
@@ -979,5 +1036,49 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
     modelFn = model['function']
     paramDict = model['parameters']
     ntcp = eval(modelFn)(paramDict, doseBinList, volHistList)
+
+    return ntcp
+
+
+def runFromPredictors(modelFile, predictors):
+    """Evaluate a dosimetric model from precomputed predictor values.
+
+    Args:
+        modelFile (str or dict): model name, JSON path, or parameter dict.
+        predictors (dict): {predictorName: value}.
+            Dose metrics are named "<structure> <metric>" (e.g. "Esophagus meanDose") and must already be
+            fractionation-corrected if the model requires it.
+            Patient predictors use their parameter name (e.g. "concurrentChemo").
+
+    Returns:
+        Model-based NTCP.
+    """
+    if isinstance(modelFile, str) and '.json' not in modelFile:
+        modelFile = mapModelToFile(modelFile)
+    if isinstance(modelFile, dict):
+        model = copy.deepcopy(modelFile)
+    else:
+        with open(modelFile, 'r') as f:
+            model = json.load(f)
+
+    # List of expected predictors (DVH metrics and patient clinical factors)
+    paramDict = model['parameters']
+    expected = {}
+    for structName, structParams in paramDict['structures'].items():
+        for paramName, paramVal in structParams.items():
+            expected[f"{structName} {paramName}"] = paramVal
+    for name, entry in paramDict.items():
+        if name != 'structures' and isinstance(entry, dict) and 'val' in entry and entry['val'] is None:
+            expected[name] = entry
+
+    # Identify missing predictors if any
+    missing = sorted(set(expected) - set(predictors))
+    if missing:
+        raise ValueError(f"Missing predictor(s): {missing}.")
+
+    # Calc. NTCP
+    for name, entry in expected.items():
+        entry['val'] = float(predictors[name])
+    ntcp = eval(model['function'])(paramDict, None, None)
 
     return ntcp

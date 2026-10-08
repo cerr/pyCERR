@@ -13,15 +13,15 @@
 		                        }
         },
 		"gender": {
-					"weight": 1.204, "val": 0, "desc": {"Male": 0, "Female": 1}
+					"weight": 1.204, "val": null, "desc": {"Male": 0, "Female": 1}
                   },
 
 		"concurrentChemo": {
-					"weight": 2.645, "val": 0, "desc": {"No": 0, "Yes": 1}
+					"weight": 2.645, "val": null, "desc": {"No": 0, "Yes": 1}
                   },
 
 		"tumorStage": {
-					"weight": 0.994, "val": 0, "desc": {"cT1/2": 0, "cT3/4":  1}
+					"weight": 0.994, "val": null, "desc": {"cT1/2": 0, "cT3/4":  1}
 			      },
 
         "constant": {
