@@ -82,11 +82,10 @@ def create_test_dose(model, testDose, testParams, planNum, scanNum, planC):
     return modelCpy, testPlanC
 
 
-def test_config(model, testDoses, testFrx, testParams, testType, refVals):
+def run_config(model, testDoses, testFrx, testParams, testType, refVals):
     #testFrxType: fNUmIn, fSizeIn
     #testType: ntpc, fraction_correct
 
-    global planC
     origScanNum = 0
     origPlanIdx = 0
     tol = 4 #Compare to 4 decimal places
@@ -147,7 +146,7 @@ def test_fc1():
                   {"structures": "testStr1", "concurrentChemo": {"val": 1}}]
 
     refVals = [32.0023, 15.3618]
-    test_config(model, testDoses, nFrx, testParams, testType, refVals)
+    run_config(model, testDoses, nFrx, testParams, testType, refVals)
 
 
 def test_fc2():
@@ -162,7 +161,7 @@ def test_fc2():
     testParams = [{"structures": "testStr1"}]
 
     refVals = [70]
-    test_config(model, testDoses, fSize, testParams, testType, refVals)
+    run_config(model, testDoses, fSize, testParams, testType, refVals)
 
 
 def test_appelt_pneumonitis_model():
@@ -183,7 +182,7 @@ def test_appelt_pneumonitis_model():
 
     refVals = [0.5, 0.5, 0.5]
     print('\nTesting the Appelt pneumonitis model...')
-    test_config(model, testDoses, nFrx, testParams, testType, refVals)
+    run_config(model, testDoses, nFrx, testParams, testType, refVals)
 
 
 def test_huang_model():
@@ -199,7 +198,7 @@ def test_huang_model():
 
     refVals = [0.63916, 0.36051]
     print('\nTesting the Huang eshophagitis model...')
-    test_config(model, testDoses, nFrx, testParams, testType, refVals)
+    run_config(model, testDoses, nFrx, testParams, testType, refVals)
     
 
 def test_wijsman_esophagitis_model():
@@ -217,7 +216,7 @@ def test_wijsman_esophagitis_model():
 
     refVals = [0.5, 0.5, 0.5, 0.05]
     print('\nTesting the Wijsman esophagitis model...')
-    test_config(model, testDoses, fSize, testParams, testType, refVals)
+    run_config(model, testDoses, fSize, testParams, testType, refVals)
 
 
 def test_jackson_esophagitis_logistic_model():
@@ -233,7 +232,7 @@ def test_jackson_esophagitis_logistic_model():
 
     refVals = [0.5]
     print('\nTesting the Jackson esophagitis model (logistic)...')
-    test_config(model, testDoses, fSize, testParams, testType, refVals)
+    run_config(model, testDoses, fSize, testParams, testType, refVals)
 
 
 def test_jackson_esophagitis_cox_model():
@@ -249,7 +248,7 @@ def test_jackson_esophagitis_cox_model():
 
     refVals = [0.5]
     print('\nTesting the Jackson esophagitis model (cox)...')
-    test_config(model, testDoses, fSize, testParams, testType, refVals)
+    run_config(model, testDoses, fSize, testParams, testType, refVals)
 
 
 def test_bronchial_stenosis_logistic_model():
@@ -263,7 +262,7 @@ def test_bronchial_stenosis_logistic_model():
 
     refVals = [0.5]
     print('\nTesting the bronchial stenosis model (logistic)...')
-    test_config(model, testDoses, [], testParams, testType, refVals)
+    run_config(model, testDoses, [], testParams, testType, refVals)
 
 
 def test_bronchial_stenosis_cox_model():
@@ -277,7 +276,7 @@ def test_bronchial_stenosis_cox_model():
     
     refVals = [0.5]
     print('\nTesting the bronchial stenosis model (cox)...')
-    test_config(model, testDoses, [], testParams, testType, refVals)
+    run_config(model, testDoses, [], testParams, testType, refVals)
 
 
 def test_rectal_bleeding_model():
@@ -292,7 +291,7 @@ def test_rectal_bleeding_model():
 
     refVals = [0.24503]
     print('\nTesting the rectal bleeding model...')
-    test_config(model, testDoses, fSize, testParams, testType, refVals)
+    run_config(model, testDoses, fSize, testParams, testType, refVals)
 
 
 def test_fractionation_correction():
