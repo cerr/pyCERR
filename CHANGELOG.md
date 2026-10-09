@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`parseDcmHeader` read PatientName into the PatientID column.** The tag list
+  had Patient's Name (0010,0010) twice, so `loadDcmDir` never used Patient ID
+  (0010,0020) when grouping files into scans. Files that share a patient name
+  but have different patient IDs are now kept apart by ID as well as by their
+  study and series UIDs.
+
 ## [2.2.3] - 2026-09-28
 
 ### Changed

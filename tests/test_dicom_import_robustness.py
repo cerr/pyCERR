@@ -1,13 +1,15 @@
 """Regression tests for DICOM import robustness (cerr.plan_container.loadDcmDir).
 
-Covers three fixes:
+Covers four fixes:
 
 * **single-slice scans** load without the "index 1 is out of bounds" crash and
   get finite coordinate transforms (spacing derived from the slice thickness);
 * **duplicate objects are skipped** on re-import (by stable DICOM UID), with a
   warning, instead of corrupting associations;
 * importing a **list of files** brings in only those files (e.g. a single
-  RTSTRUCT) rather than their whole folder.
+  RTSTRUCT) rather than their whole folder;
+* the header table's **PatientID column holds PatientID** (0010,0020), not a
+  second copy of PatientName.
 
 Uses the bundled radiomics phantom (CT + RTSTRUCT); no network.
 """
@@ -91,5 +93,22 @@ def test_import_only_listed_files_no_extra_scans():
         planC = pc.loadDcmDir(rtFiles, initplanC=planC)
         assert len(planC.scan) == nScan
         assert len(planC.structure) > nStruct
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_parse_header_reads_patient_id():
+    scanFiles, _ = _classify()
+    tmp = tempfile.mkdtemp()
+    try:
+        # the phantom's PatientName and PatientID are the same string, so
+        # rewrite one slice with values that differ
+        ds = pydicom.dcmread(scanFiles[0])
+        ds.PatientName = 'Doe^Jane'
+        ds.PatientID = 'MRN-0042'
+        ds.save_as(os.path.join(tmp, 'slice.dcm'))
+        df = pc.parseDcmHeader([os.path.join(tmp, 'slice.dcm')])
+        assert df.loc[0, 'PatientName'] == 'Doe^Jane'
+        assert df.loc[0, 'PatientID'] == 'MRN-0042'
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
