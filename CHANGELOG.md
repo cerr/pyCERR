@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Outcome models can be evaluated from pre-computed predictors.**
+  `cerr.roe.dosimetric_models.runFromPredictors(modelFile, predictors)` takes
+  a model name, JSON path or parameter dict plus a `{name: value}` dict and
+  returns the model output without a `planC`. Dose metrics are named
+  `"<structure> <metric>"` (e.g. `"Esophagus meanDose"`) and must already be
+  fractionation-corrected if the model requires it; patient predictors use
+  their parameter name (e.g. `"concurrentChemo"`). In a model file, a numeric
+  `val` on a dose metric is likewise used as given instead of being computed
+  from the DVH.
+
 ### Fixed
 
 - **`parseDcmHeader` read PatientName into the PatientID column.** The tag list
@@ -19,12 +31,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   because the import did not store the image orientation and position. They
   are now set on import, and the dose round-trips with the same values and
   grid.
+- **"Bronchial toxicity (Grade 5)" skipped its fraction-size correction.** The
+  model file spelled `correctionType` as `"fsize"`, which was not recognised,
+  so the model was evaluated on the uncorrected dose. It is now `"frxSize"`
+  and the correction to 2 Gy fractions (alpha/beta = 3) is applied. Results
+  for this model change whenever the input fraction size is not 2 Gy.
 - **The `loadNiiScan` docstring gave `'HFS'` as an example `direction`.** The
   value is a 3-letter orientation code such as `'LPS'` or `'RAS'`; a patient
   position like `'HFS'` raises an error. Documentation only.
 
 ### Changed
 
+- **Outcome models no longer assume a value for clinical predictors.** In the
+  built-in model files, patient predictors that defaulted to `0` ("No",
+  "Male", ...) are now unset, and `dosimetric_models.run` raises
+  `ValueError: No value supplied for predictor(s): ...` until they are
+  provided. Set `model['parameters'][name]['val']` on the parameter dict
+  before calling `run`, or pass the values to `runFromPredictors`. Affected
+  models: Esophagitis (Huang), Esophagitis (Wijsman), Pneumonitis (Appelt)
+  and Xerostomia (grade 2+).
+- **`dosimetric_models.get_corrected_dvbins` is renamed `getCorrectedDVbins`.**
+  The old name is removed; update any code that calls it.
+- **Model parameter files list dose metrics per structure.**
+  `parameters.structures` is now a dict of
+  `{structure: {metric: {"val": ..., "weight": ..., "params": ...}}}` in every
+  built-in model, including the two that used a bare structure name
+  (Pneumonitis (Appelt) and Rectal bleeding (grade 2+)). For the LKB model
+  (Rectal bleeding), the volume parameter `n` moves from the top level into
+  the `gEUD` metric's `params`. Custom model files in the old layout need the
+  same change.
+- **Dose metrics in model files are looked up by name, not evaluated as
+  code.** A metric must be one of `meanDose`, `minDose`, `maxDose`, `Dx`,
+  `Vx`, `gEUD`, `MOHx` or `MOCx`. `dosimetric_models.run` also works on a copy
+  of a parameter dict passed to it, so the caller's dict is not modified.
+- **Outcome-model tests are reorganised.** `tests/test_roe_models.py` is
+  replaced by `tests/test_dosimetric_models.py`.
 - **`loadDcmDir` raises `FileNotFoundError` for a path that does not exist.**
   It used to return an empty `PlanC`, so a mistyped path surfaced later as an
   unrelated `IndexError`. An existing directory with no DICOM files still
