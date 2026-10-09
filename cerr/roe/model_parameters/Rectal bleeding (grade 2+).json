@@ -8,10 +8,12 @@
 	"abRatio": 3,
 	"parameters": {
 
-		"structures": "Rectum",
+		"structures": {
+          "Rectum": {"gEUD": {"val": "gEUD", "params":{"n": {"val": 0.09}}}}
+        },
 		"D50": {"val": 76.9},
-		"m": {"val": 0.13},
-		"n": {"val": 0.09}
+		"m": {"val": 0.13}
+
 
 	},
 	"function": "LKBFn",

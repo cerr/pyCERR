@@ -3,7 +3,7 @@
 	"type": "NTCP",
     	"stdFractionSize": 2,
 	"fractionCorrect": "Yes",
-	"correctionType": "frxsize",
+	"correctionType": "frxSize",
 	"abRatio": 3,
   	"parameters": 
         	     {

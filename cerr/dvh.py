@@ -411,9 +411,11 @@ def eud(doseBinsV, volsHistV, exponent):
         Float: EUD
 
     """
-    cumVolsV = np.cumsum(volsHistV)
-    cumVols2V = cumVolsV[-1] - cumVolsV
-    ind = np.max(np.where(volsHistV != 0)[0])
+    if isinstance(exponent, dict):  # for use with ROE
+        exponent = 1 / exponent['n']['val']
+
+    doseBinsV = np.atleast_1d(np.asarray(doseBinsV, dtype=float))
+    volsHistV = np.atleast_1d(np.asarray(volsHistV, dtype=float))
     totalVolume = np.sum(volsHistV)
     a = exponent + EPS
 

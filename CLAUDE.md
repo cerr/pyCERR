@@ -10,9 +10,9 @@ pyCERR (Python-based Computational Environment for Radiological Research) is a m
 
 ### Installation
 ```bash
-conda create -y --name pycerr python=3.11
-conda activate pycerr
-pip install -e ".[napari]"
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e ".[viewer,napari]" pytest flake8
 ```
 
 ### Running Tests

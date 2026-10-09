@@ -7,46 +7,48 @@
 	"abRatio": 3,
 	"parameters": {
 
-   			"structures": "Lung_GTV",
+   			"structures": {
+              "Lung_GTV": {"meanDose": {"val": "meanDose"}}
+            },   
 	
 			"appeltMod": {"val": "Yes"},
 			
-                        "D50_0": {"val": 34.4},
+            "D50_0": {"val": 34.4},
 
-                        "gamma50_0": {"val": 1.19},
+            "gamma50_0": {"val": 1.19},
 
 			"formerSmoker": {
-					  "val": 0,
+					  "val": null,
 					  "OR": 0.69,
 					  "desc": {"No": 0, "Yes": 1}
 					},
 	
 			"currentSmoker": {
- 					  "val": 0,	                  
+ 					  "val": null,
 					  "OR": 0.62,
 					  "desc": {"No": 0, "Yes": 1}			  	
 					 },
 				
 			"over63yrs": {
-					"val": 0,			
+					"val": null,
 					"OR": 1.66,
 					"desc": {"No": 0, "Yes": 1}				     	 
 				     },
                        	
 			"pulmonaryComorbidity": {
-						  "val": 0,
+						  "val": null,
 						  "OR": 2.27,
 					  	  "desc": {"No":0 ,"Yes":1}	
 						},
 
 			"sequentialChemo": {
-					    "val": 0,
+					    "val": null,
 					    "OR": 1.60,
 					    "desc": {"No":0, "Yes":1}	
 					   },
  
 			"lowerMidLobe": {
-					  "val": 0,
+					  "val": null,
 					  "OR": 1.87,
 					  "desc": {"No":0, "Yes":1}	
 					}
