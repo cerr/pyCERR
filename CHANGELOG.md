@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so the model was evaluated on the uncorrected dose. It is now `"frxSize"`
   and the correction to 2 Gy fractions (alpha/beta = 3) is applied. Results
   for this model change whenever the input fraction size is not 2 Gy.
+- **`cerr.roe` could not be imported without the `viewer` extra.** The package
+  loaded the ROE GUI on import, so `from cerr.roe import dosimetric_models`
+  failed with `No module named 'PyQt5'` on a base install (since 2.2.1, when
+  PyQt5 became optional). The GUI is now loaded only by `cerr.roe.launch()`.
+- **`cerr.ai_models` could not be imported on a base install.** It reads the
+  models' `run_spec.yaml` with PyYAML, which was not a declared dependency and
+  was present only when another package pulled it in. `pyyaml` is now a core
+  dependency.
 - **The `loadNiiScan` docstring gave `'HFS'` as an example `direction`.** The
   value is a 3-letter orientation code such as `'LPS'` or `'RAS'`; a patient
   position like `'HFS'` raises an error. Documentation only.

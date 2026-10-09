@@ -61,3 +61,21 @@ def test_viewer_getattr_defers_submodules():
     for sub in ('pycerr_napari', 'pycerr_gui', 'pycerr_nbviewer', 'cerr_colormaps'):
         with pytest.raises(AttributeError):
             viewer.__getattr__(sub)
+
+
+def test_import_roe_without_gui():
+    """cerr.roe must import without Qt: the GUI is loaded only by launch()."""
+    import subprocess, sys
+    code = ("import sys\n"
+            "sys.modules['PyQt5'] = None      # make 'import PyQt5' fail\n"
+            "import cerr.roe\n"
+            "from cerr.roe import dosimetric_models\n"
+            "assert callable(cerr.roe.launch)\n"
+            "assert 'cerr.roe.roe_gui' not in sys.modules\n")
+    res = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+
+
+def test_import_ai_models():
+    # needs only base dependencies (PyYAML for the model run specifications)
+    importlib.import_module('cerr.ai_models')
