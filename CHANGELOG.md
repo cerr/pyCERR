@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`saveToH5` failed for structures with more than one contour on a slice.**
+  Rings (an outer and an inner contour) and multi-part structures raised
+  `ValueError: Unable to ... create group (name already exists)`, because the
+  `segments` group was created once per contour instead of once per slice.
+  Such structures now save and reload with identical masks. Files written
+  for single-contour structures are unchanged, and existing HDF5 files load
+  as before.
+
 ## [2.3.0] - 2026-10-09
 
 ### Added
