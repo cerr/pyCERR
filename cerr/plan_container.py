@@ -384,10 +384,12 @@ def saveH5Structure(structGrp, structNumV, planC):
                 keys.remove('segments')
                 for key in keys:
                     ctrItem = addToH5Grp(ctrItem,ctr,key)
-                # Add segments
+                # Add segments: one 'segments' group per slice holding every
+                # contour on that slice (rings and multi-part structures
+                # have more than one)
+                segGrp = ctrItem.create_group('segments')
                 segCount = 0
                 for seg in ctr['segments']:
-                    segGrp = ctrItem.create_group('segments')
                     segItemName = 'Item_' + str(segCount)
                     segItem = segGrp.create_group(segItemName)
                     segCount += 1
