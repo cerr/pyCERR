@@ -48,6 +48,8 @@ dependencies = [
     # that dominate its Gauss-Newton CG matvec. ~90x on the derivative operator
     # versus the vectorized numpy form.
     'numba',
+    # Model run specifications (run_spec.yaml) read by cerr.ai_models.
+    'pyyaml',
 ]
 
 [project.urls]

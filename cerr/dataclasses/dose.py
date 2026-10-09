@@ -627,6 +627,10 @@ def importNii(file_list, assocScanNum, planC):
         dose_meta = Dose()
 
         dose_meta.Image2PhysicalTransM = position_matrix_dose
+        # Needed by getSitkImage / saveNii; same form as the DICOM import
+        # (6x1 direction cosines, position in mm)
+        dose_meta.imageOrientationPatient = dcmImgOri.reshape(6, 1)
+        dose_meta.imagePositionPatient = ipp * 10
 
         dose_meta.verticalGridInterval = -pixelSpacing[0]
         dose_meta.horizontalGridInterval = pixelSpacing[1]
