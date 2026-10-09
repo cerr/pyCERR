@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0010,0020) when grouping files into scans. Files that share a patient name
   but have different patient IDs are now kept apart by ID as well as by their
   study and series UIDs.
+- **A dose imported from NIfTI could not be exported.** `Dose.saveNii` (and
+  `getSitkImage`) raised `IndexError` for a dose loaded with `loadNiiDose`,
+  because the import did not store the image orientation and position. They
+  are now set on import, and the dose round-trips with the same values and
+  grid.
+- **The `loadNiiScan` docstring gave `'HFS'` as an example `direction`.** The
+  value is a 3-letter orientation code such as `'LPS'` or `'RAS'`; a patient
+  position like `'HFS'` raises an error. Documentation only.
+
+### Changed
+
+- **`loadDcmDir` raises `FileNotFoundError` for a path that does not exist.**
+  It used to return an empty `PlanC`, so a mistyped path surfaced later as an
+  unrelated `IndexError`. An existing directory with no DICOM files still
+  returns an empty `PlanC`. A single file path containing spaces is now
+  accepted as one file instead of being split on the spaces.
 
 ## [2.2.3] - 2026-09-28
 

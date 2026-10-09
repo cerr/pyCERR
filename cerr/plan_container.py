@@ -615,7 +615,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     """This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
 
     Args:
-        dcmDir (str): absolute path to directory containing dicom files
+        dcmDir (str or list): absolute path to a directory containing dicom files, or a list of
+                     directories and/or files. Raises FileNotFoundError if a path does not exist.
         opts (dict): dictionary of import options. Currently supported options are:
 
                      * 'suvType': Choose from 'BW' (default), 'BSA', 'LBM',
@@ -644,12 +645,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     # Split string into list of directories
     if isinstance(dcmDir, (str)):
-        if os.path.isdir(dcmDir):
+        if os.path.isdir(dcmDir) or os.path.isfile(dcmDir):
             dcmDir = [dcmDir]
         else:
             dcmDir = dcmDir.split()
 
     fileList = []
+    missingList = []
     if isinstance(dcmDir, (list, np.ndarray)):
         for i,itemInList in enumerate(dcmDir):
             if os.path.isdir(itemInList):
@@ -658,6 +660,10 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
                         fileList.append(os.path.join(root, file))
             elif os.path.isfile(itemInList):
                 fileList.append(itemInList)
+            else:
+                missingList.append(str(itemInList))
+    if missingList:
+        raise FileNotFoundError("DICOM path(s) not found: " + ", ".join(missingList))
 
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
@@ -900,7 +906,9 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
     Args:
         nii_file_name (str): path of NifTi file containing the scan
         imageType (str): typte of scan. e.g. 'CT SCAN', 'MR SCAN', 'PT SCAN'
-        direction (str): optional, the desired orientation of scan. e.g. HFS
+        direction (str): optional, the desired orientation of scan as a 3-letter DICOM
+                         orientation code passed to SimpleITK's DICOMOrient, e.g. 'LPS', 'RAS'.
+                         Patient positions such as 'HFS' are not valid.
         initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
 
     Returns:

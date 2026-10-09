@@ -1,6 +1,6 @@
 """Regression tests for DICOM import robustness (cerr.plan_container.loadDcmDir).
 
-Covers four fixes:
+Covers five fixes:
 
 * **single-slice scans** load without the "index 1 is out of bounds" crash and
   get finite coordinate transforms (spacing derived from the slice thickness);
@@ -9,7 +9,9 @@ Covers four fixes:
 * importing a **list of files** brings in only those files (e.g. a single
   RTSTRUCT) rather than their whole folder;
 * the header table's **PatientID column holds PatientID** (0010,0020), not a
-  second copy of PatientName.
+  second copy of PatientName;
+* a **path that does not exist raises** FileNotFoundError instead of returning
+  an empty PlanC.
 
 Uses the bundled radiomics phantom (CT + RTSTRUCT); no network.
 """
@@ -110,5 +112,22 @@ def test_parse_header_reads_patient_id():
         df = pc.parseDcmHeader([os.path.join(tmp, 'slice.dcm')])
         assert df.loc[0, 'PatientName'] == 'Doe^Jane'
         assert df.loc[0, 'PatientID'] == 'MRN-0042'
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_missing_path_raises():
+    import pytest
+    missing = os.path.join(tempfile.gettempdir(), 'pycerr_no_such_dicom_dir')
+    assert not os.path.exists(missing)
+    with pytest.raises(FileNotFoundError, match='pycerr_no_such_dicom_dir'):
+        pc.loadDcmDir(missing)
+    # one bad entry in a list is reported too
+    with pytest.raises(FileNotFoundError, match='pycerr_no_such_dicom_dir'):
+        pc.loadDcmDir([phantom_dir, missing])
+    # an existing but empty directory is not an error
+    tmp = tempfile.mkdtemp()
+    try:
+        assert len(pc.loadDcmDir(tmp).scan) == 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
