@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in agreement with `Dx(doseBinsV, volsHistV, 50, 1)`. Values returned by
   `medianDose` change for any non-symmetric DVH.
 
+- **The `importDoseArray` docstring named a `doseInfo` key that is ignored.**
+  It said the dictionary takes `'units'`; keys are `Dose` attribute names, so
+  the one that sets the dose units is `'doseUnits'`. The docstring also said
+  the function returns a planC with a scan imported; it imports a dose.
+  Documentation only.
+
 ### Changed
 
 - **`saveToH5` writes the whole `planC` by default.** Called without index

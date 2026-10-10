@@ -1458,10 +1458,11 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
         zV (numpy.ndarray): z-coordinates of dose grid
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         assocScanNum (int): Index of scan associated with dose
-        doseInfo [Optional (dict), default:None]: Dictionary specifying 'fractionGroupID', and 'units'.
+        doseInfo [Optional (dict), default:None]: Dictionary of attributes of cerr.dataclasses.dose.Dose
+            to set on the new dose, e.g. {'fractionGroupID': 'Plan A', 'doseUnits': 'GY'}.
 
     Returns:
-        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+        cerr.plan_container.PlanC: pyCERR's plan container object with dose imported to planC.dose
 
     """
 
