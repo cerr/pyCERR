@@ -73,6 +73,9 @@ def LKBFn(paramDict, doseBinsV, volHistV):
     metric = entry['val']
     if not isinstance(metric, (int, float)):
         equivDose = DVH_METRICS[metric](doseBinsV, volHistV, entry['params'])
+    else:
+        # Pre-computed gEUD supplied (e.g. via runFromPredictors)
+        equivDose = metric
     #Calc. NTCP
     tmpv = (equivDose - D50) / (m * D50)
     ntcp = 0.5 * (1 + erf(tmpv / np.sqrt(2)))

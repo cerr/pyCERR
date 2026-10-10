@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-10-09
+
+### Fixed
+
+- **Shape features were wrong with in-plane resampling and a non-zero
+  `resolutionZCm`.** With `inPlane: "yes"` only x and y are resampled, but the
+  output grid was still built from `resolutionZCm`. When that differed from
+  the slice spacing, the structure was squashed (or stretched) along z:
+  `shape_volume`, `shape_filledVolume` and `firstOrder_totalEnergy` were off
+  by the ratio of the two spacings, and the axis lengths, surface area,
+  3D / sagittal / coronal diameters, sphericity, compactness, flatness and
+  elongation were wrong as well. Other first-order features and the texture
+  features (GLCM, GLRLM, GLSZM, GLDM, NGTDM) were not affected. In-plane
+  resampling now always keeps the scan's slice spacing. `inPlane: "yes"` with
+  `resolutionZCm: 0`, as in the IBSI settings files, was already correct.
+- **The sample `original_settings.json` triggered the above.** It combined
+  `inPlane: "yes"` with `resolutionZCm: 0.1`; for 3 mm slices the reported
+  shape volume was a third of the true value. `resolutionZCm` is now `0`.
+  **Re-extract shape features and total energy computed with this file.**
+- **`dosimetric_models.runFromPredictors` failed for LKB models.** `LKBFn`
+  did not use a supplied gEUD, so `runFromPredictors('Rectal bleeding (grade
+  2+)', {'Rectum gEUD': 70})` raised `UnboundLocalError`.
+- **`dvh.medianDose` was not a volume-weighted median.** It returned the
+  middle of the non-empty dose bins regardless of how much volume each held.
+  It now returns the dose at which half of the structure volume is reached,
+  in agreement with `Dx(doseBinsV, volsHistV, 50, 1)`. Values returned by
+  `medianDose` change for any non-symmetric DVH.
+
+- **The `importDoseArray` docstring named a `doseInfo` key that is ignored.**
+  It said the dictionary takes `'units'`; keys are `Dose` attribute names, so
+  the one that sets the dose units is `'doseUnits'`. The docstring also said
+  the function returns a planC with a scan imported; it imports a dose.
+  Documentation only.
+
+### Changed
+
+- **`saveToH5` writes the whole `planC` by default.** Called without index
+  lists it used to write a file with no scans, structures or doses. The
+  defaults are now "all"; passing lists still selects a subset, and an empty
+  list writes none of that type.
+
 ## [2.3.1] - 2026-10-09
 
 ### Fixed

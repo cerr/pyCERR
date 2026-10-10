@@ -327,3 +327,30 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
+
+def test_run_from_predictors_every_builtin_model():
+    """runFromPredictors must work for every built-in model, including the LKB
+    one (LKBFn used to leave the dose unassigned when gEUD was supplied)."""
+    import json
+    for name in dosimetric_models.listModels():
+        with open(dosimetric_models.mapModelToFile(name)) as f:
+            params = json.load(f)['parameters']
+        predictors = {f'{struct} {metric}': 30.0
+                      for struct, metrics in params['structures'].items() for metric in metrics}
+        predictors.update({key: 0 for key, entry in params.items()
+                           if key != 'structures' and isinstance(entry, dict)
+                           and entry.get('val', 0) is None})
+        ntcp = float(dosimetric_models.runFromPredictors(name, predictors))
+        assert 0.0 <= ntcp <= 1.0, name
+
+
+def test_lkb_from_supplied_geud():
+    """LKB: NTCP is 0.5 at gEUD = D50 and rises with gEUD."""
+    import json
+    name = 'Rectal bleeding (grade 2+)'
+    with open(dosimetric_models.mapModelToFile(name)) as f:
+        d50 = json.load(f)['parameters']['D50']['val']
+    atD50 = dosimetric_models.runFromPredictors(name, {'Rectum gEUD': d50})
+    np.testing.assert_allclose(atD50, 0.5, atol=1e-12)
+    assert dosimetric_models.runFromPredictors(name, {'Rectum gEUD': d50 + 10}) > atD50
+    assert dosimetric_models.runFromPredictors(name, {'Rectum gEUD': d50 - 10}) < atD50

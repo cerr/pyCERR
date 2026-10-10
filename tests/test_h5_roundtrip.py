@@ -4,8 +4,8 @@ Loads the bundled phantom (scan + RTSTRUCT), adds a synthetic non-uniform dose,
 serializes the whole planC to HDF5, reloads it, and checks the scan pixels, the
 structure mask and the dose array all survive the round-trip. Fully offline.
 
-Note: saveToH5 selects objects by explicit index lists; an empty list (the
-default) writes nothing, so the indices are passed in here.
+Note: saveToH5 writes every scan, structure, dose and deformation by default;
+index lists select a subset (an empty list writes none of that type).
 """
 import os
 import numpy as np
@@ -90,3 +90,20 @@ def test_h5_roundtrip_multiple_contours_per_slice(tmp_path):
         # every contour on every slice survives
         assert [len(c.segments) if c else 0 for c in planC2.structure[structNum].contour] == \
                [len(c.segments) if c else 0 for c in planC.structure[structNum].contour]
+
+
+def test_h5_default_saves_everything(tmp_path):
+    # With no index lists, saveToH5 writes the whole planC (it used to write
+    # an empty file). Explicit lists still select a subset.
+    planC = _planC_with_dose()
+    h5File = str(tmp_path / 'plan_all.h5')
+    pc.saveToH5(planC, h5File)
+    planC2 = pc.loadFromH5(h5File)
+    assert (len(planC2.scan), len(planC2.structure), len(planC2.dose)) == \
+           (len(planC.scan), len(planC.structure), len(planC.dose))
+    np.testing.assert_array_equal(getStrMask(0, planC2), getStrMask(0, planC))
+
+    h5Subset = str(tmp_path / 'plan_subset.h5')
+    pc.saveToH5(planC, h5Subset, scanNumV=[0], structNumV=[], doseNumV=[])
+    planC3 = pc.loadFromH5(h5Subset)
+    assert (len(planC3.scan), len(planC3.structure), len(planC3.dose)) == (1, 0, 0)
