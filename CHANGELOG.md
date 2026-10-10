@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Promotion from `testing` to `main` is now a fast-forward, and release
+  tags go on the commit both branches share.** Promotion used to create a
+  merge commit on `main`, and releases were tagged there, so the tags were
+  not reachable from `testing`: builds and editable installs from `testing`
+  reported a stale version (`2.1.1.devN` after 2.3.2 had shipped). A one-time
+  merge of `main` into `testing` joined the histories;
+  `tools/sync-branches.sh` now fast-forwards `main` and refuses to promote if
+  `main` has commits `testing` lacks. The new `tools/tag-release.sh vX.Y.Z`
+  tags the shared commit after checking that both branches are on it and
+  that the changelog has the section. Published packages are not affected;
+  existing tags are unchanged.
+
 ## [2.3.2] - 2026-10-09
 
 ### Fixed

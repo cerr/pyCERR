@@ -1,16 +1,18 @@
 #!/bin/sh
-# Promote `testing` to `main`, keeping the two branches content-identical.
+# Promote `testing` to `main` by fast-forward, so both branches end on the
+# same commit.
 #
-# pyCERR develops on `testing`; `main` should always hold the same tree. This
-# script merges testing into main and refuses to push unless the resulting
-# trees match exactly, so a partial or surprising merge cannot reach the
-# public repository unnoticed.
+# pyCERR develops on `testing`; `main` is fast-forwarded to it. Because the two
+# branches then share every commit, a release tag is reachable from both and
+# setuptools_scm reports the same version on either (see tools/tag-release.sh).
+# The script refuses to promote if `main` holds commits that `testing` lacks,
+# and refuses to push unless both branches end on the same commit.
 #
 # Nothing here runs on its own: this is a manual helper, invoked when you
 # choose to promote. There is no CI job or hook that syncs the branches.
 #
 # Usage:
-#   ./tools/sync-branches.sh          # merge locally and verify; does NOT push
+#   ./tools/sync-branches.sh          # fast-forward locally and verify; does NOT push
 #   ./tools/sync-branches.sh --push   # same, then push both branches
 #
 # Pushing is opt-in so a promotion can be inspected before it becomes public.
@@ -30,7 +32,7 @@ TARGET_BRANCH=main
 
 die() { echo "error: $*" >&2; exit 1; }
 
-# Refuse to run on a dirty tree: a merge would silently mix uncommitted work in.
+# Refuse to run on a dirty tree: switching branches would carry uncommitted work along.
 if ! git diff --quiet || ! git diff --cached --quiet; then
     die "working tree has uncommitted changes; commit or stash them first"
 fi
@@ -70,28 +72,33 @@ echo
 echo "Files that differ:"
 git diff --stat "$TARGET_BRANCH" "$SOURCE_BRANCH" || echo "  (none)"
 
-echo
-echo "Merging $SOURCE_BRANCH into $TARGET_BRANCH..."
-git checkout --quiet "$TARGET_BRANCH"
-if git diff --quiet "$TARGET_BRANCH" "$SOURCE_BRANCH"; then
-    echo "  Trees already identical; no merge commit needed."
-else
-    git merge --no-ff "$SOURCE_BRANCH" -m "Merge branch '$SOURCE_BRANCH' into $TARGET_BRANCH" \
-        || die "merge conflict; resolve it, commit, then re-run"
+# main must be an ancestor of testing, otherwise promotion is not a
+# fast-forward. That only happens if something was committed straight to main.
+if ! git merge-base --is-ancestor "$TARGET_BRANCH" "$SOURCE_BRANCH"; then
+    echo
+    echo "Commits on $TARGET_BRANCH that are not in $SOURCE_BRANCH:"
+    git log --oneline "$SOURCE_BRANCH..$TARGET_BRANCH"
+    die "$TARGET_BRANCH has commits that $SOURCE_BRANCH lacks; cannot fast-forward.
+     Bring them into $SOURCE_BRANCH first (git checkout $SOURCE_BRANCH && git merge $TARGET_BRANCH),
+     then re-run."
 fi
 
-# The gate: promotion is only correct if the trees end up identical.
-TARGET_TREE=$(git rev-parse "$TARGET_BRANCH^{tree}")
-SOURCE_TREE=$(git rev-parse "$SOURCE_BRANCH^{tree}")
-if [ "$TARGET_TREE" != "$SOURCE_TREE" ]; then
-    die "trees differ after merge ($TARGET_TREE vs $SOURCE_TREE); refusing to push.
-     Inspect with: git diff $TARGET_BRANCH $SOURCE_BRANCH"
+echo
+echo "Fast-forwarding $TARGET_BRANCH to $SOURCE_BRANCH..."
+git checkout --quiet "$TARGET_BRANCH"
+git merge --ff-only "$SOURCE_BRANCH" || die "fast-forward failed"
+
+# The gate: promotion is only correct if both branches end on the same commit.
+TARGET_COMMIT=$(git rev-parse "$TARGET_BRANCH")
+SOURCE_COMMIT=$(git rev-parse "$SOURCE_BRANCH")
+if [ "$TARGET_COMMIT" != "$SOURCE_COMMIT" ]; then
+    die "branches differ after fast-forward ($TARGET_COMMIT vs $SOURCE_COMMIT); refusing to push."
 fi
-echo "  Trees match: $TARGET_TREE"
+echo "  Both branches at: $(git log --oneline -1 "$TARGET_COMMIT")"
 
 if [ "$DO_PUSH" -eq 0 ]; then
     echo
-    echo "Merged locally and verified. Nothing pushed."
+    echo "Fast-forwarded locally and verified. Nothing pushed."
     echo "Review with: git log --oneline origin/$TARGET_BRANCH..$TARGET_BRANCH"
     echo "Then push with: $0 --push"
     exit 0
@@ -103,4 +110,5 @@ git push origin "$SOURCE_BRANCH"
 git push origin "$TARGET_BRANCH"
 
 echo
-echo "Done. $SOURCE_BRANCH and $TARGET_BRANCH are aligned at tree $TARGET_TREE"
+echo "Done. $SOURCE_BRANCH and $TARGET_BRANCH are aligned at $TARGET_COMMIT"
+echo "To release this commit: ./tools/tag-release.sh vX.Y.Z"

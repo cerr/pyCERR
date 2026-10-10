@@ -3,8 +3,9 @@ name: Publish to PyPI
 # Release flow:
 #   * Manual run (Actions -> "Publish to PyPI" -> Run workflow, optionally from a
 #     tag) publishes to TestPyPI - use this as a dry run.
-#   * Pushing a version tag publishes to PyPI, e.g.:
-#       git tag -a v0.7.0 -m "v0.7.0" && git push origin v0.7.0
+#   * Pushing a version tag publishes to PyPI. Create the tag with the helper,
+#     which puts it on the commit shared by `testing` and `main`:
+#       ./tools/tag-release.sh v0.7.0 --push
 # setuptools_scm derives the version from the tag, so the PyPI version matches
 # the tag exactly (v0.7.0 -> 0.7.0).
 

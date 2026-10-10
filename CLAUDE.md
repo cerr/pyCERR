@@ -113,18 +113,32 @@ GitHub Actions (`.github/workflows/python-package.yml`) runs linting and pytest 
 
 ## Branch Flow
 
-`main` and `testing` are kept content-identical. They are *not* independent lines of development.
+`main` and `testing` hold the same commits. They are *not* independent lines of development: `main` is `testing`, fast-forwarded.
 
-- **Commit work to `testing`**, never directly to `main`. A commit landing only on `main` is what makes the two diverge.
-- **Promote by merging `testing` into `main`** — never the reverse, and never by rewriting history. Promotion is always a deliberate manual step; there is no CI job or hook that syncs the branches automatically:
+- **Commit work to `testing`**, never directly to `main`. A commit landing only on `main` is what makes the two diverge, and it blocks the next promotion.
+- **Promote by fast-forwarding `main` to `testing`** — never by a merge commit on `main` and never by rewriting history. Promotion is always a deliberate manual step; there is no CI job or hook that syncs the branches automatically:
 
   ```bash
-  ./tools/sync-branches.sh          # merge and verify locally, pushes nothing
+  ./tools/sync-branches.sh          # fast-forward and verify locally, pushes nothing
   ./tools/sync-branches.sh --push   # promote for real
   ```
 
-- **The check that matters is the tree hash**, not the commit count. After a promotion, `git rev-parse main^{tree}` and `git rev-parse testing^{tree}` must be equal. The branches will always show differing commit SHAs (merge commits, historical duplicates); identical trees are what "aligned" means here.
+- **The check that matters is the commit**: after a promotion, `git rev-parse main` and `git rev-parse testing` must be equal. Promotion used to create a merge commit on `main`, which left release tags unreachable from `testing`; a one-time merge of `main` into `testing` (after v2.3.2) brought the histories together so that every later promotion is a fast-forward.
+- If `main` ever gains a commit that `testing` lacks, `sync-branches.sh` refuses to promote. Merge `main` into `testing` to recover, then promote again.
 
 Never `git push --force` either branch — both are published on a public repository, and force-pushing discards other contributors' work. When a push is rejected, fetch and rebase or merge; do not force.
 
-If the branches have drifted, `git cherry main testing` shows which patches are genuinely missing (`+`) versus already present as content-equivalent duplicates (`-`).
+## Releasing
+
+The package version is not written anywhere in the source: `setuptools_scm` derives it from the nearest git tag reachable from the checked-out commit (`vX.Y.Z` → `X.Y.Z`; commits after a tag report `X.Y.(Z+1).devN`). The release tag therefore has to sit on the commit shared by `testing` and `main`.
+
+1. On `testing`, move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [X.Y.Z] - date` heading, commit ("Release X.Y.Z") and push.
+2. Promote: `./tools/sync-branches.sh --push`.
+3. Tag the shared commit and publish:
+
+   ```bash
+   ./tools/tag-release.sh vX.Y.Z          # creates the tag locally, pushes nothing
+   ./tools/tag-release.sh vX.Y.Z --push   # pushes the tag, which triggers the PyPI upload
+   ```
+
+`tag-release.sh` refuses to tag unless both branches are on the same pushed commit and the changelog has the section. Do not tag by hand on a commit that is only on one branch, and never move a published tag.
