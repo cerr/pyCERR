@@ -864,6 +864,15 @@ def listModels():
 
     Returns:
         List of model names.
+
+    Example:
+        ::
+
+            from cerr.roe import dosimetric_models as roe
+
+            print(roe.listModels()[:2])
+            # ['Bronchial stenosis (cox)', 'Bronchial stenosis (logistic)']
+
     """
     return sorted(p.stem for p in getModelDir().glob("*.json"))
 
@@ -1015,6 +1024,25 @@ def run(modelFile, doseNum, planC, fSizeIn=None, fNumIn=None, binWidth=0.05, mod
           mode: Set to 'test' for unit tests using single-voxel structures.
     Returns:
         Model-based NTCP.
+
+    Example:
+        Evaluate a built-in model on a plan given in 1.8 Gy fractions. The plan must contain
+        a structure named as in the model file (here ``Rectum``)::
+
+            from cerr.roe import dosimetric_models as roe
+
+            ntcp = roe.run('Rectal bleeding (grade 2+)', doseNum, planC, fSizeIn=1.8)
+
+            # Map a model structure to a differently named structure and set a
+            # clinical predictor by editing the model dictionary
+            import json
+            with open(roe.mapModelToFile('Esophagitis (Huang)')) as f:
+                model = json.load(f)
+            structs = model['parameters']['structures']
+            model['parameters']['structures'] = {'ESOPHAGUS_1': structs['Esophagus']}
+            model['parameters']['concurrentChemo']['val'] = 1
+            ntcp = roe.run(model, doseNum, planC, fNumIn=30)
+
     """
 
     # Read model parameters
@@ -1055,6 +1083,17 @@ def runFromPredictors(modelFile, predictors):
 
     Returns:
         Model-based NTCP.
+
+    Example:
+        ::
+
+            from cerr.roe import dosimetric_models as roe
+
+            ntcp = roe.runFromPredictors('Esophagitis (Huang)',
+                                         {'Esophagus meanDose': 30.0, 'concurrentChemo': 1})
+            print(round(ntcp, 4))
+            # 0.6068
+
     """
     if isinstance(modelFile, str) and '.json' not in modelFile:
         modelFile = mapModelToFile(modelFile)

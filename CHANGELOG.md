@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **User guide in the Sphinx documentation.** New pages under `docs/`: a
+  Quickstart, an end-to-end tutorial, the `planC` data model and coordinate
+  systems, and guides for DVH metrics, outcome models (ROE), radiomics,
+  registration and segmentation, each with worked examples and figures. The
+  figures are generated from the bundled lung phantom by the scripts in
+  `docs/_figure_scripts` (`python docs/_figure_scripts/make_all.py`); the
+  dosimetry pages use a synthetic dose because no RTDOSE is bundled.
+- **`Example:` sections in the docstrings of 32 commonly used functions**
+  (import/export, DVH, outcome models, radiomics, structure operations,
+  registration), and corrected argument descriptions for `dvh.getDVH`,
+  `dvh.Dx`, `dvh.Vx`, `importScanArray`, `importStructureMask` and
+  `registerScans`. Documentation only.
+- **API reference pages for `cerr.gamma`, `cerr.contour.structure_consensus`,
+  `cerr.segmentation` and `cerr.ai_models`**, which were missing. The docs
+  build now also needs `sphinx-copybutton` and `pyyaml`
+  (`docs/requirements.txt`).
+
 ### Changed
 
 - **Promotion from `testing` to `main` is now a fast-forward, and release

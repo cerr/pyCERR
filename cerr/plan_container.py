@@ -147,6 +147,18 @@ def saveToH5(planC, h5File, scanNumV=None, structNumV=None, doseNumV=None, defor
     Returns:
         int: 0 when the file is written.
 
+    Example:
+        Save the whole plan container and read it back, then save only the first scan
+        and its first two structures::
+
+            from cerr import plan_container as pc
+
+            pc.saveToH5(planC, 'planC.h5')
+            planC = pc.loadFromH5('planC.h5')
+
+            pc.saveToH5(planC, 'subset.h5', scanNumV=[0], structNumV=[0, 1],
+                        doseNumV=[], deformNumV=[])
+
     """
     if scanNumV is None:
         scanNumV = range(len(planC.scan))
@@ -234,6 +246,13 @@ def loadFromH5(h5File, initplanC=''):
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with metadata imported from input H5 file.
+
+    Example:
+        Read a file written by :func:`saveToH5`::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadFromH5('planC.h5')
 
     """
 
@@ -647,6 +666,22 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     Returns:
         PlanC: An instance of PlanC with metadata populated from DICOM files in dcm_dir
 
+    Example:
+        Load the lung CT phantom bundled with pyCERR::
+
+            import os
+            from cerr import datasets
+            from cerr import plan_container as pc
+
+            dcmDir = os.path.join(os.path.dirname(datasets.__file__),
+                                  'radiomics_phantom_dicom', 'pat_1')
+            planC = pc.loadDcmDir(dcmDir)
+            print(len(planC.scan), [s.structureName for s in planC.structure])
+            # 1 ['GTV-1']
+
+            # Append a second study of the same patient to the same container
+            planC = pc.loadDcmDir('/path/to/other/study', initplanC=planC)
+
     """
 
     import os
@@ -929,6 +964,14 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan[-1]
 
+    Example:
+        Load a CT, then append an MR to the same container::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadNiiScan('ct.nii.gz', imageType='CT SCAN')
+            planC = pc.loadNiiScan('mr.nii.gz', imageType='MR SCAN', initplanC=planC)
+
     """
     if not isinstance(initplanC, PlanC):
         planC = PlanC(header=headr.Header())
@@ -1043,6 +1086,15 @@ def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose")
     Returns:
         cerr.plan_container.PlanC: The updated plan container with the dose
             appended to ``planC.dose``.
+
+    Example:
+        Attach a dose stored as NIfTI to scan 0::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadNiiDose('dose.nii.gz', 0, planC)
+            doseNum = len(planC.dose) - 1
+
     """
     planC = rtds.importNii(nii_file_name, assocScanNum, planC)
     planC.dose[-1].fractionGroupID = fractionGroupID
@@ -1059,6 +1111,14 @@ def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
+
+    Example:
+        Import a label map as named structures on scan 0::
+
+            from cerr import plan_container as pc
+
+            labelDict = {'GTV_P': 1, 'GTV_N': 2}        # structure name -> label value
+            planC = pc.loadNiiStructure('labels.nii.gz', 0, planC, labelDict)
 
     """
 
@@ -1375,16 +1435,28 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     """This routine imports a scan from numpy array into planC
 
     Args:
-        scan3M (numpy.ndarray):
-        xV (numpy.ndarray):
-        yV (numpy.ndarray):
-        zV (numpy.ndarray):
-        modality (str):
-        assocScanNum (int):
-        planC (cerr.plan_container.PlanC):
+        scan3M (numpy.ndarray): 3D scan array of shape (rows, cols, slices)
+        xV (numpy.ndarray): x-coordinates of the columns in pyCERR virtual coordinates (cm)
+        yV (numpy.ndarray): y-coordinates of the rows in pyCERR virtual coordinates (cm)
+        zV (numpy.ndarray): z-coordinates of the slices in pyCERR virtual coordinates (cm)
+        modality (str): modality of the scan, e.g. 'CT', 'MR', 'PT'
+        assocScanNum (int): index of an existing scan in planC.scan from which the orientation
+            and coordinate transformation are taken
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+
+    Example:
+        Add a smoothed copy of scan 0 as a new scan on the same grid::
+
+            from scipy.ndimage import gaussian_filter
+            from cerr import plan_container as pc
+
+            xV, yV, zV = planC.scan[0].getScanXYZVals()
+            smooth3M = gaussian_filter(planC.scan[0].getScanArray().astype(float), 1.0)
+            planC = pc.importScanArray(smooth3M, xV, yV, zV, 'CT', 0, planC)
+            newScanNum = len(planC.scan) - 1
 
     """
 
@@ -1464,6 +1536,18 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with dose imported to planC.dose
 
+    Example:
+        Add a uniform 2 Gy dose on the grid of scan 0. Keys of ``doseInfo`` are attribute
+        names of :class:`cerr.dataclasses.dose.Dose`::
+
+            import numpy as np
+            from cerr import plan_container as pc
+
+            xV, yV, zV = planC.scan[0].getScanXYZVals()
+            dose3M = np.full(planC.scan[0].getScanArray().shape, 2.0)   # (rows, cols, slices)
+            planC = pc.importDoseArray(dose3M, xV, yV, zV, planC, 0,
+                                       {'fractionGroupID': 'Uniform', 'doseUnits': 'GY'})
+
     """
 
     #Initialize dose info
@@ -1517,10 +1601,10 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
 
 
 def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
-    """
+    """This routine imports a binary mask into planC as a structure
 
     Args:
-        mask3M (numpy.ndarray): binary mask containing segmentation
+        mask3M (numpy.ndarray): binary mask containing segmentation, with the shape of the associated scan
         assocScanNum (int): index of scan from planC.scan associated with segmentation
         structName (str): name of structure
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
@@ -1528,6 +1612,15 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure imported to planC.structure
+
+    Example:
+        Threshold scan 0 and add the result as a structure::
+
+            from cerr import plan_container as pc
+
+            mask3M = planC.scan[0].getScanArray() > 250          # same shape as the scan
+            planC = pc.importStructureMask(mask3M, 0, 'Bone', planC)
+            structNum = len(planC.structure) - 1
 
     """
 

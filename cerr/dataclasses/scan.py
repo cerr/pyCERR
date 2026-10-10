@@ -202,6 +202,15 @@ class Scan:
         Returns:
             tuple: x, y, z coordinates corresponding to the columns, rows, slices of scan voxels
 
+        Example:
+            Voxel ``[row, col, slc]`` is located at ``(xV[col], yV[row], zV[slc])`` in
+            cm::
+
+                import numpy as np
+
+                xV, yV, zV = planC.scan[0].getScanXYZVals()
+                xM, yM, zM = np.meshgrid(xV, yV, zV)           # same shape as the scan array
+
         """
         scan_info = self.scanInfo[0]
         sizeDim1 = scan_info.sizeOfDimension1-1

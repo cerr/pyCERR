@@ -16,6 +16,8 @@ Subpackages
    cerr.radiomics
    cerr.registration
    cerr.roe
+   cerr.segmentation
+   cerr.ai_models
    cerr.utils
    cerr.viewer
 
@@ -26,6 +28,14 @@ cerr.dvh module
 ---------------
 
 .. automodule:: cerr.dvh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+cerr.gamma module
+-----------------
+
+.. automodule:: cerr.gamma
    :members:
    :undoc-members:
    :show-inheritance:

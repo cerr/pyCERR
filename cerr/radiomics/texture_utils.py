@@ -187,6 +187,20 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
 
     Returns:
         planC (plan_container.planC): pyCERR plan_container object with texture map as pseudo-scan.
+
+    Example:
+        Laplacian-of-Gaussian response around structure 0 of scan 0::
+
+            import os
+            from cerr import datasets
+            from cerr.radiomics import texture_utils
+
+            filterFile = os.path.join(os.path.dirname(datasets.__file__),
+                                      'convolutional_filter_settings', 'LoG_filter.json')
+            planC = texture_utils.generateTextureMapFromPlanC(planC, 0, 0, filterFile)
+            texScanNum = len(planC.scan) - 1               # the map is a new, cropped scan
+            tex3M = planC.scan[texScanNum].getScanArray()
+
     """
 
     # Extract scan and mask

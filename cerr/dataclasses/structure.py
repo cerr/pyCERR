@@ -1256,6 +1256,15 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
             'EXACT' - returns indices of exact matches
             'FIRSTCHARS' - returns indices where first characters of elements in the list match input structName
             other - returns indices where elements in the list contain input structName as a substring
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            names = [s.structureName for s in planC.structure]
+            structNum = cerrStr.getMatchingIndex('GTV-1', names, 'exact')[0]
+
     """
 
     if isinstance(structName, str):
@@ -1442,6 +1451,15 @@ def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
             expanded/contracted structure appended to ``planC.structure``.
+
+    Example:
+        A 1 cm margin around structure 0, and a 0.5 cm contraction::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.getSurfaceExpand(0, 1.0, planC)
+            planC = cerrStr.getSurfaceExpand(0, -0.5, planC)
+
     """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
@@ -1502,6 +1520,14 @@ def structUnion(structNumV, planC, unionStructName=None):
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
         unionStructName (str or None): Name for the new structure. A descriptive
             default is generated when ``None``.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structUnion(['Lung_L', 'Lung_R'], planC, 'Lungs')
+
     """
     structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
@@ -1528,6 +1554,14 @@ def structIntersect(structNumV, planC, intrStructName=None):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
         intersection structure appended to ``planC.structure``.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structIntersect(['PTV', 'Rectum'], planC, 'PTV_in_rectum')
+
     """
     structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
@@ -1554,6 +1588,14 @@ def structDiff(structNum1, structNum2, planC, diffStructName=None):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
         difference structure appended to ``planC.structure``.
+
+    Example:
+        Lungs excluding the GTV::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structDiff('Lungs', 'GTV', planC, 'Lung_GTV')
+
     """
     structNum1 = resolveStructRef(structNum1, planC)
     structNum2 = resolveStructRef(structNum2, planC)
@@ -1717,6 +1759,15 @@ def getLabelMap(planC, labelDict=None, strNumV=None, dim=3):
 
     Returns:
        labelMap3M: np.ndarray(dtype=int) for label map.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            labelDict = {'GTV-1': 1, 'Bone': 2}            # structure name -> label
+            labelMap3M, structNumV = cerrStr.getLabelMap(planC, labelDict)
+
     """
 
     # if labelDict is None:

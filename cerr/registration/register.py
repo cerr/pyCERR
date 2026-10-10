@@ -33,7 +33,8 @@ from cerr.registration.ants_reg import (
 def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
                   deforAlgorithm='bsplines', registrationTool='plastimatch',
                   baseMask3M=None, movMask3M=None, inputCmdFile=None, outputFilePrefix=None):
-    """
+    """Routine to register a moving scan to a fixed scan using plastimatch. The warped moving scan
+    and a deformation object are added to basePlanC.
 
     Args:
         basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
@@ -41,7 +42,10 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
         movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
         movScanIndex (int): integer, identifies moving scan in movPlanC
         transformSaveDir (str): Directory to save transformation file
-        registration_tool (str): registration software to use ('PLASTIMATCH','ELASTIX','ANTS')
+        deforAlgorithm (str): 'bsplines' (default) or 'affine'. Selects the plastimatch command file
+            from cerr/registration/settings when inputCmdFile is not given.
+        registrationTool (str): registration software to use. Only 'plastimatch' is run by this
+            routine; use registerScansAnts for ANTs.
         baseMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in target space
         movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
         inputCmdFile (str): optional, path to registration command file
@@ -49,6 +53,17 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with an element added to planC.deform attribute
+
+    Example:
+        B-spline registration of scan 1 to scan 0 with plastimatch, which must be installed
+        and on the ``PATH``::
+
+            from cerr.registration import register
+
+            planC = register.registerScans(planC, 0, planC, 1, '/path/to/transforms',
+                                           deforAlgorithm='bsplines')
+            deformS = planC.deform[-1]
+            planC = register.warpStructures(planC, 0, planC, [movStructNum], deformS)
 
     """
 

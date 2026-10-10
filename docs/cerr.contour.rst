@@ -20,6 +20,14 @@ cerr.contour.rasterseg module
    :undoc-members:
    :show-inheritance:
 
+cerr.contour.structure\_consensus module
+----------------------------------------
+
+.. automodule:: cerr.contour.structure_consensus
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

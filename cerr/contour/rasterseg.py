@@ -361,6 +361,18 @@ def getStrMask(str_num, planC):
     Returns:
         np.ndarray: Boolean array of shape ``(nRows, nCols, nSlices)`` where
         ``True`` indicates voxels belonging to the structure.
+
+    Example:
+        Volume of a structure and mean scan intensity inside it::
+
+            import numpy as np
+            from cerr.contour import rasterseg as rs
+
+            mask3M = rs.getStrMask(0, planC)
+            scanNum = planC.structure[0].getStructureAssociatedScan(planC)
+            volumeCc = mask3M.sum() * np.prod(planC.scan[scanNum].getScanSpacing())
+            meanVal = planC.scan[scanNum].getScanArray()[mask3M].mean()
+
     """
     if isinstance(str_num, (int, float, np.integer)):
         rasterSegments = planC.structure[str_num].rasterSegments

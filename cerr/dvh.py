@@ -7,14 +7,25 @@ def getDVH(structNum, doseNum, planC):
     """Routine to calculate Dose and Volume vectors to be used for Histogram calculation
 
     Args:
-        structNum (int): Binary mask where 1s represent the segmentation
-        doseNum (int): x-values i.e. coordinates of columns of input mask
+        structNum (int): Index of the structure in ``planC.structure``
+        doseNum (int): Index of the dose in ``planC.dose``
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
 
     Returns:
-        List (dosesV): vector of dose values for voxels in structNum
-        List (volsV): vector of volumes corresponding to voxels in dosesV
-        int (isError): error flag. 0: No error, 1: error in calculation
+        np.ndarray (dosesV): dose at each voxel of the structure, interpolated at the voxel centers
+        np.ndarray (volsV): volume in cc of each voxel in dosesV
+        int (isError): error flag. 0: No error, 1: the structure has no voxels
+
+    Example:
+        Mean dose and D95 of structure 0 for dose 0::
+
+            from cerr import dvh
+
+            dosesV, volsV, isErr = dvh.getDVH(0, 0, planC)
+            doseBinsV, volsHistV = dvh.doseHist(dosesV, volsV, 0.05)
+            print(volsV.sum())                              # structure volume, cc
+            print(dvh.meanDose(doseBinsV, volsHistV))
+            print(dvh.Dx(doseBinsV, volsHistV, 95, 1))      # D95%
 
     """
 
@@ -142,6 +153,16 @@ def doseHist(doseV, volsV, binWidth):
         List (doseBinsV): vector of dose bin centers.
         List (volsHistV): vector of volumes accumulated in corresponding dose bins.
 
+    Example:
+        Differential and cumulative DVH with 0.05 Gy bins::
+
+            import numpy as np
+            from cerr import dvh
+
+            dosesV, volsV, isErr = dvh.getDVH(0, 0, planC)
+            doseBinsV, volsHistV = dvh.doseHist(dosesV, volsV, 0.05)
+            cumVolsPctV = np.cumsum(volsHistV[::-1])[::-1] / volsHistV.sum() * 100
+
     """
 
     bufferNum = 1e-10
@@ -198,6 +219,12 @@ def MOHx(doseBinsV, volsHistV, percent):
 
     Returns:
         Float: mean of the hottest x% dose
+
+    Example:
+        Mean dose of the hottest 5% of the structure::
+
+            moh5 = dvh.MOHx(doseBinsV, volsHistV, 5)
+
     """
 
     if isinstance(percent, dict):
@@ -228,6 +255,11 @@ def MOCx(doseBinsV, volsHistV, percent):
     Returns:
         Float: mean of the coldest x% dose
 
+    Example:
+        Mean dose of the coldest 5% of the structure::
+
+            moc5 = dvh.MOCx(doseBinsV, volsHistV, 5)
+
     """
     if isinstance(percent, dict):
         percent = percent['percent']['val']
@@ -253,11 +285,18 @@ def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
         doseBinsV: (List): vector of dose bin centers.
         volsHistV (List): vector of volumes accumulated in corresponding dose bins.
         doseCutoff: dose cutoff in Gy.
-        volumeType (int): 0: Return output volume as absolute cc.
-                          1: Return output volume as percentage.
+        volumeType (int): 0: Return output volume as absolute cc (default).
+                          1: Return output volume as a fraction (0 to 1) of the structure volume.
 
     Returns:
-        Float: Volume (absolute ot percentage)
+        Float: Volume (absolute cc or fraction)
+
+    Example:
+        Volume receiving at least 20 Gy::
+
+            v20cc = dvh.Vx(doseBinsV, volsHistV, 20, 0)     # absolute, cc
+            v20frac = dvh.Vx(doseBinsV, volsHistV, 20, 1)   # fraction of the structure, 0-1
+
     """
 
     if isinstance(doseCutoff, dict):  # For use with ROE
@@ -296,10 +335,17 @@ def Dx(doseBinsV, volsHistV, volCutoff, volumeType=None):
         volsHistV (List): vector of volumes accumulated in corresponding dose bins.
         volCutoff: volume cutoff in cc or percentage.
         volumeType (int): 0: volume is input in absolute cc.
-                          1: volume is input in percentage.
+                          1: volume is input in percentage (default).
 
     Returns:
-        Float: Volume (absolute ot percentage)
+        Float: Minimum dose to the hottest volCutoff of the structure
+
+    Example:
+        Minimum dose to the hottest 95% and to the hottest 2 cc::
+
+            d95 = dvh.Dx(doseBinsV, volsHistV, 95, 1)       # volume given in percent
+            d2cc = dvh.Dx(doseBinsV, volsHistV, 2, 0)       # volume given in cc
+
     """
 
     if isinstance(volCutoff, dict):  # for use with ROE
@@ -416,6 +462,12 @@ def eud(doseBinsV, volsHistV, exponent):
 
     Returns:
         Float: EUD
+
+    Example:
+        gEUD for a tumor (cold spots dominate) and a serial organ (hot spots dominate)::
+
+            eudTumor = dvh.eud(doseBinsV, volsHistV, -10)
+            eudSerial = dvh.eud(doseBinsV, volsHistV, 8)
 
     """
     if isinstance(exponent, dict):  # for use with ROE

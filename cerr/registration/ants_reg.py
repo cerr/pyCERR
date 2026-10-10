@@ -165,6 +165,20 @@ def registerScansAnts(basePlanC, baseScanIndex, movPlanC, movScanIndex,
         cerr.plan_container.PlanC: ``basePlanC`` with the warped moving scan
         appended to ``basePlanC.scan`` and a new ``Deform`` object appended to
         ``basePlanC.deform``.
+
+    Example:
+        Register scan 1 to scan 0 of the same plan container and propagate a structure drawn
+        on scan 1::
+
+            from cerr.registration import register
+
+            planC = register.registerScansAnts(planC, 0, planC, 1,
+                                               transformSaveDir='/path/to/transforms',
+                                               typeOfTransform='antsRegistrationSyNQuick[s]')
+            warpedScanNum = len(planC.scan) - 1
+            deformS = planC.deform[-1]
+            planC = register.warpStructuresAnts(planC, 0, planC, [movStructNum], deformS)
+
     """
     ants = _importAnts()
 
