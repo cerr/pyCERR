@@ -375,7 +375,8 @@ def maxDose(doseBinsV, volsHistV):
 
 def medianDose(doseBinsV, volsHistV):
     """
-    This routine computes the median dose
+    This routine computes the median dose, i.e. the dose that half of the
+    structure volume receives at least (volume-weighted median, D50%).
 
     Args:
         doseBinsV: (List): vector of dose bin centers.
@@ -386,17 +387,23 @@ def medianDose(doseBinsV, volsHistV):
 
     """
 
-    # Find the indices of non-zero elements in volsHistV
-    non_zero_indices = np.where(volsHistV != 0)[0]
+    doseBinsV = np.atleast_1d(np.asarray(doseBinsV, dtype=float))
+    volsHistV = np.atleast_1d(np.asarray(volsHistV, dtype=float))
 
-    # Calculate the median of these indices
-    ind = np.median(non_zero_indices)
+    # First dose bin at which the cumulative volume reaches half of the total
+    cumVolsV = np.cumsum(volsHistV)
+    halfVol = cumVolsV[-1] / 2
+    ind = int(np.searchsorted(cumVolsV, halfVol, side='left'))
+    ind = min(ind, len(doseBinsV) - 1)
 
-    # Calculate the floor and ceil indices for median
-    ind1 = int(np.floor(ind))
-    ind2 = int(np.ceil(ind))
+    # Exactly half of the volume lies at or below this bin: the median falls
+    # between it and the next non-empty bin
+    if np.isclose(cumVolsV[ind], halfVol):
+        nextInds = np.where(volsHistV[ind + 1:] != 0)[0]
+        if len(nextInds) > 0:
+            return (doseBinsV[ind] + doseBinsV[ind + 1 + nextInds[0]]) / 2
 
-    return (doseBinsV[ind1] + doseBinsV[ind2]) / 2
+    return doseBinsV[ind]
 
 def eud(doseBinsV, volsHistV, exponent):
     """

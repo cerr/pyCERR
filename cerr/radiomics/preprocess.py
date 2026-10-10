@@ -606,7 +606,10 @@ def preProcessForRadiomics(scanNum, structNum, paramS, planC):
             pixelSpacingX = np.absolute(np.median(np.diff(xValsV)))
         if pixelSpacingY == 0:
             pixelSpacingY = np.absolute(np.median(np.diff(yValsV)))
-        if pixelSpacingZ == 0:
+        # In-plane resampling leaves the slices as they are, so the output
+        # grid keeps the scan's slice spacing whatever resolutionZCm says.
+        inPlaneResamp = str(paramS["settings"]['resample'].get('inPlane', 'no')).lower() == "yes"
+        if pixelSpacingZ == 0 or inPlaneResamp:
             pixelSpacingZ = np.absolute(np.median(np.diff(zValsV)))
         roiInterpMethod = 'sitkLinear' # always linear interp for mask
         scanInterpMethod = paramS["settings"]['resample']['interpMethod'] #'sitkLinear' #whichFeatS.resample.interpMethod

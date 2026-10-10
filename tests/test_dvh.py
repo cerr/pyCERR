@@ -88,3 +88,23 @@ def test_dvh_metrics_uniform_dose():
     assert abs(dvh.Dx(doseBinsV, volHistV, 50.0, volumeType=1) - UNIFORM_DOSE) <= binWidth
     assert abs(dvh.MOHx(doseBinsV, volHistV, 90) - UNIFORM_DOSE) <= binWidth
     assert abs(dvh.meanDose(doseBinsV, volHistV) - UNIFORM_DOSE) <= binWidth
+
+
+def test_median_dose_is_volume_weighted():
+    # Three dose levels; most of the volume sits at the highest one. The median
+    # is the dose at which half the volume is reached, not the middle bin.
+    dosesV = np.array([1.0, 2.0, 10.0])
+    volsV = np.array([1.0, 1.0, 10.0])
+    doseBinsV, volsHistV = dvh.doseHist(dosesV, volsV, 0.05)
+    np.testing.assert_allclose(dvh.medianDose(doseBinsV, volsHistV), 10.0, atol=0.05)
+
+    # Equal-volume voxels with a skewed dose: agrees with the plain median of
+    # the voxel doses (to within a bin) and with D50%.
+    rng = np.random.default_rng(0)
+    dosesV = 60.0 * rng.random(20000) ** 3
+    volsV = np.full(dosesV.shape, 0.01)
+    binWidth = 0.05
+    doseBinsV, volsHistV = dvh.doseHist(dosesV, volsV, binWidth)
+    med = dvh.medianDose(doseBinsV, volsHistV)
+    np.testing.assert_allclose(med, np.median(dosesV), atol=binWidth)
+    np.testing.assert_allclose(med, dvh.Dx(doseBinsV, volsHistV, 50, 1), atol=binWidth)

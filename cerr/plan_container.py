@@ -129,20 +129,33 @@ def addToH5Grp(h5Grp,structDict,key):
     return h5Grp
 
 
-def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=[]):
+def saveToH5(planC, h5File, scanNumV=None, structNumV=None, doseNumV=None, deformNumV=None):
     """Routine to serialize planC to H5 file
+
+    By default every scan, structure, dose and deformation in planC is written.
+    Pass a list of indices to write a subset of that type; an empty list writes
+    none of it.
 
     Args:
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         h5File (str): File path/name to save planC
-        scanNumV: Indices for scan objects from planC.scan to export to h5 file
-        structNumV: Indices for structure objects from planC.structure to export to h5 file
-        doseNumV: Indices for dose objects from planC.dose to export to h5 file
-        deformNumV: Indices for deformation objects from planC.deform to export to h5 file
+        scanNumV: Indices for scan objects from planC.scan to export to h5 file. Default: all.
+        structNumV: Indices for structure objects from planC.structure to export to h5 file. Default: all.
+        doseNumV: Indices for dose objects from planC.dose to export to h5 file. Default: all.
+        deformNumV: Indices for deformation objects from planC.deform to export to h5 file. Default: all.
 
     Returns:
+        int: 0 when the file is written.
 
     """
+    if scanNumV is None:
+        scanNumV = range(len(planC.scan))
+    if structNumV is None:
+        structNumV = range(len(planC.structure))
+    if doseNumV is None:
+        doseNumV = range(len(planC.dose))
+    if deformNumV is None:
+        deformNumV = range(len(planC.deform))
     dt = datetime.now()
     planC.header.dateLastSaved = dt.strftime("%Y%m%d")
     with h5py.File(h5File, 'w') as f:
