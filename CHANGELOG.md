@@ -40,6 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that the changelog has the section. Published packages are not affected;
   existing tags are unchanged.
 
+### Fixed
+
+- **PET SUV refused for series whose Series and Acquisition Time differ only
+  by rounding.** With Decay Correction `START` and no vendor private scan
+  start datetime, the Acquisition DateTime is used as the scan start when it
+  equals the Series DateTime, but the comparison was exact. A Series Time
+  stored with fractional seconds (`154441.359`) against a truncated
+  Acquisition Time (`154441`) therefore fell through to back-computing the
+  scan start from frame timing, which needs Actual Frame Duration; when that
+  was empty, `convertToSUV` warned and left the scan unconverted. The two are
+  now treated as identical within 1.0 s, the tolerance the IBSI-SUV manual
+  uses for rounding mismatches (`ACQ_SERIES_TOLERANCE_SECS`). Such series
+  that did have Actual Frame Duration were previously converted using the
+  back-computed scan start; they now use the Acquisition DateTime directly,
+  so their SUVs may shift slightly.
+
 ## [2.3.2] - 2026-10-09
 
 ### Fixed

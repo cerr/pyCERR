@@ -823,6 +823,10 @@ SUV_TYPES = frozenset({'BW', 'BSA', 'LBM', 'LBMJAMES128', 'LBMJANMA', 'IBW',
 SHORT_HALF_LIFE_THRESH = 41400
 # Tolerance (s) for a decay-reference datetime preceding administration.
 UPTAKE_TOLERANCE_SECS = -3600
+# Tolerance (s) within which Acquisition and Series DateTime count as identical.
+# The IBSI-SUV manual applies +/-1.0 s to disregard rounding mismatches, e.g. a
+# Series Time stored with fractional seconds and an Acquisition Time without.
+ACQ_SERIES_TOLERANCE_SECS = 1.0
 
 _DCM_DT_RE = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?(\.\d+)?([+-]\d{4})?$')
 _DCM_TM_RE = re.compile(r'^(\d{2})(\d{2})?(\d{2})?(\.\d+)?([+-]\d{4})?$')
@@ -938,7 +942,7 @@ def getDecayReferenceDateTime(headerSlcS):
       order of decreasing reliability: (1) the vendor private scan start
       datetime (Siemens 0071,1022 / GE 0009,100D) or Decay Correction DateTime
       (0018,9701); (2) the Acquisition DateTime when it equals the Series
-      DateTime; (3) back-computation from the frame timing attributes, using
+      DateTime to within ACQ_SERIES_TOLERANCE_SECS; (3) back-computation from the frame timing attributes, using
       t_acq - dt for GE and t_acq + T_ave - dt for other manufacturers.
     - 'NONE': values are not decay corrected, so they correspond to the frame
       measurement time, t_acq + T_ave.
@@ -1010,9 +1014,11 @@ def getDecayReferenceDateTime(headerSlcS):
         if scanStart is not None:
             return scanStart, ''
 
-    # 2. Acquisition DateTime when it agrees with the Series DateTime.
+    # 2. Acquisition DateTime when it agrees with the Series DateTime, allowing
+    # for rounding of the stored times.
     if acqDateTime is not None and seriesDateTime is not None \
-            and acqDateTime == seriesDateTime:
+            and abs((acqDateTime - seriesDateTime).total_seconds()) \
+            <= ACQ_SERIES_TOLERANCE_SECS:
         return acqDateTime, ''
 
     # 3. Back-compute the scan start from the frame timing attributes.
