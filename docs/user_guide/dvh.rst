@@ -112,12 +112,12 @@ Compute metrics
      mean 57.91  min 13.28  max 60.02  median 59.33
      D95 51.18  D2 59.98
      V50 0.959  V50 cc 344.0
-     MOH5 59.98  MOC5 44.13
+     MOH5 59.98  MOC5 44.16
    Ring_1cm 356.6 cc
      mean 44.96  min 0.48  max 59.73  median 48.77
      D95 17.38  D2 58.43
      V50 0.450  V50 cc 160.5
-     MOH5 58.34  MOC5 10.40
+     MOH5 58.35  MOC5 10.43
 
 Metric reference
 ----------------
@@ -145,10 +145,13 @@ All functions take ``(doseBinsV, volsHistV, ...)`` as returned by
    * - :func:`Vx(…, doseCutoff, volumeType) <cerr.dvh.Vx>`
      - Volume receiving at least ``doseCutoff``. ``volumeType=0`` (default)
        returns cc, ``volumeType=1`` returns a fraction between 0 and 1.
-   * - :func:`MOHx(…, percent) <cerr.dvh.MOHx>`
-     - Mean dose of the hottest ``percent`` % of the volume.
-   * - :func:`MOCx(…, percent) <cerr.dvh.MOCx>`
-     - Mean dose of the coldest ``percent`` % of the volume.
+   * - :func:`MOHx(…, volCutoff, volumeType) <cerr.dvh.MOHx>`
+     - Mean dose of the hottest ``volCutoff`` of the structure.
+       ``volumeType=1`` (default) reads ``volCutoff`` as a percentage,
+       ``volumeType=0`` as cc.
+   * - :func:`MOCx(…, volCutoff, volumeType) <cerr.dvh.MOCx>`
+     - Mean dose of the coldest ``volCutoff`` of the structure, with the same
+       ``volumeType`` convention.
    * - :func:`eud(…, exponent) <cerr.dvh.eud>`
      - Generalized equivalent uniform dose,
        :math:`\left(\sum_i v_i D_i^{a}\right)^{1/a}` with :math:`v_i` the
@@ -164,7 +167,11 @@ Mean of hottest and coldest volume
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 MOH\ :sub:`x` and MOC\ :sub:`x` summarize the tails of the distribution with
-less sensitivity to single voxels than the minimum and maximum dose.
+less sensitivity to single voxels than the minimum and maximum dose. Exactly
+the requested volume is averaged: when the cutoff falls inside a dose bin, only
+the needed fraction of that bin is counted, so the result does not depend on
+how much volume happens to share the boundary bin. ``dvh.MOHx(doseBinsV,
+volsHistV, 2, 0)`` gives the mean dose of the hottest 2 cc.
 
 .. figure:: ../_static/img/dvh_differential.png
    :alt: Differential DVH bar chart with the hottest and coldest ten percent highlighted.

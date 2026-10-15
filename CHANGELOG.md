@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`MOHx` and `MOCx` accept the cutoff as an absolute volume**, through a
+  `volumeType` argument matching `Dx`: `volumeType=1` (default) reads the
+  cutoff as a percentage of the structure, `volumeType=0` as cc. For example,
+  `dvh.MOHx(doseBinsV, volsHistV, 2, 0)` is the mean dose of the hottest 2 cc.
+
+### Changed
+
+- **The `MOHx` / `MOCx` cutoff argument is renamed from `percent` to
+  `volCutoff`, and their ROE model parameters to `volCutoff` and `volType`**,
+  the names `Dx` uses. Calls that pass the cutoff positionally are unaffected.
+  A model file still using the `percent` key now raises a `ValueError` naming
+  the new keys, instead of a `KeyError`.
+- `MOHx` and `MOCx` raise `ValueError` for a cutoff outside 0-100 percent,
+  a cutoff larger than the structure volume, or an empty histogram, instead of
+  returning 0.
+
+### Fixed
+
+- **`MOCx` returned 0 whenever the coldest dose bin held more than the
+  requested fraction of the volume**, e.g. MOC5 of a homogeneously irradiated
+  structure, or of an organ with a low-dose plateau outside the field. The value
+  looked like a plausible dose rather than an error.
+- **`MOHx` and `MOCx` averaged the wrong volume.** The bin straddling the
+  cutoff was included whole by `MOHx` and dropped whole by `MOCx`, so the
+  averaged volume depended on how much volume shared that bin: MOH20 of a
+  structure with 10% at 60 Gy and 90% at 10 Gy averaged the whole structure
+  and returned 15 Gy instead of 35 Gy. Both now take exactly the requested
+  volume, counting only the needed fraction of the boundary bin, which leaves
+  only the half-bin resolution shared by all histogram metrics. Results on
+  smooth dose distributions with fine bins change little (the user guide
+  examples move by up to 0.03 Gy); results where much volume shares one bin
+  can change substantially. MATLAB CERR's `calc_MOHx` / `calc_MOCx` use the
+  previous logic, so the two now differ for these metrics.
+
 ## [2.3.3] - 2026-10-15
 
 ### Added

@@ -208,73 +208,119 @@ def doseHist(doseV, volsV, binWidth):
 # print("Dose Bins:", doseBinsV)
 # print("Volumes Histogram:", volsHistV)
 
-def MOHx(doseBinsV, volsHistV, percent):
+def _meanDoseOfVolumeTail(doseBinsV, volsHistV, volCutoff, volumeType, hottest, name):
+    """Volume-weighted mean dose of the hottest or coldest volCutoff of a structure.
+
+    Whole bins are taken from the hot (or cold) end of the histogram, plus only
+    the fraction of the bin straddling the cutoff that is needed to reach the
+    requested volume exactly. Taking or dropping that whole bin instead makes the
+    result depend on how much volume happens to share the boundary bin.
+
+    See MOHx and MOCx for the arguments; name is used in error messages.
     """
-    This routine computes the mean of hottest x% dose.
+    if isinstance(volCutoff, dict):  # for use with ROE
+        if 'percent' in volCutoff:
+            raise ValueError(f"{name} parameter 'percent' was renamed; use 'volCutoff' "
+                             "(with 'volType': 1 for percent, 0 for cc).")
+        volumeType = volCutoff['volType']['val'] if 'volType' in volCutoff else 1
+        volCutoff = volCutoff['volCutoff']['val']
+    if volumeType is None:
+        volumeType = 1  # percent
+    if volumeType not in (0, 1):
+        raise ValueError(f'{name}: volumeType must be 0 (cc) or 1 (percent), got {volumeType!r}')
+
+    doseBinsV = np.asarray(doseBinsV, dtype=float)
+    volsHistV = np.asarray(volsHistV, dtype=float)
+    totalVol = volsHistV.sum()
+    if totalVol <= 0:
+        raise ValueError(f'{name}: the dose-volume histogram contains no volume')
+
+    if volumeType == 1:
+        if not 0 <= volCutoff <= 100:
+            raise ValueError(f'{name}: volCutoff must be within 0-100 percent, got {volCutoff}')
+        targetVol = volCutoff / 100 * totalVol
+    else:
+        # Allow for rounding when the whole structure volume is requested.
+        if not 0 <= volCutoff <= totalVol * (1 + 1e-9):
+            raise ValueError(f'{name}: volCutoff must be within 0-{totalVol:.6g} cc '
+                             f'(the structure volume), got {volCutoff}')
+        targetVol = min(volCutoff, totalVol)
+
+    if hottest:
+        doseBinsV, volsHistV = doseBinsV[::-1], volsHistV[::-1]
+    if targetVol == 0:
+        # Limit of a vanishing volume: the most extreme bin that holds volume.
+        return float(doseBinsV[np.argmax(volsHistV > 0)])
+
+    volBeforeV = np.concatenate(([0.0], np.cumsum(volsHistV)[:-1]))
+    takenV = np.clip(targetVol - volBeforeV, 0.0, volsHistV)
+    return float(np.sum(doseBinsV * takenV) / takenV.sum())
+
+
+def MOHx(doseBinsV, volsHistV, volCutoff, volumeType=None):
+    """
+    This routine computes the mean dose of the hottest volCutoff of the structure.
+
+    Exactly the requested volume is averaged: when the cutoff falls inside a
+    dose bin, only the needed fraction of that bin is included. The result is
+    resolved to within half a dose bin, like the other histogram metrics.
 
     Args:
-        doseBinsV: (List): vector of dose bin centers.
+        doseBinsV (List): vector of dose bin centers.
         volsHistV (List): vector of volumes accumulated in corresponding dose bins.
-        percent (float): cutoff in terms of percentage. (e.g. 90)
+        volCutoff (float): volume of the hottest region, in percent or cc.
+        volumeType (int): 1: volCutoff is a percentage of the structure (default).
+                          0: volCutoff is an absolute volume in cc.
 
     Returns:
-        Float: mean of the hottest x% dose
+        Float: mean dose of the hottest volCutoff
+
+    Raises:
+        ValueError: if volCutoff is outside 0-100 percent or larger than the
+            structure volume, or if the histogram contains no volume.
 
     Example:
-        Mean dose of the hottest 5% of the structure::
+        Mean dose of the hottest 5% and of the hottest 2 cc of the structure::
 
             moh5 = dvh.MOHx(doseBinsV, volsHistV, 5)
+            moh2cc = dvh.MOHx(doseBinsV, volsHistV, 2, 0)
 
     """
-
-    if isinstance(percent, dict):
-        percent = percent['percent']['val']
-
-    cumVolsV = np.cumsum(volsHistV)
-    cumVols2V = cumVolsV[-1] - cumVolsV
-
-    inds = np.where(cumVols2V / cumVolsV[-1] <= percent / 100)[0]
-
-    if len(inds) == 0 or np.sum(volsHistV[inds]) == 0:
-        moh = 0
-    else:
-        moh = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
-        # To get min dose: result = doseBinsV[inds[0]]
-
-    return moh
+    return _meanDoseOfVolumeTail(doseBinsV, volsHistV, volCutoff, volumeType,
+                                 hottest=True, name='MOHx')
 
 
-def MOCx(doseBinsV, volsHistV, percent):
+def MOCx(doseBinsV, volsHistV, volCutoff, volumeType=None):
     """
-    This routine computes the mean of coldest x% dose.
+    This routine computes the mean dose of the coldest volCutoff of the structure.
 
-        doseBinsV: (List): vector of dose bin centers.
+    Exactly the requested volume is averaged: when the cutoff falls inside a
+    dose bin, only the needed fraction of that bin is included. The result is
+    resolved to within half a dose bin, like the other histogram metrics.
+
+    Args:
+        doseBinsV (List): vector of dose bin centers.
         volsHistV (List): vector of volumes accumulated in corresponding dose bins.
-        percent (float): cutoff in terms of percentage. (e.g. 10)
+        volCutoff (float): volume of the coldest region, in percent or cc.
+        volumeType (int): 1: volCutoff is a percentage of the structure (default).
+                          0: volCutoff is an absolute volume in cc.
 
     Returns:
-        Float: mean of the coldest x% dose
+        Float: mean dose of the coldest volCutoff
+
+    Raises:
+        ValueError: if volCutoff is outside 0-100 percent or larger than the
+            structure volume, or if the histogram contains no volume.
 
     Example:
-        Mean dose of the coldest 5% of the structure::
+        Mean dose of the coldest 5% and of the coldest 2 cc of the structure::
 
             moc5 = dvh.MOCx(doseBinsV, volsHistV, 5)
+            moc2cc = dvh.MOCx(doseBinsV, volsHistV, 2, 0)
 
     """
-    if isinstance(percent, dict):
-        percent = percent['percent']['val']
-
-    cumVolsV = np.cumsum(volsHistV)
-    cumVols2V = cumVolsV[-1] - cumVolsV
-
-    inds = np.where(cumVols2V / cumVolsV[-1] >= (100-percent) / 100)[0]
-
-    if len(inds) == 0 or np.sum(volsHistV[inds]) == 0:
-        moc = 0
-    else:
-        moc = float(np.sum(doseBinsV[inds] * volsHistV[inds]) / np.sum(volsHistV[inds]))
-        # To get min dose: result = doseBinsV[inds[0]]
-    return moc
+    return _meanDoseOfVolumeTail(doseBinsV, volsHistV, volCutoff, volumeType,
+                                 hottest=False, name='MOCx')
 
 
 def Vx(doseBinsV, volsHistV, doseCutoff, volumeType=None):
