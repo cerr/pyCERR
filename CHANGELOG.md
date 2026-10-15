@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cerr.segmentation` and `cerr.ai_models`**, which were missing. The docs
   build now also needs `sphinx-copybutton` and `pyyaml`
   (`docs/requirements.txt`).
+- **`Scan.isSUV(suvType='BW')`**, which reports whether a scan actually holds
+  SUV of the given normalization. When `convertToSUV` cannot convert an image
+  the scanner already normalized (Units `GML` or `CM2ML`), the values it leaves
+  behind are still an SUV, just of the scanner's normalization, so checking the
+  units cannot tell a failed conversion from a successful one. `isSUV` checks
+  the units and the SUV type recorded on every slice.
+- **`SUVConversionWarning`** in `cerr.dataclasses.scan`, a `UserWarning`
+  subclass issued on every path where `convertToSUV` cannot produce the
+  requested SUV. Pipelines that must not continue without SUV can escalate it
+  with `warnings.simplefilter('error', SUVConversionWarning)`. Warnings that
+  only report an assumption made during a successful conversion, such as an
+  administration date inferred from the acquisition date, remain plain
+  `UserWarning`s.
 
 ### Changed
 
@@ -39,6 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tags the shared commit after checking that both branches are on it and
   that the changelog has the section. Published packages are not affected;
   existing tags are unchanged.
+- **`convertToSUV` refusal messages now say what was left behind.** Each ends
+  by stating that the scan is left unconverted. When stored `GML` values cannot
+  be converted, the message names the normalization that remains (for example
+  "SUVbw not computed ... so the values remain SUVibw"). The message for
+  unsupported units now names the units instead of listing only `BQML` and
+  `CNTS`. Code that matched on the previous message text should match on
+  `SUVConversionWarning` instead.
 
 ### Fixed
 

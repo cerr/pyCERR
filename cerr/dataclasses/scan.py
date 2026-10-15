@@ -19,6 +19,20 @@ import os
 import re
 import warnings
 
+
+class SUVConversionWarning(UserWarning):
+    """Warning that Scan.convertToSUV could not produce the requested SUV.
+
+    The scan is left unconverted when this is issued. Pipelines that must not
+    continue without SUV can escalate it to an exception::
+
+        warnings.simplefilter('error', SUVConversionWarning)
+
+    Informational warnings about assumptions made during a successful
+    conversion are plain UserWarnings and are not affected.
+    """
+
+
 def get_empty_list():
     """Return an empty list, used as a default factory for dataclass fields.
 
@@ -524,8 +538,11 @@ class Scan:
             ValueError: if suvType is None, '', or not one of the supported types.
 
         Note:
-            The scan is left unmodified and a warning is issued when the DICOM
-            attributes required for the conversion are missing or inconsistent.
+            The scan is left unmodified and a SUVConversionWarning is issued when
+            the DICOM attributes required for the conversion are missing or
+            inconsistent. For images stored as 'GML' or 'CM2ML' the unmodified
+            values are still an SUV, of the normalization the scanner applied, so
+            check isSUV() rather than the units to confirm the conversion.
 
         """
 
@@ -555,6 +572,13 @@ class Scan:
         # 'AS_STORED' resolves per frame, since the applied normalization is a
         # property of the stored units rather than of the request.
         asStored = suvType == 'AS_STORED'
+
+        def refuse(reason):
+            # Every path that cannot produce the requested SUV ends here, so the
+            # scan is left unconverted and callers can detect it by category.
+            warnings.warn(f'{reason} The scan is left unconverted; check '
+                          'Scan.isSUV() before using its values as SUV.',
+                          SUVConversionWarning, stacklevel=3)
 
         warnMsgs = []
         sliceUnits = [''] * numSlcs
@@ -591,9 +615,8 @@ class Scan:
                 elif suvScaleFactor != "":
                     suvBwM = imgM * suvScaleFactor
                 else:
-                    warnings.warn('SUV computation for Units CNTS requires a Philips '
+                    return refuse('SUV computation for Units CNTS requires a Philips '
                                   'activity concentration or SUV scale factor.')
-                    return
             elif imgUnits in ['BQML', 'BQCC']:
                 activityConcM = imgM
             elif imgUnits in ['KBQCC', 'KBQML']:
@@ -611,22 +634,24 @@ class Scan:
                     weightG = getSuvNormalizationFactor('BW', headerSlcS)
                     storedFactor = getSuvNormalizationFactor(storedType, headerSlcS)
                     if weightG is None or storedFactor is None or storedFactor <= 0:
-                        warnings.warn('Patient attributes required to convert stored '
-                                      f'{storedType} values to SUV are missing or invalid.')
-                        return
+                        # The stored values are themselves an SUV, so say which
+                        # one remains: it is easy to mistake for the requested type.
+                        return refuse(f'SUV{frameSuvType.lower()} not computed: patient '
+                                      f'attributes required to convert the stored '
+                                      f'SUV{storedType.lower()} values are missing or '
+                                      f'invalid, so the values remain '
+                                      f'SUV{storedType.lower()}.')
                     suvBwM = imgM * weightG / storedFactor
             else:
-                warnings.warn("'SUV calculation is supported only for imageUnits BQML and CNTS'")
-                return
+                return refuse(f"SUV computation does not support Units '{imgUnits}'.")
 
             # Step 2: when starting from an activity concentration, decay-correct
             # the administered dose to the same time point as the voxel values.
             if activityConcM is not None:
                 injectedDose = headerSlcS.injectedDose
                 if not isinstance(injectedDose, (int, float)) or injectedDose <= 0:
-                    warnings.warn('Radionuclide Total Dose is missing or non-positive; '
+                    return refuse('Radionuclide Total Dose is missing or non-positive; '
                                   'SUV cannot be computed.')
-                    return
                 if str(headerSlcS.imageType).upper() == 'NM SCAN':
                     injectedDose = injectedDose * 1e6  # Convert MBq to Bq
                 # Some PT IODs record the dose in MBq rather than Bq.
@@ -635,32 +660,29 @@ class Scan:
 
                 decayRefDateTime, errMsg = getDecayReferenceDateTime(headerSlcS)
                 if errMsg:
-                    warnings.warn(errMsg)
-                    return
+                    return refuse(errMsg)
                 if decayRefDateTime is None:
                     # Decay Correction 'ADMIN': dose already matches the values.
                     doseDecayed = injectedDose
                 else:
                     admDateTime, warnMsg = getAdministrationDateTime(headerSlcS,
                                                                     decayRefDateTime)
-                    if warnMsg:
-                        warnMsgs.append(warnMsg)
                     if admDateTime is None:
-                        warnings.warn(warnMsg)
-                        return
+                        return refuse(warnMsg)
+                    if warnMsg:
+                        # SUV is still computed; this only reports an assumption.
+                        warnMsgs.append(warnMsg)
                     halfLife = headerSlcS.halfLife
                     if not isinstance(halfLife, (int, float)) or halfLife <= 0:
-                        warnings.warn('Radionuclide Half Life is missing or non-positive; '
+                        return refuse('Radionuclide Half Life is missing or non-positive; '
                                       'SUV cannot be computed.')
-                        return
                     uptakeSecs = (decayRefDateTime - admDateTime).total_seconds()
                     doseDecayed = injectedDose * np.exp(-np.log(2) * uptakeSecs / halfLife)
 
                 weightG = getSuvNormalizationFactor('BW', headerSlcS)
                 if weightG is None:
-                    warnings.warn("Patient's Weight is missing or non-positive; "
+                    return refuse("Patient's Weight is missing or non-positive; "
                                   'SUV cannot be computed.')
-                    return
                 suvBwM = activityConcM * weightG / doseDecayed
 
             # Step 3: re-normalize the body-weight SUV if another type was asked for.
@@ -675,9 +697,8 @@ class Scan:
                 weightG = getSuvNormalizationFactor('BW', headerSlcS)
                 factor = getSuvNormalizationFactor(frameSuvType, headerSlcS)
                 if weightG is None or factor is None:
-                    warnings.warn(f'Patient attributes required for SUV type {frameSuvType} '
+                    return refuse(f'Patient attributes required for SUV type {frameSuvType} '
                                   'are missing or invalid.')
-                    return
                 suvM = suvBwM * factor / weightG
                 imageUnits = 'CM2ML' if frameSuvType == 'BSA' else 'GML'
 
@@ -700,6 +721,41 @@ class Scan:
         self.scanArray = suv3M
 
         return
+
+    def isSUV(self, suvType='BW'):
+        """Return True when the scan holds SUV values of the given normalization.
+
+        convertToSUV leaves a scan unconverted, with a SUVConversionWarning, when
+        the DICOM attributes it needs are missing. For images the scanner already
+        normalized (Units 'GML' or 'CM2ML') the unconverted values are themselves
+        an SUV, though not necessarily of the requested normalization, so the
+        units alone cannot tell whether the conversion succeeded. This checks both
+        the units and the SUV type recorded on every slice.
+
+        Args:
+            suvType (str): SUV normalization to test for. Defaults to 'BW'. One of
+             'BW', 'BSA', 'LBM', 'LBMJAMES128', 'LBMJANMA' or 'IBW'.
+
+        Returns:
+            bool: True if every slice holds SUV of type suvType.
+
+        Raises:
+            ValueError: if suvType is not one of the normalizations above.
+
+        Example:
+            >>> planC = pc.loadDcmDir(petDir)          # converts PT to SUVbw
+            >>> if not planC.scan[0].isSUV('BW'):
+            ...     raise RuntimeError('SUVbw could not be computed for this series')
+        """
+        validTypes = SUV_TYPES - {'AS_STORED'}
+        requested = '' if suvType is None else str(suvType).strip().upper()
+        if requested not in validTypes:
+            raise ValueError(f"suvType must be one of {', '.join(sorted(validTypes))}; "
+                             f"got {suvType!r}.")
+        units = 'CM2ML' if requested == 'BSA' else 'GML'
+        return len(self.scanInfo) > 0 and all(
+            str(sInfo.imageUnits).upper() == units and
+            str(sInfo.suvType).upper() == requested for sInfo in self.scanInfo)
 
     def getScanDict(self):
         """ Routine to get dictionary representation of scan metadata
