@@ -928,7 +928,9 @@ def loadScanFromDB(sacnInfoList, niiFile, initplanC=''):
     """
 
     # Read scan from Nii file
-    planC = loadNiiScan(niiFile, 'CT SCAN', '', initplanC)
+    # Keep the file's own orientation: parseScanInfoFromDB overwrites the
+    # orientation and positions with the DICOM values from the database.
+    planC = loadNiiScan(niiFile, 'CT SCAN', direction='', initplanC=initplanC)
 
     # Populate scanInfo for the latest scan from sacnInfoList
     scn.parseScanInfoFromDB(planC.scan[-1], sacnInfoList)
@@ -950,15 +952,21 @@ def loadPlanCFromPkl(file_name=""):
         planC = pickle.load(pickle_file)
     return planC
 
-def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC=''):
+def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='LPS', initplanC=''):
     """This routine imports scan from NifTi file into planC
 
     Args:
         nii_file_name (str): path of NifTi file containing the scan
         imageType (str): typte of scan. e.g. 'CT SCAN', 'MR SCAN', 'PT SCAN'
-        direction (str): optional, the desired orientation of scan as a 3-letter DICOM
-                         orientation code passed to SimpleITK's DICOMOrient, e.g. 'LPS', 'RAS'.
-                         Patient positions such as 'HFS' are not valid.
+        direction (str or None): optional, the orientation to reorder the scan's voxels
+                         to (axes are permuted/flipped, no interpolation), as a 3-letter DICOM orientation code passed to SimpleITK's
+                         DICOMOrient, e.g. 'LPS', 'RAS'. Patient positions such as 'HFS' are
+                         not valid. Defaults to 'LPS', which gives NIfTI scans the same row/column
+                         orientation as typical axial DICOM scans (imageOrientationPatient
+                         [1,0,0,0,1,0]), so they display the right way up in the viewers.
+                         Pass '' or None to keep the voxel order stored in the file, e.g. when
+                         the scan array must match another grid voxel-for-voxel. Either way the
+                         physical (patient) coordinates of each voxel are unchanged.
         initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
 
     Returns:
@@ -985,9 +993,15 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
     reader.ReadImageInformation()
     image = reader.Execute()
     # Assign direction
-    if direction:
-        image = sitk.DICOMOrient(image,direction)
     numAxes = len(image.GetSize())
+    if direction and numAxes == 3:
+        image = sitk.DICOMOrient(image,direction)
+    elif direction and numAxes == 4:
+        # DICOMOrient handles 3-D images only; orient each volume separately
+        size4 = list(image.GetSize())
+        volumes = [sitk.DICOMOrient(sitk.Extract(image, size4[:3] + [0], [0, 0, 0, t]), direction)
+                   for t in range(size4[3])]
+        image = sitk.JoinSeries(volumes, image.GetOrigin()[3], image.GetSpacing()[3])
     # Get numpy array for scan
     axisOff = numAxes - 3
     scanArray3M = sitk.GetArrayFromImage(image)

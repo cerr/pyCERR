@@ -585,7 +585,7 @@ def importNii(file_list, assocScanNum, planC):
                        'P': 'A',
                        'A': 'P'
                         }
-        if scn.flipSliceOrderFlag(planC.scan[0]):
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
             direction = direction[:2] + dirFlipDict[direction[2]]
         image = sitk.DICOMOrient(image,direction)
         numAxes = len(image.GetSize())

@@ -55,9 +55,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3-D mask instead of placing a stack of slices with fancy indexing, which
   alone took 40 s. `raster_to_mask` no longer loops over segments in Python.
   Both return exactly the same masks as before.
+- **Behaviour change: `loadNiiScan` now reorients NIfTI scans to LPS by
+  default** (`direction='LPS'`; it used to be `''`), so they come in with the
+  same `imageOrientationPatient` as axial DICOM, `[1,0,0,0,1,0]`, and display
+  the right way up in `pycerr_gui`. Before, a file stored RAS-style showed
+  rotated 180 degrees. Physical coordinates are unchanged, but **scan arrays
+  loaded from such a NIfTI may now be flipped** relative to earlier releases
+  (rows and columns reversed for RAS files). Pass `direction=''` (or `None`) to
+  keep the file's own voxel order. The registration helpers, `loadScanFromDB`
+  and the AI-model pipelines pass `direction=''` explicitly, so their scans and
+  exported masks keep the input file's grid. 4-D NIfTI scans are reoriented one
+  volume at a time, since SimpleITK's `DICOMOrient` handles 3-D images only.
 
 ### Fixed
 
+- `loadNiiDose` decided the slice order of the dose from `planC.scan[0]`
+  instead of the associated scan, so a dose attached to any scan other than
+  the first could come in with its slices reversed when scan 0 had a different
+  slice order (for example a single-slice scan).
+- `loadNiiStructure` did not resample 4-D label maps onto the associated scan,
+  so their masks lined up only when the file shared the scan's exact grid and
+  orientation. They are now resampled like 3-D label maps.
 - **`MOCx` returned 0 whenever the coldest dose bin held more than the
   requested fraction of the volume**, e.g. MOC5 of a homogeneously irradiated
   structure, or of an organ with a low-dose plateau outside the field. The value

@@ -925,7 +925,7 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
             labelList = []
             for i in range(imgSize[-1]):
                 extractFilter.SetIndex([0,0,0,i])
-                resampMaskImage = extractFilter.Execute(image)
+                resampMaskImage = resample.Execute(extractFilter.Execute(image))
                 maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
                 maskList.append(maskOnScan3M)
                 labelList.append(max(np.unique(maskOnScan3M)))

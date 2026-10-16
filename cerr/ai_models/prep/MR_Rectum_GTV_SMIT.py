@@ -37,7 +37,9 @@ def processInputData(userInputs):
     if os.path.isdir(inputPath):
         planC = pc.loadDcmDir(inputPath)
     elif inputPath.endswith('.nii') or inputPath.endswith('.nii.gz'):
-        planC = pc.loadNiiScan(inputPath, imageType='MR SCAN')
+        # Keep the file's voxel order: the model sees the orientation it was validated
+        # on, and the exported mask shares the input NIfTI's grid.
+        planC = pc.loadNiiScan(inputPath, imageType='MR SCAN', direction='')
     else:
         raise ValueError(f"Unsupported input path: {inputPath}. "
                          f"Must be a DICOM directory or NIfTI file.")
