@@ -13,8 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `volumeType` argument matching `Dx`: `volumeType=1` (default) reads the
   cutoff as a percentage of the structure, `volumeType=0` as cc. For example,
   `dvh.MOHx(doseBinsV, volsHistV, 2, 0)` is the mean dose of the hottest 2 cc.
+- **Desktop viewer: File > Clear scene** (Ctrl+Shift+N) unloads all scans,
+  structures and doses and closes the tool windows, so the next import starts a
+  new planC instead of adding to the current one. Also callable as
+  `viewer.clear_scene()`.
 
 ### Changed
+
+- **Desktop viewer: Refresh from planC moved from the Tools menu to the File
+  menu**, next to Clear scene.
+- **Desktop viewer: with more than 30 structures in planC, structures start
+  unchecked** (hidden) instead of all shown, so opening a large plan no longer
+  rasterizes every structure first. On a 98-structure head-and-neck plan the
+  viewer opens in 1.5 s instead of 53 s. Structures added after loading (e.g.
+  saved from contouring) still start checked. The limit is
+  `PyCerrViewer.MAX_DEFAULT_ON_STRUCTS`.
+- Desktop viewer: the scan's default window and colorbar range are computed in
+  one pass over a sample of at most 2 million voxels instead of two exact
+  percentile passes over the whole volume.
 
 - **The `MOHx` / `MOCx` cutoff argument is renamed from `percent` to
   `volCutoff`, and their ROE model parameters to `volCutoff` and `volType`**,

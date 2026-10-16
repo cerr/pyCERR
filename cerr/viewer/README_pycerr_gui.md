@@ -66,6 +66,7 @@ depend on them.
 | IMRTP GUI                         | Tools > IMRTP — beamlet dose calculation (`cerr.imrtp.imrtp_gui`) |
 | ROE                               | Tools > ROE — Radiotherapy Outcomes Explorer (`cerr.roe.roe_gui`) |
 | Save plan                         | File > Save planC (.pkl) / Open planC (.pkl)               |
+| Refresh / clear                   | File > Refresh from planC; File > Clear scene (Ctrl+Shift+N) unloads all data and closes the tool windows |
 
 Also supports NIfTI import: scan (`loadNiiScan`), dose (`loadNiiDose`),
 and label masks (`loadNiiStructure`).
@@ -259,7 +260,7 @@ pan behavior. Contouring is locked to the scan that was active when it opened.
 Tools > IMRTP opens the beamlet dose calculation GUI and Tools > ROE opens the
 Radiotherapy Outcomes Explorer. Both windows operate on the *same* planC instance
 as the viewer (changes are shared in memory). After IMRTP adds a dose (or any
-external code modifies planC), use **Tools > Refresh from planC** to update the
+external code modifies planC), use **File > Refresh from planC** to update the
 viewer's scan/dose/structure lists without reopening it.
 
 When IMRTP is launched from this viewer's Tools menu:
