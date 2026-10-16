@@ -383,11 +383,81 @@ def getStrMask(str_num, planC):
     scan_num = scn.getScanNumFromUID(assocScanUID,planC)
     num_rows, num_cols, num_slcs = planC.scan[scan_num].getScanSize()
     mask3M = np.zeros((num_rows,num_cols,num_slcs),dtype = bool)
+    if not np.any(rasterSegments):
+        return mask3M
+    # Fill the segments straight into the full volume
+    if _fillSegments(mask3M, rasterSegments, rasterSegments[:, 5]):
+        return mask3M
     slcMask3M,slicesV = raster_to_mask(rasterSegments, scan_num, planC)
     slicesV = np.asarray(slicesV,int)
     if len(slicesV) > 0:
         mask3M[:,:,slicesV] = slcMask3M
     return mask3M
+
+
+def _fillSegments(mask3M, rasterSegments, slcV):
+    """Set the voxels covered by raster segments in a 3-D boolean mask.
+
+    Vectorized equivalent of setting
+    ``mask3M[int(seg[6]), int(seg[7]):int(seg[8] + 1), slc] = True`` for every
+    segment row ``seg``, with ``slc`` taken from ``slcV``.
+
+    Args:
+        mask3M (np.ndarray): Boolean array of shape ``(nRows, nCols, nSlices)``,
+            modified in place.
+        rasterSegments (np.ndarray): Raster segments, as for :func:`raster_to_mask`.
+        slcV (np.ndarray): Slice index into ``mask3M`` for each segment row.
+
+    Returns:
+        bool: True when the segments were drawn. False, with ``mask3M``
+        untouched, when an index is non-integral or outside the mask (where the
+        per-segment loop would wrap negative indices), so the caller can fall
+        back to that loop.
+    """
+    num_rows, num_cols, num_slcs = mask3M.shape
+    slcV = np.asarray(slcV, dtype=float)
+    if not np.all(np.isfinite(rasterSegments[:, 6:9])) or np.any(slcV != np.round(slcV)):
+        return False
+    # Truncate toward zero, like int()
+    rowV = rasterSegments[:, 6].astype(np.int64)
+    startV = rasterSegments[:, 7].astype(np.int64)
+    stopV = (rasterSegments[:, 8] + 1).astype(np.int64)  # exclusive
+    slcV = slcV.astype(np.int64)
+    if np.any((rowV < 0) | (rowV >= num_rows) | (slcV < 0) | (slcV >= num_slcs)
+              | (startV < 0) | (stopV < 0)):
+        return False
+    stopV = np.minimum(stopV, num_cols)
+    keep = stopV > startV
+    rowV, startV, stopV, slcV = rowV[keep], startV[keep], stopV[keep], slcV[keep]
+    if len(rowV) == 0:
+        return True
+
+    # Merge overlapping and touching runs on each (slice, row) so that every
+    # run start and stop lands on a distinct column
+    order = np.lexsort((startV, rowV, slcV))
+    rowV, startV, stopV, slcV = rowV[order], startV[order], stopV[order], slcV[order]
+    newLine = np.ones(len(rowV), dtype=bool)
+    newLine[1:] = (rowV[1:] != rowV[:-1]) | (slcV[1:] != slcV[:-1])
+    lineOffsetV = np.cumsum(newLine) * (num_cols + 1)
+    runStopV = np.maximum.accumulate(stopV + lineOffsetV) - lineOffsetV
+    newRun = newLine.copy()
+    newRun[1:] |= startV[1:] > runStopV[:-1]
+    runIdxV = np.nonzero(newRun)[0]
+    lastIdxV = np.append(runIdxV[1:] - 1, len(rowV) - 1)
+    rowV, slcV = rowV[runIdxV], slcV[runIdxV]
+    startV, stopV = startV[runIdxV], runStopV[lastIdxV]
+
+    # Toggle at each run start and stop, then a running parity along columns
+    # fills the runs. Work only within the bounding box of the runs.
+    r0, c0, s0 = rowV.min(), startV.min(), slcV.min()
+    nr, nc, ns = rowV.max() - r0 + 1, stopV.max() - c0 + 1, slcV.max() - s0 + 1
+    toggle3M = np.zeros((nr, nc, ns), dtype=np.uint8)
+    toggle3M[rowV - r0, startV - c0, slcV - s0] = 1
+    toggle3M[rowV - r0, stopV - c0, slcV - s0] = 1
+    np.cumsum(toggle3M, axis=1, dtype=np.uint8, out=toggle3M)  # uint8 wraps, keeping parity
+    toggle3M &= 1
+    mask3M[r0:r0 + nr, c0:c0 + nc - 1, s0:s0 + ns] |= toggle3M[:, :-1, :].view(bool)
+    return True
 
 def raster_to_mask(rasterSegments, scanNum, planC):
     """Convert raster segments to a stack of per-slice 2-D binary masks.
@@ -434,6 +504,11 @@ def raster_to_mask(rasterSegments, scanNum, planC):
     uniqueSlices = np.unique(rasterSegments[:, 5]).astype(int)
     nUniqueSlices = len(uniqueSlices)
     dataSet = np.zeros((y, x, nUniqueSlices), dtype=bool)
+
+    slcNumV = rasterSegments[:, 5]
+    if np.all(slcNumV == np.round(slcNumV)) and \
+            _fillSegments(dataSet, rasterSegments, np.searchsorted(uniqueSlices, slcNumV)):
+        return dataSet, uniqueSlices
 
     # Loop over raster segments and fill in the proper slice
     for i in range(rasterSegments.shape[0]):

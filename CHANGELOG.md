@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MOHx` and `MOCx` raise `ValueError` for a cutoff outside 0-100 percent,
   a cutoff larger than the structure volume, or an empty histogram, instead of
   returning 0.
+- **`rasterseg.getStrMask` is about 18x faster** (98 structures of a
+  512x512x386 head-and-neck CT: 46.5 s down to 2.5 s; median per structure
+  128 ms down to 8 ms). It now writes the raster segments straight into the
+  3-D mask instead of placing a stack of slices with fancy indexing, which
+  alone took 40 s. `raster_to_mask` no longer loops over segments in Python.
+  Both return exactly the same masks as before.
 
 ### Fixed
 
