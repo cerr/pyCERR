@@ -57,19 +57,22 @@ dependencies = [
 "Bug Tracker" = "https://github.com/cerr/pyCERR/issues"
 
 [project.optional-dependencies]
-# Desktop Qt viewer (cerr.viewer.pycerr_gui) plus the ROE and IMRTP GUIs: PyQt5
-# is the Qt binding; pyvista/pyvistaqt drive the GPU-accelerated 3D view (vtk
-# comes in transitively via pyvista).
+# Desktop Qt viewer (cerr.viewer.pycerr_gui) plus the ROE and IMRTP GUIs. The
+# GUIs import Qt through qtpy, so they run on Qt5 or Qt6 with any of PyQt5,
+# PyQt6, PySide2 or PySide6 (qtpy uses the first one it finds; set QT_API to
+# pick). The extra installs PyQt5, except on aarch64 Linux, where PyQt5
+# publishes no wheel and PyQt6 is installed instead. pyvista/pyvistaqt drive
+# the GPU-accelerated 3D view (vtk comes in transitively via pyvista).
 #
-# Kept out of the base install because PyQt5 publishes no aarch64 Linux wheel:
-# on arm64 Linux (Apple Silicon Docker, ARM servers) `pip install pycerr` tried
-# to build it from source and failed for want of qmake. Everything that does
-# not draw a Qt window -- headless servers and containers, batch processing,
-# and the Jupyter viewer (cerr.viewer.pycerr_nbviewer, which needs only
-# ipywidgets + matplotlib) -- works without it:
+# Kept out of the base install so that everything that does not draw a Qt
+# window -- headless servers and containers, batch processing, and the Jupyter
+# viewer (cerr.viewer.pycerr_nbviewer, which needs only ipywidgets +
+# matplotlib) -- installs without a Qt binding:
 #   pip install "pycerr[viewer]"
 viewer = [
-    "PyQt5",
+    "qtpy >= 2.0",
+    "PyQt5; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "PyQt6; sys_platform == 'linux' and platform_machine == 'aarch64'",
     "pyvista",
     "pyvistaqt",
 ]

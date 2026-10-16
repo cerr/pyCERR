@@ -31,7 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop viewer: the scan's default window and colorbar range are computed in
   one pass over a sample of at most 2 million voxels instead of two exact
   percentile passes over the whole volume.
-
+- **The Qt GUIs run on Qt6 as well as Qt5.** `cerr.viewer.pycerr_gui`, the
+  ROE GUI (`cerr.roe.launch`) and the IMRTP GUI now import Qt through
+  [qtpy](https://github.com/spyder-ide/qtpy) instead of PyQt5 directly, and use
+  matplotlib's binding-neutral `QtAgg` backend instead of `Qt5Agg`. They run
+  with PyQt5, PyQt6, PySide2 or PySide6. qtpy takes the first binding it finds
+  (PyQt5 before PyQt6); set `QT_API=pyqt6` to choose. The Qt5-only idioms (unscoped enums,
+  `exec_()`, `pyqtSignal`, `QMouseEvent.pos()`) are replaced by forms that
+  work on both. The `viewer` extra now installs `qtpy` plus PyQt5, or PyQt6 on
+  aarch64 Linux, where PyQt5 has no wheel, so `pip install "pycerr[viewer]"`
+  now works on ARM Linux too.
 - **The `MOHx` / `MOCx` cutoff argument is renamed from `percent` to
   `volCutoff`, and their ROE model parameters to `volCutoff` and `volType`**,
   the names `Dx` uses. Calls that pass the cutoff positionally are unaffected.

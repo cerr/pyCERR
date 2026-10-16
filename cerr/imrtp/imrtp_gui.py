@@ -41,10 +41,7 @@ from datetime import date
 
 import numpy as np
 
-try:
-    from qtpy import QtWidgets, QtCore, QtGui            # napari installs qtpy
-except ImportError:                                       # pragma: no cover
-    from PyQt5 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui   # PyQt5/PyQt6/PySide2/PySide6
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -82,10 +79,8 @@ class GeometryPreview(FigureCanvasQTAgg):
     """Axial CT thumbnail with a 100 cm gantry circle and draggable beam
     lines; dragging the mouse sets the current beam's gantry angle."""
 
-    angleChanged = QtCore.Signal(float) if hasattr(QtCore, 'Signal') \
-        else QtCore.pyqtSignal(float)
-    dragFinished = QtCore.Signal() if hasattr(QtCore, 'Signal') \
-        else QtCore.pyqtSignal()
+    angleChanged = QtCore.Signal(float)
+    dragFinished = QtCore.Signal()
 
     def __init__(self, parent=None):
         fig = Figure(figsize=(3.0, 3.0), facecolor='black')
@@ -321,11 +316,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.beamList.setColumnWidth(2, 44)
         self.beamList.verticalHeader().setVisible(False)
         self.beamList.setSelectionBehavior(
-            QtWidgets.QAbstractItemView.SelectRows)
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.beamList.setSelectionMode(
-            QtWidgets.QAbstractItemView.SingleSelection)
+            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
         self.beamList.setEditTriggers(
-            QtWidgets.QAbstractItemView.NoEditTriggers)
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.beamList.itemSelectionChanged.connect(self.selectBeam)
         blLay.addWidget(self.beamList)
         btnLay = QtWidgets.QHBoxLayout()
@@ -366,7 +361,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         ssLay.addLayout(addLay)
         self.goalTable = QtWidgets.QTableWidget(0, 5)
         self.goalTable.setSelectionMode(
-            QtWidgets.QAbstractItemView.NoSelection)
+            QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
         self.goalTable.setHorizontalHeaderLabels(
             ['Index / Name', 'isTarg', 'marg', 'sampRate', ''])
         self.goalTable.verticalHeader().setVisible(False)
@@ -581,7 +576,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
                 bg = QtGui.QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]))
                 idxStr = str(absNum + 1)
             except Exception:
-                bg = self.palette().color(QtGui.QPalette.Window)
+                bg = self.palette().color(QtGui.QPalette.ColorRole.Window)
                 idxStr = 'N-A'
             nameItem = QtWidgets.QTableWidgetItem(
                 ('%s. %s' % (idxStr, g.structName))[:20])
@@ -589,7 +584,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             lum = 0.299 * bg.red() + 0.587 * bg.green() + 0.114 * bg.blue()
             nameItem.setForeground(QtGui.QColor(
                 'black' if lum > 128 else 'white'))
-            nameItem.setFlags(QtCore.Qt.ItemIsEnabled)
+            nameItem.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             tbl.setItem(i, 0, nameItem)
             tbl.setRowHeight(i, 26)
 
@@ -600,7 +595,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             w = QtWidgets.QWidget()
             l = QtWidgets.QHBoxLayout(w)
             l.setContentsMargins(0, 0, 0, 0)
-            l.setAlignment(QtCore.Qt.AlignCenter)
+            l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             l.addWidget(chk)
             tbl.setCellWidget(i, 1, w)
 
@@ -626,12 +621,12 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         tbl.setRowCount(len(self.im.beams))
         for i, b in enumerate(self.im.beams):
             numItem = QtWidgets.QTableWidgetItem('%d.' % (i + 1))
-            numItem.setFlags(QtCore.Qt.ItemIsEnabled |
-                             QtCore.Qt.ItemIsSelectable)
+            numItem.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled |
+                             QtCore.Qt.ItemFlag.ItemIsSelectable)
             tbl.setItem(i, 0, numItem)
             nameItem = QtWidgets.QTableWidgetItem(b.beamDescription)
-            nameItem.setFlags(QtCore.Qt.ItemIsEnabled |
-                              QtCore.Qt.ItemIsSelectable)
+            nameItem.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled |
+                              QtCore.Qt.ItemFlag.ItemIsSelectable)
             if i == self.currentBeam:
                 nameItem.setBackground(QtGui.QColor('white'))
                 nameItem.setForeground(QtGui.QColor('black'))
@@ -646,7 +641,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
                 w = QtWidgets.QWidget()
                 l = QtWidgets.QHBoxLayout(w)
                 l.setContentsMargins(0, 0, 0, 0)
-                l.setAlignment(QtCore.Qt.AlignCenter)
+                l.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
                 l.addWidget(chk)
                 tbl.setCellWidget(i, 2, w)
         if 0 <= self.currentBeam < len(self.im.beams):
@@ -1026,7 +1021,7 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             return
         if QtWidgets.QMessageBox.question(
                 self, 'Delete IM', 'Delete "%s" from the plan?'
-                % imList[idx].name) != QtWidgets.QMessageBox.Yes:
+                % imList[idx].name) != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         del imList[idx]
         if self.saveIndex == idx:
@@ -1151,5 +1146,5 @@ def IMRTPGui(planC, im=None, saveIndex=None, block=True, viewer=None):
     win = IMRTPGuiWindow(planC, im=im, saveIndex=saveIndex, viewer=viewer)
     win.show()
     if block and owns_app:
-        app.exec_() if hasattr(app, 'exec_') else app.exec()
+        app.exec()
     return win

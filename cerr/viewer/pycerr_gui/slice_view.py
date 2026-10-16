@@ -4,15 +4,15 @@ from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
 class SliceView(QtWidgets.QWidget):
     # all signals carry the window id (stable), not the view orientation
     # (mutable via the per-axis View menu)
-    sliceChanged = QtCore.pyqtSignal(str, int)
-    cursorMoved = QtCore.pyqtSignal(str, float, float)
-    viewReset = QtCore.pyqtSignal(str)
-    contextRequested = QtCore.pyqtSignal(str)
-    rulerChanged = QtCore.pyqtSignal(str)
-    strokeFinished = QtCore.pyqtSignal(str, object)  # winId, [(x, y)..]
-    brushStroke = QtCore.pyqtSignal(str, object, bool)  # winId, pts, isStart
-    brushDone = QtCore.pyqtSignal(str)               # brush drag finished
-    crosshairDragged = QtCore.pyqtSignal(str, float, float, bool, bool)
+    sliceChanged = QtCore.Signal(str, int)
+    cursorMoved = QtCore.Signal(str, float, float)
+    viewReset = QtCore.Signal(str)
+    contextRequested = QtCore.Signal(str)
+    rulerChanged = QtCore.Signal(str)
+    strokeFinished = QtCore.Signal(str, object)  # winId, [(x, y)..]
+    brushStroke = QtCore.Signal(str, object, bool)  # winId, pts, isStart
+    brushDone = QtCore.Signal(str)               # brush drag finished
+    crosshairDragged = QtCore.Signal(str, float, float, bool, bool)
 
     CLICK_PX = 6   # right press+release within this distance = click, not drag
 
@@ -57,7 +57,7 @@ class SliceView(QtWidgets.QWidget):
         self.label = QtWidgets.QLabel(orientation)
         self.label.setStyleSheet(
             "color:#e8c542; background:#1e1e1e; font-weight:bold; padding:2px;")
-        self.slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.slider.setMinimum(0)
         self.slider.valueChanged.connect(self._on_slider)
 
@@ -224,19 +224,19 @@ class SliceView(QtWidgets.QWidget):
             hit = self._xhair_hit(event)   # grab a crosshair line?
             if hit is not None:
                 self._xhair_drag = hit
-                self.canvas.setCursor(Qt.SizeAllCursor)
+                self.canvas.setCursor(Qt.CursorShape.SizeAllCursor)
                 self.crosshairDragged.emit(self.winId, event.xdata,
                                            event.ydata, hit[0], hit[1])
                 return
         if event.button in (1, 2):   # left or middle drag pans
             self._pan = (event.x, event.y,
                          self.ax.get_xlim(), self.ax.get_ylim())
-            self.canvas.setCursor(Qt.ClosedHandCursor)
+            self.canvas.setCursor(Qt.CursorShape.ClosedHandCursor)
         elif event.button == 3:      # right: drag zooms, plain click = menu
             self._zoom_drag = (event.y, event.xdata, event.ydata,
                                self.ax.get_xlim(), self.ax.get_ylim())
             self._rclick = (event.x, event.y, self.user_limits)
-            self.canvas.setCursor(Qt.SizeVerCursor)
+            self.canvas.setCursor(Qt.CursorShape.SizeVerCursor)
 
     def _xhair_hit(self, event, tol=7):
         """If the press is near a visible crosshair line, return
@@ -251,7 +251,7 @@ class SliceView(QtWidgets.QWidget):
         except Exception:  # noqa: BLE001
             return None
         # Native bool: numpy.bool_ (from the numpy comparison) is rejected by
-        # the PyQt5 crosshairDragged signal's bool arguments.
+        # the crosshairDragged signal's bool arguments.
         nearV = bool(abs(event.x - ix) < tol)   # near the vertical line
         nearH = bool(abs(event.y - iy) < tol)   # near the horizontal line
         return (nearV, nearH) if (nearV or nearH) else None
@@ -370,8 +370,8 @@ class SliceView(QtWidgets.QWidget):
             return _contour_cursor(
                 "brush" if self.draw_tool == "brush" else "pen")
         if self.ruler_mode:
-            return Qt.CrossCursor
-        return Qt.ArrowCursor
+            return Qt.CursorShape.CrossCursor
+        return Qt.CursorShape.ArrowCursor
 
     def _on_release(self, event):
         if self._xhair_drag is not None:

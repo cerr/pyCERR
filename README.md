@@ -68,7 +68,7 @@ All data for a patient lives in a single `PlanC` container — scans, structures
 - Helpers for AI model training / inference pipelines — `cerr.utils.ai_pipeline`
 
 **Visualization** — three interchangeable viewers driven by the same `planC`
-(a PyQt5 CERR-style desktop GUI, a Jupyter/Colab notebook viewer, and
+(a Qt5/Qt6 CERR-style desktop GUI, a Jupyter/Colab notebook viewer, and
 napari 2D/3D); see [visualize scan, dose and segmentation](#visualize-scan-dose-and-segmentation) below.
 
 ## Documentation
@@ -95,23 +95,26 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 ### 2. Install pyCERR with the extras you need
 ```bash
 uv pip install pycerr                      # core: I/O, radiomics, DVH, registration, Jupyter viewer
-uv pip install "pycerr[viewer]"            # + PyQt5 desktop viewer (pycerr_gui), ROE and IMRTP GUIs
+uv pip install "pycerr[viewer]"            # + Qt desktop viewer (pycerr_gui), ROE and IMRTP GUIs
 uv pip install "pycerr[viewer,napari]"     # + napari 2D/3D viewer
 ```
 
 | Extra | Adds | Needed for |
 |-------|------|------------|
 | *(none)* | core dependencies, `ipywidgets` | Python API, headless/batch processing, containers, `cerr.viewer.pycerr_nbviewer` (Jupyter / Colab) |
-| `viewer` | `PyQt5`, `pyvista`, `pyvistaqt` | `cerr.viewer.pycerr_gui` desktop viewer (incl. 3D view), ROE and IMRTP GUIs |
+| `viewer` | `qtpy`, `PyQt5` (`PyQt6` on aarch64 Linux), `pyvista`, `pyvistaqt` | `cerr.viewer.pycerr_gui` desktop viewer (incl. 3D view), ROE and IMRTP GUIs |
 | `napari` | `napari[all]`, `napari-animation` | `cerr.viewer.pycerr_napari` |
 | `ants` | `antspyx` | ANTs-based registration, `cerr.registration.ants_reg` |
 | `gpu` | `cupy-cuda13x` and NVIDIA CUDA 13 runtime wheels | optional GPU acceleration of the urOMT solver |
 
 Extras can be combined, e.g. `uv pip install "pycerr[viewer,napari,ants]"`.
-The `viewer` extra is not in the base install because PyQt5 has no aarch64
-Linux wheel; on arm64 Linux (ARM servers, Apple Silicon Docker images) install
-plain `pycerr`. Launching `pycerr_gui` without the extra raises an ImportError
-naming the install command.
+The Qt GUIs go through [qtpy](https://github.com/spyder-ide/qtpy), so they run
+on Qt5 or Qt6 with PyQt5, PyQt6, PySide2 or PySide6. The `viewer` extra installs
+PyQt5, or PyQt6 on aarch64 Linux, where PyQt5 has no wheel. To use Qt6
+elsewhere, install `PyQt6` and set `QT_API=pyqt6` if PyQt5 is also present
+(qtpy otherwise picks PyQt5 first). The extra is not in the base install so that
+headless servers and containers need no Qt binding. Launching `pycerr_gui`
+without a Qt binding raises an ImportError naming the install command.
 
 AI segmentation models (`cerr.ai_models`) additionally need `model_installer`,
 which is distributed from GitHub only:
@@ -203,12 +206,12 @@ all driven by the same `planC`:
 
 | Viewer | Module | Install | Best for |
 |--------|--------|---------|----------|
-| PyQt5 desktop | `cerr.viewer.pycerr_gui` (`show`) | `pycerr[viewer]` | CERR-style slice viewer: contouring, registration QA, IMRTP/ROE, scripting API |
+| Qt desktop | `cerr.viewer.pycerr_gui` (`show`) | `pycerr[viewer]` | CERR-style slice viewer: contouring, registration QA, IMRTP/ROE, scripting API |
 | notebook | `cerr.viewer.pycerr_nbviewer` (`showNB`) | `pycerr` | Jupyter / JupyterLab / VS Code / Google Colab |
 | napari 2D/3D | `cerr.viewer.pycerr_napari` (`showNapari`) | `pycerr[napari]` | quick interactive review, 3D rendering |
 
 
-#### PyQt5 desktop viewer
+#### Qt desktop viewer
     from cerr.viewer import pycerr_gui
     viewer = pycerr_gui.show(planC)            # opens the CERR-style desktop GUI
     # ... or launch empty and drag-and-drop a DICOM directory / NIfTI file in.

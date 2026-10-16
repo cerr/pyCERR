@@ -20,7 +20,7 @@ class Volume3DDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.setWindowTitle("3D Visualization (volume render)")
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.resize(760, 700)
         self._panMode = False           # left-drag pans (else rotates)
         self._camStyle = None           # persistent trackball interactor style
@@ -114,7 +114,7 @@ class Volume3DDialog(QtWidgets.QDialog):
     @staticmethod
     def _add_opacity_slider(lay, label, value, slot, tip):
         lay.addWidget(QtWidgets.QLabel(label))
-        sld = QtWidgets.QSlider(Qt.Horizontal)
+        sld = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         sld.setRange(0, 100)
         sld.setValue(int(round(value * 100)))
         sld.setToolTip(tip)
@@ -653,7 +653,7 @@ class Volume3DDialog(QtWidgets.QDialog):
     def render_scene(self):
         """(Re)build the 3-D scene, showing a busy cursor and blocking
         interaction with the dialog while the rebuild runs."""
-        QtWidgets.QApplication.setOverrideCursor(Qt.BusyCursor)
+        QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
         self.setEnabled(False)
         self._sync_overlay_sliders()   # match sliders to the current overlays
         QtWidgets.QApplication.processEvents()   # show the busy state now

@@ -1,7 +1,7 @@
 """
 roe_gui.py — Radiotherapy Outcomes Explorer (ROE) GUI for pyCERR
 ================================================================
-A PyQt5 + matplotlib interactive tool for exploring NTCP/TCP/BED
+A Qt (qtpy: PyQt5/PyQt6) + matplotlib interactive tool for exploring NTCP/TCP/BED
 dosimetric model outcomes as a function of dose scale or fractionation.
 
 Usage
@@ -45,9 +45,9 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Qt imports
 # ---------------------------------------------------------------------------
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import (
     QApplication,
     QComboBox,
     QFileDialog,
@@ -74,8 +74,8 @@ from PyQt5.QtWidgets import (
 # Matplotlib / backend
 # ---------------------------------------------------------------------------
 import matplotlib
-matplotlib.use("Qt5Agg")
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+matplotlib.use("QtAgg")
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.lines as mlines
 
@@ -192,7 +192,7 @@ class ROEGui(QMainWindow):
         root_layout.setContentsMargins(4, 4, 4, 4)
 
         # --- Main splitter ---
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         root_layout.addWidget(splitter)
 
         # ---- LEFT panel ----
@@ -249,7 +249,7 @@ class ROEGui(QMainWindow):
         self.model_list = QListWidget()
         self.model_list.setMaximumHeight(110)
         self.model_list.currentRowChanged.connect(self.on_model_selected)
-        self.model_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.model_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.model_list.customContextMenuRequested.connect(self._model_list_context_menu)
         layout.addWidget(self.model_list)
 
@@ -266,7 +266,7 @@ class ROEGui(QMainWindow):
         dose_row = QHBoxLayout()
         dose_row.addWidget(QLabel("Plan:"))
         self.dose_combo = QComboBox()
-        self.dose_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.dose_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.dose_combo.currentIndexChanged.connect(self._on_plan_changed)
         dose_row.addWidget(self.dose_combo)
         layout.addLayout(dose_row)
@@ -345,7 +345,7 @@ class ROEGui(QMainWindow):
         self.ax_twin = self.ax_main.twinx()
 
         self.canvas = FigureCanvas(self.fig)
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.canvas)
 
         # ---- Slider row ----
@@ -354,12 +354,12 @@ class ROEGui(QMainWindow):
         self.slider_label_prefix = QLabel("Scale:")
         slider_row.addWidget(self.slider_label_prefix)
 
-        self.slider = QSlider(Qt.Horizontal)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setMinimum(50)
         self.slider.setMaximum(150)
         self.slider.setValue(100)
         self.slider.setTickInterval(10)
-        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider.valueChanged.connect(self._on_slider_changed)
         slider_row.addWidget(self.slider)
 
@@ -478,14 +478,14 @@ class ROEGui(QMainWindow):
 
     def _model_list_context_menu(self, pos):
         """Show a right-click context menu on the model list with a Remove option."""
-        from PyQt5.QtWidgets import QMenu
+        from qtpy.QtWidgets import QMenu
         item = self.model_list.itemAt(pos)
         if item is None:
             return
         row = self.model_list.row(item)
         menu = QMenu(self)
         action_remove = menu.addAction("Remove model")
-        if menu.exec_(self.model_list.viewport().mapToGlobal(pos)) == action_remove:
+        if menu.exec(self.model_list.viewport().mapToGlobal(pos)) == action_remove:
             self._remove_model(row)
 
     def _remove_model(self, row: int):
@@ -563,7 +563,7 @@ class ROEGui(QMainWindow):
         for row_idx, struct_name in enumerate(required):
             # Col 0 — required name (read-only)
             item = QTableWidgetItem(struct_name)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.struct_table.setItem(row_idx, 0, item)
 
             # Col 1 — combo of available structures
@@ -606,9 +606,9 @@ class ROEGui(QMainWindow):
         for row_idx, (pname, entry) in enumerate(flat):
             # Col 0 — param name
             item = QTableWidgetItem(pname)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             # Store reference so _on_param_changed can update the model
-            item.setData(Qt.UserRole, (pname,))
+            item.setData(Qt.ItemDataRole.UserRole, (pname,))
             self.param_table.setItem(row_idx, 0, item)
 
             # Col 1 — editable value
@@ -631,7 +631,7 @@ class ROEGui(QMainWindow):
                 self.param_table.setCellWidget(row_idx, 1, combo)
             else:
                 edit_item = QTableWidgetItem(str(current_val))
-                edit_item.setData(Qt.UserRole, (pname,))
+                edit_item.setData(Qt.ItemDataRole.UserRole, (pname,))
                 self.param_table.setItem(row_idx, 1, edit_item)
 
         self.param_table.blockSignals(False)
@@ -1352,9 +1352,9 @@ def launch(planC=None):
 
     # Only run the event loop when we created the QApplication ourselves.
     # If an existing loop is already running (napari, IPython %gui qt, etc.)
-    # the caller's loop will dispatch events and exec_() must NOT be called.
+    # the caller's loop will dispatch events and exec() must NOT be called.
     if _owns_app:
-        app.exec_()
+        app.exec()
 
     return win
 
@@ -1367,4 +1367,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = ROEGui(planC=None)
     win.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -21,9 +21,9 @@ class DvhDialog(QtWidgets.QDialog):
         self.strList = QtWidgets.QListWidget()
         for i, st in enumerate(planC.structure):
             it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
-            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            it.setCheckState(Qt.Unchecked)
-            it.setData(Qt.UserRole, i)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Unchecked)
+            it.setData(Qt.ItemDataRole.UserRole, i)
             self.strList.addItem(it)
         left.addWidget(self.strList, 1)
         btn = QtWidgets.QPushButton("Plot DVH")
@@ -45,9 +45,9 @@ class DvhDialog(QtWidgets.QDialog):
         plotted = False
         for i in range(self.strList.count()):
             it = self.strList.item(i)
-            if it.checkState() != Qt.Checked:
+            if it.checkState() != Qt.CheckState.Checked:
                 continue
-            strNum = it.data(Qt.UserRole)
+            strNum = it.data(Qt.ItemDataRole.UserRole)
             try:
                 dosesV, volsV, isErr = cerrDvh.getDVH(strNum, doseNum, self.planC)
                 if isErr or dosesV is None or len(dosesV) == 0:
@@ -171,8 +171,8 @@ class ContourDialog(QtWidgets.QDialog):
 
         bb = QtWidgets.QDialogButtonBox()
         saveBtn = bb.addButton("Save to planC",
-                               QtWidgets.QDialogButtonBox.ApplyRole)
-        bb.addButton(QtWidgets.QDialogButtonBox.Close)
+                               QtWidgets.QDialogButtonBox.ButtonRole.ApplyRole)
+        bb.addButton(QtWidgets.QDialogButtonBox.StandardButton.Close)
         saveBtn.clicked.connect(self.save)
         bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
@@ -192,7 +192,7 @@ class ContourDialog(QtWidgets.QDialog):
         if axView is None:
             return
         axView.draw_mode = True
-        axView.canvas.setCursor(Qt.CrossCursor)
+        axView.canvas.setCursor(Qt.CursorShape.CrossCursor)
         axView.strokeFinished.connect(self._on_stroke)
         axView.brushStroke.connect(self._on_brush_stroke)
         axView.brushDone.connect(self._on_brush_done)
@@ -205,7 +205,7 @@ class ContourDialog(QtWidgets.QDialog):
             return
         axView.draw_mode = False
         axView.clear_draw_artists()
-        axView.canvas.setCursor(Qt.ArrowCursor)
+        axView.canvas.setCursor(Qt.CursorShape.ArrowCursor)
         for sig, slot in ((axView.strokeFinished, self._on_stroke),
                           (axView.brushStroke, self._on_brush_stroke),
                           (axView.brushDone, self._on_brush_done),
@@ -222,7 +222,7 @@ class ContourDialog(QtWidgets.QDialog):
         if newAx is self.axView:
             if newAx is not None:        # same view, just re-parented
                 newAx.draw_mode = True
-                newAx.canvas.setCursor(Qt.CrossCursor)
+                newAx.canvas.setCursor(Qt.CursorShape.CrossCursor)
                 self._on_mode_changed()
             return
         self._detach(self.axView)
@@ -285,12 +285,12 @@ class ContourDialog(QtWidgets.QDialog):
         self._discardDlg = dlg
         dlg.destroyed.connect(lambda *_: setattr(self, "_discardDlg", None))
         dlg.setWindowTitle("Contouring")
-        # Modal (but shown via show(), not exec_): grabs input focus so the
+        # Modal (but shown via show(), not exec()): grabs input focus so the
         # FIRST click lands on a button - a non-modal dialog needs one click to
         # activate the window and a second to press the button. show() keeps it
         # non-blocking, so it is safe in the %gui qt notebook event loop too.
         dlg.setModal(True)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         lay = QtWidgets.QVBoxLayout(dlg)
         lay.addWidget(QtWidgets.QLabel("Discard unsaved edits?"))
         row = QtWidgets.QHBoxLayout()
@@ -574,7 +574,7 @@ class ScanDoseExportDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.kind = kind                     # "scan" or "dose"
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle(f"Export {kind} to NIfTI")
 
         lay = QtWidgets.QVBoxLayout(self)
@@ -639,7 +639,7 @@ class StructureExportDialog(QtWidgets.QDialog):
         self.fmt = fmt                       # "nii" or "dicom"
         isNii = fmt == "nii"
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle("Export structures to "
                             + ("NIfTI" if isNii else "DICOM RTSTRUCT"))
 
@@ -648,17 +648,17 @@ class StructureExportDialog(QtWidgets.QDialog):
         self.listW = QtWidgets.QListWidget()
         for i, st in enumerate(viewer.planC.structure):
             it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
-            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            it.setCheckState(Qt.Checked)
-            it.setData(Qt.UserRole, i)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Checked)
+            it.setData(Qt.ItemDataRole.UserRole, i)
             self.listW.addItem(it)
         lay.addWidget(self.listW, 1)
 
         selRow = QtWidgets.QHBoxLayout()
         bAll = QtWidgets.QPushButton("Select all")
         bNone = QtWidgets.QPushButton("Select none")
-        bAll.clicked.connect(lambda: self._set_all(Qt.Checked))
-        bNone.clicked.connect(lambda: self._set_all(Qt.Unchecked))
+        bAll.clicked.connect(lambda: self._set_all(Qt.CheckState.Checked))
+        bNone.clicked.connect(lambda: self._set_all(Qt.CheckState.Unchecked))
         selRow.addWidget(bAll)
         selRow.addWidget(bNone)
         selRow.addStretch(1)
@@ -686,9 +686,9 @@ class StructureExportDialog(QtWidgets.QDialog):
             self.listW.item(i).setCheckState(state)
 
     def _selected(self):
-        return [self.listW.item(i).data(Qt.UserRole)
+        return [self.listW.item(i).data(Qt.ItemDataRole.UserRole)
                 for i in range(self.listW.count())
-                if self.listW.item(i).checkState() == Qt.Checked]
+                if self.listW.item(i).checkState() == Qt.CheckState.Checked]
 
     def _same_scan(self, strNumV):
         """All selected structures must share one associated scan."""
@@ -806,7 +806,7 @@ class RegQaDialog(QtWidgets.QDialog):
         fl = QtWidgets.QHBoxLayout(self.fadeRow)
         fl.setContentsMargins(0, 0, 0, 0)
         fl.addWidget(QtWidgets.QLabel("Base"))
-        self.fadeSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.fadeSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.fadeSlider.setRange(0, 100)
         # slider runs Base (left, 0) -> Moving (right, 100)
         self.fadeSlider.setValue(int((1.0 - self.baseFrac) * 100))
@@ -835,12 +835,12 @@ class RegQaDialog(QtWidgets.QDialog):
         hint.setWordWrap(True)
         lay.addWidget(hint)
 
-        bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+        bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Close)
         bb.rejected.connect(self.close)   # Close has RejectRole -> rejected
         lay.addWidget(bb)
 
-        sc = QtWidgets.QShortcut(QtGui.QKeySequence("T"), self)
-        sc.setContext(Qt.ApplicationShortcut)
+        sc = QtGui.QShortcut(QtGui.QKeySequence("T"), self)
+        sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
         sc.activated.connect(self._flip_fade)
         self._on_mode_changed()
 
@@ -1081,7 +1081,7 @@ class RegQaDialog(QtWidgets.QDialog):
             return
         structNum = self.dvfStructCombo.currentData()
         res = self.dvfResSpin.value()
-        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+        QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             ov = v.set_dvf_overlay(
                 int(idx), scanNum=v.scanNum,
@@ -1412,7 +1412,7 @@ class StructureConsensusDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.planC = viewer.planC
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle("Structure Consensus / Comparison")
         self.resize(820, 580)
         self._result = None
@@ -1475,9 +1475,9 @@ class StructureConsensusDialog(QtWidgets.QDialog):
         # ----- right: results text ---------------------------------------- #
         self.report = QtWidgets.QTextEdit()
         self.report.setReadOnly(True)
-        self.report.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+        self.report.setLineWrapMode(QtWidgets.QTextEdit.LineWrapMode.NoWrap)
         mono = QtGui.QFont("Courier New")
-        mono.setStyleHint(QtGui.QFont.Monospace)
+        mono.setStyleHint(QtGui.QFont.StyleHint.Monospace)
         self.report.setFont(mono)
         lay.addWidget(self.report, 1)
 
@@ -1493,17 +1493,17 @@ class StructureConsensusDialog(QtWidgets.QDialog):
                 scanNum = "?"
             it = QtWidgets.QListWidgetItem(
                 f"{i}: {st.structureName}  [scan {scanNum}]")
-            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            it.setCheckState(Qt.Unchecked)
-            it.setData(Qt.UserRole, i)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Unchecked)
+            it.setData(Qt.ItemDataRole.UserRole, i)
             self.strList.addItem(it)
 
     def _selected_structs(self):
         out = []
         for i in range(self.strList.count()):
             it = self.strList.item(i)
-            if it.checkState() == Qt.Checked:
-                out.append(it.data(Qt.UserRole))
+            if it.checkState() == Qt.CheckState.Checked:
+                out.append(it.data(Qt.ItemDataRole.UserRole))
         return out
 
     def _current_method(self):
@@ -1590,7 +1590,7 @@ class GammaDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.planC = viewer.planC
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle("Gamma 3D (dose comparison)")
         self.resize(860, 600)
         self.gamma3M = None
@@ -1640,9 +1640,9 @@ class GammaDialog(QtWidgets.QDialog):
         self.strList = QtWidgets.QListWidget()
         for i, st in enumerate(self.planC.structure):
             it = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
-            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            it.setCheckState(Qt.Unchecked)
-            it.setData(Qt.UserRole, i)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Unchecked)
+            it.setData(Qt.ItemDataRole.UserRole, i)
             self.strList.addItem(it)
         left.addWidget(self.strList, 1)
 
@@ -1683,8 +1683,8 @@ class GammaDialog(QtWidgets.QDialog):
         out = []
         for i in range(self.strList.count()):
             it = self.strList.item(i)
-            if it.checkState() == Qt.Checked:
-                out.append(it.data(Qt.UserRole))
+            if it.checkState() == Qt.CheckState.Checked:
+                out.append(it.data(Qt.ItemDataRole.UserRole))
         return out
 
     def _scan_num_for_dose(self, doseNum):
@@ -1742,7 +1742,7 @@ class GammaDialog(QtWidgets.QDialog):
         for c, txt in enumerate([str(name), str(int(nvox)), pct]):
             item = QtWidgets.QTableWidgetItem(txt)
             if c > 0:
-                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(r, c, item)
 
     # ------------------------------------------------------------- overlays --

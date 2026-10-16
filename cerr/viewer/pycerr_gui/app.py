@@ -51,7 +51,7 @@ def launch(planC=None, dicomDir=None):
     win.show()
     if dicomDir and os.path.isdir(dicomDir):
         QtCore.QTimer.singleShot(200, lambda: win.import_dicom(dicomDir))
-    app.exec_()
+    app.exec()
     return win.planC
 
 

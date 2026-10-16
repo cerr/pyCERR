@@ -1083,8 +1083,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.structList.blockSignals(True)
         for i in range(self.structList.count()):
             it = self.structList.item(i)
-            it.setCheckState(Qt.Checked if it.data(Qt.UserRole) in want
-                             else Qt.Unchecked)
+            it.setCheckState(Qt.CheckState.Checked if it.data(Qt.ItemDataRole.UserRole) in want
+                             else Qt.CheckState.Unchecked)
         self.structList.blockSignals(False)
         self.refresh_views()
 
@@ -1104,11 +1104,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def eventFilter(self, obj, event):
         # Arrow keys step the slice of the 2D view under the mouse (hover-based
         # navigation, independent of which widget has keyboard focus).
-        if event.type() == QtCore.QEvent.KeyPress and event.key() in (
-                Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right):
+        if event.type() == QtCore.QEvent.Type.KeyPress and event.key() in (
+                Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
             view = self._view_under_cursor()
             if view is not None and not view.is3d:
-                step = 1 if event.key() in (Qt.Key_Up, Qt.Key_Right) else -1
+                step = 1 if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Right) else -1
                 sl = view.slider
                 sl.setValue(int(np.clip(sl.value() + step,
                                         sl.minimum(), sl.maximum())))
@@ -1291,7 +1291,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
         viewM = m.addMenu("&View")
         layoutM = viewM.addMenu("&Layout")
-        lgrp = QtWidgets.QActionGroup(layoutM)
+        lgrp = QtGui.QActionGroup(layoutM)
         for key, label in (("single", "&One view"),
                            ("two", "&Two views side-by-side"),
                            ("default", "One large + two stacke&d"),
@@ -1415,7 +1415,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.overlayLayout.addStretch(1)
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         scroll.setMaximumHeight(150)
         scroll.setWidget(overlayHost)
         ovl.addWidget(scroll)
@@ -1440,7 +1440,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.structList = QtWidgets.QListWidget()
         self.structList.itemChanged.connect(lambda *_: self.refresh_views())
         self.structList.itemDoubleClicked.connect(self.on_struct_double_click)
-        self.structList.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.structList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.structList.customContextMenuRequested.connect(
             self._on_struct_context_menu)
         self.structList.setToolTip(
@@ -1485,7 +1485,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         dl.addLayout(cmapRow)
         aRow = QtWidgets.QHBoxLayout()
         aRow.addWidget(QtWidgets.QLabel("Colorwash alpha:"))
-        self.alphaSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.alphaSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.alphaSlider.setRange(0, 100)
         self.alphaSlider.setValue(int(self.doseAlpha * 100))
         self.alphaSlider.valueChanged.connect(self.on_alpha)
@@ -1629,7 +1629,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # opacity
         opRow = QtWidgets.QHBoxLayout()
         opRow.addWidget(QtWidgets.QLabel("Opacity:"))
-        self.scanAlphaSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.scanAlphaSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.scanAlphaSlider.setRange(0, 100)
         self.scanAlphaSlider.setValue(int(self.scanAlpha * 100))
         self.scanAlphaSlider.valueChanged.connect(self.on_scan_alpha)
@@ -1746,7 +1746,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     # --------------------------------------------------------------- I/O ----
     def _busy(self, msg):
         self.statusBar().showMessage(msg)
-        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+        QtWidgets.QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         QtWidgets.QApplication.processEvents()
 
     def _done(self, msg="Ready."):
@@ -1937,18 +1937,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         else:
             guess = "scan"
         box = QtWidgets.QMessageBox(self)
-        box.setIcon(QtWidgets.QMessageBox.Question)
+        box.setIcon(QtWidgets.QMessageBox.Icon.Question)
         box.setWindowTitle("Import NIfTI")
         box.setText(f"Load {os.path.basename(path)} as:")
         btns = {}
         for kind in ("scan", "dose", "segmentation"):
             btns[kind] = box.addButton(kind.capitalize(),
-                                       QtWidgets.QMessageBox.AcceptRole)
-        box.addButton(QtWidgets.QMessageBox.Cancel)
+                                       QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QtWidgets.QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(btns[guess])
-        # non-modal (a modal exec_ can hang in an integrated event loop)
+        # non-modal (a modal exec() can hang in an integrated event loop)
         box.setModal(False)
-        box.setAttribute(Qt.WA_DeleteOnClose, True)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
 
         def _clicked(btn):
             for kind, b in btns.items():
@@ -2047,8 +2047,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self, "Clear scene",
                 "Remove all scans, structures and doses from the viewer?\n\n"
                 "Anything not saved (including contour edits) will be lost.",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
+                QtWidgets.QMessageBox.StandardButton.Yes
+                | QtWidgets.QMessageBox.StandardButton.No,
+                QtWidgets.QMessageBox.StandardButton.No) \
+                != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         # Close the tools first, while planC is still attached: their close
         # handlers detach from the views and clear the overlays they drive.
@@ -2335,7 +2337,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         if preserve:
             for i in range(self.structList.count()):
                 it = self.structList.item(i)
-                prevStates[it.data(Qt.UserRole)] = it.checkState()
+                prevStates[it.data(Qt.ItemDataRole.UserRole)] = it.checkState()
         self.structList.blockSignals(True)
         self.structList.clear()
         curUID = None
@@ -2344,8 +2346,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 and 0 <= self.scanNum < len(self.planC.scan):
             curUID = self.planC.scan[self.scanNum].scanUID
         nStructs = len(self.planC.structure)
-        defaultState = Qt.Checked if nStructs <= self.MAX_DEFAULT_ON_STRUCTS \
-            else Qt.Unchecked
+        defaultState = Qt.CheckState.Checked \
+            if nStructs <= self.MAX_DEFAULT_ON_STRUCTS \
+            else Qt.CheckState.Unchecked
         # Structures appended since the last rebuild (saved from contouring,
         # a consensus, an import) are always shown: the user just made them.
         nOld = self._nStructsListed if preserve else nStructs
@@ -2354,10 +2357,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             if curUID is not None and st.assocScanUID != curUID:
                 continue            # filtered: not on the current scan
             item = QtWidgets.QListWidgetItem(f"{i}: {st.structureName}")
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(prevStates.get(
-                i, Qt.Checked if i >= nOld else defaultState))
-            item.setData(Qt.UserRole, i)
+                i, Qt.CheckState.Checked if i >= nOld else defaultState))
+            item.setData(Qt.ItemDataRole.UserRole, i)
             col = np.asarray(st.structureColor, dtype=float).ravel()
             rgb = (col / 255.0 if col.size == 3 and col.max() > 1
                    else col if col.size == 3 else np.array([1, 0, 0]))
@@ -2374,7 +2377,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def _set_all_structs(self, on):
         self.structList.blockSignals(True)
         for i in range(self.structList.count()):
-            self.structList.item(i).setCheckState(Qt.Checked if on else Qt.Unchecked)
+            self.structList.item(i).setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
         self.structList.blockSignals(False)
         self.refresh_views()
 
@@ -3001,10 +3004,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.viewLay.addWidget(gw)
         else:   # "default": one large + two stacked
             self.activeWins = ["A", "B", "C"]
-            right = QtWidgets.QSplitter(Qt.Vertical)
+            right = QtWidgets.QSplitter(Qt.Orientation.Vertical)
             right.addWidget(V["B"])
             right.addWidget(V["C"])
-            main = QtWidgets.QSplitter(Qt.Horizontal)
+            main = QtWidgets.QSplitter(Qt.Orientation.Horizontal)
             main.addWidget(V["A"])
             main.addWidget(right)
             main.setStretchFactor(0, 3)
@@ -3061,7 +3064,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         menu = QtWidgets.QMenu(self)
 
         viewM = menu.addMenu("View")
-        vgrp = QtWidgets.QActionGroup(viewM)
+        vgrp = QtGui.QActionGroup(viewM)
         for o in (VIEW_AXIAL, VIEW_SAGITTAL, VIEW_CORONAL, VIEW_3D):
             a = viewM.addAction(VIEW_DISPLAY.get(o, o))
             a.setCheckable(True)
@@ -3074,11 +3077,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             # slice-plane selections don't apply to the 3D view
             menu.addSeparator()
             menu.addAction(self.actLock)
-            menu.exec_(QtGui.QCursor.pos())
+            menu.exec(QtGui.QCursor.pos())
             return
 
         scanM = menu.addMenu("ScanSet")
-        grp = QtWidgets.QActionGroup(scanM)
+        grp = QtGui.QActionGroup(scanM)
         act = scanM.addAction("Auto (panel selection)")
         act.setCheckable(True)
         act.setChecked(sel["scan"] is None)
@@ -3096,7 +3099,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 lambda _=False, o=orient, k=i: self._set_axis_scan(o, k))
 
         doseM = menu.addMenu("DoseSet")
-        dgrp = QtWidgets.QActionGroup(doseM)
+        dgrp = QtGui.QActionGroup(doseM)
         for label, val in (("Auto (panel selection)", None), ("None", -1)):
             a = doseM.addAction(label)
             a.setCheckable(True)
@@ -3139,7 +3142,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         menu.addAction(self.actLock)   # lock slices across matching views
         menu.addAction("Reset pan/zoom (this view)",
                        self.views[orient].reset_view)
-        menu.exec_(QtGui.QCursor.pos())
+        menu.exec(QtGui.QCursor.pos())
 
     def _set_axis_view(self, winId, orientation):
         """Switch which orientation a view window displays (CERR SET_VIEW)."""
@@ -3181,11 +3184,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         if view.ruler_mode:
             view.ruler_mode = False
             view.clear_ruler()
-            view.canvas.setCursor(Qt.ArrowCursor)
+            view.canvas.setCursor(Qt.CursorShape.ArrowCursor)
             self.statusBar().showMessage("Ruler off.")
         else:
             view.ruler_mode = True
-            view.canvas.setCursor(Qt.CrossCursor)
+            view.canvas.setCursor(Qt.CursorShape.CrossCursor)
             self.statusBar().showMessage(
                 f"Ruler: click and drag in the {view.orientation} view to "
                 "measure; right-click > Draw Ruler again to clear.")
@@ -3251,8 +3254,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         out = []
         for i in range(self.structList.count()):
             it = self.structList.item(i)
-            if it.checkState() == Qt.Checked:
-                out.append(it.data(Qt.UserRole))
+            if it.checkState() == Qt.CheckState.Checked:
+                out.append(it.data(Qt.ItemDataRole.UserRole))
         return out
 
     def _struct_mask(self, strNum):
@@ -3300,7 +3303,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def on_struct_double_click(self, item):
         """Center all views on the double-clicked structure's centroid."""
-        strNum = item.data(Qt.UserRole)
+        strNum = item.data(Qt.ItemDataRole.UserRole)
         if strNum is None:
             return
         self.goto_struct_center(strNum)
@@ -3311,7 +3314,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         item = self.structList.itemAt(pos)
         if item is None:
             return
-        strNum = item.data(Qt.UserRole)
+        strNum = item.data(Qt.ItemDataRole.UserRole)
         if strNum is None:
             return
         menu = QtWidgets.QMenu(self.structList)
@@ -3320,7 +3323,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         actRename = menu.addAction("Rename…")
         menu.addSeparator()
         actDelete = menu.addAction("Delete")
-        chosen = menu.exec_(self.structList.viewport().mapToGlobal(pos))
+        chosen = menu.exec(self.structList.viewport().mapToGlobal(pos))
         if chosen is actColor:
             self._pick_struct_color(strNum, item)
         elif chosen is actCenter:
@@ -3337,7 +3340,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         cur = self.planC.structure[strNum].structureName
         name, ok = QtWidgets.QInputDialog.getText(
             self, "Rename structure", "Structure name:",
-            QtWidgets.QLineEdit.Normal, cur)
+            QtWidgets.QLineEdit.EchoMode.Normal, cur)
         if not ok:
             return
         name = name.strip()
@@ -3366,8 +3369,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         if QtWidgets.QMessageBox.question(
                 self, "Delete structure",
                 f"Delete structure '{strNum}: {name}'?",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                QtWidgets.QMessageBox.StandardButton.No) != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         del self.planC.structure[strNum]
         # Structure indices shifted: drop all structure-indexed caches.
@@ -4804,7 +4807,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             _show_info(
                 self, "DVH", "A dose and at least one structure are required.")
             return
-        # Non-modal (like the other tools): a modal exec_() hangs when the
+        # Non-modal (like the other tools): a modal exec() hangs when the
         # viewer runs inside an integrated event loop (show() / %gui qt).
         dlg = DvhDialog(self.planC, self)
         self._toolWindows.append(dlg)

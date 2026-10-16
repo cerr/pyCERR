@@ -50,7 +50,7 @@ Features
 (``cerr.viewer``):
 
 * ``pycerr_napari`` — napari 2D/3D viewer
-* ``pycerr_gui`` — PyQt5 CERR-style desktop viewer: linked ortho views, per-scan
+* ``pycerr_gui`` — Qt CERR-style desktop viewer: linked ortho views, per-scan
   window/colormap/opacity, colorwash or isodose-line dose display, a 3D volume
   render with a draggable clip box, contouring, DVH and Registration QA
 * ``pycerr_nbviewer`` — Jupyter / Colab notebook viewer

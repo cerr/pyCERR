@@ -12,6 +12,7 @@ pandas
 shapelysmooth
 ipywidgets
 napari[all]
+qtpy
 PyQt5
 pyvista
 pyvistaqt

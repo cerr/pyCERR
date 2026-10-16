@@ -22,7 +22,7 @@ viewer, napari viewer and ANTs registration are optional extras:
 
 .. code-block:: bash
 
-   pip install "pycerr[viewer]"       # PyQt5 desktop viewer, ROE and IMRTP GUIs
+   pip install "pycerr[viewer]"       # Qt desktop viewer, ROE and IMRTP GUIs
    pip install "pycerr[napari]"       # napari 2D/3D viewer
    pip install "pycerr[ants]"         # ANTs registration
 

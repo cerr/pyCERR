@@ -272,7 +272,7 @@ class MultipleViewerWidget(QSplitter):
         #self.tab_widget.addTab(w1, "Sample 1")
         #self.tab_widget.addTab(w2, "Sample 2")
         viewer_splitter = QSplitter()
-        viewer_splitter.setOrientation(Qt.Vertical)
+        viewer_splitter.setOrientation(Qt.Orientation.Vertical)
         viewer_splitter.addWidget(self.qt_viewer1)
         viewer_splitter.addWidget(self.qt_viewer2)
         viewer_splitter.setContentsMargins(0, 0, 0, 0)
