@@ -38,6 +38,7 @@ dependencies = [
     'scikit-learn',
     'scikit-image',
     'PyWavelets',
+    'shapely',
     'shapelysmooth',
     'matplotlib >= 3.5',
     'ipywidgets',

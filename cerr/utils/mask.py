@@ -543,7 +543,7 @@ def largestConnComps(mask3M, numConnComponents, minSize=0, dim=3):
     return maskOut3M
 
 
-def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
+def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False, seed=0):
     """
 
     Function to identify location (row no.) of couch in input scan
@@ -555,6 +555,9 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
                               min. length is taken to be 1/8th image size.
         retryOpt (bool): [optional, default=False] Flag to rerun search
                          with minLengthOpt halved if couch length is 0.
+        seed (int or None): [optional, default=0] Seed for the randomised
+                         probabilistic Hough line search, so the result is
+                         reproducible. None gives a different random draw each call.
 
     Returns:
         yCouch (int): Row no. representing couch location.
@@ -566,6 +569,7 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
     scanSizeV = scan3M.shape
     midptS = np.floor(scanSizeV[0] / 2)
     numPeaks = 20
+    rng = np.random.default_rng(seed)
 
     # 3D max projection
     maxM = np.amax(scan3M, axis=2)
@@ -607,7 +611,7 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
         peakIntercept = distance / np.sin(angle)
 
         # Detect line segments at this angle
-        probLines = transform.probabilistic_hough_line(edgeM2, threshold=100,\
+        probLines = transform.probabilistic_hough_line(edgeM2, threshold=100, rng=rng,\
                                                        line_length=minLength, \
                                                        line_gap=1, theta=np.array([angle]))
         # Match intercepts
@@ -642,7 +646,7 @@ def getCouchLocationHough(scan3M, minLengthOpt=None, retryOpt=False):
 
     if len(yi) == 0:
         if retryOpt:
-            yCouch, selectedLines = getCouchLocationHough(scan3M, minLength / 2)
+            yCouch, selectedLines = getCouchLocationHough(scan3M, minLength / 2, seed=seed)
         else:
             yCouch = scanSizeV[0]
     else:
@@ -677,6 +681,9 @@ def getPatientOutline(scan3M, outThreshold=-400, slicesV=None,
         conn3dPtMask3M (np.ndarray(dtype=bool)): Mask of patient outline.
 
     """
+    # Work on a copy: slices are modified below, and the caller's array must not be
+    scan3M = np.array(scan3M, copy=True)
+
     # Define default values for optional inputs
     if slicesV is None:
         slicesV = np.arange(scan3M.shape[2])

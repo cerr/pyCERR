@@ -130,7 +130,9 @@ def processImage(filterType, scan3M, mask3M, paramS):
         direction = paramS['Direction']
         type = paramS['Type']
         normFlag = 0
+        lawsPadFlag = False                 # Laws response computed without padding
         lawsPadSizeV = np.array([0, 0, 0])
+        lawsPadMethod = 'none'
         energyKernelSizeV = paramS['EnergyKernelSize']
         energyPadSizeV = paramS['EnergyPadSize']
         energyPadMethod = paramS['EnergyPadMethod']
@@ -157,8 +159,9 @@ def processImage(filterType, scan3M, mask3M, paramS):
         waveType = paramS['Wavelets']
         direction = paramS['Direction']
         level = 1  # Default
-        if 'level' in paramS.keys():
-            level = paramS['Level']
+        for levelKey in ('Level', 'level'):
+            if levelKey in paramS:
+                level = int(paramS[levelKey])
         if 'Index' in paramS and paramS['Index'] is not None:
             waveType += str(paramS['Index'])
         if filterType == 'wavelets':

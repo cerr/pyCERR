@@ -6,7 +6,7 @@ On this foundation, pyCERR supports a wide range of applications in radiology an
 
 - **Image analysis**: IBSI-compliant radiomics and texture maps, PET SUV computation, DCE-MRI uptake features and optimal mass transport (urOMT) analysis
 - **Segmentation**: contouring, structure operations, consensus contours and auto-segmentation with pre-trained AI models
-- **Registration**: deformable image registration (plastimatch, ANTs) with tools for registration quality assurance
+- **Registration**: rigid and deformable image registration with ANTs, with tools for registration quality assurance
 - **Dosimetry and outcomes**: dose-volume histograms and metrics, gamma dose comparison, and normal tissue complication / tumor control probability models
 - **Treatment planning**: IMRT dose calculation and fluence optimization, including lattice radiotherapy
 - **AI workflows**: data preparation for model training and inference, on a workstation or in the cloud
@@ -62,7 +62,7 @@ All data for a patient lives in a single `PlanC` container — scans, structures
 - IMRT planning / beamlet (influence-matrix) dose calculation — `cerr.imrtp`
 
 **Image processing**
-- Deformable image registration via plastimatch / ANTs — `cerr.registration`
+- Rigid and deformable image registration with ANTs (`pycerr[ants]`) — `cerr.registration`
 - Resampling, intensity preprocessing and masking — `cerr.utils`
 - Semi-quantitative DCE-MRI features — `cerr.mri_metrics`
 - Helpers for AI model training / inference pipelines — `cerr.utils.ai_pipeline`
@@ -104,7 +104,7 @@ uv pip install "pycerr[viewer,napari]"     # + napari 2D/3D viewer
 | *(none)* | core dependencies, `ipywidgets` | Python API, headless/batch processing, containers, `cerr.viewer.pycerr_nbviewer` (Jupyter / Colab) |
 | `viewer` | `qtpy`, `PyQt5` (`PyQt6` on aarch64 Linux), `pyvista`, `pyvistaqt` | `cerr.viewer.pycerr_gui` desktop viewer (incl. 3D view), ROE and IMRTP GUIs |
 | `napari` | `napari[all]`, `napari-animation` | `cerr.viewer.pycerr_napari` |
-| `ants` | `antspyx` | ANTs-based registration, `cerr.registration.ants_reg` |
+| `ants` | `antspyx` | Image registration, `cerr.registration` |
 | `gpu` | `cupy-cuda13x` and NVIDIA CUDA 13 runtime wheels | optional GPU acceleration of the urOMT solver |
 
 Extras can be combined, e.g. `uv pip install "pycerr[viewer,napari,ants]"`.

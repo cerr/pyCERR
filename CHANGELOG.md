@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **User-guide pages for consensus contours, segmentation metrics, patient
+  outline and couch removal, AI model inference with pre- and post-processing,
+  registration QA, and texture filters**, each with worked examples and
+  figures generated from the bundled data by scripts in `docs/_figure_scripts`.
+  Documentation only.
+- **`cerr.contour.structure_metrics` compares two segmentations.**
+  `compareStructurePair(ref, test, planC)` returns Dice, Jaccard, sensitivity,
+  PPV, Hausdorff distance and its 95th percentile, mean surface distance,
+  surface Dice at 1, 2 and 3 mm, volumes, centre-of-mass distance and the
+  added path length (APL). `compareMasks` does the same for two masks, with
+  `getSpacingMm` giving the voxel spacing in the order of the mask axes, and
+  `addedPathLength` returns APL in total and per slice. APL follows the MAITE
+  definition (reference contour more than a tolerance, 1 mm by default, from
+  the test contour; whole contours on slices where only one structure exists),
+  with inner contours treated as holes. `shapely` is now a declared
+  dependency (it was already installed through `shapelysmooth`).
+- **`ants_reg.calcVectorFieldAnts` samples an ANTs registration as a
+  deformation vector field** on the fixed scan's grid and adds it to
+  `planC.deform`, so `register.getDvfGrid`, `register.getDvfVectors` and the
+  viewer's DVF overlay work with ANTs registrations. Also importable from
+  `cerr.registration.register`.
+- **`mask.getCouchLocationHough` takes a `seed`** (default 0) for its randomised
+  line search, so couch detection and `getPatientOutline` are reproducible.
+  Pass `seed=None` for the previous behaviour.
+
+### Changed
+
+- **Registration uses ANTs by default.** `register.registerScans` now registers
+  with ANTs (`registrationTool='ants'`), mapping `deforAlgorithm` 'rigid',
+  'affine' and 'bsplines'/'deformable' to the ANTs `Rigid`, `Affine` and
+  `antsRegistrationSyNQuick[s]` presets; any other value is passed to ANTs as
+  the preset. `warpScan`, `warpStructures` and `warpDose` apply ANTs transforms
+  and NIfTI/MHA vector fields with ANTs and rigid transforms directly;
+  `calcVectorField` and `calcJacobian` (now `tool='ants'` by default) work on
+  ANTs registrations. ANTs remains an optional extra:
+  `pip install "pycerr[ants]"`.
+
+### Deprecated
+
+- **plastimatch.** `registrationTool='plastimatch'`, `calcJacobian(...,
+  tool='plastimatch')` and warping plastimatch B-spline transforms still work
+  but issue a `FutureWarning`; plastimatch support will be removed in a future
+  release.
+
+### Fixed
+
+- **`calcJacobian` returned `None`** for a deform object without a vector-field
+  file instead of reporting the problem. It now raises `ValueError`.
+- **The Sobel filter failed on 3D scans** (`convolve2d` given a 3D array). It
+  now filters each slice.
+- **The wavelet `Level` setting was ignored**: `processImage` checked for
+  `'level'` but read `'Level'`, so the level was always 1. Both spellings are
+  now read, and levels above 1 are computed. This needed a fix to the 2D
+  stationary wavelet transform (`texture_filters.swt2`), which used the
+  level-1 filter length and upsampled the filters twice per level, so levels 2
+  and above were wrong; it now matches PyWavelets' `swt2` at every level.
+  Level-1 results are unchanged.
+- **`LawsEnergy` raised `NameError` without a `Padding` entry** in its
+  parameters. It now defaults to no padding of the Laws response.
+- **`getDvfGrid` and `getDvfVectors` raised an unrelated `ValueError`** for a
+  deform object with no sampled vector field (ANTs, B-spline, rigid). They now
+  say so and name the function that samples one.
+- **`getPatientOutline` overwrote parts of the array passed to it.** It now
+  works on a copy.
+- **`ai_models.run_utils.listInputs` listed no model arguments** for models
+  whose pre-processing runs as a subprocess: it read
+  `execution.single.arguments` while the runner reads `execution.arguments`.
+  It now reads the same place, with the old one as a fallback.
+- **The error for a missing `model_installer` suggested
+  `pip install pyCERR[model_installer]`**, an extra that does not exist. It now
+  gives the GitHub install command.
+
 ## [2.4.1] - 2026-10-20
 
 ### Fixed

@@ -64,7 +64,7 @@ All imaging data lives in a `PlanC` instance (defined in `cerr/plan_container.py
 | `cerr/contour/` | Contour processing and rasterization (polygon → mask) |
 | `cerr/viewer.py` | Interactive napari-based 2D/3D visualization |
 | `cerr/dvh.py` | Dose-Volume Histogram calculation |
-| `cerr/registration/` | Deformable image registration via plastimatch |
+| `cerr/registration/` | Rigid and deformable registration via ANTs (`ants_reg.py`); plastimatch paths are deprecated |
 | `cerr/dcm_export/` | DICOM export (RTSTRUCT, RTDOSE IODs) |
 | `cerr/utils/` | AI pipeline setup, image processing, masking, UID generation |
 | `cerr/roe/` | Radiomics Outcome Explorer (dosimetric models) |
@@ -82,7 +82,7 @@ loadDcmDir(dcmDir) → PlanC
 PlanC → process:
   ├─ radiomics.ibsi1.computeScalarFeatures(scanNum, structNum, settingsFile, planC)
   ├─ dvh.getDVH(structNum, doseNum, planC)
-  └─ registration.register.register_scans(planC, ...)
+  └─ registration.register.registerScans(planC, ...)   # ANTs
 
 PlanC → export:
   ├─ saveToH5(planC, h5File)   # HDF5 serialization

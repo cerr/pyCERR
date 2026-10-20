@@ -377,7 +377,9 @@ def listInputs(modelNum, installDir):
 
     else:
         # Read from run_spec.yaml
-        args = config.get('execution', {}).get('single', {}).get('arguments', [])
+        # Same location buildCommand reads; older specs nested it under 'single'
+        execConfig = config.get('execution', {})
+        args = execConfig.get('arguments') or execConfig.get('single', {}).get('arguments', [])
         for arg in args:
             name = arg.get('name', '')
             required = 'Yes' if arg.get('required', False) else 'No'

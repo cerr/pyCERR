@@ -1,8 +1,9 @@
 """ANTs (antspyx) based image registration for pyCERR.
 
-This module registers pyCERR scans using the `antspyx` package. It mirrors the
-plastimatch-based workflow in :mod:`cerr.registration.register` (register, then
-warp scans / structures / dose), and adds two features that ANTs supports well:
+This module registers pyCERR scans using the `antspyx` package: register, then
+warp scans / structures / dose. It is the engine behind the generic functions in
+:mod:`cerr.registration.register` (``registerScans``, ``warpScan``, ...), and
+supports two features beyond them:
 
 * Fixed and/or moving **masks** to restrict the similarity metric to a region
   of interest (e.g. patient outline, lungs).
@@ -394,4 +395,76 @@ def warpDoseAnts(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS,
             basePlanC.scan[baseScanIndex].scanInfo[0].imageOrientationPatient
         basePlanC.dose[-1].doseUnits = doseUnits
     shutil.rmtree(dirpath, ignore_errors=True)
+    return basePlanC
+
+
+def _composeAntsField(deformS, basePlanC, baseScanIndex, outDir):
+    """Write an ANTs transform chain as one displacement field on the fixed grid.
+
+    Returns:
+        str: path to the displacement-field NIfTI (LPS, mm) in ``outDir``.
+    """
+    ants = _importAnts()
+    dirpath = tempfile.mkdtemp()
+    fixedImgNii = os.path.join(dirpath, 'fixed.nii.gz')
+    basePlanC.scan[baseScanIndex].saveNii(fixedImgNii)
+    fixedImg = ants.image_read(fixedImgNii)
+    transformList = deformS.deformParams.get('fwdtransforms', [deformS.deformOutFilePath])
+    # With ``compose``, apply_transforms writes the composed transform chain as
+    # a displacement field on the fixed grid and returns its path.
+    prefix = os.path.join(outDir, 'ants_dvf_')
+    dvfFile = ants.apply_transforms(fixed=fixedImg, moving=fixedImg,
+                                    transformlist=transformList, compose=prefix)
+    shutil.rmtree(dirpath, ignore_errors=True)
+    return dvfFile
+
+
+def calcVectorFieldAnts(deformS, basePlanC, baseScanIndex, transformSaveDir=None):
+    """Sample an ANTs transform as a dense deformation vector field (DVF).
+
+    ANTs stores a registration as a transform chain (affine plus a warp field),
+    with no per-voxel displacement on the fixed scan grid. This composes the
+    chain into one displacement field on the grid of the fixed scan and loads
+    it into ``basePlanC.deform`` as a ``'vf'`` deform object, which the
+    DVF tools accept: :func:`cerr.registration.register.getDvfGrid`,
+    :func:`cerr.registration.register.getDvfVectors` and the viewer's DVF
+    overlay.
+
+    Each vector is the displacement, in DICOM patient coordinates (LPS, mm),
+    from a fixed-scan voxel to the moving-scan position it was mapped to.
+
+    Args:
+        deformS (cerr.dataclasses.deform.Deform): ANTs deform object
+            (``registrationTool == 'ants'``).
+        basePlanC (cerr.plan_container.PlanC): plan container with the fixed scan.
+        baseScanIndex (int): index of the fixed scan in ``basePlanC.scan``.
+        transformSaveDir (str): optional directory for the displacement-field
+            NIfTI. A new temporary directory is used when ``None``; the deform
+            object keeps the file's path.
+
+    Returns:
+        cerr.plan_container.PlanC: ``basePlanC`` with the DVF deform object
+        appended to ``basePlanC.deform``.
+
+    Example:
+        Register, then sample the transform for the DVF tools::
+
+            from cerr.registration import register, ants_reg
+
+            planC = register.registerScansAnts(planC, 0, planC, 1)
+            planC = ants_reg.calcVectorFieldAnts(planC.deform[-1], planC, 0)
+            comps, axes, info = register.getDvfGrid(planC.deform[-1], planC, 0)
+    """
+    if transformSaveDir is None:
+        transformSaveDir = tempfile.mkdtemp()
+    else:
+        os.makedirs(transformSaveDir, exist_ok=True)
+
+    dvfFile = _composeAntsField(deformS, basePlanC, baseScanIndex, transformSaveDir)
+    basePlanC = pc.loadNiiVf(dvfFile, baseScanIndex, basePlanC)
+    dvfDeform = basePlanC.deform[-1]
+    dvfDeform.movScanUID = deformS.movScanUID
+    dvfDeform.registrationTool = 'ants'
+    dvfDeform.algorithm = deformS.algorithm
+    dvfDeform.deformParams = {'sourceDeformUID': deformS.deformUID}
     return basePlanC
