@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`image_proc.resizeScanAndMask` returned wrong output grids, so a resized
+  scan imported back into planC did not line up with the original.** For
+  `padorcrop3d` / `pad3d` the x and y vectors had the wrong length (the padding
+  was halved, and row and column padding were swapped) and started half a voxel
+  off; for `bilinear`, `bicubic` and `nearest` the coordinates were scaled about
+  the origin instead of spanning the input's extent, and y ran the wrong way.
+  The grids now give the position of every output voxel, so resized scans and
+  masks register with the input. The bundled CT lung OAR model, which pads to
+  512 x 512, gets the same arrays as before with a grid corrected by up to half
+  a voxel.
+- **`resizeScanAndMask` crashed for several options.** Cropping (`unpad3d`, or
+  `padorcrop3d` to a smaller size) raised `TypeError`; `padorcrop3d` with
+  `preserveAspectFlag=True`, the interpolating methods with
+  `preserveAspectFlag=True`, and the interpolating methods with a
+  single-structure mask raised as well. `padorcrop3d` now pads or crops rows
+  and columns independently, and padding to a size and cropping back returns
+  the original array.
+- **`resizeScanAndMask` rescaled integer scans** when interpolating
+  (`bilinear`, `bicubic`, `nearest`): skimage converted them to the 0-1 range.
+  Intensities are now kept.
+
 ## [2.4.0] - 2026-10-16
 
 ### Added
