@@ -12,7 +12,9 @@ scikit-learn
 scikit-image
 PyWavelets
 pandas
+shapely
 shapelysmooth
+surface-distance-based-measures
 ipywidgets
 napari[all]
 pyyaml

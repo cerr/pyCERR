@@ -41,7 +41,7 @@ Features
 
 **Image processing**
 
-* Deformable image registration via plastimatch / ANTs (``cerr.registration``)
+* Rigid and deformable image registration with ANTs (``cerr.registration``)
 * Resampling, intensity preprocessing and masking (``cerr.utils``)
 * Semi-quantitative DCE-MRI features (``cerr.mri_metrics``)
 * Helpers for AI model training / inference (``cerr.utils.ai_pipeline``)
@@ -75,8 +75,14 @@ Where to start
 
    user_guide/planc
    user_guide/segmentation
+   user_guide/body_outline
+   user_guide/structure_consensus
+   user_guide/segmentation_metrics
+   user_guide/ai_inference
    user_guide/registration
+   user_guide/registration_qa
    user_guide/radiomics
+   user_guide/texture
    user_guide/dvh
    user_guide/roe
 

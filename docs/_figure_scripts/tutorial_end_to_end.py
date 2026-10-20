@@ -3,7 +3,6 @@ import json
 import os
 import tempfile
 
-import numpy as np
 
 from common import DATA_DIR, IMG_DIR, addSyntheticDose, loadPhantom
 from cerr import dvh

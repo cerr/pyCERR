@@ -289,13 +289,9 @@ Sample filter settings in ``cerr/datasets/convolutional_filter_settings``:
      - Gabor filter of given wavelength and orientations, aggregated over
        orientations and planes.
 
-Other filter types accepted in ``imageType`` are ``Sobel``, ``Laws``,
-``RotationInvariantLaws``, ``LawsEnergy``, ``Gabor3d``, ``Wavelets`` and
-``RotationInvariantWavelets``. The IBSI chapter 2 settings files under
-``radiomics_settings/ibsi_settings`` give working parameter sets for each.
-
-To apply a filter to arrays without a ``planC``, call
-:func:`~cerr.radiomics.texture_utils.processImage` directly.
+:doc:`texture` covers every filter type and its parameters, padding,
+filtering arrays without a ``planC``, and computing features from filtered
+images.
 
 See also
 --------

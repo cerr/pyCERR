@@ -5,8 +5,9 @@ data bundled with pyCERR, so the figures can be regenerated at any time::
 
     python docs/_figure_scripts/make_all.py
 
-The scripts need only a core ``pycerr`` install (plus ``antspyx`` for
-``registration.py``).
+The scripts need only a core ``pycerr`` install, plus the ``ants`` extra for
+``registration.py`` and ``registration_qa.py`` and the ``viewer`` extra for
+``registration_qa.py``.
 """
 import os
 
@@ -87,3 +88,49 @@ def contourMask(ax, planC, scanNum, mask3M, slc, color, label=None, lw=1.5):
                    colors=[color], linewidths=lw)
     if label:
         ax.plot([], [], color=color, lw=lw, label=label)
+
+
+def knownWarpIndices(shape):
+    """Moving-scan (row, col, slice) sampled by each fixed voxel under the
+    synthetic deformation used by the registration pages: a shift plus a
+    smooth sinusoidal warp."""
+    nR, nC, nS = shape
+    rM, cM, sM = np.meshgrid(np.arange(nR), np.arange(nC), np.arange(nS), indexing="ij")
+    rQ = rM + 7 + 5 * np.sin(2 * np.pi * cM / nC)
+    cQ = cM - 9 + 5 * np.sin(2 * np.pi * rM / nR)
+    sQ = sM + 1.0
+    return rQ, cQ, sQ
+
+
+def knownInverseIndices(shape, nIter=20):
+    """Inverse of :func:`knownWarpIndices`: the moving-scan (row, col, slice)
+    whose content lands on each fixed voxel. This is what a registration of the
+    moving scan to the fixed scan should recover."""
+    nR, nC, nS = shape
+    rF, cF, sF = np.meshgrid(np.arange(nR), np.arange(nC), np.arange(nS), indexing="ij")
+    rM, cM, sM = rF - 7.0, cF + 9.0, sF - 1.0
+    for _ in range(nIter):                     # fixed-point iteration converges fast
+        rM = rF - 7 - 5 * np.sin(2 * np.pi * cM / nC)
+        cM = cF + 9 - 5 * np.sin(2 * np.pi * rM / nR)
+    return rM, cM, sM
+
+
+def warpKnown(vol3M, order):
+    """Resample ``vol3M`` through the synthetic deformation."""
+    from scipy.ndimage import map_coordinates
+    return map_coordinates(vol3M, list(knownWarpIndices(vol3M.shape)), order=order,
+                           mode="nearest")
+
+
+def addMovingScan(planC, baseScanNum=0, structNum=0):
+    """Append a synthetically deformed copy of a scan, and of one structure,
+    to planC. Returns (planC, movScanNum, movStructNum)."""
+    xV, yV, zV = planC.scan[baseScanNum].getScanXYZVals()
+    fixed3M = planC.scan[baseScanNum].getScanArray().astype(float)
+    planC = pc.importScanArray(warpKnown(fixed3M, 1), xV, yV, zV, "CT", baseScanNum, planC)
+    movScanNum = len(planC.scan) - 1
+    mask3M = rs.getStrMask(structNum, planC).astype(float)
+    planC = pc.importStructureMask(warpKnown(mask3M, 0) > 0.5, movScanNum,
+                                   planC.structure[structNum].structureName + " (moving)",
+                                   planC)
+    return planC, movScanNum, len(planC.structure) - 1

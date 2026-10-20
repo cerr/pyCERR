@@ -138,8 +138,7 @@ To compare contours of the same organ by several observers, and to build a
 consensus contour with STAPLE,
 :func:`cerr.contour.structure_consensus.createConsensusStructure` and
 :func:`~cerr.contour.structure_consensus.compareStructures` report agreement
-statistics; ``cerr/scripts/structure_consensus_example.py`` is a complete
-example.
+statistics; see :doc:`structure_consensus`.
 
 Label maps
 ----------
@@ -166,66 +165,15 @@ a name-to-label dictionary:
    One slice of the label map. Where structures overlap, the one processed
    last wins; pass ``dim=4`` to get a stack of binary masks instead.
 
-AI auto-segmentation
---------------------
+Automatic segmentation
+----------------------
 
-:mod:`cerr.ai_models` installs and runs pretrained deep-learning segmentation
-models from the CERR model library. Each model is installed with its own
-Python environment, so its dependencies do not touch yours. pyCERR handles
-the pre-processing the model expects, runs inference in a subprocess and
-imports the output masks as structures.
-
-.. note::
-
-   The commands in this section were not executed when these pages were
-   built, because they download model weights. Model numbers and required
-   inputs depend on the installed version of ``model_installer``; use
-   ``listModels`` and ``listInputs`` to see what applies to you.
-
-Install the model manager once:
-
-.. code-block:: bash
-
-   pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
-
-List, install and inspect a model:
-
-.. code-block:: python
-
-   from cerr import ai_models
-   from cerr.ai_models import install_utils, run_utils
-
-   install_utils.listModels()                      # prints number and name of each model
-
-   modelNum = 1
-   installDir = '/path/to/models'
-   ai_models.install(modelNum, installDir)         # weights + isolated environment
-
-   run_utils.listInputs(modelNum, installDir)      # required and optional inputs
-
-Run it. The inputs are passed as a dictionary; the bundled models take an
-input location, an output location and a working directory:
-
-.. code-block:: python
-
-   userInputs = {'input_path': '/data/pt1/dicom',
-                 'output_path': '/data/pt1/ai_output',
-                 'session_path': '/data/pt1/session'}
-   ai_models.run(modelNum, installDir, userInputs, verbose=True)
-
-To attach the output of an earlier run to a ``planC`` you already hold:
-
-.. code-block:: python
-
-   planC = run_utils.importSeg(modelNum, installDir, '/data/pt1/ai_output',
-                               scanNum, planC)
-
-Models that need pre- or post-processing in pyCERR have scripts under
-``cerr/ai_models/prep`` and ``cerr/ai_models/post``, which are the place to
-look when adding a model. For your own pipelines,
-:func:`cerr.utils.image_proc.resizeScanAndMask` crops, pads and resizes a
-scan with its masks, and :mod:`cerr.utils.ai_pipeline` sets up session
-directories and finds the scans derived from a given scan.
+* :doc:`ai_inference` runs pretrained deep-learning models from the CERR
+  model library, or your own, with the pre- and post-processing around them.
+* :doc:`body_outline` extracts the patient outline and removes the couch.
+* :doc:`structure_consensus` combines contours from several observers or models.
+* :doc:`segmentation_metrics` scores a contour against a reference with Dice,
+  Hausdorff distance and related metrics.
 
 Rule-based segmentation models
 ------------------------------

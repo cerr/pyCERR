@@ -28,6 +28,14 @@ cerr.contour.structure\_consensus module
    :undoc-members:
    :show-inheritance:
 
+cerr.contour.structure\_metrics module
+--------------------------------------
+
+.. automodule:: cerr.contour.structure_metrics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

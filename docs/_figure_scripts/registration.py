@@ -10,43 +10,25 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import map_coordinates
 
-from common import contourMask, loadPhantom, save, showAxial
-from cerr import plan_container as pc
+from common import addMovingScan, contourMask, loadPhantom, save, showAxial
 from cerr.contour import rasterseg as rs
 from cerr.registration import register
 
 
-def warpKnown(vol3M, order):
-    """Resample ``vol3M`` through a fixed shift + sinusoidal deformation."""
-    nR, nC, nS = vol3M.shape
-    rM, cM, sM = np.meshgrid(np.arange(nR), np.arange(nC), np.arange(nS), indexing="ij")
-    rQ = rM + 7 + 5 * np.sin(2 * np.pi * cM / nC)
-    cQ = cM - 9 + 5 * np.sin(2 * np.pi * rM / nR)
-    sQ = sM + 1.0
-    return map_coordinates(vol3M, [rQ, cQ, sQ], order=order, mode="nearest")
-
-
 planC = loadPhantom()
 baseScanNum = 0
-xV, yV, zV = planC.scan[baseScanNum].getScanXYZVals()
 fixed3M = planC.scan[baseScanNum].getScanArray().astype(float)
 gtvFixed3M = rs.getStrMask(0, planC)
 
 # Moving scan and its GTV, in the same planC (scan 1, structure 1)
-planC = pc.importScanArray(warpKnown(fixed3M, 1), xV, yV, zV, "CT", baseScanNum, planC)
-movScanNum = len(planC.scan) - 1
-planC = pc.importStructureMask(warpKnown(gtvFixed3M.astype(float), 0) > 0.5,
-                               movScanNum, "GTV-1 (moving)", planC)
-movStructNum = len(planC.structure) - 1
+planC, movScanNum, movStructNum = addMovingScan(planC, baseScanNum, 0)
 gtvMov3M = rs.getStrMask(movStructNum, planC)
 
 # ---- register ---------------------------------------------------------------
 transformDir = tempfile.mkdtemp()
-planC = register.registerScansAnts(planC, baseScanNum, planC, movScanNum,
-                                   transformSaveDir=transformDir,
-                                   typeOfTransform="antsRegistrationSyNQuick[s]")
+planC = register.registerScans(planC, baseScanNum, planC, movScanNum, transformDir,
+                               deforAlgorithm="bsplines")
 warpedScanNum = len(planC.scan) - 1
 deformS = planC.deform[-1]
 print("scans", len(planC.scan), "deform", len(planC.deform))
@@ -54,7 +36,7 @@ print(deformS.registrationTool, deformS.algorithm, deformS.deformOutFileType)
 print(sorted(deformS.deformParams))
 
 # ---- warp the moving structure ---------------------------------------------
-planC = register.warpStructuresAnts(planC, baseScanNum, planC, [movStructNum], deformS)
+planC = register.warpStructures(planC, baseScanNum, planC, [movStructNum], deformS)
 warpedStructNum = len(planC.structure) - 1
 gtvWarped3M = rs.getStrMask(warpedStructNum, planC)
 print([s.structureName for s in planC.structure])

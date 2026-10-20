@@ -1,5 +1,8 @@
 """Regenerate every documentation figure.
 
+registration.py and registration_qa.py need the ``ants`` extra, and
+registration_qa.py also the ``viewer`` extra.
+
 Usage::
 
     python docs/_figure_scripts/make_all.py              # all pages
@@ -11,7 +14,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PAGES = ["quickstart", "tutorial_end_to_end", "planc", "dvh", "roe", "radiomics",
-         "segmentation", "registration"]
+         "texture", "segmentation", "body_outline", "structure_consensus", "seg_metrics",
+         "ai_pipeline", "registration", "registration_qa"]
 
 if __name__ == "__main__":
     sys.path.insert(0, HERE)
