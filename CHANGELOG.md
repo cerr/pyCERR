@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-20
+
 ### Fixed
 
 - **`image_proc.resizeScanAndMask` returned wrong output grids, so a resized
