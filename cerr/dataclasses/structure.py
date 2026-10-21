@@ -868,14 +868,15 @@ def loadStructure(file_list):
 
     return struct_list
 
-def importNii(file_list, assocScanNum, planC, labels_dict = {}):
+def importNii(file_list, assocScanNum, planC, labels_dict=None):
     """This routine imports segmentation from a list of nii files into planC.
 
     Args:
         file_list (List or str): List of nii file paths or a string containing path for a single file.
         assocScanNum (int): index of scan in planC to associate the segmentation.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
-        labels_dict (dict): dictionary of index to structure name mapping. e.g. {'GTV':1, 'Lung_total': 2}
+        labels_dict (dict): optional, structure name to label mapping, e.g. {'GTV':1, 'Lung_total': 2}.
+            When omitted, every non-zero label in each file is imported as 'Label <value>'.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object
@@ -908,11 +909,14 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
 
             all_labels = np.unique(maskOnScan3M)
             all_labels = all_labels[all_labels != 0]
-            if len(labels_dict) == 0:
-                for label in all_labels:
-                    labels_dict["Label " + str(label)] = label
+            # Build the names per file: never store them in labels_dict, so one
+            # file's labels cannot carry over to the next file or call.
+            if labels_dict:
+                fileLabels = labels_dict
+            else:
+                fileLabels = {"Label " + str(label): label for label in all_labels}
 
-            for index, (key,label) in enumerate(labels_dict.items()):
+            for key, label in fileLabels.items():
                 planC = importStructureMask(maskOnScan3M == label, assocScanNum, key, planC, None)
 
         elif len(imgSize) == 4:
@@ -930,11 +934,12 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
                 maskList.append(maskOnScan3M)
                 labelList.append(max(np.unique(maskOnScan3M)))
 
-            if len(labels_dict) == 0:
-                for label in labelList:
-                    labels_dict["Label " + str(label)] = label
+            if labels_dict:
+                fileLabels = labels_dict
+            else:
+                fileLabels = {"Label " + str(label): label for label in labelList}
 
-            for index, (key,label) in enumerate(labels_dict.items()):
+            for key, label in fileLabels.items():
                 ind = labelList.index(label)
                 planC = importStructureMask(maskList[ind] == label, assocScanNum, key, planC, None)
 

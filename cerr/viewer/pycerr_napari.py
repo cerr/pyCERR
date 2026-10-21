@@ -295,13 +295,15 @@ def initialize_struct_export_widget(vwr) -> FunctionGui:
                 planC = lyr.metadata['planC']
                 break
         structsToExport = []
-        niiLabelDict = {}
-        ind = 1
+        niiLabelDict = {}   # structure name -> label, as saveNiiStructure expects
         for label in structures:
             structNum = labelDict[label]
             structsToExport.append(structNum)
-            niiLabelDict[structNum] = ind
-            ind += 1
+            strName = planC.structure[structNum].structureName
+            if strName in niiLabelDict:
+                print('Structures named ' + strName + ' share label ' + str(niiLabelDict[strName]) + ' in the NIfTI file.')
+            else:
+                niiLabelDict[strName] = len(niiLabelDict) + 1
         # Check file_name
         saveDir = os.path.dirname(file_name)
         saveDirExists = os.path.exists(saveDir)

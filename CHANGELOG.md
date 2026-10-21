@@ -27,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Importing several NIfTI segmentations in one session now reads all labels
+  of each file.** `pc.loadNiiStructure` and `structure.importNii` had a shared
+  `labels_dict={}` default that the first call filled in, so later calls
+  without label names imported only the first file's labels. In the desktop
+  viewer, after dropping a file with only label 1, every later segmentation
+  drop imported only label 1. The default is now `None`, and label names are
+  built for each file.
+- **The napari viewer's NIfTI structure export writes the selected
+  structures.** It passed structure indices as label-dict keys, but
+  `saveNiiStructure` expects structure names, so the exported file was empty.
+  Structures with the same name share one label.
 - **`structure.getGaussianBlurredMask` and `mask.blurring(..., filtType='gaussian')`
   work again.** `getGaussianBlurredMask` called `mask.gaussianBlurring`, which
   had been renamed to `blurring`, and the Gaussian path of `blurring` failed

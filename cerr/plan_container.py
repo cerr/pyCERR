@@ -1114,14 +1114,15 @@ def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose")
     planC.dose[-1].fractionGroupID = fractionGroupID
     return planC
 
-def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
+def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict=None):
     """This routine imports segmentation from NifTi file into planC
 
     Args:
         nii_file_name (str): path of NifTi file containing the structure/s
         assocScanNum (int): index of scan from planC.scan associated with segmentation
         planC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append structure/s
-        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}
+        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}.
+            When omitted, every non-zero label in the file is imported as 'Label <value>'.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
