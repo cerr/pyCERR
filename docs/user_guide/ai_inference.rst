@@ -374,7 +374,8 @@ size to match the gaps you expect.
      - :func:`cerr.dataclasses.structure.getClosedMask`
    * - Smooth jagged edges
      - :func:`~cerr.dataclasses.structure.getGaussianBlurredMask`,
-       :func:`~cerr.dataclasses.structure.getBsplineSmoothing`
+       :func:`~cerr.dataclasses.structure.getBsplineSmoothing`; see
+       :doc:`smoothing`
    * - Clip to the body or another structure
      - :func:`~cerr.dataclasses.structure.structIntersect`
    * - Combine several models

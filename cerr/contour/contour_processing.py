@@ -2,9 +2,7 @@ import numpy as np
 from cerr import plan_container as pc
 from cerr.utils import uid
 import cerr.contour.rasterseg as rs
-from shapelysmooth import chaikin_smooth
-from shapelysmooth import catmull_rom_smooth
-from shapelysmooth import taubin_smooth
+from cerr.contour.polyline_smoothing import catmull_rom_smooth, taubin_smooth
 import copy
 
 '''

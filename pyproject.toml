@@ -39,7 +39,6 @@ dependencies = [
     'scikit-image',
     'PyWavelets',
     'shapely',
-    'shapelysmooth',
     'matplotlib >= 3.5',
     'ipywidgets',
     'surface-distance-based-measures',

@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **User-guide page on smoothing contours and masks** (`docs/user_guide/smoothing.rst`),
+  comparing `smoothStructure`, `getBsplineSmoothing`, `getGaussianBlurredMask`,
+  `mask.blurring` and the `polyline_smoothing` functions, with figures from
+  `docs/_figure_scripts/smoothing.py`. Documentation only.
+
+### Changed
+
+- **`shapelysmooth` is no longer a dependency.** Contour smoothing now uses
+  `cerr.contour.polyline_smoothing`, a pure-NumPy module with `taubin_smooth`,
+  `chaikin_smooth` and `catmull_rom_smooth`. Taubin and Chaikin give the same
+  results as shapelysmooth.
+- **The B-spline step of `structure.getBsplineSmoothing` is now
+  `polyline_smoothing.bspline_smooth`**, so it can be used on a single
+  contour. `getBsplineSmoothing` keeps its name, location and arguments, and
+  its results are unchanged.
+
+### Fixed
+
+- **`structure.getGaussianBlurredMask` and `mask.blurring(..., filtType='gaussian')`
+  work again.** `getGaussianBlurredMask` called `mask.gaussianBlurring`, which
+  had been renamed to `blurring`, and the Gaussian path of `blurring` failed
+  with `UnboundLocalError`. Both failed on every call.
+- **`structure.getBsplineSmoothing` no longer fails on contours that repeat a
+  point.** scipy's `splprep` raised `ValueError: Invalid inputs` when a contour
+  had the same point twice in a row, as in the bundled
+  `radiomics_phantom_dicom/pat_1` GTV. `bspline_smooth` now drops repeated
+  consecutive points before fitting; contours without repeats give the same
+  result as before.
+- **Catmull-Rom smoothing of open contour pieces uses the standard end
+  points.** shapelysmooth built the phantom end points as `2·p0 + p1` and
+  `2·p_last`, which distorted the first and last segments and made them depend
+  on where the contour sits in space. `catmull_rom_smooth` now uses
+  `2·p0 − p1` and `2·p_last − p_prev`. With the default settings of
+  `smoothStructure`, smoothed contours move by under 0.01 cm.
+
 ## [2.5.0] - 2026-10-20
 
 ### Added

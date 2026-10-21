@@ -14,7 +14,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PAGES = ["quickstart", "tutorial_end_to_end", "planc", "dvh", "roe", "radiomics",
-         "texture", "segmentation", "body_outline", "structure_consensus", "seg_metrics",
+         "texture", "segmentation", "smoothing", "body_outline", "structure_consensus", "seg_metrics",
          "ai_pipeline", "registration", "registration_qa"]
 
 if __name__ == "__main__":

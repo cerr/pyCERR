@@ -75,6 +75,7 @@ Where to start
 
    user_guide/planc
    user_guide/segmentation
+   user_guide/smoothing
    user_guide/body_outline
    user_guide/structure_consensus
    user_guide/segmentation_metrics

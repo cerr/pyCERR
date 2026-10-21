@@ -25,7 +25,7 @@ import json
 from cerr.radiomics.preprocess import imgResample3D
 import cerr.utils.mask as maskUtils
 import warnings
-from scipy.interpolate import splprep, splev
+from cerr.contour.polyline_smoothing import bspline_smooth
 import copy
 
 
@@ -1637,7 +1637,7 @@ def getGaussianBlurredMask(structNum, sigmaVoxel, planC, saveFlag=False,\
                                               planC)
     #inputResV = planC.scan[assocScanNum].getScanSpacing() * sigmaVoxel
 
-    blurredMask3M = maskUtils.gaussianBlurring(mask3M,sigmaVoxel)
+    blurredMask3M = maskUtils.blurring(mask3M, sigmaVoxel)
 
     # Save to planC
     if saveFlag:
@@ -1704,14 +1704,10 @@ def getBsplineSmoothing(structNum, resolutionFactor, smootingFactor, planC, \
             else:
                 contObj = planC.structure[structNum].contour[slc]
             for seg in planC.structure[structNum].contour[slc].segments:
-                seg.points[:,0], seg.points[:,1]
-                numPts = len(seg.points[:,0])
-                if numPts > 3:
-                    tck, u = splprep([seg.points[:,0], seg.points[:,1]], s = smootingFactor, per = True)
-                    smoothX, smoothY = splev(np.linspace(0, 1, round(numPts*resolutionFactor)), tck, der = 0)
-                    #smoothX, smoothY = splev(u, tck)
-                    zVals = np.full(len(smoothX), seg.points[0,2])
-                    ptsM = np.asarray((smoothX, smoothY, zVals)).T
+                if len(seg.points) > 3:
+                    xyM = bspline_smooth(seg.points, resolutionFactor, smootingFactor)
+                    zVals = np.full((len(xyM), 1), seg.points[0, 2])
+                    ptsM = np.hstack((xyM, zVals))
                 else:
                     ptsM = seg.points
 

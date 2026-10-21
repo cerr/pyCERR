@@ -12,6 +12,14 @@ cerr.contour.contour\_processing module
    :undoc-members:
    :show-inheritance:
 
+cerr.contour.polyline\_smoothing module
+----------------------------------------
+
+.. automodule:: cerr.contour.polyline_smoothing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 cerr.contour.rasterseg module
 -----------------------------
 

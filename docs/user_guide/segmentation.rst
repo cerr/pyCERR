@@ -126,7 +126,7 @@ updated ``planC``.
      - Keeps the *N* largest connected components.
    * - :func:`~cerr.dataclasses.structure.getGaussianBlurredMask`,
        :func:`~cerr.dataclasses.structure.getBsplineSmoothing`
-     - Smooths a jagged boundary.
+     - Smooths a jagged boundary. See :doc:`smoothing` for all methods.
    * - :func:`~cerr.dataclasses.structure.copyToScan`
      - Copies a structure onto another scan of the same ``planC``.
 

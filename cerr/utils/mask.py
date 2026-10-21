@@ -368,6 +368,7 @@ def blurring(binaryMask, sigmaVox, filtType='gaussian'):
     if filtType == 'gaussian':
         filter = sitk.SmoothingRecursiveGaussianImageFilter()
         filter.SetSigma(sigmaVox)
+        padMaskArr = binaryMask
     elif filtType == 'box':
         padded = True
         padMaskImg = sitk.MirrorPad(binaryMaskImg, [sigmaVox] * 3, [sigmaVox] * 3)
