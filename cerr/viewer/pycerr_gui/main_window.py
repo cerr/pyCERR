@@ -1450,6 +1450,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.structList.setStyleSheet(
             "QListWidget { background: #000; }"
             "QListWidget::item:selected { background: #3a6ea5; }")
+        # white frame around each check-box: the default box is invisible on black
+        self.structList.setItemDelegate(_CheckFrameDelegate(self.structList))
         sl.addWidget(self.structList)
 
         optRow = QtWidgets.QHBoxLayout()

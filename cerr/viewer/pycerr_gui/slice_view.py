@@ -116,16 +116,23 @@ class SliceView(QtWidgets.QWidget):
             return
         try:
             self._chBg = self.canvas.copy_from_bbox(self.ax.bbox)
-            self._paint_crosshair()
+            # Draw the lines into the Agg buffer only. This runs inside the
+            # canvas paintEvent, which copies the buffer to the screen right
+            # after; calling blit() here would repaint() the widget from within
+            # its own paint ("QWidget::repaint: Recursive repaint detected").
+            self._draw_crosshair_lines()
         except Exception:  # noqa: BLE001  (non-Agg renderer, e.g. savefig)
             self._chBg = None
+
+    def _draw_crosshair_lines(self):
+        for ln in (self.xline, self.yline):
+            if ln is not None:
+                self.ax.draw_artist(ln)
 
     def _paint_crosshair(self):
         if not CROSSHAIR_BLIT_OK or not self._paintable():
             return
-        for ln in (self.xline, self.yline):
-            if ln is not None:
-                self.ax.draw_artist(ln)
+        self._draw_crosshair_lines()
         self.canvas.blit(self.ax.bbox)
 
     def blit_crosshair(self):

@@ -327,6 +327,41 @@ def _contour_cursor(kind):
     return cur
 
 
+class _CheckFrameDelegate(QtWidgets.QStyledItemDelegate):
+    """Item delegate that draws a thin white frame around each item's
+    check-box, so the boxes stay visible on a dark list background. The
+    style's own check mark is kept."""
+
+    MARGIN = 1.5      # px between the check-box and the frame
+    ROW_PAD = 4       # extra row height, so the frame fits inside its row
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        return size + QtCore.QSize(0, self.ROW_PAD)
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        if index.data(Qt.ItemDataRole.CheckStateRole) is None:
+            return
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        widget = option.widget
+        style = widget.style() if widget is not None else QtWidgets.QApplication.style()
+        box = style.subElementRect(
+            QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator, opt, widget)
+        if not box.isValid():
+            return
+        m = self.MARGIN
+        frame = QtCore.QRectF(box).adjusted(-m, -m, m, m)
+        frame = frame.intersected(QtCore.QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5))
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        painter.setPen(QtGui.QPen(QtGui.QColor("white"), 1.2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(frame, 2.5, 2.5)
+        painter.restore()
+
+
 def _nonmodal_box(parent, title, text, icon, rich=False):
     """Build and show() a non-modal QMessageBox. Modal message boxes can hang
     or fail to appear when the viewer runs inside an integrated event loop

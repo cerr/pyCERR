@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The desktop viewer no longer prints `QWidget::repaint: Recursive repaint
+  detected` and `QWidget::paintEngine: Should no longer be called`** on
+  Windows and Linux. After each redraw the crosshair was blitted from inside
+  the canvas's own paint event; the lines are now drawn into the frame being
+  painted instead. Moving the crosshair still uses fast blitting.
+- **Desktop viewer: structure check-boxes have a white frame**, so they are
+  visible on the black structure list.
 - **Importing several NIfTI segmentations in one session now reads all labels
   of each file.** `pc.loadNiiStructure` and `structure.importNii` had a shared
   `labels_dict={}` default that the first call filled in, so later calls
