@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-21
+
 ### Added
 
 - **User-guide page on smoothing contours and masks** (`docs/user_guide/smoothing.rst`),
