@@ -311,8 +311,9 @@ def importSeg(modelNum, installDir, outputPath, scanNum, planC):
         else:
             if niiMatches:
                 maskFilePath = niiMatches[0]
+                loadDict = {name: label for label, name in labelDict.items()}
                 planC = pc.loadNiiStructure(maskFilePath, scanNum, planC,
-                                            labels_dict=labelDict)
+                                            labels_dict=loadDict)
             else:
                 dcmFilePath = dcmMatches[0]
                 planC = pc.loadDcmDir(dcmFilePath, initplanC=planC)
