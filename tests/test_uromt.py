@@ -3343,7 +3343,7 @@ def test_run_button_confirms_before_starting():
     assert "QMessageBox.question" in src
     # the question comes BEFORE the worker is built and started
     assert src.index("QMessageBox.question") < src.index("_UROMTWorker(")
-    assert "QMessageBox.No)" in src                  # No is the default button
+    assert "StandardButton.No)" in src               # No is the default button
     assert "return" in src.split("QMessageBox.question")[1]
 
     # the summary names the ROI, the frames and the settings source

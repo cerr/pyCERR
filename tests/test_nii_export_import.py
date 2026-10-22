@@ -40,6 +40,36 @@ def test_dose_export_import(tmp_path):
     np.testing.assert_allclose(doseNii, doseDcm, rtol=1e-3, atol=1e-3)
 
 
+def test_dose_loaded_from_nii_can_be_exported(tmp_path):
+    # A dose imported from NIfTI must be exportable again (saveNii used to
+    # fail with IndexError: imageOrientationPatient was never set on import),
+    # and the round trip must keep the values and the grid.
+    planC = pc.loadDcmDir(dcm_dir)
+    nRows, nCols, nSlc = planC.scan[0].getScanSize()
+    xV, yV, zV = planC.scan[0].getScanXYZVals()
+    # ramps along all three axes so a flipped or permuted axis is detected
+    rowV = np.linspace(0.0, 10.0, nRows)[:, None, None]
+    colV = np.linspace(0.0, 30.0, nCols)[None, :, None]
+    slcV = np.linspace(0.0, 20.0, nSlc)[None, None, :]
+    planC = pc.importDoseArray(rowV + colV + slcV, xV, yV, zV, planC, 0)
+
+    firstNii = str(tmp_path / 'dose_1.nii.gz')
+    planC.dose[0].saveNii(firstNii)
+    planC = pc.loadNiiDose(firstNii, 0, planC)          # dose 1: from NIfTI
+
+    secondNii = str(tmp_path / 'dose_2.nii.gz')
+    planC.dose[1].saveNii(secondNii)                    # used to raise
+    planC = pc.loadNiiDose(secondNii, 0, planC)         # dose 2: re-exported
+
+    np.testing.assert_allclose(planC.dose[2].doseArray, planC.dose[1].doseArray,
+                               rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(planC.dose[2].doseArray, planC.dose[0].doseArray,
+                               rtol=1e-3, atol=1e-3)
+    for gridOrig, gridNew in zip(planC.dose[1].getDoseXYZVals(),
+                                 planC.dose[2].getDoseXYZVals()):
+        np.testing.assert_allclose(gridNew, gridOrig, atol=1e-4)
+
+
 def test_structure_export_import(tmp_path):
     # NIfTI structure (label-map) export/import - the File > Export structure
     # path (saveNiiStructure / loadNiiStructure).

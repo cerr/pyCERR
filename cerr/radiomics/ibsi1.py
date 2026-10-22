@@ -311,6 +311,19 @@ def computeScalarFeatures(scanNum, structNum, settingsFile, planC):
             - **diagS** (*dict*): Diagnostic statistics dictionary (voxel counts,
               mean/min/max intensity after interpolation and re-segmentation).
 
+    Example:
+        Features of structure 0 on scan 0 with the sample settings file::
+
+            import os
+            from cerr import datasets
+            from cerr.radiomics import ibsi1
+
+            settingsFile = os.path.join(os.path.dirname(datasets.__file__),
+                                        'radiomics_settings', 'original_settings.json')
+            featDict, diagS = ibsi1.computeScalarFeatures(0, 0, settingsFile, planC)
+            print(featDict['original_firstOrder_mean'])
+            ibsi1.writeFeaturesToFile(featDict, 'features.csv')
+
     """
 
     with open(settingsFile, ) as settingsFid:
@@ -703,6 +716,13 @@ def writeFeaturesToFile(featList, csvFileName, writeHeader=True):
 
     Returns:
         None
+
+    Example:
+        One row per patient, header written once::
+
+            for i, featDict in enumerate(featDictList):
+                ibsi1.writeFeaturesToFile(featDict, 'features.csv', writeHeader=(i == 0))
+
     """
     import csv
     if not isinstance(featList,list):

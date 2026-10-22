@@ -129,20 +129,45 @@ def addToH5Grp(h5Grp,structDict,key):
     return h5Grp
 
 
-def saveToH5(planC, h5File, scanNumV=[], structNumV=[], doseNumV=[], deformNumV=[]):
+def saveToH5(planC, h5File, scanNumV=None, structNumV=None, doseNumV=None, deformNumV=None):
     """Routine to serialize planC to H5 file
+
+    By default every scan, structure, dose and deformation in planC is written.
+    Pass a list of indices to write a subset of that type; an empty list writes
+    none of it.
 
     Args:
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         h5File (str): File path/name to save planC
-        scanNumV: Indices for scan objects from planC.scan to export to h5 file
-        structNumV: Indices for structure objects from planC.structure to export to h5 file
-        doseNumV: Indices for dose objects from planC.dose to export to h5 file
-        deformNumV: Indices for deformation objects from planC.deform to export to h5 file
+        scanNumV: Indices for scan objects from planC.scan to export to h5 file. Default: all.
+        structNumV: Indices for structure objects from planC.structure to export to h5 file. Default: all.
+        doseNumV: Indices for dose objects from planC.dose to export to h5 file. Default: all.
+        deformNumV: Indices for deformation objects from planC.deform to export to h5 file. Default: all.
 
     Returns:
+        int: 0 when the file is written.
+
+    Example:
+        Save the whole plan container and read it back, then save only the first scan
+        and its first two structures::
+
+            from cerr import plan_container as pc
+
+            pc.saveToH5(planC, 'planC.h5')
+            planC = pc.loadFromH5('planC.h5')
+
+            pc.saveToH5(planC, 'subset.h5', scanNumV=[0], structNumV=[0, 1],
+                        doseNumV=[], deformNumV=[])
 
     """
+    if scanNumV is None:
+        scanNumV = range(len(planC.scan))
+    if structNumV is None:
+        structNumV = range(len(planC.structure))
+    if doseNumV is None:
+        doseNumV = range(len(planC.dose))
+    if deformNumV is None:
+        deformNumV = range(len(planC.deform))
     dt = datetime.now()
     planC.header.dateLastSaved = dt.strftime("%Y%m%d")
     with h5py.File(h5File, 'w') as f:
@@ -221,6 +246,13 @@ def loadFromH5(h5File, initplanC=''):
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with metadata imported from input H5 file.
+
+    Example:
+        Read a file written by :func:`saveToH5`::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadFromH5('planC.h5')
 
     """
 
@@ -384,10 +416,12 @@ def saveH5Structure(structGrp, structNumV, planC):
                 keys.remove('segments')
                 for key in keys:
                     ctrItem = addToH5Grp(ctrItem,ctr,key)
-                # Add segments
+                # Add segments: one 'segments' group per slice holding every
+                # contour on that slice (rings and multi-part structures
+                # have more than one)
+                segGrp = ctrItem.create_group('segments')
                 segCount = 0
                 for seg in ctr['segments']:
-                    segGrp = ctrItem.create_group('segments')
                     segItemName = 'Item_' + str(segCount)
                     segItem = segGrp.create_group(segItemName)
                     segCount += 1
@@ -615,7 +649,8 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     """This routine imports metadata from DICOM directory and sub-directories into an instance of PlanC.
 
     Args:
-        dcmDir (str): absolute path to directory containing dicom files
+        dcmDir (str or list): absolute path to a directory containing dicom files, or a list of
+                     directories and/or files. Raises FileNotFoundError if a path does not exist.
         opts (dict): dictionary of import options. Currently supported options are:
 
                      * 'suvType': Choose from 'BW' (default), 'BSA', 'LBM',
@@ -631,6 +666,22 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
     Returns:
         PlanC: An instance of PlanC with metadata populated from DICOM files in dcm_dir
 
+    Example:
+        Load the lung CT phantom bundled with pyCERR::
+
+            import os
+            from cerr import datasets
+            from cerr import plan_container as pc
+
+            dcmDir = os.path.join(os.path.dirname(datasets.__file__),
+                                  'radiomics_phantom_dicom', 'pat_1')
+            planC = pc.loadDcmDir(dcmDir)
+            print(len(planC.scan), [s.structureName for s in planC.structure])
+            # 1 ['GTV-1']
+
+            # Append a second study of the same patient to the same container
+            planC = pc.loadDcmDir('/path/to/other/study', initplanC=planC)
+
     """
 
     import os
@@ -644,12 +695,13 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
 
     # Split string into list of directories
     if isinstance(dcmDir, (str)):
-        if os.path.isdir(dcmDir):
+        if os.path.isdir(dcmDir) or os.path.isfile(dcmDir):
             dcmDir = [dcmDir]
         else:
             dcmDir = dcmDir.split()
 
     fileList = []
+    missingList = []
     if isinstance(dcmDir, (list, np.ndarray)):
         for i,itemInList in enumerate(dcmDir):
             if os.path.isdir(itemInList):
@@ -658,6 +710,10 @@ def loadDcmDir(dcmDir, opts={}, initplanC=''):
                         fileList.append(os.path.join(root, file))
             elif os.path.isfile(itemInList):
                 fileList.append(itemInList)
+            else:
+                missingList.append(str(itemInList))
+    if missingList:
+        raise FileNotFoundError("DICOM path(s) not found: " + ", ".join(missingList))
 
     # pc.PlanC is the container to hold various dicom objects
     # Parse dcm_dir an extract a map of CT, RTSTRUCT, RTDOSE etc files to pass to populate_planC_field routine
@@ -872,7 +928,9 @@ def loadScanFromDB(sacnInfoList, niiFile, initplanC=''):
     """
 
     # Read scan from Nii file
-    planC = loadNiiScan(niiFile, 'CT SCAN', '', initplanC)
+    # Keep the file's own orientation: parseScanInfoFromDB overwrites the
+    # orientation and positions with the DICOM values from the database.
+    planC = loadNiiScan(niiFile, 'CT SCAN', direction='', initplanC=initplanC)
 
     # Populate scanInfo for the latest scan from sacnInfoList
     scn.parseScanInfoFromDB(planC.scan[-1], sacnInfoList)
@@ -894,17 +952,33 @@ def loadPlanCFromPkl(file_name=""):
         planC = pickle.load(pickle_file)
     return planC
 
-def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC=''):
+def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='LPS', initplanC=''):
     """This routine imports scan from NifTi file into planC
 
     Args:
         nii_file_name (str): path of NifTi file containing the scan
         imageType (str): typte of scan. e.g. 'CT SCAN', 'MR SCAN', 'PT SCAN'
-        direction (str): optional, the desired orientation of scan. e.g. HFS
+        direction (str or None): optional, the orientation to reorder the scan's voxels
+                         to (axes are permuted/flipped, no interpolation), as a 3-letter DICOM orientation code passed to SimpleITK's
+                         DICOMOrient, e.g. 'LPS', 'RAS'. Patient positions such as 'HFS' are
+                         not valid. Defaults to 'LPS', which gives NIfTI scans the same row/column
+                         orientation as typical axial DICOM scans (imageOrientationPatient
+                         [1,0,0,0,1,0]), so they display the right way up in the viewers.
+                         Pass '' or None to keep the voxel order stored in the file, e.g. when
+                         the scan array must match another grid voxel-for-voxel. Either way the
+                         physical (patient) coordinates of each voxel are unchanged.
         initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan[-1]
+
+    Example:
+        Load a CT, then append an MR to the same container::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadNiiScan('ct.nii.gz', imageType='CT SCAN')
+            planC = pc.loadNiiScan('mr.nii.gz', imageType='MR SCAN', initplanC=planC)
 
     """
     if not isinstance(initplanC, PlanC):
@@ -919,9 +993,15 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='', initplanC='')
     reader.ReadImageInformation()
     image = reader.Execute()
     # Assign direction
-    if direction:
-        image = sitk.DICOMOrient(image,direction)
     numAxes = len(image.GetSize())
+    if direction and numAxes == 3:
+        image = sitk.DICOMOrient(image,direction)
+    elif direction and numAxes == 4:
+        # DICOMOrient handles 3-D images only; orient each volume separately
+        size4 = list(image.GetSize())
+        volumes = [sitk.DICOMOrient(sitk.Extract(image, size4[:3] + [0], [0, 0, 0, t]), direction)
+                   for t in range(size4[3])]
+        image = sitk.JoinSeries(volumes, image.GetOrigin()[3], image.GetSpacing()[3])
     # Get numpy array for scan
     axisOff = numAxes - 3
     scanArray3M = sitk.GetArrayFromImage(image)
@@ -1020,22 +1100,40 @@ def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose")
     Returns:
         cerr.plan_container.PlanC: The updated plan container with the dose
             appended to ``planC.dose``.
+
+    Example:
+        Attach a dose stored as NIfTI to scan 0::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadNiiDose('dose.nii.gz', 0, planC)
+            doseNum = len(planC.dose) - 1
+
     """
     planC = rtds.importNii(nii_file_name, assocScanNum, planC)
     planC.dose[-1].fractionGroupID = fractionGroupID
     return planC
 
-def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict = {}):
+def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict=None):
     """This routine imports segmentation from NifTi file into planC
 
     Args:
         nii_file_name (str): path of NifTi file containing the structure/s
         assocScanNum (int): index of scan from planC.scan associated with segmentation
         planC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append structure/s
-        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}
+        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}.
+            When omitted, every non-zero label in the file is imported as 'Label <value>'.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
+
+    Example:
+        Import a label map as named structures on scan 0::
+
+            from cerr import plan_container as pc
+
+            labelDict = {'GTV_P': 1, 'GTV_N': 2}        # structure name -> label value
+            planC = pc.loadNiiStructure('labels.nii.gz', 0, planC, labelDict)
 
     """
 
@@ -1352,16 +1450,28 @@ def importScanArray(scan3M, xV, yV, zV, modality, assocScanNum, planC):
     """This routine imports a scan from numpy array into planC
 
     Args:
-        scan3M (numpy.ndarray):
-        xV (numpy.ndarray):
-        yV (numpy.ndarray):
-        zV (numpy.ndarray):
-        modality (str):
-        assocScanNum (int):
-        planC (cerr.plan_container.PlanC):
+        scan3M (numpy.ndarray): 3D scan array of shape (rows, cols, slices)
+        xV (numpy.ndarray): x-coordinates of the columns in pyCERR virtual coordinates (cm)
+        yV (numpy.ndarray): y-coordinates of the rows in pyCERR virtual coordinates (cm)
+        zV (numpy.ndarray): z-coordinates of the slices in pyCERR virtual coordinates (cm)
+        modality (str): modality of the scan, e.g. 'CT', 'MR', 'PT'
+        assocScanNum (int): index of an existing scan in planC.scan from which the orientation
+            and coordinate transformation are taken
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+
+    Example:
+        Add a smoothed copy of scan 0 as a new scan on the same grid::
+
+            from scipy.ndimage import gaussian_filter
+            from cerr import plan_container as pc
+
+            xV, yV, zV = planC.scan[0].getScanXYZVals()
+            smooth3M = gaussian_filter(planC.scan[0].getScanArray().astype(float), 1.0)
+            planC = pc.importScanArray(smooth3M, xV, yV, zV, 'CT', 0, planC)
+            newScanNum = len(planC.scan) - 1
 
     """
 
@@ -1435,10 +1545,23 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
         zV (numpy.ndarray): z-coordinates of dose grid
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         assocScanNum (int): Index of scan associated with dose
-        doseInfo [Optional (dict), default:None]: Dictionary specifying 'fractionGroupID', and 'units'.
+        doseInfo [Optional (dict), default:None]: Dictionary of attributes of cerr.dataclasses.dose.Dose
+            to set on the new dose, e.g. {'fractionGroupID': 'Plan A', 'doseUnits': 'GY'}.
 
     Returns:
-        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan
+        cerr.plan_container.PlanC: pyCERR's plan container object with dose imported to planC.dose
+
+    Example:
+        Add a uniform 2 Gy dose on the grid of scan 0. Keys of ``doseInfo`` are attribute
+        names of :class:`cerr.dataclasses.dose.Dose`::
+
+            import numpy as np
+            from cerr import plan_container as pc
+
+            xV, yV, zV = planC.scan[0].getScanXYZVals()
+            dose3M = np.full(planC.scan[0].getScanArray().shape, 2.0)   # (rows, cols, slices)
+            planC = pc.importDoseArray(dose3M, xV, yV, zV, planC, 0,
+                                       {'fractionGroupID': 'Uniform', 'doseUnits': 'GY'})
 
     """
 
@@ -1493,10 +1616,10 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
 
 
 def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None):
-    """
+    """This routine imports a binary mask into planC as a structure
 
     Args:
-        mask3M (numpy.ndarray): binary mask containing segmentation
+        mask3M (numpy.ndarray): binary mask containing segmentation, with the shape of the associated scan
         assocScanNum (int): index of scan from planC.scan associated with segmentation
         structName (str): name of structure
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
@@ -1504,6 +1627,15 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with structure imported to planC.structure
+
+    Example:
+        Threshold scan 0 and add the result as a structure::
+
+            from cerr import plan_container as pc
+
+            mask3M = planC.scan[0].getScanArray() > 250          # same shape as the scan
+            planC = pc.importStructureMask(mask3M, 0, 'Bone', planC)
+            structNum = len(planC.structure) - 1
 
     """
 
@@ -1530,9 +1662,9 @@ def parseDcmHeader(fileList):
     from pydicom.tag import Tag
     from pydicom import dataelem
 
-    # Patient Name, Ptient ID, StudyInstanceUID, SeriesInstanceUID,
+    # Patient Name, Patient ID, StudyInstanceUID, SeriesInstanceUID,
     # Modality, b-value * 3, temporalIndex, trigger, numSlices, EchoTime
-    tag_list = [Tag(0x0010,0x0010), Tag(0x0010,0x0010), Tag(0x0020,0x000D), Tag(0x0020,0x000E),
+    tag_list = [Tag(0x0010,0x0010), Tag(0x0010,0x0020), Tag(0x0020,0x000D), Tag(0x0020,0x000E),
         Tag(0x0008, 0x0060), Tag(0x0043,0x1039), Tag(0x0018,0x9087), Tag(0x0019,0x100C),
         Tag(0x0020,0x0100), Tag(0x0018,0x1060), Tag(0x0021,0x104F), Tag(0x0018,0x0081),
                 Tag(0x0020,0x0012)]

@@ -126,3 +126,33 @@ def test_ants_masks_and_landmarks(tmp_path):
         return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
     assert corr(warped3M, fixed3M) > 0.95
+
+
+def test_ants_vector_field_and_dvf_grid(tmp_path):
+    """calcVectorFieldAnts samples an ANTs transform so getDvfGrid can use it,
+    and getDvfGrid explains what to do when given the ANTs deform directly."""
+    from cerr.registration import register
+    shiftV = (6, 4, 2)
+    basePlanC, planC, xV, yV, zV = _shiftedMovingPlanC(shiftVoxels=shiftV)
+    planC = ants_reg.registerScansAnts(planC, 0, planC, 1, transformSaveDir=str(tmp_path),
+                                       typeOfTransform='Translation')
+    antsDeform = planC.deform[-1]
+
+    with pytest.raises(ValueError, match="calcVectorFieldAnts"):
+        register.getDvfGrid(antsDeform, planC, 0)
+
+    numDeform = len(planC.deform)
+    planC = ants_reg.calcVectorFieldAnts(antsDeform, planC, 0, str(tmp_path / 'dvf'))
+    assert len(planC.deform) == numDeform + 1
+    dvfDeform = planC.deform[-1]
+    assert dvfDeform.deformOutFileType == 'vf'
+    assert dvfDeform.movScanUID == antsDeform.movScanUID
+
+    comps, axes, info = register.getDvfGrid(dvfDeform, planC, 0, outputResV=[0, 0, 0])
+    valid = info['valid']
+    # np.roll moved content to higher row/col/slice indices, so each fixed voxel
+    # maps to a moving position shiftV voxels further along: +rows is -y.
+    dx, dy, dz = planC.scan[0].getScanSpacing()
+    expected = (-shiftV[0] * dy, shiftV[1] * dx, shiftV[2] * dz)       # (dRow, dCol, dSlc) cm
+    for comp3M, exp in zip(comps, expected):
+        np.testing.assert_allclose(np.median(comp3M[valid]), exp, atol=0.05)

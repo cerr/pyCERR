@@ -11,7 +11,7 @@
  		"resample": {
 				 	"resolutionXCm": 0.1,
 				 	"resolutionYCm": 0.1,
-				 	"resolutionZCm": 0.1,
+				 	"resolutionZCm": 0,
 					"interpMethod": "sitkLinear",
 					"inPlane": "yes"},
 

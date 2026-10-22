@@ -125,7 +125,9 @@ def runSubprocessPrep(modelBase, prepScript, userInputs, verbose=False):
     if os.path.isdir(inputPath):
         planC = pc.loadDcmDir(inputPath)
     elif inputPath.endswith('.nii') or inputPath.endswith('.nii.gz'):
-        planC = pc.loadNiiScan(inputPath)
+        # Keep the file's voxel order: the model sees the orientation it was validated
+        # on, and the exported mask shares the input NIfTI's grid.
+        planC = pc.loadNiiScan(inputPath, direction='')
     else:
         raise ValueError(f"Unsupported input path: {inputPath}. "
                          f"Must be a DICOM directory or NIfTI file.")
@@ -171,7 +173,7 @@ def runSubprocessPrep(modelBase, prepScript, userInputs, verbose=False):
                   if f != rawNiiFile and 'mask' not in os.path.basename(f).lower()]
     if not candidates:
         raise FileNotFoundError(f"No pre-processed NIfTI output found in {sessionInputDir}")
-    planC = pc.loadNiiScan(sorted(candidates)[0], initplanC=planC)
+    planC = pc.loadNiiScan(sorted(candidates)[0], direction='', initplanC=planC)
     procScanNum = len(planC.scan) - 1
 
     sessionUserInputs = userInputs.copy()
@@ -376,7 +378,9 @@ def listInputs(modelNum, installDir):
 
     else:
         # Read from run_spec.yaml
-        args = config.get('execution', {}).get('single', {}).get('arguments', [])
+        # Same location buildCommand reads; older specs nested it under 'single'
+        execConfig = config.get('execution', {})
+        args = execConfig.get('arguments') or execConfig.get('single', {}).get('arguments', [])
         for arg in args:
             name = arg.get('name', '')
             required = 'Yes' if arg.get('required', False) else 'No'

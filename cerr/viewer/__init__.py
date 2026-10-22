@@ -2,7 +2,7 @@
 
 Modules:
     pycerr_napari   - napari-based viewer + widgets (showNapari, captureToFile)
-    pycerr_gui      - PyQt5 desktop viewer (PyCerrViewer, show, launch, capture)
+    pycerr_gui      - Qt (Qt5/Qt6) desktop viewer (PyCerrViewer, show, launch, capture)
     pycerr_nbviewer - Jupyter/Colab viewer (NbViewer, showNB)
 
 For backward compatibility, the public napari API is also reachable directly on

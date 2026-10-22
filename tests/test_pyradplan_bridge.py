@@ -51,7 +51,9 @@ def _makePhantomPlanC(tmp_path, flipOrientation=False):
     niiFile = str(tmp_path / "phantom.nii.gz")
     sitk.WriteImage(img, niiFile)
 
-    planC = pc.loadNiiScan(niiFile, imageType="CT SCAN")
+    # keep the file's orientation so flipOrientation reaches planC (the default
+    # reorients to LPS)
+    planC = pc.loadNiiScan(niiFile, imageType="CT SCAN", direction="")
 
     # spherical target mask at the phantom center, in pyCERR (r, c, s) order
     ctrZ, ctrY, ctrX = (nz - 1) / 2.0, (ny - 1) / 2.0, (nx - 1) / 2.0

@@ -5,7 +5,7 @@ Visualization sub-package. Three interchangeable viewers share the same planC
 data model:
 
 * ``pycerr_napari`` - napari-based 2D/3D viewer and magicgui widgets.
-* ``pycerr_gui`` - PyQt5 desktop slice viewer (CERR-style), with contouring,
+* ``pycerr_gui`` - Qt (Qt5/Qt6) desktop slice viewer (CERR-style), with contouring,
   registration QA, IMRTP/ROE launchers and a programmatic control API.
 * ``pycerr_nbviewer`` - ipywidgets + matplotlib viewer for Jupyter/Colab.
 
@@ -27,7 +27,7 @@ cerr.viewer.pycerr\_napari module
 cerr.viewer.pycerr\_gui package
 -------------------------------
 
-PyQt5 CERR-style desktop viewer. Organized as a package; the public API
+Qt CERR-style desktop viewer (Qt5 or Qt6, through qtpy). Organized as a package; the public API
 (``launch``, ``show``, ``capture``, ``PyCerrViewer`` and the dialogs) is
 re-exported from ``cerr.viewer.pycerr_gui`` for backward compatibility, and
 ``python -m cerr.viewer.pycerr_gui [dicomDir]`` launches it.

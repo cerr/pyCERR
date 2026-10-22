@@ -14,7 +14,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
     Orientation is set per subclass with ``_HORIZONTAL``. A horizontal bar can
     also show an intensity histogram above the gradient (``setHistogram``) so
     the user sees the value distribution while setting window/level."""
-    rangesChanged = QtCore.pyqtSignal()
+    rangesChanged = QtCore.Signal()
 
     GRAB_PX = 9          # grab tolerance for handles (px, across the value axis)
     # vertical layout
@@ -44,12 +44,12 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         else:
             self.setFixedWidth(132)
             self.setMinimumHeight(240)
-        self.setFrameShape(QtWidgets.QFrame.NoFrame)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
-        self.setRenderHint(QtGui.QPainter.Antialiasing)
+        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
+        self.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.setStyleSheet("QGraphicsView{background:transparent;border:none;}")
         self._scene = QtWidgets.QGraphicsScene(self)
         self.setScene(self._scene)
@@ -101,7 +101,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         s.addItem(self._barItem)
 
         dimBrush = QtGui.QBrush(QtGui.QColor(0, 0, 0, 200))
-        noPen = QtGui.QPen(Qt.NoPen)
+        noPen = QtGui.QPen(Qt.PenStyle.NoPen)
         self._dimTop = s.addRect(0, 0, 0, 0, noPen, dimBrush)   # above disp max
         self._dimBot = s.addRect(0, 0, 0, 0, noPen, dimBrush)   # below disp min
         for it in (self._dimTop, self._dimBot):
@@ -132,7 +132,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
                 poly = QtWidgets.QGraphicsPolygonItem(
                     self._handle_polygon(which))
                 poly.setBrush(color)
-                poly.setPen(QtGui.QPen(Qt.black, 1))
+                poly.setPen(QtGui.QPen(Qt.GlobalColor.black, 1))
                 poly.setZValue(3)
                 s.addItem(poly)
                 self._handleItems[(which, j)] = poly
@@ -292,7 +292,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         rgba[..., 3] = 255
         self._barImg = np.ascontiguousarray(rgba)
         img = QtGui.QImage(self._barImg.data, W, H, 4 * W,
-                           QtGui.QImage.Format_RGBA8888)
+                           QtGui.QImage.Format.Format_RGBA8888)
         self._barItem.setPixmap(QtGui.QPixmap.fromImage(img))
         self._barItem.setPos(r.left(), r.top())
         self._frameItem.setRect(r)
@@ -418,9 +418,9 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         return best
 
     def mousePressEvent(self, ev):
-        if ev.button() != Qt.LeftButton:
+        if ev.button() != Qt.MouseButton.LeftButton:
             return
-        pos = self.mapToScene(ev.pos())
+        pos = self.mapToScene(ev.position().toPoint())
         self._drag = self._hit_test(pos)
         if self._drag:
             self._move_to(pos)
@@ -430,7 +430,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         menu = QtWidgets.QMenu(self)
 
         cmapMenu = menu.addMenu("Colormap")
-        grp = QtWidgets.QActionGroup(cmapMenu)
+        grp = QtGui.QActionGroup(cmapMenu)
         for name in self._CMAP_NAMES:
             act = cmapMenu.addAction(name)
             act.setCheckable(True)
@@ -445,11 +445,11 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         menu.addAction("Display range = colorbar range",
                        self._sync_disp_to_cbar)
         menu.addAction("Reset ranges", self._reset_ranges)
-        menu.exec_(ev.globalPos())
+        menu.exec(ev.globalPos())
 
     def _cmap_icon(self, name, w=48, h=12):
         lut = cerr_get_lut(name, w)
-        img = QtGui.QImage(w, h, QtGui.QImage.Format_RGB32)
+        img = QtGui.QImage(w, h, QtGui.QImage.Format.Format_RGB32)
         for x in range(w):
             c = QtGui.QColor(int(lut[x, 0]), int(lut[x, 1]), int(lut[x, 2]))
             for y in range(h):
@@ -477,7 +477,7 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
             form.addRow(label, sp)
             spins.append(sp)
         bb = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(dlg.accept)
         bb.rejected.connect(dlg.reject)
         form.addRow(bb)
@@ -492,10 +492,10 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
             self._update_dim()
             self._update_handles()
             self.rangesChanged.emit()
-        # Non-modal (a modal exec_ hangs in an integrated event loop): apply on OK.
+        # Non-modal (a modal exec() hangs in an integrated event loop): apply on OK.
         dlg.accepted.connect(_apply)
         dlg.setModal(False)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.show()
         dlg.raise_()
 
@@ -519,12 +519,12 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         self.rangesChanged.emit()
 
     def mouseMoveEvent(self, ev):
-        pos = self.mapToScene(ev.pos())
+        pos = self.mapToScene(ev.position().toPoint())
         if self._drag:
             self._move_to(pos)
         else:
-            self.setCursor(Qt.PointingHandCursor if self._hit_test(pos)
-                           else Qt.ArrowCursor)
+            self.setCursor(Qt.CursorShape.PointingHandCursor if self._hit_test(pos)
+                           else Qt.CursorShape.ArrowCursor)
 
     def mouseReleaseEvent(self, _ev):
         if self._drag:

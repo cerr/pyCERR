@@ -12,10 +12,34 @@ cerr.contour.contour\_processing module
    :undoc-members:
    :show-inheritance:
 
+cerr.contour.polyline\_smoothing module
+----------------------------------------
+
+.. automodule:: cerr.contour.polyline_smoothing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 cerr.contour.rasterseg module
 -----------------------------
 
 .. automodule:: cerr.contour.rasterseg
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+cerr.contour.structure\_consensus module
+----------------------------------------
+
+.. automodule:: cerr.contour.structure_consensus
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+cerr.contour.structure\_metrics module
+--------------------------------------
+
+.. automodule:: cerr.contour.structure_metrics
    :members:
    :undoc-members:
    :show-inheritance:

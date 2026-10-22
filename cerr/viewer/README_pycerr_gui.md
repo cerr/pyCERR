@@ -11,9 +11,10 @@ A CERR-style (MATLAB CERR) slice viewer built on **pyCERR**, in a single file: `
 pip install "pycerr[viewer]"    :: Qt binding + pyvista/pyvistaqt 3D view
 ```
 
-The base `pip install pycerr` is deliberately Qt-free, so it installs on
-platforms without a PyQt5 wheel (arm64 Linux) and in headless containers; the
-`viewer` extra adds what this desktop GUI needs.
+The base `pip install pycerr` is deliberately Qt-free, so it installs in
+headless containers; the `viewer` extra adds what this desktop GUI needs. The
+GUI imports Qt through qtpy and runs on Qt5 or Qt6 (PyQt5, PyQt6, PySide2 or
+PySide6); set `QT_API` (e.g. `QT_API=pyqt6`) to choose when several are installed.
 
 pyCERR itself: either `pip install pyCERR`, **or** use your local checkout — the script
 already points at it via:
@@ -66,6 +67,7 @@ depend on them.
 | IMRTP GUI                         | Tools > IMRTP — beamlet dose calculation (`cerr.imrtp.imrtp_gui`) |
 | ROE                               | Tools > ROE — Radiotherapy Outcomes Explorer (`cerr.roe.roe_gui`) |
 | Save plan                         | File > Save planC (.pkl) / Open planC (.pkl)               |
+| Refresh / clear                   | File > Refresh from planC; File > Clear scene (Ctrl+Shift+N) unloads all data and closes the tool windows |
 
 Also supports NIfTI import: scan (`loadNiiScan`), dose (`loadNiiDose`),
 and label masks (`loadNiiStructure`).
@@ -259,7 +261,7 @@ pan behavior. Contouring is locked to the scan that was active when it opened.
 Tools > IMRTP opens the beamlet dose calculation GUI and Tools > ROE opens the
 Radiotherapy Outcomes Explorer. Both windows operate on the *same* planC instance
 as the viewer (changes are shared in memory). After IMRTP adds a dose (or any
-external code modifies planC), use **Tools > Refresh from planC** to update the
+external code modifies planC), use **File > Refresh from planC** to update the
 viewer's scan/dose/structure lists without reopening it.
 
 When IMRTP is launched from this viewer's Tools menu:
@@ -365,7 +367,7 @@ the viewer. 2D targets render reliably offscreen; the pyvista 3D view needs a re
 GL context.
 
 ## Jupyter / Google Colab (headless servers)
-The PyQt5 GUI needs a display, so it cannot run on headless servers. Use
+The Qt GUI needs a display, so it cannot run on headless servers. Use
 `pycerr_nbviewer.py` instead — the notebook viewer (ipywidgets + matplotlib):
 
 ```python

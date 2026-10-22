@@ -130,7 +130,9 @@ def processImage(filterType, scan3M, mask3M, paramS):
         direction = paramS['Direction']
         type = paramS['Type']
         normFlag = 0
+        lawsPadFlag = False                 # Laws response computed without padding
         lawsPadSizeV = np.array([0, 0, 0])
+        lawsPadMethod = 'none'
         energyKernelSizeV = paramS['EnergyKernelSize']
         energyPadSizeV = paramS['EnergyPadSize']
         energyPadMethod = paramS['EnergyPadMethod']
@@ -157,8 +159,9 @@ def processImage(filterType, scan3M, mask3M, paramS):
         waveType = paramS['Wavelets']
         direction = paramS['Direction']
         level = 1  # Default
-        if 'level' in paramS.keys():
-            level = paramS['Level']
+        for levelKey in ('Level', 'level'):
+            if levelKey in paramS:
+                level = int(paramS[levelKey])
         if 'Index' in paramS and paramS['Index'] is not None:
             waveType += str(paramS['Index'])
         if filterType == 'wavelets':
@@ -187,6 +190,20 @@ def generateTextureMapFromPlanC(planC, scanNum, strNum, configFilePath):
 
     Returns:
         planC (plan_container.planC): pyCERR plan_container object with texture map as pseudo-scan.
+
+    Example:
+        Laplacian-of-Gaussian response around structure 0 of scan 0::
+
+            import os
+            from cerr import datasets
+            from cerr.radiomics import texture_utils
+
+            filterFile = os.path.join(os.path.dirname(datasets.__file__),
+                                      'convolutional_filter_settings', 'LoG_filter.json')
+            planC = texture_utils.generateTextureMapFromPlanC(planC, 0, 0, filterFile)
+            texScanNum = len(planC.scan) - 1               # the map is a new, cropped scan
+            tex3M = planC.scan[texScanNum].getScanArray()
+
     """
 
     # Extract scan and mask

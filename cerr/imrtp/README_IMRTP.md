@@ -38,8 +38,9 @@ needed. Otherwise re-run `pip install .` from `C:\software\pyCERR_master\pyCERR`
 or copy `imrtp` into the installed package
 (`...\Lib\site-packages\cerr\imrtp`).
 
-Requirements beyond core pyCERR: a Qt binding (already present if you
-installed `pyCERR[napari]`; else `pip install PyQt5 qtpy`) and matplotlib
+Requirements beyond core pyCERR: qtpy and a Qt5 or Qt6 binding (already present
+if you installed `pyCERR[viewer]` or `pyCERR[napari]`; else
+`pip install qtpy PyQt5` or `pip install qtpy PyQt6`) and matplotlib
 (a core pyCERR dependency).
 
 ## Usage

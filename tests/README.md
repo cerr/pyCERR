@@ -17,7 +17,7 @@ contributors understand the scope and limits of the suite's coverage.
      contour rasterization, DVH computation, and module-import smoke tests.
      These guard the *data pipeline* against regressions.
 - **CI:** GitHub Actions runs `flake8` + `pytest` on **Python 3.9–3.12** plus
-  **3.13**, on Ubuntu, under `xvfb` (so the napari/PyQt5 import tests run
+  **3.13**, on Ubuntu, under `xvfb` (so the napari/Qt import tests run
   headless). See `.github/workflows/python-package.yml`.
 
 ## Running the tests

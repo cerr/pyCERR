@@ -291,7 +291,7 @@ def create(deformNum, filePath, planC, movScanNum=None,
         raise ValueError("REG export requires a vector field deform object "
                          "(deformOutFileType == 'vf'). Use "
                          "cerr.registration.register.calcVectorField to "
-                         "generate one from a transformation.")
+                         "generate one from a transformation (ANTs or plastimatch).")
     dvfFile = deformObj.deformOutFilePath
     if not dvfFile or not os.path.exists(dvfFile):
         raise FileNotFoundError("Vector field file not found: %s" % dvfFile)

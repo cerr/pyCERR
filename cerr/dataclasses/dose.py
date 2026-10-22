@@ -585,7 +585,7 @@ def importNii(file_list, assocScanNum, planC):
                        'P': 'A',
                        'A': 'P'
                         }
-        if scn.flipSliceOrderFlag(planC.scan[0]):
+        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
             direction = direction[:2] + dirFlipDict[direction[2]]
         image = sitk.DICOMOrient(image,direction)
         numAxes = len(image.GetSize())
@@ -627,6 +627,10 @@ def importNii(file_list, assocScanNum, planC):
         dose_meta = Dose()
 
         dose_meta.Image2PhysicalTransM = position_matrix_dose
+        # Needed by getSitkImage / saveNii; same form as the DICOM import
+        # (6x1 direction cosines, position in mm)
+        dose_meta.imageOrientationPatient = dcmImgOri.reshape(6, 1)
+        dose_meta.imagePositionPatient = ipp * 10
 
         dose_meta.verticalGridInterval = -pixelSpacing[0]
         dose_meta.horizontalGridInterval = pixelSpacing[1]

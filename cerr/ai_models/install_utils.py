@@ -178,9 +178,8 @@ def getScriptPath():
         scriptPath = importlib.resources.files("model_installer") / "installer.sh"
     except (ModuleNotFoundError, TypeError):
         raise RuntimeError(
-            "The model_installer package is not installed. "
-            "Install pyCERR with the model_installer extra: "
-            "pip install pyCERR[model_installer]"
+            "The model_installer package is not installed. Install it from GitHub: "
+            "pip install \"model_installer @ git+https://github.com/cerr/model_installer.git\""
         )
 
     if not scriptPath.is_file():

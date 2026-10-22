@@ -48,10 +48,12 @@ def meanFilter(scan3M, kernelSize, absFlag=False):
 
 def sobelFilter(scan3M):
     """
-    Function to compute gradient magnitude and direction using Sobel filter.
+    Function to compute in-plane gradient magnitude and direction using the Sobel filter.
+
+    The 2D Sobel kernels are applied to each slice.
 
     Args:
-        scan3M (np.ndarray): 3D input scan matrix.
+        scan3M (np.ndarray): 3D input scan matrix (a 2D image is also accepted).
     Returns:
         np.ndarray(dtype=float): gradient magnitude
         np.ndarray(dtype=float): gradient direction
@@ -61,9 +63,18 @@ def sobelFilter(scan3M):
     fx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
     fy = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
-    # Convolve with Sobel Filters
-    gx3M = convolve2d(scan3M, fx, mode='same')  # Horizontal gradient
-    gy3M = convolve2d(scan3M, fy, mode='same')  # Vertical gradient
+    # Convolve each slice with the Sobel filters
+    scan3M = np.asarray(scan3M, dtype=float)
+    is2D = scan3M.ndim == 2
+    if is2D:
+        scan3M = scan3M[:, :, np.newaxis]
+    gx3M = np.empty_like(scan3M)
+    gy3M = np.empty_like(scan3M)
+    for slc in range(scan3M.shape[2]):
+        gx3M[:, :, slc] = convolve2d(scan3M[:, :, slc], fx, mode='same')  # Horizontal gradient
+        gy3M[:, :, slc] = convolve2d(scan3M[:, :, slc], fy, mode='same')  # Vertical gradient
+    if is2D:
+        gx3M, gy3M = gx3M[:, :, 0], gy3M[:, :, 0]
 
     # Calculate Gradient Magnitude
     outMag3M = np.sqrt(gx3M ** 2 + gy3M ** 2)
@@ -991,7 +1002,6 @@ def swt2(imgM, level, loD, hiD):
     """
     imgM = imgM.astype(np.float64)
     origSiz = imgM.shape
-    lf = loD.size
 
     # Initialize output
     a = np.zeros((*origSiz, level))
@@ -1002,26 +1012,29 @@ def swt2(imgM, level, loD, hiD):
     tempLo = loD.copy()
     tempHi = hiD.copy()
     tempImgM = imgM.copy()
+    evenOdd = 0  # Matches swt (MATLAB's dyadup(x, 0))
 
     for l in range(level):
-            first = [lf + 1, lf + 1]
-            ext = (lf // 2, lf // 2)
+        # Filter length grows as the filters are upsampled at each level
+        lf = tempLo.size
+        first = [lf + 1, lf + 1]
+        ext = (lf // 2, lf // 2)
 
-            # Periodic extension
-            imgExtM = wextend(tempImgM, ext)
+        # Periodic extension
+        imgExtM = wextend(tempImgM, ext)
 
-            # Decompose
-            ca, ch, cv, cd = decomposeLOC(imgExtM, tempLo, tempHi, first, origSiz)
-            a[:, :, l] = ca
-            h[:, :, l] = ch
-            v[:, :, l] = cv
-            d[:, :, l] = cd
+        # Decompose
+        ca, ch, cv, cd = decomposeLOC(imgExtM, tempLo, tempHi, first, origSiz)
+        a[:, :, l] = ca
+        h[:, :, l] = ch
+        v[:, :, l] = cv
+        d[:, :, l] = cd
 
-            tempImgM = ca  # Next level input
+        tempImgM = ca  # Next level input
 
-            # Upsample filters for next level
-            tempLo = dyadUp(dyadUp(tempLo, 1), 1)
-            tempHi = dyadUp(dyadUp(tempHi, 1), 1)
+        # Upsample filters for next level (a trous)
+        tempLo = dyadUp(tempLo, evenOdd)
+        tempHi = dyadUp(tempHi, evenOdd)
 
     return a, h, v, d
 
@@ -1150,7 +1163,8 @@ def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
                                 'rbio' (Reverse biorthogonal).
             direction (string): Filter sequence. May be :'HHH', 'LHH', 'HLH', 'HHL',
                                 'LLH', 'LHL', 'HLL', 'LLL' or 'All'.
-            level (int)       : Wavelet level. Supported: 1.
+            level (int)       : Decomposition level (1 or more). The response is the
+                                selected sub-band at that level of the stationary wavelet transform.
             rotInvFlag (bool) : Set to True for rotation-invariant filtering (default:False).
 
        Returns:
@@ -1158,8 +1172,9 @@ def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
                    across orientations as specified.
        """
 
-    if level!=1:
-        raise ValueError('Invalid level %d. Only level=1 is currently supported.')
+    level = int(level)
+    if level < 1:
+        raise ValueError('Invalid level %d. The decomposition level must be 1 or more.' % level)
 
     if len(direction) == 3:
         dim = '3d'

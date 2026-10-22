@@ -21,7 +21,7 @@ from typing import Annotated
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
 from skimage import measure
@@ -295,13 +295,15 @@ def initialize_struct_export_widget(vwr) -> FunctionGui:
                 planC = lyr.metadata['planC']
                 break
         structsToExport = []
-        niiLabelDict = {}
-        ind = 1
+        niiLabelDict = {}   # structure name -> label, as saveNiiStructure expects
         for label in structures:
             structNum = labelDict[label]
             structsToExport.append(structNum)
-            niiLabelDict[structNum] = ind
-            ind += 1
+            strName = planC.structure[structNum].structureName
+            if strName in niiLabelDict:
+                print('Structures named ' + strName + ' share label ' + str(niiLabelDict[strName]) + ' in the NIfTI file.')
+            else:
+                niiLabelDict[strName] = len(niiLabelDict) + 1
         # Check file_name
         saveDir = os.path.dirname(file_name)
         saveDirExists = os.path.exists(saveDir)
@@ -1008,7 +1010,7 @@ def showNapari(planC, scan_nums=0, struct_nums=[], dose_nums=[], vectors_dict={}
 
 
     #from qtpy import QtWidgets, QtCore
-    #QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
+    #QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     # above two lines are needed to allow to undock the widget with
     # additional viewers - for Multiview
 

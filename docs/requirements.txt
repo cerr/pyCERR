@@ -1,4 +1,5 @@
 sphinx-rtd-theme
+sphinx-copybutton
 numpy
 pydicom
 python-dateutil
@@ -11,6 +12,8 @@ scikit-learn
 scikit-image
 PyWavelets
 pandas
-shapelysmooth
+shapely
+surface-distance-based-measures
 ipywidgets
 napari[all]
+pyyaml

@@ -1,6 +1,8 @@
-"""The register module defines routines for registering and deforming scans, structures and does distributions.
-It also provies routines for calculating vector field and Jacobian from deformation transformation.
+"""The register module defines routines for registering and deforming scans, structures and dose distributions.
+It also provides routines for calculating the vector field and Jacobian of a deformation.
 
+Registration uses ANTs (:mod:`cerr.registration.ants_reg`; ``pip install "pycerr[ants]"``).
+plastimatch is still supported through ``registrationTool='plastimatch'`` but is deprecated.
 """
 
 import os
@@ -17,6 +19,7 @@ from cerr.utils.interp import finterp3
 from cerr.radiomics import preprocess
 import numpy as np
 import subprocess
+import warnings
 
 # ANTs (antspyx) based registration lives in a companion module; re-export the
 # public entry points so they are reachable as cerr.registration.register.*.
@@ -27,13 +30,58 @@ from cerr.registration.ants_reg import (
     warpStructuresAnts,
     warpDoseAnts,
     landmarksToDicomPhysical,
+    calcVectorFieldAnts,
 )
 
 
+#: ANTs transform presets used for the ``deforAlgorithm`` names of :func:`registerScans`.
+#: Any other value is passed to ``ants.registration`` as the ``type_of_transform``.
+ANTS_TRANSFORMS = {
+    'rigid': 'Rigid',
+    'affine': 'Affine',
+    'bsplines': 'antsRegistrationSyNQuick[s]',
+    'deformable': 'antsRegistrationSyNQuick[s]',
+}
+
+_PLASTIMATCH_DEPRECATION = ("plastimatch support in cerr.registration is deprecated and will be "
+                            "removed in a future release; ANTs is the default "
+                            "(pip install \"pycerr[ants]\").")
+
+
+def _isAntsDeform(deformS):
+    return (deformS.registrationTool or '').lower() == 'ants' \
+        or deformS.deformOutFileType == 'ants'
+
+
+_ITK_FIELD_EXTENSIONS = ('.nii', '.nii.gz', '.mha', '.mhd', '.nrrd')
+
+
+def _antsCanWarp(deformS):
+    """True for an ANTs transform, or a vector field stored in a file ITK reads."""
+    if _isAntsDeform(deformS):
+        return True
+    path = deformS.deformOutFilePath or ''
+    return deformS.deformOutFileType == 'vf' and path.lower().endswith(_ITK_FIELD_EXTENSIONS) \
+        and os.path.exists(path)
+
+
+def _isRigidDeform(deformS):
+    return deformS.deformOutFileType == 'rigid'
+
+
+def _warnPlastimatch():
+    warnings.warn(_PLASTIMATCH_DEPRECATION, FutureWarning, stacklevel=3)
+
+
 def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSaveDir,
-                  deforAlgorithm='bsplines', registrationTool='plastimatch',
+                  deforAlgorithm='bsplines', registrationTool='ants',
                   baseMask3M=None, movMask3M=None, inputCmdFile=None, outputFilePrefix=None):
-    """
+    """Routine to register a moving scan to a fixed scan. The warped moving scan
+    and a deformation object are added to basePlanC.
+
+    Registration uses ANTs (:func:`cerr.registration.ants_reg.registerScansAnts`),
+    which needs the ``ants`` extra (``pip install "pycerr[ants]"``).
+    ``registrationTool='plastimatch'`` is deprecated.
 
     Args:
         basePlanC (cerr.plan_container.PlanC): pyCERR plan container containing fixed target scan
@@ -41,16 +89,43 @@ def registerScans(basePlanC, baseScanIndex, movPlanC, movScanIndex, transformSav
         movPlanC (cerr.plan_container.PlanC): pyCERR plan container containing moving scan
         movScanIndex (int): integer, identifies moving scan in movPlanC
         transformSaveDir (str): Directory to save transformation file
-        registration_tool (str): registration software to use ('PLASTIMATCH','ELASTIX','ANTS')
-        baseMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in target space
-        movMask3M (numpy.ndarray): optional, 3D or 4D binary mask(s) in moving space
-        inputCmdFile (str): optional, path to registration command file
-        outputFilePrefix (str): optional, prefix to output bsplines coeff file name
+        deforAlgorithm (str): 'bsplines' (default; deformable), 'deformable', 'affine' or 'rigid'.
+            For ANTs, any other value is used as the ANTs transform preset, e.g. 'SyN' or
+            'antsRegistrationSyN[s]' (see ``ANTS_TRANSFORMS``). For plastimatch it selects the
+            command file from cerr/registration/settings when inputCmdFile is not given.
+        registrationTool (str): 'ants' (default) or 'plastimatch' (deprecated).
+        baseMask3M (numpy.ndarray): optional, 3D binary mask in target space
+        movMask3M (numpy.ndarray): optional, 3D binary mask in moving space
+        inputCmdFile (str): optional, path to a plastimatch command file. Not used with ANTs.
+        outputFilePrefix (str): optional, prefix for the transform file names
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with an element added to planC.deform attribute
 
+    Example:
+        Deformable registration of scan 1 to scan 0, then propagate a structure::
+
+            from cerr.registration import register
+
+            planC = register.registerScans(planC, 0, planC, 1, '/path/to/transforms')
+            deformS = planC.deform[-1]
+            planC = register.warpStructures(planC, 0, planC, [movStructNum], deformS)
+
     """
+    if registrationTool.lower() == 'ants':
+        if inputCmdFile is not None:
+            warnings.warn("inputCmdFile is a plastimatch option and is ignored with ANTs; "
+                          "pass an ANTs preset as deforAlgorithm instead.", stacklevel=2)
+        typeOfTransform = ANTS_TRANSFORMS.get(str(deforAlgorithm).lower(), deforAlgorithm)
+        return registerScansAnts(basePlanC, baseScanIndex, movPlanC, movScanIndex,
+                                 transformSaveDir=transformSaveDir,
+                                 typeOfTransform=typeOfTransform,
+                                 baseMask3M=baseMask3M, movMask3M=movMask3M,
+                                 outputFilePrefix=outputFilePrefix or 'ants_reg')
+    if registrationTool.lower() != 'plastimatch':
+        raise ValueError("registrationTool must be 'ants' or 'plastimatch', not %r"
+                         % registrationTool)
+    _warnPlastimatch()
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -161,7 +236,16 @@ def warpScan(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS):
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with the deformed scan added to planC.scan attribute
+
+    ANTs transforms and vector fields stored as NIfTI/MHA files are applied with ANTs,
+    rigid matrices directly, and plastimatch B-spline transforms with plastimatch
+    (deprecated).
     """
+    if _antsCanWarp(deformS):
+        return warpScanAnts(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS)
+    if _isRigidDeform(deformS):
+        return warpScanRigid(basePlanC, baseScanIndex, movPlanC, movScanIndex, deformS)
+    _warnPlastimatch()
 
     dirpath = tempfile.mkdtemp()
     fixed_img_nii = os.path.join(dirpath, 'ref.nii.gz')
@@ -328,7 +412,13 @@ def warpDose(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS):
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with the deformed dose added to planC.dose attribute
+
+    ANTs transforms and vector fields stored as NIfTI/MHA files are applied with ANTs;
+    plastimatch B-spline transforms with plastimatch (deprecated).
     """
+    if _antsCanWarp(deformS):
+        return warpDoseAnts(basePlanC, baseScanIndex, movPlanC, movDoseIndexV, deformS)
+    _warnPlastimatch()
 
     if not isinstance(movDoseIndexV, (list, np.ndarray)):
         movDoseIndexV = [movDoseIndexV]
@@ -372,7 +462,16 @@ def warpStructures(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS):
 
     Returns:
         cerr.plan_container.PlanC: plan container object basePlanC with the deformed structures added to planC.structure attribute
+
+    ANTs transforms and vector fields stored as NIfTI/MHA files are applied with ANTs,
+    rigid matrices directly, and plastimatch B-spline transforms with plastimatch
+    (deprecated).
     """
+    if _antsCanWarp(deformS):
+        return warpStructuresAnts(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS)
+    if _isRigidDeform(deformS):
+        return warpStructuresRigid(basePlanC, baseScanIndex, movPlanC, movStrNumV, deformS)
+    _warnPlastimatch()
 
     # dirpath = tempfile.mkdtemp()
     # rtst_warped_path = os.path.join(dirpath, 'struct.nii.gz')
@@ -417,9 +516,16 @@ def calcVectorField(deformS, planC, baseScanNum, transformSaveDir):
         transformSaveDir (str): path to directory for storing the vector field file
 
     Returns:
-        cerr.plan_container.PlanC: plan container object basePlanC with the deformed structures added to planC.structure attribute
+        cerr.plan_container.PlanC: plan container object with a 'vf' deform object, holding the
+        sampled vector field, appended to planC.deform
 
+    ANTs transforms are sampled with
+    :func:`cerr.registration.ants_reg.calcVectorFieldAnts`; plastimatch B-spline
+    transforms with plastimatch (deprecated).
     """
+    if _isAntsDeform(deformS):
+        return calcVectorFieldAnts(deformS, planC, baseScanNum, transformSaveDir)
+    _warnPlastimatch()
 
     # create temporary directory to hold registration files
     dirpath = tempfile.mkdtemp()
@@ -481,41 +587,90 @@ def calcVectorField(deformS, planC, baseScanNum, transformSaveDir):
     return planC
 
 
-def calcJacobian(deformS, planC, tool='plastimatch'):
-    """Routine to compute Jacobian of vector field
+def calcJacobian(deformS, planC, tool='ants'):
+    """Routine to compute the Jacobian determinant of a deformation and add it to planC as a scan
+
+    The determinant is the local volume change of the mapping from the fixed scan to
+    the moving scan: 1 means no change, below 1 contraction, above 1 expansion, and
+    values at or below 0 mean the mapping folds.
 
     Args:
-        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object
+        deformS (cerr.dataclasses.deform.Deform): pyCERR's deformation transformation object:
+            an ANTs registration, or a 'vf' deform object holding a vector field file
+            (e.g. from :func:`calcVectorField`).
         planC (cerr.plan_container.PlanC): pyCERR's plan container
-        tool (str): optional. tool to use for Jacobian calculation, defaults to 'plastimatch'
+        tool (str): optional. 'ants' (default) or 'plastimatch' (deprecated).
 
     Returns:
+        cerr.plan_container.PlanC: plan container with the Jacobian appended to planC.scan
+        (image type 'Jacobian'), on the grid of the deformation's fixed scan.
 
+    Example:
+        ::
+
+            from cerr.registration import register
+
+            planC = register.registerScans(planC, 0, planC, 1, '/path/to/transforms')
+            planC = register.calcJacobian(planC.deform[-1], planC)
+            jac3M = planC.scan[-1].getScanArray()
     """
-
-    if deformS.deformOutFileType != 'vf':
-        return
-
     if tool == 'plastimatch':
-
-        # create temporary directory to hold registration files
+        _warnPlastimatch()
+        if deformS.deformOutFileType != 'vf':
+            raise ValueError("plastimatch Jacobian needs a 'vf' deform object; "
+                             "use calcVectorField first.")
         dirpath = tempfile.mkdtemp()
-
-        # Command for Jacobian calculation
         jacobian_nii = os.path.join(dirpath, 'jacobian.nii.gz')
         plm_jacobian_str_cmd = "plastimatch jacobian --input " + deformS.deformOutFilePath + \
                       " --output-img " + jacobian_nii
-
         os.system(plm_jacobian_str_cmd)
-
-        # Add Jacobian to planC scan
-        direction = ''
-        planC = pc.loadNiiScan(jacobian_nii, "Jacobian", direction, planC)
-
-        # Remove temporary directory
+        planC = pc.loadNiiScan(jacobian_nii, "Jacobian", '', planC)
         shutil.rmtree(dirpath)
+        return planC
+    if tool != 'ants':
+        raise ValueError("tool must be 'ants' or 'plastimatch', not %r" % tool)
 
+    from cerr.registration.ants_reg import _composeAntsField, _importAnts
+    ants = _importAnts()
+    baseScanNum = scn.getScanNumFromUID(deformS.baseScanUID, planC)
+    dirpath = tempfile.mkdtemp()
+    if _isAntsDeform(deformS):
+        dvfFile = _composeAntsField(deformS, planC, baseScanNum, dirpath)
+    elif deformS.deformOutFileType == 'vf' and deformS.deformOutFilePath \
+            and os.path.exists(deformS.deformOutFilePath):
+        dvfFile = deformS.deformOutFilePath
+    else:
+        shutil.rmtree(dirpath, ignore_errors=True)
+        raise ValueError("calcJacobian needs an ANTs deform object or a 'vf' deform object "
+                         "with a vector field file (deformOutFileType=%r)."
+                         % deformS.deformOutFileType)
+    fixedNii = os.path.join(dirpath, 'fixed.nii.gz')
+    planC.scan[baseScanNum].saveNii(fixedNii)
+    jacImg = ants.create_jacobian_determinant_image(ants.image_read(fixedNii), dvfFile,
+                                                    do_log=False)
+    jacNii = os.path.join(dirpath, 'jacobian.nii.gz')
+    ants.image_write(jacImg, jacNii)
+    planC = pc.loadNiiScan(jacNii, "Jacobian", '', planC)
+    shutil.rmtree(dirpath, ignore_errors=True)
     return planC
+
+
+def _requireDvf(deformS):
+    """Raise a clear error when a deform object has no sampled vector field."""
+    if cerrDeform.hasDvfMatrix(deformS):
+        return
+    tool = (deformS.registrationTool or '').lower()
+    if tool == 'ants' or deformS.deformOutFileType == 'ants':
+        hint = ("sample it first with cerr.registration.ants_reg.calcVectorFieldAnts"
+                "(deformS, planC, baseScanNum) and use the deform object it appends")
+    elif deformS.deformOutFileType == 'rigid':
+        hint = "a rigid registration has no per-voxel vector field"
+    else:
+        hint = ("sample it first with cerr.registration.register.calcVectorField "
+                "(plastimatch) and use the deform object it appends")
+    raise ValueError("This deform object (registrationTool=%r, deformOutFileType=%r) "
+                     "carries no deformation vector field: %s."
+                     % (deformS.registrationTool, deformS.deformOutFileType, hint))
 
 
 def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None, surfFlag=False):
@@ -610,6 +765,7 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
 
 
     # Get x,y,z deformations at selected points
+    _requireDvf(deformS)
     xV, yV, zV = deformS.getDVFXYZVals()
     delta = 1e-8
     zV[0] = zV[0] - 1e-3
@@ -791,6 +947,7 @@ def getDvfGrid(deformS, planC, scanNum, outputResV=None, structNum=None,
     # DVF grid. finterp3 takes the x/y axes as (start, delta, end) and needs the
     # end points nudged outward so boundary samples are not rejected as
     # out-of-bounds; z is passed in full (slice spacing may be non-uniform).
+    _requireDvf(deformS)
     xV, yV, zV = deformS.getDVFXYZVals()
     zV = np.asarray(zV, dtype=float).copy()          # copy: do not edit deformS
     delta = 1e-8

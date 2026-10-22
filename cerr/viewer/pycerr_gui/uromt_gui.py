@@ -3,9 +3,9 @@ import json
 from cerr.viewer.pycerr_gui.common import *  # noqa: F401,F403
 
 class _UROMTWorker(QtCore.QThread):
-    progress = QtCore.pyqtSignal(float, str)
-    done = QtCore.pyqtSignal(object)
-    failed = QtCore.pyqtSignal(str)
+    progress = QtCore.Signal(float, str)
+    done = QtCore.Signal(object)
+    failed = QtCore.Signal(str)
 
     def __init__(self, planC, scanNumV, structNum, settingsFile, timeSel=None,
                  settings=None, parent=None):
@@ -90,7 +90,7 @@ class UROMTSettingsDialog(QtWidgets.QDialog):
         self.table.horizontalHeader().setStretchLastSection(True)
         for row, k in enumerate(keys):
             item = QtWidgets.QTableWidgetItem(str(k))
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)   # keys are fixed
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)   # keys are fixed
             self.table.setItem(row, 0, item)
             self.table.setItem(row, 1,
                                QtWidgets.QTableWidgetItem(self._fmt(
@@ -210,7 +210,7 @@ class UROMTDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.worker = None
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle("urOMT - fluid transport (beta)")
 
         lay = QtWidgets.QVBoxLayout(self)
@@ -286,7 +286,7 @@ class UROMTDialog(QtWidgets.QDialog):
         # timepoint -> displayed scan (scans may not be stored in temporal
         # order; this maps the timepoint to the correct scan index by
         # acquisition time and drives the main viewer's scan display)
-        self.tpSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.tpSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.tpSlider.setToolTip("Display the scan acquired at this timepoint "
                                  "(mapped to the correct scan index by "
                                  "acquisition time).")
@@ -397,7 +397,7 @@ class UROMTDialog(QtWidgets.QDialog):
         # vertex fraction IS a time fraction), while vectors and the Eulerian
         # maps are per-INTERVAL fields - there the slider scrubs the timepoint
         # and Play loops through them.
-        self.growSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.growSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.growSlider.setRange(0, 100)
         self.growSlider.setValue(100)
         self.growSlider.valueChanged.connect(self._onGrowChanged)
@@ -434,7 +434,7 @@ class UROMTDialog(QtWidgets.QDialog):
         prow.addWidget(QtWidgets.QLabel("3-D opacity"))
         # opacity of the urOMT overlay in the 3-D views (moved here from the
         # main panel); drives PyCerrViewer.plane3dOpacity
-        self.plane3dSlider = QtWidgets.QSlider(Qt.Horizontal)
+        self.plane3dSlider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.plane3dSlider.setRange(0, 100)
         self.plane3dSlider.setValue(int(round(self.viewer.plane3dOpacity * 100)))
         self.plane3dSlider.setToolTip(
@@ -547,7 +547,7 @@ class UROMTDialog(QtWidgets.QDialog):
             return
         dlg = UROMTSettingsDialog(self, settings,
                                   path or self._settingsPathOrDefault())
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
         self._settings = dlg.settings
         if dlg.savedPath:                  # saved to a file -> point at it
@@ -593,9 +593,9 @@ class UROMTDialog(QtWidgets.QDialog):
             "Start the urOMT calculation with these inputs?\n\n%s\n\n"
             "This can take a long time and cannot be cancelled once started."
             % self._runSummary(timeSel),
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            QtWidgets.QMessageBox.No)
-        if ok != QtWidgets.QMessageBox.Yes:
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No)
+        if ok != QtWidgets.QMessageBox.StandardButton.Yes:
             self.progress.setText("Run cancelled.")
             return
         # order scans by acquisition time (planC scan order may not be temporal)
@@ -1045,7 +1045,7 @@ class UROMTViewDialog(QtWidgets.QDialog):
         self.viewer = viewer
         self.run = viewer.planC.urOMT[index]
         self.setModal(False)
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle("urOMT view - planC.urOMT[%d]" % index)
         self.resize(620, 680)
 
@@ -1070,7 +1070,7 @@ class UROMTViewDialog(QtWidgets.QDialog):
         self.axisCombo = QtWidgets.QComboBox()
         for label, _ in self._AXES:
             self.axisCombo.addItem(label)
-        self.slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.sliceLabel = QtWidgets.QLabel("")
         self.threeDCheck = QtWidgets.QCheckBox("3D")
         self.threeDCheck.setToolTip("Render the whole ROI volume in 3D "

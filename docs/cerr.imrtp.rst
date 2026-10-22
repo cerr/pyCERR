@@ -1,7 +1,7 @@
 cerr.imrtp package
 ==================
 
-IMRT planning (IMRTP): beamlet/influence-matrix dose calculation and a PyQt5
+IMRT planning (IMRTP): beamlet/influence-matrix dose calculation and a Qt
 planning GUI that displays the optimized dose and beam geometry through the
 ``cerr.viewer.pycerr_gui`` desktop viewer.
 

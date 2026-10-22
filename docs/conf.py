@@ -26,8 +26,8 @@ project = 'pyCERR'
 copyright = 'GNU GPL v3'
 author = 'Aditya Apte, Aditi Iyer, Eve LoCastro, Joseph Deasy'
 
-version = '2.1'
-release = '2.1.0'
+version = '2.3'
+release = '2.3.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -38,17 +38,19 @@ extensions = [
     'sphinx.ext.doctest',       # Test snippets in documentation
     'sphinx.ext.todo',          # to-do syntax highlighting
     'sphinx.ext.ifconfig',      # Content based configuration
-    'sphinx.ext.viewcode'
+    'sphinx.ext.viewcode',
+    'sphinx.ext.mathjax',       # Equations in the user guide
+    'sphinx_copybutton',        # Copy button on code blocks
 ]
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '_figure_scripts']
 
 # Mock heavy / display-dependent dependencies so the docs build on a headless
 # CI runner that has no GPU, Qt display, napari or VTK installed.
 autodoc_mock_imports = [
     'numpy',
-    'PyQt5', 'sip', 'qtpy', 'pyqtgraph',
+    'PyQt5', 'PyQt6', 'sip', 'qtpy', 'pyqtgraph',
     'matplotlib.backends.backend_qt5agg',
     'matplotlib.backends.backend_qtagg',
     'pyvista', 'pyvistaqt', 'vtk',

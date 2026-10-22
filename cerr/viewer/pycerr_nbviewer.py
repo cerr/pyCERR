@@ -3,7 +3,7 @@ pyCERR Notebook Viewer
 ======================
 A notebook/Colab-friendly version of the pyCERR Viewer GUI (pycerr_gui.py).
 
-The PyQt5 desktop GUI cannot run on a headless server (no display). This module
+The Qt desktop GUI cannot run on a headless server (no display). This module
 provides the same functionality with ipywidgets + matplotlib, which renders
 natively inside Jupyter, JupyterLab, VS Code notebooks and Google Colab.
 

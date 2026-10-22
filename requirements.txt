@@ -9,9 +9,10 @@ scikit-learn
 scikit-image
 PyWavelets
 pandas
-shapelysmooth
+shapely
 ipywidgets
 napari[all]
+qtpy
 PyQt5
 pyvista
 pyvistaqt

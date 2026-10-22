@@ -41,7 +41,7 @@ Features
 
 **Image processing**
 
-* Deformable image registration via plastimatch / ANTs (``cerr.registration``)
+* Rigid and deformable image registration with ANTs (``cerr.registration``)
 * Resampling, intensity preprocessing and masking (``cerr.utils``)
 * Semi-quantitative DCE-MRI features (``cerr.mri_metrics``)
 * Helpers for AI model training / inference (``cerr.utils.ai_pipeline``)
@@ -50,14 +50,46 @@ Features
 (``cerr.viewer``):
 
 * ``pycerr_napari`` — napari 2D/3D viewer
-* ``pycerr_gui`` — PyQt5 CERR-style desktop viewer: linked ortho views, per-scan
+* ``pycerr_gui`` — Qt CERR-style desktop viewer: linked ortho views, per-scan
   window/colormap/opacity, colorwash or isodose-line dose display, a 3D volume
   render with a draggable clip box, contouring, DVH and Registration QA
 * ``pycerr_nbviewer`` — Jupyter / Colab notebook viewer
 
+Where to start
+--------------
+
+* :doc:`quickstart` loads a scan, views it and computes features in ten minutes.
+* :doc:`tutorials/end_to_end` runs one patient from import to outcome model.
+* :doc:`user_guide/planc` explains the ``planC`` data model and coordinates.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Getting started
+
+   quickstart
+   tutorials/end_to_end
+
+.. toctree::
+   :maxdepth: 1
+   :caption: User guide
+
+   user_guide/planc
+   user_guide/segmentation
+   user_guide/smoothing
+   user_guide/body_outline
+   user_guide/structure_consensus
+   user_guide/segmentation_metrics
+   user_guide/ai_inference
+   user_guide/registration
+   user_guide/registration_qa
+   user_guide/radiomics
+   user_guide/texture
+   user_guide/dvh
+   user_guide/roe
+
 .. toctree::
    :maxdepth: 2
-   :caption: cerr and its sub-packages
+   :caption: API reference
 
    cerr
    cerr.dataclasses
@@ -69,6 +101,8 @@ Features
    cerr.viewer
    cerr.imrtp
    cerr.roe
+   cerr.segmentation
+   cerr.ai_models
    cerr.mri_metrics
    cerr.datasets
    tests

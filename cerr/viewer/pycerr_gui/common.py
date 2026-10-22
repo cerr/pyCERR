@@ -14,30 +14,29 @@ if os.path.isdir(PYCERR_PATH) and PYCERR_PATH not in sys.path:
 
 import numpy as np
 
+# qtpy picks whichever Qt binding is installed (PyQt5, PyQt6, PySide2 or
+# PySide6; set QT_API to choose one), so the viewer runs on Qt5 or Qt6.
 try:
-    from PyQt5 import QtCore, QtGui, QtWidgets
-    from PyQt5.QtCore import Qt
-except ImportError:  # pragma: no cover - PySide fallback
-    try:
-        from PySide2 import QtCore, QtGui, QtWidgets  # type: ignore
-        from PySide2.QtCore import Qt  # type: ignore
-    except ImportError as exc:  # no Qt binding at all
-        # The Qt binding is an optional dependency (see pyproject's `viewer`
-        # extra), so say how to get it rather than surfacing a bare
-        # "No module named 'PySide2'".
-        raise ImportError(
-            "The pyCERR desktop viewer needs a Qt binding, which is not part of "
-            "the base install. Install it with:\n"
-            '    pip install "pycerr[viewer]"\n'
-            "For notebooks use the Qt-free viewer instead: "
-            "from cerr.viewer.pycerr_nbviewer import showNB"
-        ) from exc
+    from qtpy import QtCore, QtGui, QtWidgets
+    from qtpy.QtCore import Qt
+except Exception as exc:  # no qtpy, or qtpy found no Qt binding
+    # The Qt binding is an optional dependency (see pyproject's `viewer`
+    # extra), so say how to get it rather than surfacing a bare
+    # "No module named 'qtpy'" or qtpy's QtBindingsNotFoundError.
+    raise ImportError(
+        "The pyCERR desktop viewer needs qtpy and a Qt binding (PyQt5, PyQt6, "
+        "PySide2 or PySide6), which are not part of the base install. "
+        "Install them with:\n"
+        '    pip install "pycerr[viewer]"\n'
+        "For notebooks use the Qt-free viewer instead: "
+        "from cerr.viewer.pycerr_nbviewer import showNB"
+    ) from exc
 
 import logging
 
 import matplotlib
 
-matplotlib.use("Qt5Agg")
+matplotlib.use("QtAgg")
 
 
 # The slice views are deliberately aspect='equal'/adjustable='datalim' (square
@@ -55,7 +54,7 @@ logging.getLogger("matplotlib.axes._base").addFilter(_AspectLimitLogFilter())
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.patches as mpatches  # noqa: E402
 from matplotlib.collections import LineCollection  # noqa: E402
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas  # noqa: E402
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas  # noqa: E402
 from matplotlib.colors import ListedColormap  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 from matplotlib.path import Path as MplPath  # noqa: E402
@@ -220,8 +219,8 @@ if HAS_PYVISTA:
         """pyvista interactor that adds a right-CLICK signal (right-drag
         still zooms via VTK's trackball style) and lets the owner take
         over left-drags for plane dragging via the pick/drag hooks."""
-        rightClicked = QtCore.pyqtSignal()
-        doubleClicked = QtCore.pyqtSignal()
+        rightClicked = QtCore.Signal()
+        doubleClicked = QtCore.Signal()
 
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -234,18 +233,18 @@ if HAS_PYVISTA:
             self.end_plane_drag = None
 
         def mousePressEvent(self, ev):
-            if ev.button() == Qt.LeftButton and self.pick_plane is not None \
-                    and self.pick_plane(ev.pos()):
+            if ev.button() == Qt.MouseButton.LeftButton and self.pick_plane is not None \
+                    and self.pick_plane(ev.position()):
                 self._plane_dragging = True
-                self.setCursor(Qt.ClosedHandCursor)
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
                 return            # consumed: no camera rotation
-            if ev.button() == Qt.RightButton:
-                self._rpos = ev.pos()
+            if ev.button() == Qt.MouseButton.RightButton:
+                self._rpos = ev.position()
             super().mousePressEvent(ev)
 
         def mouseDoubleClickEvent(self, ev):
             # double-click resets the 3D camera to the default framing
-            if ev.button() == Qt.LeftButton and not self._plane_dragging:
+            if ev.button() == Qt.MouseButton.LeftButton and not self._plane_dragging:
                 self.doubleClicked.emit()
                 return
             super().mouseDoubleClickEvent(ev)
@@ -253,19 +252,19 @@ if HAS_PYVISTA:
         def mouseMoveEvent(self, ev):
             if self._plane_dragging:
                 if self.drag_plane is not None:
-                    self.drag_plane(ev.pos())
+                    self.drag_plane(ev.position())
                 return
             super().mouseMoveEvent(ev)
 
         def mouseReleaseEvent(self, ev):
-            if self._plane_dragging and ev.button() == Qt.LeftButton:
+            if self._plane_dragging and ev.button() == Qt.MouseButton.LeftButton:
                 self._plane_dragging = False
-                self.setCursor(Qt.ArrowCursor)
+                self.setCursor(Qt.CursorShape.ArrowCursor)
                 if self.end_plane_drag is not None:
                     self.end_plane_drag()
                 return
-            if ev.button() == Qt.RightButton and self._rpos is not None \
-                    and (ev.pos() - self._rpos).manhattanLength() < 8:
+            if ev.button() == Qt.MouseButton.RightButton and self._rpos is not None \
+                    and (ev.position() - self._rpos).manhattanLength() < 8:
                 self.rightClicked.emit()
             self._rpos = None
             super().mouseReleaseEvent(ev)
@@ -303,11 +302,11 @@ def _contour_cursor(kind):
     if cur is not None:
         return cur
     pm = QtGui.QPixmap(24, 24)
-    pm.fill(Qt.transparent)
+    pm.fill(Qt.GlobalColor.transparent)
     p = QtGui.QPainter(pm)
-    p.setRenderHint(QtGui.QPainter.Antialiasing)
-    halo = QtGui.QPen(QtGui.QColor("white"), 3.4, Qt.SolidLine, Qt.RoundCap)
-    ink = QtGui.QPen(QtGui.QColor("black"), 1.6, Qt.SolidLine, Qt.RoundCap)
+    p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    halo = QtGui.QPen(QtGui.QColor("white"), 3.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+    ink = QtGui.QPen(QtGui.QColor("black"), 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
     for pen in (halo, ink):                       # the shaft (handle / body)
         p.setPen(pen)
         p.drawLine(7, 17, 20, 4)
@@ -328,6 +327,41 @@ def _contour_cursor(kind):
     return cur
 
 
+class _CheckFrameDelegate(QtWidgets.QStyledItemDelegate):
+    """Item delegate that draws a thin white frame around each item's
+    check-box, so the boxes stay visible on a dark list background. The
+    style's own check mark is kept."""
+
+    MARGIN = 1.5      # px between the check-box and the frame
+    ROW_PAD = 4       # extra row height, so the frame fits inside its row
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        return size + QtCore.QSize(0, self.ROW_PAD)
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        if index.data(Qt.ItemDataRole.CheckStateRole) is None:
+            return
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        widget = option.widget
+        style = widget.style() if widget is not None else QtWidgets.QApplication.style()
+        box = style.subElementRect(
+            QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator, opt, widget)
+        if not box.isValid():
+            return
+        m = self.MARGIN
+        frame = QtCore.QRectF(box).adjusted(-m, -m, m, m)
+        frame = frame.intersected(QtCore.QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5))
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        painter.setPen(QtGui.QPen(QtGui.QColor("white"), 1.2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(frame, 2.5, 2.5)
+        painter.restore()
+
+
 def _nonmodal_box(parent, title, text, icon, rich=False):
     """Build and show() a non-modal QMessageBox. Modal message boxes can hang
     or fail to appear when the viewer runs inside an integrated event loop
@@ -337,10 +371,10 @@ def _nonmodal_box(parent, title, text, icon, rich=False):
     box.setIcon(icon)
     box.setWindowTitle(title)
     if rich:
-        box.setTextFormat(Qt.RichText)
+        box.setTextFormat(Qt.TextFormat.RichText)
     box.setText(text)
     box.setModal(False)
-    box.setAttribute(Qt.WA_DeleteOnClose, True)
+    box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
     box.show()
     box.raise_()
     box.activateWindow()
@@ -349,15 +383,15 @@ def _nonmodal_box(parent, title, text, icon, rich=False):
 
 def _show_info(parent, title, text, rich=False):
     return _nonmodal_box(parent, title, text,
-                         QtWidgets.QMessageBox.Information, rich)
+                         QtWidgets.QMessageBox.Icon.Information, rich)
 
 
 def _show_warning(parent, title, text):
-    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Warning)
+    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Icon.Warning)
 
 
 def _show_error(parent, title, text):
-    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Critical)
+    return _nonmodal_box(parent, title, text, QtWidgets.QMessageBox.Icon.Critical)
 
 
 _LOGO_DIR = os.path.dirname(__file__)
@@ -391,17 +425,17 @@ def _theme_palette():
     themselves stay black (set on each matplotlib canvas)."""
     pal = QtGui.QPalette()
     gray = QtGui.QColor(212, 212, 212)
-    pal.setColor(QtGui.QPalette.Window, gray)
-    pal.setColor(QtGui.QPalette.WindowText, Qt.black)
-    pal.setColor(QtGui.QPalette.Base, QtGui.QColor(245, 245, 245))
-    pal.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(228, 228, 228))
-    pal.setColor(QtGui.QPalette.Text, Qt.black)
-    pal.setColor(QtGui.QPalette.Button, QtGui.QColor(224, 224, 224))
-    pal.setColor(QtGui.QPalette.ButtonText, Qt.black)
-    pal.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor(245, 245, 245))
-    pal.setColor(QtGui.QPalette.ToolTipText, Qt.black)
-    pal.setColor(QtGui.QPalette.Highlight, QtGui.QColor(120, 170, 230))
-    pal.setColor(QtGui.QPalette.HighlightedText, Qt.white)
+    pal.setColor(QtGui.QPalette.ColorRole.Window, gray)
+    pal.setColor(QtGui.QPalette.ColorRole.WindowText, Qt.GlobalColor.black)
+    pal.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(245, 245, 245))
+    pal.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor(228, 228, 228))
+    pal.setColor(QtGui.QPalette.ColorRole.Text, Qt.GlobalColor.black)
+    pal.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor(224, 224, 224))
+    pal.setColor(QtGui.QPalette.ColorRole.ButtonText, Qt.GlobalColor.black)
+    pal.setColor(QtGui.QPalette.ColorRole.ToolTipBase, QtGui.QColor(245, 245, 245))
+    pal.setColor(QtGui.QPalette.ColorRole.ToolTipText, Qt.GlobalColor.black)
+    pal.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor(120, 170, 230))
+    pal.setColor(QtGui.QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
     return pal
 
 

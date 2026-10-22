@@ -25,7 +25,7 @@ import json
 from cerr.radiomics.preprocess import imgResample3D
 import cerr.utils.mask as maskUtils
 import warnings
-from scipy.interpolate import splprep, splev
+from cerr.contour.polyline_smoothing import bspline_smooth
 import copy
 
 
@@ -868,14 +868,15 @@ def loadStructure(file_list):
 
     return struct_list
 
-def importNii(file_list, assocScanNum, planC, labels_dict = {}):
+def importNii(file_list, assocScanNum, planC, labels_dict=None):
     """This routine imports segmentation from a list of nii files into planC.
 
     Args:
         file_list (List or str): List of nii file paths or a string containing path for a single file.
         assocScanNum (int): index of scan in planC to associate the segmentation.
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
-        labels_dict (dict): dictionary of index to structure name mapping. e.g. {'GTV':1, 'Lung_total': 2}
+        labels_dict (dict): optional, structure name to label mapping, e.g. {'GTV':1, 'Lung_total': 2}.
+            When omitted, every non-zero label in each file is imported as 'Label <value>'.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object
@@ -908,11 +909,14 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
 
             all_labels = np.unique(maskOnScan3M)
             all_labels = all_labels[all_labels != 0]
-            if len(labels_dict) == 0:
-                for label in all_labels:
-                    labels_dict["Label " + str(label)] = label
+            # Build the names per file: never store them in labels_dict, so one
+            # file's labels cannot carry over to the next file or call.
+            if labels_dict:
+                fileLabels = labels_dict
+            else:
+                fileLabels = {"Label " + str(label): label for label in all_labels}
 
-            for index, (key,label) in enumerate(labels_dict.items()):
+            for key, label in fileLabels.items():
                 planC = importStructureMask(maskOnScan3M == label, assocScanNum, key, planC, None)
 
         elif len(imgSize) == 4:
@@ -925,16 +929,17 @@ def importNii(file_list, assocScanNum, planC, labels_dict = {}):
             labelList = []
             for i in range(imgSize[-1]):
                 extractFilter.SetIndex([0,0,0,i])
-                resampMaskImage = extractFilter.Execute(image)
+                resampMaskImage = resample.Execute(extractFilter.Execute(image))
                 maskOnScan3M = scn.getCERRScanArrayFromITK(resampMaskImage, assocScanNum, planC)
                 maskList.append(maskOnScan3M)
                 labelList.append(max(np.unique(maskOnScan3M)))
 
-            if len(labels_dict) == 0:
-                for label in labelList:
-                    labels_dict["Label " + str(label)] = label
+            if labels_dict:
+                fileLabels = labels_dict
+            else:
+                fileLabels = {"Label " + str(label): label for label in labelList}
 
-            for index, (key,label) in enumerate(labels_dict.items()):
+            for key, label in fileLabels.items():
                 ind = labelList.index(label)
                 planC = importStructureMask(maskList[ind] == label, assocScanNum, key, planC, None)
 
@@ -1256,6 +1261,15 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
             'EXACT' - returns indices of exact matches
             'FIRSTCHARS' - returns indices where first characters of elements in the list match input structName
             other - returns indices where elements in the list contain input structName as a substring
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            names = [s.structureName for s in planC.structure]
+            structNum = cerrStr.getMatchingIndex('GTV-1', names, 'exact')[0]
+
     """
 
     if isinstance(structName, str):
@@ -1442,6 +1456,15 @@ def getSurfaceExpand(structNum, marginCm, planC, restrict_2d=False):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
             expanded/contracted structure appended to ``planC.structure``.
+
+    Example:
+        A 1 cm margin around structure 0, and a 0.5 cm contraction::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.getSurfaceExpand(0, 1.0, planC)
+            planC = cerrStr.getSurfaceExpand(0, -0.5, planC)
+
     """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNum].assocScanUID, planC)
     dxyz = planC.scan[assocScanNum].getScanSpacing()
@@ -1502,6 +1525,14 @@ def structUnion(structNumV, planC, unionStructName=None):
         planC (cerr.plan_container.PlanC): pyCERR's plan container object.
         unionStructName (str or None): Name for the new structure. A descriptive
             default is generated when ``None``.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structUnion(['Lung_L', 'Lung_R'], planC, 'Lungs')
+
     """
     structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
@@ -1528,6 +1559,14 @@ def structIntersect(structNumV, planC, intrStructName=None):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
         intersection structure appended to ``planC.structure``.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structIntersect(['PTV', 'Rectum'], planC, 'PTV_in_rectum')
+
     """
     structNumV = [resolveStructRef(s, planC) for s in structNumV]
     maskList, assocScanNum = getMasksOnScan(structNumV, planC)
@@ -1554,6 +1593,14 @@ def structDiff(structNum1, structNum2, planC, diffStructName=None):
     Returns:
         cerr.plan_container.PlanC: Updated plan container object with the
         difference structure appended to ``planC.structure``.
+
+    Example:
+        Lungs excluding the GTV::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            planC = cerrStr.structDiff('Lungs', 'GTV', planC, 'Lung_GTV')
+
     """
     structNum1 = resolveStructRef(structNum1, planC)
     structNum2 = resolveStructRef(structNum2, planC)
@@ -1595,7 +1642,7 @@ def getGaussianBlurredMask(structNum, sigmaVoxel, planC, saveFlag=False,\
                                               planC)
     #inputResV = planC.scan[assocScanNum].getScanSpacing() * sigmaVoxel
 
-    blurredMask3M = maskUtils.gaussianBlurring(mask3M,sigmaVoxel)
+    blurredMask3M = maskUtils.blurring(mask3M, sigmaVoxel)
 
     # Save to planC
     if saveFlag:
@@ -1662,14 +1709,10 @@ def getBsplineSmoothing(structNum, resolutionFactor, smootingFactor, planC, \
             else:
                 contObj = planC.structure[structNum].contour[slc]
             for seg in planC.structure[structNum].contour[slc].segments:
-                seg.points[:,0], seg.points[:,1]
-                numPts = len(seg.points[:,0])
-                if numPts > 3:
-                    tck, u = splprep([seg.points[:,0], seg.points[:,1]], s = smootingFactor, per = True)
-                    smoothX, smoothY = splev(np.linspace(0, 1, round(numPts*resolutionFactor)), tck, der = 0)
-                    #smoothX, smoothY = splev(u, tck)
-                    zVals = np.full(len(smoothX), seg.points[0,2])
-                    ptsM = np.asarray((smoothX, smoothY, zVals)).T
+                if len(seg.points) > 3:
+                    xyM = bspline_smooth(seg.points, resolutionFactor, smootingFactor)
+                    zVals = np.full((len(xyM), 1), seg.points[0, 2])
+                    ptsM = np.hstack((xyM, zVals))
                 else:
                     ptsM = seg.points
 
@@ -1717,6 +1760,15 @@ def getLabelMap(planC, labelDict=None, strNumV=None, dim=3):
 
     Returns:
        labelMap3M: np.ndarray(dtype=int) for label map.
+
+    Example:
+        ::
+
+            from cerr.dataclasses import structure as cerrStr
+
+            labelDict = {'GTV-1': 1, 'Bone': 2}            # structure name -> label
+            labelMap3M, structNumV = cerrStr.getLabelMap(planC, labelDict)
+
     """
 
     # if labelDict is None:
