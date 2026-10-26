@@ -137,6 +137,46 @@ def test_createLattice_noVerticesFitRaises(phantomPlanC):
                           latticeSpacing=20.0, innerMargin=100.0, units='mm')
 
 
+def test_createLattice_valleyLattice(phantomPlanC):
+    """Valley vertices form a complementary lattice: inside the GTV, disjoint
+    from the peaks, contained in the bulk valley, and roughly half a cell
+    diagonal away from the nearest peak."""
+    from scipy.ndimage import distance_transform_edt
+    planC = phantomPlanC
+    planC, verts = lat.createLattice(
+        planC, 0, sphereDiameter=10.0, latticeSpacing=30.0,
+        latticeType='sc', innerMargin=5.0, units='mm', addValley=True,
+        addValleyLattice=True, valleyVertexDiameter=8.0)
+
+    gtv = _mask(planC, "GTV")
+    peaks = _mask(planC, "GTV_lattice_peaks")
+    valley = _mask(planC, "GTV_lattice_valley")
+    vlat = _mask(planC, "GTV_lattice_valley_vertices")
+
+    assert vlat.sum() > 0
+    assert np.all(vlat <= gtv)
+    assert not np.any(vlat & peaks)
+    assert np.all(vlat <= valley)
+    # nearest valley-vertex voxel to a peak: s*sqrt(3)/2 - (r_peak + r_valley)
+    d = distance_transform_edt(~peaks, sampling=(0.2, 0.2, 0.2))
+    expected = 3.0 * np.sqrt(3) / 2 - (0.5 + 0.4)
+    assert d[vlat].min() == pytest.approx(expected, abs=0.3)
+
+
+def test_createLattice_valleyLatticeBcc(phantomPlanC):
+    """For bcc peaks the valley vertices go on the tetrahedral sites (a plain
+    half-cell shift would land on other peaks and come out empty)."""
+    planC = phantomPlanC
+    planC, verts = lat.createLattice(
+        planC, 0, sphereDiameter=8.0, latticeSpacing=30.0,
+        latticeType='bcc', innerMargin=5.0, units='mm', addValley=True,
+        addValleyLattice=True, valleyVertexDiameter=6.0)
+    peaks = _mask(planC, "GTV_lattice_peaks")
+    vlat = _mask(planC, "GTV_lattice_valley_vertices")
+    assert vlat.sum() > 0
+    assert not np.any(vlat & peaks)
+
+
 def test_createLattice_avoidanceRing(phantomPlanC):
     """The avoidance ring is a shell around the peaks: inside the GTV, disjoint
     from the peaks, and part of the valley."""

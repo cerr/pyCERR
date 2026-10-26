@@ -27,6 +27,8 @@ Radiat. Res. 2020): 1-1.5 cm diameter spheres on a 2-5 cm lattice, inset from
 the target surface so that no sphere protrudes past the GTV.
 """
 
+import warnings
+
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
@@ -198,7 +200,10 @@ def createLattice(planC, structNum,
                   units='mm',
                   addAvoidanceRing=False,
                   ringThickness=3.0,
-                  ringStructName=None):
+                  ringStructName=None,
+                  addValleyLattice=False,
+                  valleyVertexDiameter=None,
+                  valleyLatticeStructName=None):
     """Create a lattice-radiotherapy vertex target from an existing structure.
 
     Generates a regular arrangement of high-dose spheres ("vertices"/"peaks")
@@ -235,6 +240,16 @@ def createLattice(planC, structNum,
         ringThickness (float): Thickness of the avoidance ring (default 3 mm).
         ringStructName (str or None): Name for the avoidance ring structure.
             Defaults to ``"<target>_lattice_ring"``.
+        addValleyLattice (bool): When True add a complementary lattice of
+            low-dose "valley vertices" interleaved with the peaks (the peak
+            lattice shifted by half a cell, i.e. spheres at the interstitial
+            cell centres). Used as the valley optimization objective, this
+            targets the low dose only at the geometrically achievable valley
+            minima rather than over-constraining the whole inter-peak volume.
+        valleyVertexDiameter (float or None): Diameter of the valley vertices.
+            Defaults to ``sphereDiameter``.
+        valleyLatticeStructName (str or None): Name for the valley-lattice
+            structure. Defaults to ``"<target>_lattice_valley_vertices"``.
 
     Returns:
         tuple:
@@ -313,6 +328,44 @@ def createLattice(planC, structNum,
         if ringStructName is None:
             ringStructName = "%s_lattice_ring" % targetName
         planC = pc.importStructureMask(ring3M, assocScanNum, ringStructName, planC)
+
+    if addValleyLattice:
+        # Complementary lattice: the peak lattice translated onto its deepest
+        # interstitial sites. For simple cubic that is the cell centre
+        # (s/2, s/2, s/2), at s*sqrt(3)/2 from the nearest peak. For bcc a
+        # (s/2, s/2, s/2) shift maps corners onto body centres (i.e. onto other
+        # peaks), so use the tetrahedral sites (s/2, s/4, 0), at s*sqrt(5)/4.
+        valleyRadius_cm = sphereRadius_cm if valleyVertexDiameter is None \
+            else (valleyVertexDiameter / 2.0) * scale
+        baseOffset = np.zeros(3) if offset_cm is None else np.asarray(offset_cm)
+        s = latticeSpacing_cm
+        if latticeType.lower() == 'sc':
+            shift = np.array([s / 2.0, s / 2.0, s / 2.0])
+        else:
+            shift = np.array([s / 2.0, s / 4.0, 0.0])
+        valleyOffset_cm = baseOffset + shift
+        valleyXYZ = createLatticeVertices(
+            targetMask3M, xV, yV, zV,
+            latticeSpacing=latticeSpacing_cm,
+            latticeType=latticeType,
+            innerMargin=innerMargin_cm,
+            offset=valleyOffset_cm,
+            requireSphereInside=requireSphereInside,
+            sphereRadius=valleyRadius_cm,
+        )
+        if len(valleyXYZ) > 0:
+            valleyVtx3M = paintSpheres(valleyXYZ, valleyRadius_cm,
+                                       xV, yV, zV, maskShape)
+            # Keep inside the target and disjoint from the peaks.
+            valleyVtx3M = valleyVtx3M & targetMask3M & (~peaks3M)
+        if len(valleyXYZ) == 0 or not np.any(valleyVtx3M):
+            warnings.warn("No valley vertices fit inside '%s'; the valley "
+                          "lattice was not created." % targetName)
+        else:
+            if valleyLatticeStructName is None:
+                valleyLatticeStructName = "%s_lattice_valley_vertices" % targetName
+            planC = pc.importStructureMask(valleyVtx3M, assocScanNum,
+                                           valleyLatticeStructName, planC)
 
     return planC, verticesXYZ
 
