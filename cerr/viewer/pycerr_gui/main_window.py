@@ -56,6 +56,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.structLineWidth = 1.4   # contour line width
         self.overlayState = {}       # scanIdx -> {"on", "alpha", "cmap"}
         self.overlayCache = {}       # scanIdx -> (interp, vmin, vmax) | None
+        self.overlayAxisRange = {}   # scanIdx -> (lo, hi) colorbar axis range
         self.wlByScan = {}           # scanIdx -> (center, width)
         self.dispByScan = {}         # scanIdx -> (cmapName, alpha)
         self.dispRangeByScan = {}    # scanIdx -> (lo, hi) mask range | None(full)
@@ -1683,14 +1684,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         lo = hi = None
         if t == self.scanNum and getattr(self, "_scanDataRange", None):
             lo, hi = self._scanDataRange
+            wLo, wHi = self.windowCenter - self.windowWidth / 2.0, \
+                self.windowCenter + self.windowWidth / 2.0
         else:
             res = self._overlay_interp(t)
             if res is not None:
-                lo, hi = res[1], res[2]
+                wLo, wHi = res[1], res[2]
+                lo, hi = self.overlayAxisRange.get(t, (wLo, wHi))
         if wl is None:
-            wl = ((lo + hi) / 2.0, max(hi - lo, 1.0)) if lo is not None \
-                else (self.windowCenter, self.windowWidth)
+            wl = ((wLo + wHi) / 2.0, max(wHi - wLo, 1e-3)) \
+                if lo is not None else (self.windowCenter, self.windowWidth)
             self.wlByScan[t] = wl
+        if lo is not None:
+            self._set_wl_spin_step(lo, hi)
         for sp, val in ((self.centerSpin, wl[0]), (self.widthSpin, wl[1])):
             sp.blockSignals(True)
             sp.setValue(val)
@@ -2077,7 +2083,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.uromtOverlay = self.dvfOverlay = None
         self.beams = []
         for cache in (self.maskCache, self.overlayState, self.overlayCache,
-                      self.wlByScan, self.dispByScan, self.dispRangeByScan,
+                      self.overlayAxisRange, self.wlByScan, self.dispByScan, self.dispRangeByScan,
                       self.doseCache, self._pvStructCache, self._pvDoseCache,
                       self._slice2dCache, self._structSegCache,
                       self._upsampleCache):
@@ -2190,6 +2196,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self._update_window_title()
         self.maskCache.clear()
         self.overlayCache.clear()
+        self.overlayAxisRange.clear()
         self.doseCache.clear()
         self._pvStructCache.clear()
         self._pvDoseCache.clear()
@@ -2247,6 +2254,31 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         step = max(1, flat.size // maxSamples)
         return [float(p) for p in np.nanpercentile(flat[::step], pcts)]
 
+    # Functional modalities (PET/SPECT): most voxels are near-zero background
+    # and the uptake that matters is in the top fraction of a percent, so
+    # percentile-clipped ranges cut off the hot spots.
+    FUNCTIONAL_MODALITIES = ("PT", "PET", "NM", "SPECT")
+
+    @classmethod
+    def _intensity_ranges(cls, arr, imageType=""):
+        """(axisLo, axisHi, winLo, winHi) for a scan: the colorbar axis
+        extent and the default window.
+
+        CT: robust 0.5-99.5 percentile axis, window = axis.
+        PET/NM: axis spans the full data range so the window can be widened
+        up to the hottest voxel; default window is min to the 99.9th
+        percentile so lesions are not saturated.
+        Other (MR, ...): 0.5-99.5 percentile axis, 2-98 percentile window."""
+        mod = str(imageType or "").upper()
+        lo, wLo, wHi, hi, p999 = cls._sample_percentiles(
+            arr, [0.5, 2, 98, 99.5, 99.9])
+        if any(m in mod for m in cls.FUNCTIONAL_MODALITIES):
+            dMin, dMax = float(np.nanmin(arr)), float(np.nanmax(arr))
+            return dMin, dMax, dMin, max(p999, dMin + 1e-3)
+        if "CT" in mod:
+            return lo, hi, lo, hi
+        return lo, hi, wLo, wHi
+
     def _load_scan_geometry(self, reset_slices=True):
         scanObj = self.planC.scan[self.scanNum]
         self.scan3M = scanObj.getScanArray().astype(np.float32)
@@ -2277,19 +2309,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         # a strided subsample: an exact percentile partitions the whole volume
         # (~0.4 s per call on 512x512x120), and a few million voxels already
         # pin these percentiles far below a display grey level.
-        lo, wLo, wHi, hi = self._sample_percentiles(self.scan3M,
-                                                    [0.5, 2, 98, 99.5])
+        imgType = getattr(scanObj.scanInfo[0], "imageType", "")
+        lo, hi, wLo, wHi = self._intensity_ranges(self.scan3M, imgType)
         self._scanDataRange = (lo, hi)
 
         # restore this scan's saved window; default a new scan to its full range
         if self.scanNum in self.wlByScan:
             self.windowCenter, self.windowWidth = self.wlByScan[self.scanNum]
         else:
-            mod = str(getattr(scanObj.scanInfo[0], "imageType", "")).upper()
-            wLo, wHi = (lo, hi) if "CT" in mod else (wLo, wHi)
             self.windowCenter, self.windowWidth = \
                 (wLo + wHi) / 2.0, max(wHi - wLo, 1.0)
             self.wlByScan[self.scanNum] = (self.windowCenter, self.windowWidth)
+        self._set_wl_spin_step(lo, hi)
         for sp, val in ((self.centerSpin, self.windowCenter),
                         (self.widthSpin, self.windowWidth)):
             sp.blockSignals(True)
@@ -2443,11 +2474,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 ys, a3M = ascending(ys, a3M, axis=0)
                 xs, a3M = ascending(xs, a3M, axis=1)
                 zs, a3M = ascending(zs, a3M, axis=2)
-                lo, hi = np.nanpercentile(a3M, [2, 98])
+                aLo, aHi, lo, hi = self._intensity_ranges(
+                    a3M, getattr(sObj.scanInfo[0], "imageType", ""))
                 interp = RegularGridInterpolator(
                     (ys, xs, zs), a3M, bounds_error=False, fill_value=np.nan)
                 self.overlayCache[scanIdx] = (interp, float(lo),
                                               float(max(hi, lo + 1e-3)))
+                # colorbar axis: wider than the default window so the handles
+                # can reach the brightest voxels (e.g. PET hot spots)
+                self.overlayAxisRange[scanIdx] = (float(min(aLo, lo)),
+                                                  float(max(aHi, hi)))
             except Exception:  # noqa: BLE001
                 self.overlayCache[scanIdx] = None
         return self.overlayCache[scanIdx]
@@ -2856,6 +2892,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._fast_layer_style("scan")
         else:
             self.refresh_views()
+
+    def _set_wl_spin_step(self, lo, hi):
+        """Scale the center/width spin-box step to the scan's intensity range
+        (1 HU for CT; a fraction of an SUV for PET)."""
+        step = min(1.0, max((hi - lo) / 200.0, 0.01))
+        for sp in (self.centerSpin, self.widthSpin):
+            sp.setSingleStep(step)
 
     def on_manual_wl(self, *_):
         tgt = self._dlg_target()
