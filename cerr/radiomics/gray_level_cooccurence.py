@@ -114,227 +114,116 @@ def cooccurToScalarFeatures(cooccurM):
 
     """
 
-    # Initialize featureS dictionaries
-    # Calculate the number of cooccur matrices (number of columns in cooccurM)
-    numCooccurs = cooccurM.shape[1]
-    featureS = {
-        'energy': np.zeros(numCooccurs),
-        'jointEntropy': np.zeros(numCooccurs),
-        'jointMax': np.zeros(numCooccurs),
-        'jointAvg': np.zeros(numCooccurs),
-        'jointVar': np.zeros(numCooccurs),
-        'sumAvg': np.zeros(numCooccurs),
-        'sumVar': np.zeros(numCooccurs),
-        'sumEntropy': np.zeros(numCooccurs),
-        'contrast': np.zeros(numCooccurs),
-        'invDiffMom': np.zeros(numCooccurs),
-        'invDiffMomNorm': np.zeros(numCooccurs),
-        'invDiff': np.zeros(numCooccurs),
-        'invDiffNorm': np.zeros(numCooccurs),
-        'invVar': np.zeros(numCooccurs),
-        'dissimilarity': np.zeros(numCooccurs),
-        'diffEntropy': np.zeros(numCooccurs),
-        'diffVar': np.zeros(numCooccurs),
-        'diffAvg': np.zeros(numCooccurs),
-        'sumAvg': np.zeros(numCooccurs),
-        'sumVar': np.zeros(numCooccurs),
-        'sumEntropy': np.zeros(numCooccurs),
-        'corr': np.zeros(numCooccurs),
-        'clustTendency': np.zeros(numCooccurs),
-        'clustShade': np.zeros(numCooccurs),
-        'clustPromin': np.zeros(numCooccurs),
-        'haralickCorr': np.zeros(numCooccurs),
-        'autoCorr': np.zeros(numCooccurs),
-        'firstInfCorr': np.zeros(numCooccurs),
-        'secondInfCorr': np.zeros(numCooccurs),
-    }
+    # Vectorized: the sums over |i-j| = n and i+j = n are bincounts over the
+    # flattened matrix, so no Python loop over gray levels or directions is needed.
+    # Formulas, output shapes and key order are unchanged.
+    P = cooccurM
+    numCooccurs = P.shape[1]
+    nL = int(np.sqrt(P.shape[0]))
+    eps = np.finfo(float).eps
 
-    nL = int(np.sqrt(cooccurM.shape[0]))
+    # Level of each element of the flattened (nL*nL) matrix
+    flatIndV = np.arange(nL * nL)
+    levRowV = (flatIndV % nL + 1).astype(float)
+    levColV = (flatIndV // nL + 1).astype(float)
+    diffIndV = np.abs(flatIndV % nL - flatIndV // nL)   # |i - j|
+    sumIndV = (flatIndV % nL + 1) + (flatIndV // nL + 1)  # i + j
 
-    # Build levels vector for mu, sig
-    levRowV = np.tile(np.arange(1, nL + 1), (1,nL))
-    levColV = np.tile(np.arange(1, nL + 1), (nL,1))
-    levColV = levColV.flatten(order = "F")
-    levColV = levColV[None,:]
+    Pd = P.astype(float)
+    px = np.stack([np.bincount(flatIndV // nL, weights=Pd[:, col], minlength=nL)
+                   for col in range(numCooccurs)], axis=1)
+    pXminusY = np.stack([np.bincount(diffIndV, weights=Pd[:, col], minlength=nL)
+                         for col in range(numCooccurs)], axis=1)
+    pXplusY = np.stack([np.bincount(sumIndV, weights=Pd[:, col], minlength=2 * nL + 1)[1:]
+                        for col in range(numCooccurs)], axis=1)
+    diffLevV = np.arange(nL, dtype=float)[:, None]          # n = |i - j|
+    sumLevV = np.arange(1, 2 * nL + 1, dtype=float)[:, None]  # n = i + j
 
-    # Build list of indices for px and contrast calculation
-    indCtrstC = {}
-    indPxC = {}
-    px = np.zeros((nL, cooccurM.shape[1]))
-    pXminusY = np.zeros((nL, cooccurM.shape[1]))
-    pXminusYlogPXminusY = np.zeros((nL, cooccurM.shape[1]))
-
-    for n in range(nL):
-        # indices for p(x-y), contrast
-        indCtrst1V = np.arange(0, nL - n, dtype = np.uint64)
-        indCtrst2V = np.arange(0 + n, nL, dtype = np.uint64)
-        indCtrstTmpV = np.concatenate((indCtrst1V + indCtrst2V * nL, indCtrst2V + indCtrst1V * nL))
-        indCtrstC[n] = np.unique(indCtrstTmpV)
-
-        # indices for px
-        indPxC[n] = np.arange(nL * n, nL * (n + 1), dtype = np.uint64)
-
-        for col in range(cooccurM.shape[1]):
-            px[n, col] = np.sum(cooccurM[indPxC[n], col])
-            pXminusY[n, col] = np.sum(cooccurM[indCtrstC[n], col])
-
-            if len(indCtrstC[n]) > 0:
-                pXminusYlogPXminusY[n, col] = pXminusY[n, col] * np.log2(pXminusY[n, col] + np.finfo(float).eps)
-            else:
-                pXminusYlogPXminusY[n, col] = 0
-
-    levRowColSum = levRowV + levColV
-    indPxPlusYc = [np.where(levRowColSum == n)[1] for n in range(1, 2 * nL + 1)]
-
+    featureS = {}
 
     # Angular Second Moment (Energy)
-    featureS['energy'] = np.sum(cooccurM**2, axis=0)
+    featureS['energy'] = np.sum(P ** 2, axis=0)
 
     # Joint Entropy
-    featureS['jointEntropy'] = -np.sum(cooccurM * np.log2(cooccurM + np.finfo(float).eps), axis=0)
+    featureS['jointEntropy'] = -np.sum(P * np.log2(P + eps), axis=0)
 
     # Joint Max
-    featureS['jointMax'] = np.max(cooccurM, axis=0)
+    featureS['jointMax'] = np.max(P, axis=0)
 
     # Joint Average
-    # featureS['jointAvg'] = np.zeros(cooccurM.shape[1])
-    featureS['jointAvg'] = np.sum(cooccurM.T * levRowV, axis = 1)
-    # for off in range(cooccurM.shape[1]):
-    #     featureS['jointAvg'][off] = np.sum(cooccurM[:,off,None] * levRowV[:,None].reshape((levRowV.shape[1],1)))
+    featureS['jointAvg'] = np.sum(P.T * levRowV[None, :], axis=1)
 
     # Joint Variance
-    xMinusMu = np.zeros(cooccurM.shape)
-    for off in range(len(featureS['jointAvg'])):
-        xMinusMu[:,off] = levRowV - featureS['jointAvg'][off]
-    featureS['jointVar'] = np.sum(xMinusMu**2 * cooccurM, axis=0)
+    featureS['jointVar'] = np.sum((levRowV[:, None] - featureS['jointAvg'][None, :]) ** 2 * P, axis=0)
+
+    # Sum Average, Sum Variance, Sum Entropy
+    featureS['sumAvg'] = np.sum(sumLevV * pXplusY, axis=0)
+    featureS['sumVar'] = np.sum((sumLevV - featureS['sumAvg'][None, :]) ** 2 * pXplusY, axis=0)
+    featureS['sumEntropy'] = -np.sum(pXplusY * np.log2(pXplusY + eps), axis=0)
 
     # Contrast
-    featureS['contrast'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['contrast'][off] += np.sum(n**2 * cooccurM[indCtrstC[n], off], axis=0)
+    featureS['contrast'] = np.sum(diffLevV ** 2 * pXminusY, axis=0)
 
-    # Dissimilarity
-    featureS['dissimilarity'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['dissimilarity'][off] += np.sum(n * cooccurM[indCtrstC[n], off], axis=0)
+    # Inverse Difference Moment (and normalized)
+    featureS['invDiffMom'] = np.sum(pXminusY / (1 + diffLevV ** 2), axis=0)
+    featureS['invDiffMomNorm'] = np.sum(pXminusY / (1 + (diffLevV / nL) ** 2), axis=0)
 
-    # Inverse Difference Moment
-    featureS['invDiffMom'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['invDiffMom'][off] += np.sum((1 / (1 + n**2)) * cooccurM[indCtrstC[n], off], axis=0)
-
-    # Inverse Difference Moment (Normalized)
-    featureS['invDiffMomNorm'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['invDiffMomNorm'][off] += np.sum((1 / (1 + (n / nL)**2)) * cooccurM[indCtrstC[n], off], axis=0)
-
-    # Inverse Difference
-    featureS['invDiff'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['invDiff'][off] += np.sum((1 / (1 + n)) * cooccurM[indCtrstC[n], off], axis=0)
-
-    # Inverse Difference (Normalized)
-    featureS['invDiffNorm'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['invDiffNorm'][off] += np.sum((1 / (1 + n / nL)) * cooccurM[indCtrstC[n], off], axis=0)
+    # Inverse Difference (and normalized)
+    featureS['invDiff'] = np.sum(pXminusY / (1 + diffLevV), axis=0)
+    featureS['invDiffNorm'] = np.sum(pXminusY / (1 + diffLevV / nL), axis=0)
 
     # Inverse Variance
-    featureS['invVar'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(1, nL):
-            featureS['invVar'][off] += np.sum((1 / n**2) * cooccurM[indCtrstC[n], off], axis=0)
+    featureS['invVar'] = np.sum(pXminusY[1:] / diffLevV[1:] ** 2, axis=0)
 
-    # Difference Entropy
-    featureS['diffEntropy'] = - np.sum(pXminusYlogPXminusY, axis=0)
+    # Dissimilarity
+    featureS['dissimilarity'] = np.sum(diffLevV * pXminusY, axis=0)
 
-    # Difference Variance
-    featureS['diffVar'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(nL):
-            featureS['diffVar'][off] += (n - featureS['dissimilarity'][off])**2 * pXminusY[n, off]
-
-    # Difference Average
+    # Difference Entropy, Difference Variance, Difference Average
+    featureS['diffEntropy'] = -np.sum(pXminusY * np.log2(pXminusY + eps), axis=0)
+    featureS['diffVar'] = np.sum((diffLevV - featureS['dissimilarity'][None, :]) ** 2 * pXminusY, axis=0)
     featureS['diffAvg'] = featureS['dissimilarity']
 
-    pXplusY = np.zeros((2 * nL, numCooccurs))
-    pXplusYlogPXplusY = np.zeros((2 * nL, numCooccurs))
-
-    featureS['sumAvg'] = np.zeros(cooccurM.shape[1])
-    featureS['sumEntropy'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(1, 2 * nL + 1):
-            # Calculate p(x+y)
-            pXplusY[n - 1, off] = np.sum(cooccurM[indPxPlusYc[n - 1], off], axis=0)
-
-            # Calculate p(x+y) log2(p(x+y))
-            if len(indPxPlusYc[n - 1]) > 0:
-                pXplusYlogPXplusY[n - 1, off] = pXplusY[n - 1, off] * np.log2(pXplusY[n - 1, off] + np.finfo(float).eps)
-            else:
-                pXplusYlogPXplusY[n - 1, off] = 0 #np.zeros(numCooccurs)
-
-            # Calculate Sum Average
-            featureS['sumAvg'][off] += n * pXplusY[n - 1, off]
-
-            # Calculate Sum Entropy
-            featureS['sumEntropy'][off] -= pXplusYlogPXplusY[n - 1, off]
-
-    # Calculate Sum Variance
-    featureS['sumVar'] = np.zeros(cooccurM.shape[1])
-    for off in range(cooccurM.shape[1]):
-        for n in range(1, 2 * nL + 1):
-            featureS['sumVar'][off] += (n - featureS['sumAvg'][off])**2 * pXplusY[n - 1, off]
-
     # Weighted Pixel Average (mu), Weighted Pixel Variance (sig)
-    mu = np.matmul(np.reshape(np.arange(1,nL+1, dtype = np.uint64),(1,nL)),px)
-    sig = np.reshape(np.arange(1,nL+1, dtype = np.uint64),(nL,1)) - mu
-    sig = np.sum(sig * sig * px, axis = 0)
-    sig = sig[:,None]
+    levV = np.arange(1, nL + 1, dtype=float)[:, None]
+    mu = np.sum(levV * px, axis=0)[None, :]
+    sig = np.sum((levV - mu) ** 2 * px, axis=0)[:, None]
 
     # Correlation
-    levIMinusMu = levRowV.T - mu
-    levJMinusMu = levColV.T - mu
-    featureS['corr'] = np.reshape(np.sum(levIMinusMu * levJMinusMu * cooccurM, axis=0), sig.shape) / (sig + np.finfo(float).eps)
-    featureS['corr'] = featureS['corr'].T
+    levIMinusMu = levRowV[:, None] - mu
+    levJMinusMu = levColV[:, None] - mu
+    featureS['corr'] = (np.sum(levIMinusMu * levJMinusMu * P, axis=0)[:, None] / (sig + eps)).T
 
+    # Cluster Tendency, Shade, Prominence
     clstrV = levIMinusMu + levJMinusMu
+    featureS['clustTendency'] = np.sum(clstrV ** 2 * P, axis=0)
+    featureS['clustShade'] = np.sum(clstrV ** 3 * P, axis=0)
+    featureS['clustPromin'] = np.sum(clstrV ** 4 * P, axis=0)
 
-    # Cluster Tendency
-    featureS['clustTendency'] = np.sum(clstrV**2 * cooccurM, axis=0)
-
-    # Cluster Shade
-    featureS['clustShade'] = np.sum(clstrV**3 * cooccurM, axis=0)
-
-    # Cluster Prominence
-    featureS['clustPromin'] = np.sum(clstrV**4 * cooccurM, axis=0)
+    # Auto Correlation (elementwise sum rather than matmul, which emits spurious
+    # divide/overflow warnings with some BLAS builds, e.g. Apple Accelerate)
+    featureS['autoCorr'] = np.sum((levRowV * levColV)[:, None] * Pd, axis=0)[None, :]
 
     # Haralick Correlation
     muX = 1 / nL
-    sigX = px - muX
-    sigX = np.sum(sigX**2, axis=0) / nL
-    featureS['haralickCorr'] = (np.matmul(levRowV * levColV,
-                                   cooccurM) - muX**2) / (sigX + np.finfo(float).eps)
+    sigX = np.sum((px - muX) ** 2, axis=0) / nL
+    featureS['haralickCorr'] = (featureS['autoCorr'] - muX ** 2) / (sigX + eps)
 
-    # Auto Correlation
-    featureS['autoCorr'] =  np.matmul((levRowV * levColV),cooccurM)
-
-    # First Measure of Information Correlation
-    logTerm = np.log2((px[levRowV-1, :] + np.finfo(float).eps) * (px[levColV-1, :] + np.finfo(float).eps))
-    HXY1 = -np.sum(cooccurM * logTerm, axis=1)
-    HX = -np.sum(px * np.log2(px + np.finfo(float).eps), axis=0)
+    # First and Second Measures of Information Correlation
+    pxI = px[flatIndV % nL, :]
+    pxJ = px[flatIndV // nL, :]
+    logTerm = np.log2((pxI + eps) * (pxJ + eps))
+    HXY1 = -np.sum(P * logTerm, axis=0)[None, :]
+    HX = -np.sum(px * np.log2(px + eps), axis=0)
     featureS['firstInfCorr'] = (featureS['jointEntropy'] - HXY1) / HX
+    HXY2 = -np.sum(pxI * pxJ * logTerm, axis=0)[None, :]
+    secondInfCorr = 1 - np.exp(-2 * (HXY2 - featureS['jointEntropy']))
+    secondInfCorr[secondInfCorr <= 0] = 0
+    featureS['secondInfCorr'] = np.sqrt(secondInfCorr)
 
-    # Second Measure of Information Correlation
-    HXY2 = -np.sum(px[levRowV-1, :] * px[levColV-1, :] * np.log2((px[levRowV-1, :]
-                + np.finfo(float).eps) * (px[levColV-1, :] + np.finfo(float).eps)), axis=1)
-    featureS['secondInfCorr'] = 1 - np.exp(-2 * (HXY2 - featureS['jointEntropy']))
-    indZerosV = featureS['secondInfCorr'] <= 0
-    featureS['secondInfCorr'][indZerosV] = 0
-    featureS['secondInfCorr'] = np.sqrt(featureS['secondInfCorr'])
-
-    return featureS
+    # Same key order as before
+    keyOrder = ['energy', 'jointEntropy', 'jointMax', 'jointAvg', 'jointVar', 'sumAvg', 'sumVar',
+                'sumEntropy', 'contrast', 'invDiffMom', 'invDiffMomNorm', 'invDiff', 'invDiffNorm',
+                'invVar', 'dissimilarity', 'diffEntropy', 'diffVar', 'diffAvg', 'corr',
+                'clustTendency', 'clustShade', 'clustPromin', 'haralickCorr', 'autoCorr',
+                'firstInfCorr', 'secondInfCorr']
+    return {key: featureS[key] for key in keyOrder}

@@ -97,10 +97,14 @@ def calcNGLDM(scan_array, patch_size, num_grayscale_levels, a):
         q_m[m_m==0] = 0
         q_m = np.sum(q_m, axis=0)
 
-        for lev in range(1, num_grayscale_levels + 1):
-            ind_lev_v = (vox_val_v == lev) & vox_mask_v.astype(bool)
-            vals_v = q_m[ind_lev_v]
-            s[lev - 1, :] += np.bincount(vals_v + 1, minlength=slcNeighborSiz + 1)[1:].astype(s.dtype)
+        # 2D histogram of (gray level, dependence count) in one pass instead of
+        # looping over gray levels
+        use_v = vox_mask_v.astype(bool) & (vox_val_v >= 1) & (vox_val_v <= num_grayscale_levels)
+        lev_v = vox_val_v[use_v].astype(np.int64) - 1
+        dep_v = q_m[use_v].astype(np.int64)
+        numCols = s.shape[1]
+        s += np.bincount(lev_v * numCols + dep_v,
+                         minlength=num_grayscale_levels * numCols).reshape(s.shape).astype(s.dtype)
 
     return s
 

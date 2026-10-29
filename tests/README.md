@@ -102,6 +102,17 @@ mean, Laplacian-of-Gaussian (LoG), Laws kernels, rotation-invariant Laws, Laws
 energy, rotation-invariant Laws energy, Gabor (2D and 2.5D), wavelet (Haar/Coif
 etc.), and rotation-invariant wavelet — each in 2D and/or 3D.
 
+### `test_radiomics_local_update.py` — local feature updates (6 tests)
+
+Checks `cerr.radiomics.local_update.LocalFeatureUpdater`, which updates the
+whole-ROI texture matrices when a box of voxels is removed from the ROI.
+Every first-order and texture feature must equal a full recompute with
+`ibsi1.calcRadiomicsForImgType` on the reduced mask (relative tolerance 1e-5,
+float32 rounding in the GLCM normalization), for merged and per-direction
+matrices, 3D and 2D directionality, on synthetic images and the bundled
+`pat_1` phantom. Also checks that `glcmCounts` matches `calcCooccur`, and that
+a box changing ROI-derived gray-level bins returns `None` (full recompute).
+
 ### `test_roe_models.py` — Radiotherapy Outcomes Estimator models (39 tests)
 
 Validates the **dosimetric outcome model mathematics** in

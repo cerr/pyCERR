@@ -102,6 +102,13 @@ def rlmToScalarFeatures(rlmM, numVoxels):
     else:
         rlmM = [rlmM]
 
+    # calcRLM sizes the run axis for the longest possible run, so most trailing
+    # columns are empty. They add nothing to any feature; dropping them makes
+    # the calculations below much cheaper.
+    usedV = np.flatnonzero(np.any([np.asarray(m).any(axis=0) for m in rlmM], axis=0))
+    maxLen = usedV[-1] + 1 if usedV.size else 1
+    rlmM = [np.asarray(m)[:, :maxLen] for m in rlmM]
+
     featureS['shortRunEmphasis'] = np.zeros(numDirs)
     featureS['longRunEmphasis'] = np.zeros(numDirs)
     featureS['grayLevelNonUniformity'] = np.zeros(numDirs)

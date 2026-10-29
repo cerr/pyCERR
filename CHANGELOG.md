@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`cerr.radiomics.local_update.LocalFeatureUpdater`**: features of an ROI
+  with a small box of voxels removed, without recomputing everything. The
+  whole-ROI texture matrices are computed once; for each box only the part of
+  each matrix the box touches is updated (GLCM, NGTDM, NGLDM from a small box
+  around it; GLSZM by relabeling only the zones it touches; GLRLM by
+  recounting only the runs through it). Results match
+  `ibsi1.calcRadiomicsForImgType` on the reduced mask to float32 rounding;
+  when the box would change the gray-level bins, it returns `None` so the
+  caller recomputes in full. Intended for occlusion / leave-region-out
+  analyses: about 5× faster per box than a full recompute on a 119k-voxel
+  tumor. Tested in `tests/test_radiomics_local_update.py`.
+
+### Changed
+
+- **Faster texture feature calculation, same results.**
+  - `gray_level_cooccurence.cooccurToScalarFeatures` is vectorized (no Python
+    loops over gray levels and directions): 5–25× faster. Values agree with the
+    previous version to about 1e-7 relative; the small differences come from
+    the previous version summing marginals in float32, and the new values are
+    closer to a float64 reference.
+  - `neighbor_gray_tone.ngtdmToScalarFeatures` is vectorized over gray-level pairs
+    (same values to 1e-15).
+  - `neighbor_gray_tone.calcNGTDM` and `neighbor_gray_level_dependence.calcNGLDM`
+    accumulate per gray level with one `bincount` instead of a loop over levels:
+    3–4× faster. NGLDM is identical; NGTDM `s` now sums in float64.
+  - `run_length.rlmToScalarFeatures` drops trailing empty run-length columns
+    before computing features (same values to 1e-15, 5× faster).
+  - GLCM `autoCorr` no longer uses `np.matmul`, which emitted spurious
+    divide/overflow warnings with Apple Accelerate builds of NumPy.
+
 ## [2.5.1] - 2026-10-21
 
 ### Added

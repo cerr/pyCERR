@@ -96,11 +96,11 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
         q_m[:,numNeighborsV>0] = q_m[:,numNeighborsV>0] / numNeighborsV[numNeighborsV>0]
         q_m = np.abs(vox_val_v - q_m.sum(axis=0))
 
-        for lev in range(1, numGrLevels + 1):
-            ind_lev_v = (vox_val_v == lev) & vox_mask_v.astype(bool)
-            vals_v = q_m[ind_lev_v]
-            s[lev - 1, :] += vals_v.sum().astype(s.dtype)
-            p[lev - 1] += ind_lev_v.sum()
+        # Accumulate per gray level in one pass (bincount) instead of looping over levels
+        use_v = vox_mask_v.astype(bool) & (vox_val_v >= 1) & (vox_val_v <= numGrLevels)
+        lev_v = vox_val_v[use_v].astype(np.int64) - 1
+        s[:, 0] += np.bincount(lev_v, weights=q_m[use_v].astype(float), minlength=numGrLevels).astype(s.dtype)
+        p[:, 0] += np.bincount(lev_v, minlength=numGrLevels)
 
     # Level probabilities (p) over voxels with a valid neighbourhood (IBSI n_i / N_v,c)
     p = p / Nvc
@@ -112,55 +112,51 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
 
 
 def ngtdmToScalarFeatures(s, p, Nvc):
+    """
+
+    This function calculates scalar texture features from the neighborhood gray tone
+    difference matrix as per IBSI definitions
+    https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbourhood-grey-tone-difference-based-features
+
+    Args:
+        s (np.ndarray): (nL x 1) sum of absolute differences per gray level, from calcNGTDM.
+        p (np.ndarray): (nL x 1) gray level probabilities, from calcNGTDM.
+        Nvc (int): number of voxels with a valid neighbourhood, from calcNGTDM.
+
+    Returns:
+        dict: dictionary with scalar NGTDM features.
+
+    """
+
+    # Sums over all pairs of gray levels (i, j), vectorized. Only levels with
+    # p > 0 contribute to any pairwise term.
+    eps = np.finfo(float).eps
+    sV = np.asarray(s, dtype=float).ravel()
+    pV = np.asarray(p, dtype=float).ravel()
+    indV = np.arange(1, len(pV) + 1, dtype=float)
+    useV = pV > 0
+    pU, sU, iU = pV[useV], sV[useV], indV[useV]
+    diffM = iU[:, None] - iU[None, :]
     featuresS = {}
 
     # Coarseness
-    featuresS['coarseness'] = 1 / (np.sum(s * p) + np.finfo(float).eps)
+    featuresS['coarseness'] = 1 / (np.sum(sV * pV) + eps)
 
     # Contrast
-    Ng = np.sum(p > 0)
-    numLevels = len(p)
-    indV = np.arange(1, numLevels + 1, dtype = float)
-    indV = indV[:,None]
-    term1 = 0
-    term2 = 0
-    for lev in range(1, numLevels + 1):
-        term1 += np.sum(p * np.roll(p, lev) * (indV - np.roll(indV, lev))**2)
-        term2 += s[lev - 1, 0]
-    featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * term2 / Nvc
+    Ng = np.sum(useV)
+    term1 = np.sum(pU[:, None] * pU[None, :] * diffM ** 2)
+    featuresS['contrast'] = 1 / (Ng * (Ng - 1)) * term1 * np.sum(sV) / Nvc
 
     # Busyness
-    denom = 0
-    for lev in range(1, numLevels + 1):
-        pShiftV = np.roll(p, lev)
-        indShiftV = np.roll(indV, lev)
-        usePv = p > 0
-        usePshiftV = pShiftV > 0
-        denom += np.sum(usePv * usePshiftV * np.abs(p * indV - pShiftV * indShiftV))
-    featuresS['busyness'] = np.sum(p * s) / denom
+    denom = np.sum(np.abs((pU * iU)[:, None] - (pU * iU)[None, :]))
+    featuresS['busyness'] = np.sum(pV * sV) / denom
 
     # Complexity
-    complxty = 0
-    for lev in range(1, numLevels + 1):
-        pShiftV = np.roll(p, lev)
-        sShiftV = np.roll(s, lev)
-        indShiftV = np.roll(indV, lev)
-        usePv = (p > 0).astype(int)
-        usePshiftV = (pShiftV > 0).astype(int)
-        term1 = np.abs(indV - indShiftV)
-        term2 = usePv * usePshiftV * (p * s + pShiftV * sShiftV) / (p + pShiftV + np.finfo(float).eps)
-        complxty += np.sum(term1 * term2)
-    featuresS['complexity'] = complxty / Nvc
+    psU = pU * sU
+    featuresS['complexity'] = np.sum(np.abs(diffM) * (psU[:, None] + psU[None, :]) /
+                                     (pU[:, None] + pU[None, :] + eps)) / Nvc
 
     # Texture strength
-    strength = 0
-    for lev in range(1, numLevels + 1):
-        pShiftV = np.roll(p, -lev)
-        indShiftV = np.roll(indV, -lev)
-        usePv = p > 0
-        usePshiftV = pShiftV > 0
-        term = np.sum(usePv * usePshiftV * (p + pShiftV) * (indV - indShiftV)**2)
-        strength += term
-    featuresS['strength'] = strength / np.sum(s)
+    featuresS['strength'] = np.sum((pU[:, None] + pU[None, :]) * diffM ** 2) / np.sum(sV)
 
     return featuresS
