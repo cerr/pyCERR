@@ -39,6 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - GLCM `autoCorr` no longer uses `np.matmul`, which emitted spurious
     divide/overflow warnings with Apple Accelerate builds of NumPy.
 
+### Fixed
+
+- **`firstOrder.offsetForEnergy` was ignored.** `ibsi1.getRadiomicsSettings`
+  tested `'offsetForEnergy' in [settings['firstOrder']]` (membership in a
+  one-element list holding the dict), which is always False, so energy,
+  totalEnergy and rms were computed with no offset. The setting is now
+  applied. Settings with `offsetForEnergy: 0` (the IBSI configurations) give
+  the same values as before; `original_settings.json` (offset 1000) now gives
+  different energy, totalEnergy and rms. Tested in
+  `tests/test_ibsi1_features.py::test_first_order_energy_offset`.
+
 ## [2.5.1] - 2026-10-21
 
 ### Added

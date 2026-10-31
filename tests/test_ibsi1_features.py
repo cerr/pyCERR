@@ -179,6 +179,24 @@ def test_config_c_trilinear_interp_feats_all_dirs():
 
     run_config(configList, scanNum, structNum, planC)
 
+def test_first_order_energy_offset():
+    """ offsetForEnergy is read from the settings and applied to energy, totalEnergy and rms.
+    IBSI configurations all use offset 0, so they cannot catch an ignored offset. """
+    from cerr.radiomics import first_order
+    rng = np.random.default_rng(0)
+    scanV = rng.normal(-50, 150, 500)
+    voxelVol = 2.5
+    for offset in [1000, 0]:
+        paramS = {'settings': {'firstOrder': {'offsetForEnergy': offset, 'binWidthEntropy': 5}},
+                  'featureClass': {'firstOrder': {'featureList': ['all']}}}
+        offsetRead = ibsi1.getRadiomicsSettings(paramS)[0]
+        assert offsetRead == offset
+        featS = first_order.stats(scanV, voxelVol, offsetRead, 5, None)
+        energy = np.sum((scanV + offset) ** 2)
+        assert np.isclose(featS['energy'], energy, rtol=1e-12)
+        assert np.isclose(featS['totalEnergy'], energy * voxelVol, rtol=1e-12)
+        assert np.isclose(featS['rms'], np.sqrt(energy / scanV.size), rtol=1e-12)
+
 def run_configs():
     """ test radiomics features for IBSI-1 configurations """
     test_config_a_original_feats_merged_texture()

@@ -92,7 +92,7 @@ def getRadiomicsSettings(paramS):
     maxClipIntensity = None
     offsetsM = []
 
-    if  'offsetForEnergy' in [paramS['settings']['firstOrder']]:
+    if 'offsetForEnergy' in paramS['settings']['firstOrder']:
         firstOrderOffsetEnergy = np.double(paramS['settings']['firstOrder']['offsetForEnergy'])
     if 'binWidthEntropy' in paramS['settings']['firstOrder'] \
         and isinstance(paramS['settings']['firstOrder']['binWidthEntropy'], (int, float)):
