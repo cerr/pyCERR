@@ -17,14 +17,25 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
             coordinates.
         field3M (np.ndarray): 3D array of scalar field values with shape
             ``[nRows, nCols, nSlices]``.
-        xFieldV (np.ndarray): 1-D array of x grid coordinates for
-            ``field3M``. Must be uniformly spaced.
-        yFieldV (np.ndarray): 1-D array of y grid coordinates for
-            ``field3M``. Must be uniformly spaced.
-        zFieldV (np.ndarray): 1-D array of z grid coordinates for
-            ``field3M``. May be non-uniformly spaced.
+        xFieldV (np.ndarray): x grid of ``field3M`` as ``[xStart, xDelta, xEnd]``
+            (3 elements, the uniformly spaced column coordinates), not the full
+            coordinate vector.
+        yFieldV (np.ndarray): y grid as ``[yStart, yDelta, yEnd]``. In pyCERR, y
+            decreases with row index, so ``yDelta`` is negative.
+        zFieldV (np.ndarray): the full 1-D vector of z (slice) coordinates; may
+            be non-uniformly spaced.
         OOBV (float, optional): Value assigned to out-of-bounds query
             points. Defaults to ``np.nan``.
+
+    Note:
+        pyCERR's callers (e.g. ``Dose.getDoseAt``) build the x/y arguments from
+        the grid vectors and nudge the end points outward so samples on the grid
+        boundary are not rejected as out-of-bounds::
+
+            xV, yV, zV = planC.dose[0].getDoseXYZVals()
+            xFieldV = np.array([xV[0] - 1e-8, xV[1] - xV[0], xV[-1] + 1e-8])
+            yFieldV = np.array([yV[0] + 1e-8, yV[1] - yV[0], yV[-1] - 1e-8])
+            doseV = finterp3(xQ, yQ, zQ, planC.dose[0].doseArray, xFieldV, yFieldV, zV)
 
     Returns:
         np.ndarray: 1-D array of interpolated values with the same length as
@@ -34,6 +45,15 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
 
     if OOBV is None:
         OOBV = np.nan
+
+    # Passing the full x/y coordinate vectors used to fail silently (every point
+    # out of bounds -> OOBV), because element [1] is read as the grid spacing.
+    if np.size(xFieldV) != 3 or np.size(yFieldV) != 3:
+        raise ValueError(
+            "finterp3: xFieldV and yFieldV must be [start, delta, end] (3 elements), "
+            "got %d and %d elements. Build them from the grid vectors, e.g. "
+            "[xV[0], xV[1] - xV[0], xV[-1]]; zFieldV is the full z vector."
+            % (np.size(xFieldV), np.size(yFieldV)))
 
     xDelta = xFieldV[1]
     yDelta = yFieldV[1]

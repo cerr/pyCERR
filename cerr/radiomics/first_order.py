@@ -64,10 +64,13 @@ def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
 
     # Calculate standard PET parameters
     RadiomicsFirstOrderS = dict()
+    # Filtered images arrive with NaN outside the ROI (ibsi1.computeScalarFeatures),
+    # so every statistic below must ignore NaN and normalise by the valid-voxel count.
+    numValid = np.count_nonzero(~np.isnan(Iarray))
     RadiomicsFirstOrderS['min'] = np.nanmin(Iarray)
     RadiomicsFirstOrderS['max'] = np.nanmax(Iarray)
     RadiomicsFirstOrderS['mean'] = np.nanmean(Iarray)
-    RadiomicsFirstOrderS['range'] = np.ptp(Iarray)
+    RadiomicsFirstOrderS['range'] = RadiomicsFirstOrderS['max'] - RadiomicsFirstOrderS['min']
     RadiomicsFirstOrderS['std'] = np.nanstd(Iarray, ddof=0)
     RadiomicsFirstOrderS['var'] = np.nanvar(Iarray, ddof=0)
     RadiomicsFirstOrderS['median'] = np.nanmedian(Iarray)
@@ -97,7 +100,7 @@ def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
         RadiomicsFirstOrderS['entropy'] = entropy(counts, base=2)
 
     # Root mean square (RMS)
-    RadiomicsFirstOrderS['rms'] = np.sqrt(np.nansum((Iarray + offsetForEnergy) ** 2) / Iarray.size)
+    RadiomicsFirstOrderS['rms'] = np.sqrt(np.nansum((Iarray + offsetForEnergy) ** 2) / numValid)
 
     # Energy (integraal(a^2))
     RadiomicsFirstOrderS['energy'] = np.nansum((Iarray + offsetForEnergy) ** 2)
@@ -106,10 +109,10 @@ def stats(planC, structNum, offsetForEnergy=0, binWidth=None, binNum=None):
     RadiomicsFirstOrderS['totalEnergy'] = np.nansum((Iarray + offsetForEnergy) ** 2) * VoxelVol
 
     # Mean deviation (also called mean absolute deviation)
-    RadiomicsFirstOrderS['meanAbsDev'] = np.mean(np.abs(Iarray - np.nanmean(Iarray)))
+    RadiomicsFirstOrderS['meanAbsDev'] = np.nanmean(np.abs(Iarray - RadiomicsFirstOrderS['mean']))
 
     # Median absolute deviation
-    RadiomicsFirstOrderS['medianAbsDev'] = np.nansum(np.abs(Iarray - RadiomicsFirstOrderS['median'])) / Iarray.size
+    RadiomicsFirstOrderS['medianAbsDev'] = np.nanmean(np.abs(Iarray - RadiomicsFirstOrderS['median']))
 
     # P10
     RadiomicsFirstOrderS['P10'] = prctile(Iarray, 10)

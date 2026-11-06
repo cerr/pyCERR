@@ -164,8 +164,12 @@ def getROIContourSeq(structNumV, planC):
         roiCount += 1
         dsROIContour = Dataset()
         dsROIContour.ReferencedROINumber = roiCount #planC.structure[iStr].roiNumber
-        if len(planC.structure[0].structureColor) > 0:
-            dsROIContour.ROIDisplayColor = planC.structure[iStr].structureColor
+        # ROIDisplayColor is an IS triplet. structureColor can be a list, a numpy
+        # array (e.g. after pc.loadFromH5) or pydicom values; pydicom 3 rejects
+        # arrays, so write plain ints. Checked per structure, not structure 0.
+        colorV = planC.structure[iStr].structureColor
+        if colorV is not None and np.size(colorV) > 0:
+            dsROIContour.ROIDisplayColor = [int(round(float(c))) for c in np.ravel(colorV)]
         contourSeq = Sequence()
         for slcNum in range(len(planC.scan[assocScanNum].scanInfo)):
             if not hasattr(planC.structure[iStr].contour[slcNum],'segments'):

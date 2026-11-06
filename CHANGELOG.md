@@ -49,6 +49,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same values as before; `original_settings.json` (offset 1000) now gives
   different energy, totalEnergy and rms. Tested in
   `tests/test_ibsi1_features.py::test_first_order_energy_offset`.
+- **First-order features of filtered images.** `ibsi1.computeScalarFeatures`
+  sets voxels outside the ROI to NaN in filtered (IBSI-2) images, and
+  `first_order.stats` was not NaN-safe for four features: `range`
+  (`np.ptp`) and `meanAbsDev` (`np.mean`) came back NaN, and `rms` and
+  `medianAbsDev` were divided by the total voxel count including the NaN
+  voxels, so they were silently too small. All four now use the valid
+  voxels only. Features of the original (unfiltered) image are unchanged,
+  bit for bit; on the radiomics phantom with coif1 LLL/HHH wavelets, exactly
+  these 4 features x 2 bands change.
+- **RTSTRUCT export after `loadFromH5`.** `structureColor` comes back from
+  HDF5 as a numpy array, which `rtstruct_iod.create` passed straight to
+  `ROIDisplayColor`; pydicom 3 rejects it (`TypeError: only 0-dimensional
+  arrays can be converted to Python scalars`). The colour is now written as
+  plain ints, and checked per structure (it was checked on structure 0 only).
+- **`finterp3` with full coordinate vectors failed silently.** It reads x and
+  y as `[start, delta, end]`, but its docstring described full coordinate
+  vectors; passing those made every point out of bounds, returning `OOBV`
+  (e.g. an all-zero interpolated dose). The docstring now documents the real
+  convention, and x/y arguments that are not 3 elements raise a `ValueError`
+  explaining how to build them. pyCERR's own callers already pass
+  `[start, delta, end]` and are unaffected.
+
+All three are tested in `tests/test_nan_safe_stats_and_exports.py`.
 
 ## [2.5.1] - 2026-10-21
 
