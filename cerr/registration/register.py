@@ -767,12 +767,13 @@ def getDvfVectors(deformS, planC, scanNum, outputResV=[0, 0, 0], structNum=None,
     # Get x,y,z deformations at selected points
     _requireDvf(deformS)
     xV, yV, zV = deformS.getDVFXYZVals()
+    zV = np.asarray(zV, dtype=float).copy()          # copy: do not edit deformS
     delta = 1e-8
     zV[0] = zV[0] - 1e-3
     zV[-1] = zV[-1] + 1e-3
     xFieldV = np.asarray([xV[0] - delta, xV[1] - xV[0], xV[-1] + delta])
     yFieldV = np.asarray([yV[0] + delta, yV[1] - yV[0], yV[-1] - delta])
-    zFieldV = np.asarray(zV)
+    zFieldV = zV
     xDeformM = deformS.dvfMatrix[:,:,:,0]
     yDeformM = deformS.dvfMatrix[:,:,:,1]
     zDeformM = deformS.dvfMatrix[:,:,:,2]

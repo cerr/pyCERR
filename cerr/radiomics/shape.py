@@ -37,7 +37,13 @@ def vectorNorm3d(v):
     return np.linalg.norm(v, axis=1)
 
 def eig(a):
-    return np.sort(np.linalg.eig(a)[0])
+    """Eigenvalues of a symmetric matrix (such as a covariance), ascending, as real floats.
+
+    Uses ``np.linalg.eigvalsh``: the general ``np.linalg.eig`` returns complex values
+    (``x+0j``) for some inputs, which made the axis-length features complex. Tiny
+    negative values from rounding (a flat ROI) are clipped to 0 so ``sqrt`` stays real.
+    """
+    return np.clip(np.linalg.eigvalsh(a), 0, None)
 
 def sepsq(a, b):
     return np.sum((a - b)**2, axis=0)

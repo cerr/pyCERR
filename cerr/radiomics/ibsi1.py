@@ -174,10 +174,15 @@ def getQuantizedVolume(volToEval, paramS,
 
     Returns:
         numpy.ndarray: Quantized integer volume of the same shape as *volToEval*, or
-            the original *volToEval* unmodified when no ``'texture'`` settings are found.
+            a copy of *volToEval* with ``NaN`` outside the mask when no ``'texture'``
+            settings are found. *volToEval* itself is never modified.
     """
 
-    # Assign nan values outside the mask, so that min/max within the mask are used for quantization
+    # Assign nan values outside the mask, so that min/max within the mask are used for quantization.
+    # On a copy: computeScalarFeatures passes a view of the shared preprocessed scan for the
+    # 'Original' image type, and writing NaN into it corrupted every filter applied after it
+    # (NaN spread through the filter support into the ROI).
+    volToEval = np.array(volToEval, dtype=float, copy=True)
     volToEval[~maskBoundingBox3M] = np.nan
 
     # Texture-based scalar features

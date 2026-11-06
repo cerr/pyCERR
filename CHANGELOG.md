@@ -49,15 +49,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same values as before; `original_settings.json` (offset 1000) now gives
   different energy, totalEnergy and rms. Tested in
   `tests/test_ibsi1_features.py::test_first_order_energy_offset`.
-- **First-order features of filtered images.** `ibsi1.computeScalarFeatures`
-  sets voxels outside the ROI to NaN in filtered (IBSI-2) images, and
-  `first_order.stats` was not NaN-safe for four features: `range`
-  (`np.ptp`) and `meanAbsDev` (`np.mean`) came back NaN, and `rms` and
-  `medianAbsDev` were divided by the total voxel count including the NaN
-  voxels, so they were silently too small. All four now use the valid
-  voxels only. Features of the original (unfiltered) image are unchanged,
-  bit for bit; on the radiomics phantom with coif1 LLL/HHH wavelets, exactly
-  these 4 features x 2 bands change.
+- **Filtered-image features depended on whether `Original` was in the
+  settings.** `ibsi1.getQuantizedVolume` wrote NaN outside the ROI's bounding
+  box into the array it was given, and for the `Original` image type that
+  array is a view of the shared preprocessed scan. Every filter applied after
+  it then filtered a scan with NaN in it, and the NaN spread through the
+  filter support into the ROI. With a settings file listing `Original` and
+  wavelets, 518 of 576 wavelet features on the radiomics phantom were wrong
+  (NaN or shifted values); the same filters without `Original` were correct.
+  `getQuantizedVolume` now works on a copy. Original-image features are
+  unchanged bit for bit, and filtered features are now the same with or
+  without `Original`. Settings files without `Original` (such as the IBSI-2
+  configurations) are unaffected. Tested in
+  `tests/test_quantize_does_not_modify_scan.py`.
+- **`first_order.stats` is NaN-safe.** `range` (`np.ptp`) and `meanAbsDev`
+  (`np.mean`) returned NaN when the voxel array held NaN, and `rms` and
+  `medianAbsDev` divided by the total voxel count including NaN voxels. All
+  four now use the valid voxels only, consistent with the other first-order
+  features. Results for arrays without NaN are unchanged.
+- **`register.getDvfVectors` modified the deformation it sampled.** It
+  nudged the first and last z coordinates of the DVF grid by 1e-3 cm before
+  interpolating, in place on the array returned by `getDVFXYZVals`, which is
+  the deformation's own `zValuesV`. Each call moved the stored grid further.
+  It now works on a copy; tested in `tests/test_dvf_vectors_side_effects.py`.
+- **Shape axis features are real numbers.** `majorAxis`, `minorAxis`,
+  `leastAxis`, `flatness` and `elongation` were returned as complex numbers
+  (`92.72+0j`) because `shape.eig` used the general `np.linalg.eig` on the
+  symmetric covariance of the ROI coordinates. It now uses
+  `np.linalg.eigvalsh` (real, ascending) and clips rounding-level negative
+  eigenvalues to 0. Values are unchanged (within 3e-16 relative on the
+  radiomics phantom). Tested in `tests/test_shape_axes_real.py`.
 - **RTSTRUCT export after `loadFromH5`.** `structureColor` comes back from
   HDF5 as a numpy array, which `rtstruct_iod.create` passed straight to
   `ROIDisplayColor`; pydicom 3 rejects it (`TypeError: only 0-dimensional
@@ -71,7 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explaining how to build them. pyCERR's own callers already pass
   `[start, delta, end]` and are unaffected.
 
-All three are tested in `tests/test_nan_safe_stats_and_exports.py`.
+The first-order, RTSTRUCT and `finterp3` fixes are tested in
+`tests/test_nan_safe_stats_and_exports.py`.
 
 ## [2.5.1] - 2026-10-21
 
