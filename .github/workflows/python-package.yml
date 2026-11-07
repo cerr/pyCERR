@@ -12,7 +12,10 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26.04 in Oct-Nov 2026, which has no
+    # Python 3.9 build for actions/setup-python ("Version 3.9 with arch x64 not
+    # found") and may rename the Qt system packages installed below.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
