@@ -21,6 +21,15 @@ from cerr.contour import structure_consensus as sc
 
 
 def main(argv):
+    """Command-line entry point: compare observer structures from a DICOM directory and add a STAPLE-majority consensus structure.
+
+    Args:
+        argv (list[str]): Command-line arguments: script name, DICOM directory, then optional
+            structure indices (default: all structures on the first scan).
+
+    Returns:
+        int: Exit code (0 on success, 1 on bad usage).
+    """
     if len(argv) < 2:
         print(__doc__)
         return 1

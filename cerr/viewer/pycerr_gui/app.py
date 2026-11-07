@@ -67,6 +67,9 @@ def show(planC=None):
         viewer.setPlanC(otherPlanC)    # swap plans programmatically
         viewer.refresh_views()         # redraw after external planC edits
 
+    Args:
+        planC (cerr.plan_container.PlanC or None): Plan to show; None opens an empty viewer.
+
     Returns:
         PyCerrViewer: the viewer window (access .planC for current state).
     """
@@ -94,6 +97,16 @@ def capture(planC, out_path, target="window", setup=None, size=(1480, 920)):
     For headless/batch use, set the Qt platform to offscreen first
     (``os.environ['QT_QPA_PLATFORM'] = 'offscreen'``) - note the pyvista 3D
     view needs a real GL context, so 2D targets are most reliable headless.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan to render.
+        out_path (str): Output image file.
+        target (str): What to capture, as in PyCerrViewer.save_screenshot (default 'window').
+        setup (callable or None): ``setup(viewer)`` called before the screenshot.
+        size (tuple): Window size (width, height) in pixels (default (1480, 920)).
+
+    Returns:
+        str: The path written.
     """
     app = _get_app()
     win = PyCerrViewer(planC)
@@ -110,6 +123,8 @@ def capture(planC, out_path, target="window", setup=None, size=(1480, 920)):
 
 
 def main():
+    """Command-line entry point: open the viewer, loading the DICOM directory given as the first argument if any.
+    """
     dicomDir = sys.argv[1] if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]) \
         else None
     launch(dicomDir=dicomDir)

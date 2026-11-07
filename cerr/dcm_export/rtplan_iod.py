@@ -34,6 +34,14 @@ def _setIfValid(ds, tagName, val):
 
 
 def getDoseRefSeq(beamsObj):
+    """Dose Reference Sequence from a stored RTPLAN beams object.
+
+    Args:
+        beamsObj (cerr.dataclasses.beams.Beams): Entry of planC.beams.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     seq = Sequence()
     for doseRef in np.atleast_1d(beamsObj.DoseReferenceSequence):
         dsRef = Dataset()
@@ -49,6 +57,14 @@ def getDoseRefSeq(beamsObj):
 
 
 def getFractionGroupSeq(beamsObj):
+    """Fraction Group Sequence from a stored RTPLAN beams object.
+
+    Args:
+        beamsObj (cerr.dataclasses.beams.Beams): Entry of planC.beams.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     seq = Sequence()
     for fxGrp in np.atleast_1d(beamsObj.FractionGroupSequence):
         dsFx = Dataset()
@@ -67,7 +83,16 @@ def getFractionGroupSeq(beamsObj):
 
 
 def getLimitingDeviceSeq(limDevSeqList, includePositions):
-    """Build BeamLimitingDeviceSequence or BeamLimitingDevicePositionSequence items."""
+    """Build BeamLimitingDeviceSequence or BeamLimitingDevicePositionSequence items.
+
+    Args:
+        limDevSeqList (list): Stored beam-limiting device items.
+        includePositions (bool): True builds BeamLimitingDevicePositionSequence items (with
+            LeafJawPositions); False builds BeamLimitingDeviceSequence items.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     seq = Sequence()
     for limDev in np.atleast_1d(limDevSeqList):
         dsLim = Dataset()
@@ -82,6 +107,14 @@ def getLimitingDeviceSeq(limDevSeqList, includePositions):
 
 
 def getControlPointSeq(beamSeq):
+    """Control Point Sequence of one beam.
+
+    Args:
+        beamSeq (object): Stored beam item with a ControlPointSequence.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     seq = Sequence()
     for ctrPt in np.atleast_1d(beamSeq.ControlPointSequence):
         dsCtr = Dataset()
@@ -106,6 +139,14 @@ def getControlPointSeq(beamSeq):
 
 
 def getBeamSeq(beamsObj):
+    """Beam Sequence from a stored RTPLAN beams object.
+
+    Args:
+        beamsObj (cerr.dataclasses.beams.Beams): Entry of planC.beams.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     seq = Sequence()
     for beam in np.atleast_1d(beamsObj.BeamSequence):
         dsBeam = Dataset()

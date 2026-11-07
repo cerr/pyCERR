@@ -75,6 +75,15 @@ def generateQIBInfluence(im, planC, statusCallback=None):
 
     Port of ``generateQIBInfluence.m``.  Fills ``beam.beamlets`` on every
     beam of ``im`` and returns ``im``.
+
+    Args:
+        im (IMRTProblem): Problem whose beams receive the beamlets.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): ``statusCallback(message, fraction)`` progress
+            callback.
+
+    Returns:
+        IMRTProblem: ``im`` with ``beam.beamlets`` filled.
     """
     def status(msg, frac=None):
         if statusCallback:

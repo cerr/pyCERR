@@ -64,14 +64,32 @@ class ScanGrid:
                                 self.zV.max() + self.dz / 2])
 
     def fracIndex(self, x, y, z):
-        """Fractional [row, col, slice] indices of (x, y, z) points."""
+        """Fractional [row, col, slice] indices of (x, y, z) points.
+
+        Args:
+            x (array-like): x coordinates (cm).
+            y (array-like): y coordinates (cm).
+            z (array-like): z coordinates (cm).
+
+        Returns:
+            tuple: ``(row, col, slc)`` fractional indices.
+        """
         col = (np.asarray(x) - self.xV[0]) / self.dx
         row = (self.yV[0] - np.asarray(y)) / self.dy
         slc = np.interp(np.asarray(z), self.zV, np.arange(len(self.zV)))
         return row, col, slc
 
     def sampleCTNums(self, x, y, z):
-        """Trilinear interpolation of CT numbers at (x, y, z), 0 outside."""
+        """Trilinear interpolation of CT numbers at (x, y, z), 0 outside.
+
+        Args:
+            x (array-like): x coordinates (cm).
+            y (array-like): y coordinates (cm).
+            z (array-like): z coordinates (cm).
+
+        Returns:
+            np.ndarray: Interpolated CT numbers (0 outside the scan).
+        """
         row, col, slc = self.fracIndex(x, y, z)
         return ndimage.map_coordinates(self.ctNums,
                                        np.vstack([row, col, slc]),
@@ -88,6 +106,14 @@ def getTargetSurfacePoints(im, planC):
     Returns (xS, yS, zS) coordinate vectors (cm) of the surface voxels of
     the (margin-expanded) union of the target structures, mirroring
     ``getSurface(structTargetV, PBMarginV + 0.5, ...)`` in ``IMRTP.m``.
+
+    Args:
+        im (IMRTProblem): Problem with target goals.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        tuple: ``(xS, yS, zS, grid)``: surface-point coordinates in cm and the ScanGrid of the
+            associated scan.
     """
     scanNum = im.assocScanNum(planC)
     grid = ScanGrid(planC, scanNum)
@@ -130,6 +156,12 @@ def getPBRays(xS, yS, zS, beam):
     the source) onto the gantry frame at the isocenter distance, binned on
     the beamlet grid, row gaps are filled, and unit RTOG-frame direction
     vectors are generated for each pencil beam.
+
+    Args:
+        xS (np.ndarray): Target surface x coordinates (cm).
+        yS (np.ndarray): Target surface y coordinates (cm).
+        zS (np.ndarray): Target surface z coordinates (cm).
+        beam (IMBeam): Beam with a resolved isocenter and source position.
 
     Returns:
         (RTOGPBVectorsM, RTOGPBVectorsM_MC, PBMaskM, rowPBV, colPBV,
@@ -220,6 +252,18 @@ def getPBRayData(xS, yS, zS, beam, numSamplePts: int, grid: ScanGrid):
 
     Port of ``getPBRayData.m``.  Returns ``(ctTraceList, RTOGPBVectorsM,
     RTOGPBVectorsM_MC, pbMask, rowPBV, colPBV, xPBPosV, yPBPosV)``.
+
+    Args:
+        xS (np.ndarray): Target surface x coordinates (cm).
+        yS (np.ndarray): Target surface y coordinates (cm).
+        zS (np.ndarray): Target surface z coordinates (cm).
+        beam (IMBeam): The beam.
+        numSamplePts (int): Number of CT samples along each ray.
+        grid (ScanGrid): The scan grid to trace through.
+
+    Returns:
+        tuple: ``(ctTraceList, RTOGPBVectorsM, RTOGPBVectorsM_MC, pbMask, rowPBV, colPBV,
+            xPBPosV, yPBPosV)``.
     """
     (rtog, rtogMC, pbMask, rowPBV, colPBV,
      xPBPosV, yPBPosV) = getPBRays(xS, yS, zS, beam)
@@ -258,6 +302,15 @@ def setBeamRayData(im, planC, statusCallback=None):
     Port of the ``getPBList`` helper in ``IMRTP.m``: computes the PB
     direction matrix and CT traces, and sets the absolute source position
     (xRel/yRel/zRel + isocenter) on each beam.
+
+    Args:
+        im (IMRTProblem): Problem whose beams are updated.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): ``statusCallback(message, fraction)`` progress
+            callback.
+
+    Returns:
+        ScanGrid: The grid of the associated scan.
     """
     xS, yS, zS, grid = getTargetSurfacePoints(im, planC)
     for i, beam in enumerate(im.beams):

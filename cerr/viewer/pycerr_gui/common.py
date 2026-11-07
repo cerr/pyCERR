@@ -103,13 +103,29 @@ DEFAULT_DOSE_CMAP = "starinterp" if "starinterp" in CERR_COLORMAP_NAMES \
 
 
 def cerr_get_cmap(name):
-    """Colormap by name: a CERR colormap when available, else matplotlib."""
+    """Colormap by name: a CERR colormap when available, else matplotlib.
+
+    Args:
+        name (str): Colormap name.
+
+    Returns:
+        matplotlib.colors.Colormap: The colormap.
+    """
     if _cerr_get_cmap is not None and name in CERR_COLORMAP_NAMES:
         return _cerr_get_cmap(name)
     return plt.get_cmap(name)
 
 
 def cerr_get_lut(name, n=256):
+    """Lookup table for a colormap: a CERR colormap when available, else matplotlib.
+
+    Args:
+        name (str): Colormap name.
+        n (int): Number of entries (default 256).
+
+    Returns:
+        np.ndarray(dtype=uint8): (n x 3) RGB values in 0-255.
+    """
     if _cerr_get_lut is not None and name in CERR_COLORMAP_NAMES:
         return _cerr_get_lut(name, n)
     return (plt.get_cmap(name)(np.linspace(0, 1, n))[:, :3] * 255
@@ -207,7 +223,17 @@ SCAN_CMAPS = ["gray", "bone", "hot", "jet", "viridis", "magma", "plasma",
 
 
 def ascending(coords, arr, axis):
-    """Return coords sorted ascending and array flipped along axis to match."""
+    """Return coords sorted ascending and array flipped along axis to match.
+
+    Args:
+        coords (array-like): 1D coordinates along ``axis``.
+        arr (np.ndarray): Array whose ``axis`` matches ``coords``.
+        axis (int): Axis of ``arr`` that ``coords`` index.
+
+    Returns:
+        tuple: ``(coords, arr)`` with coords ascending and arr flipped to match (unchanged if
+            already ascending).
+    """
     coords = np.asarray(coords, dtype=float)
     if coords.size > 1 and coords[0] > coords[-1]:
         return coords[::-1], np.flip(arr, axis=axis)
@@ -402,7 +428,11 @@ def pycerr_icon():
     multi-resolution .ico on Windows (16-256 px, so the taskbar, title bar
     and Explorer each pick the right size), .icns on macOS, and .png
     elsewhere (Linux desktops use PNGs directly). Falls back to the PNG if
-    the native file is missing."""
+    the native file is missing.
+
+    Returns:
+        QtGui.QIcon: The pyCERR icon.
+    """
     if sys.platform == "win32":
         name = "CERR_logo.ico"
     elif sys.platform == "darwin":

@@ -41,6 +41,15 @@ NAPARI_GE_4_16 = parse_version(napari.__version__) > parse_version("0.4.16")
 
 
 def copy_layer_le_4_16(layer: Layer, name: str = ""):
+    """Copy a napari layer for another viewer (used for napari newer than 0.4.16): deep copy with fresh event emitters, sharing image data.
+
+    Args:
+        layer (napari.layers.Layer): Layer to copy.
+        name (str): Viewer name stored in the copy's metadata.
+
+    Returns:
+        napari.layers.Layer: The copy.
+    """
     res_layer = deepcopy(layer)
     # this deepcopy is not optimal for labels and images layers
     if isinstance(layer, (Image, Labels)):
@@ -57,6 +66,15 @@ def copy_layer_le_4_16(layer: Layer, name: str = ""):
 
 
 def copy_layer(layer: Layer, name: str = ""):
+    """Copy a napari layer for another viewer.
+
+    Args:
+        layer (napari.layers.Layer): Layer to copy.
+        name (str): Viewer name stored in the copy's metadata.
+
+    Returns:
+        napari.layers.Layer: The copy.
+    """
     if NAPARI_GE_4_16:
         return copy_layer_le_4_16(layer, name)
 
@@ -66,6 +84,14 @@ def copy_layer(layer: Layer, name: str = ""):
 
 
 def get_property_names(layer: Layer):
+    """Names of a layer's properties that should be synchronised between viewers.
+
+    Args:
+        layer (napari.layers.Layer): The layer.
+
+    Returns:
+        list[str]: Property names.
+    """
     klass = layer.__class__
     res = []
     for event_name, event_emitter in layer.events.emitters.items():
@@ -84,7 +110,11 @@ def get_property_names(layer: Layer):
 def center_cross_on_mouse(
     viewer_model: napari.components.viewer_model.ViewerModel,
 ):
-    """move the cross to the mouse position"""
+    """move the cross to the mouse position
+
+    Args:
+        viewer_model (napari.components.ViewerModel): The viewer.
+    """
 
     if not getattr(viewer_model, "mouse_over_canvas", True):
         # There is no way for napari 0.4.15 to check if mouse is over sending canvas.
@@ -218,6 +248,8 @@ class CrossWidget(QCheckBox):
         self.update_cross()
 
     def update_cross(self):
+        """Redraw the cross layer at the viewer's current position.
+        """
         if self.layer not in self.viewer.layers:
             return
 

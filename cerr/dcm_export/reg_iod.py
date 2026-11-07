@@ -25,6 +25,17 @@ org_root = '1.3.6.1.4.1.9590.100.1.2.'
 
 def getDcmTagVals(baseScanNum, planC, seriesOpts={}):
 
+    """Collect the patient, study, series and content tags for a spatial registration (REG) object.
+
+    Args:
+        baseScanNum (int): Index of the base (fixed) scan, whose patient and study are used.
+        planC (cerr.plan_container.PlanC): Plan container.
+        seriesOpts (dict): Optional overrides: 'seriesDescription', 'SeriesDate', 'SeriesTime',
+            'ContentDescription', 'ContentLabel'.
+
+    Returns:
+        tuple: ``(pat_tags, study_tags, series_tags, content_tags)`` dicts.
+    """
     sInfo = planC.scan[baseScanNum].scanInfo[0]
 
     pat_tags = {"PatientName": sInfo.patientName,
@@ -60,7 +71,15 @@ def getDcmTagVals(baseScanNum, planC, seriesOpts={}):
 
 
 def getRefImgSeq(scanNum, planC):
-    """Referenced Image Sequence for all instances of a scan in planC."""
+    """Referenced Image Sequence for all instances of a scan in planC.
+
+    Args:
+        scanNum (int): Index into planC.scan.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.sequence.Sequence: One item (SOP class and instance UID) per slice.
+    """
     refd_img_seq = Sequence()
     for sInfo in planC.scan[scanNum].scanInfo:
         ref_img_ds = Dataset()
@@ -76,6 +95,15 @@ def addRefSeriesSequence(ds: FileDataset, baseScanNum, movScanNum, planC):
     Series belonging to the same study as the REG object go into
     ReferencedSeriesSequence; series from other studies go into
     StudiesContainingOtherReferencedInstancesSequence.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): REG dataset to update.
+        baseScanNum (int): Index of the base scan.
+        movScanNum (int): Index of the moving scan.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds`` with the reference sequences set.
     """
     regStudyUID = planC.scan[baseScanNum].scanInfo[0].studyInstanceUID
 
@@ -101,7 +129,16 @@ def addRefSeriesSequence(ds: FileDataset, baseScanNum, movScanNum, planC):
 
 
 def getDVFMetadata(dvfFile):
-    """Read a DVF image file (nii/mha/mhd) and return the grid re-oriented to LPS."""
+    """Read a DVF image file (nii/mha/mhd) and return the grid re-oriented to LPS.
+
+    Args:
+        dvfFile (str): DVF image file (.nii, .nii.gz, .mha or .mhd).
+
+    Returns:
+        tuple: ``(dvf_matrix, origin, orient, dim, res, original_orient_str)``: the vector array
+            (z, y, x, 3) on LPS, origin (mm), the first six direction cosines, size, spacing (mm)
+            and the file's original orientation code.
+    """
     reader = sitk.ImageFileReader()
     reader.SetFileName(dvfFile)
     reader.LoadPrivateTagsOn()
@@ -125,6 +162,19 @@ def createDeformSeq(baseScanNum, movScanNum, dvfFile, planC,
     Item 1 references the base (fixed) scan with an identity registration.
     Item 2 references the moving scan and carries the DVF grid along with
     optional pre/post rigid transformation matrices.
+
+    Args:
+        baseScanNum (int): Index of the base scan.
+        movScanNum (int): Index of the moving scan.
+        dvfFile (str): DVF image file.
+        planC (cerr.plan_container.PlanC): Plan container.
+        preDefMatrix (np.ndarray, str or None): Rigid matrix applied before the deformation (4x4
+            array or ITK .mat file; default identity).
+        postDefMatrix (np.ndarray, str or None): Rigid matrix applied after the deformation
+            (default identity).
+
+    Returns:
+        pydicom.sequence.Sequence: The Deformable Registration Sequence.
     """
     def_seq = Sequence()
 
@@ -147,6 +197,14 @@ def createDeformSeq(baseScanNum, movScanNum, dvfFile, planC,
 
 
 def getREGTypeCodeSeq(series_type):
+    """Registration Type Code Sequence for the base or moving item.
+
+    Args:
+        series_type (str): 'base' (Frame of Reference Identity) or 'mov' (deformable).
+
+    Returns:
+        pydicom.sequence.Sequence: One coded item.
+    """
     reg_type_seq = Sequence()
     reg_type_ds = Dataset()
     if series_type == "base":
@@ -162,6 +220,14 @@ def getREGTypeCodeSeq(series_type):
 
 
 def getDVFGridSeq(dvfFile):
+    """Deformable Registration Grid Sequence holding a DVF file's grid geometry and vectors.
+
+    Args:
+        dvfFile (str): DVF image file.
+
+    Returns:
+        pydicom.sequence.Sequence: The grid sequence.
+    """
     dvf_grid_seq = Sequence()
     grid_ds = Dataset()
     dvf_matrix, origin, orient, dim, res, original_orient_str = getDVFMetadata(dvfFile)
@@ -186,6 +252,9 @@ def getMatrixSeq(deformMatrix=None):
     Args:
         deformMatrix: Optional. A 4x4 numpy array, or the path to an ITK
             .mat file containing an affine transform. Defaults to identity.
+
+    Returns:
+        pydicom.sequence.Sequence: Matrix Registration Sequence with one RIGID matrix.
     """
     dvf_matrix_seq = Sequence()
     dvf_matrix_ds = Dataset()
@@ -203,6 +272,12 @@ def loadMatrixFile(deform_matrix_file):
     """Load a 4x4 transformation matrix from an ITK-compatible .mat file.
 
     Returns the identity matrix when no file is supplied.
+
+    Args:
+        deform_matrix_file (str or None): ITK .mat file with an AffineTransform_double_3_3.
+
+    Returns:
+        list[float]: The 4x4 matrix flattened row by row (identity when no file).
     """
     if deform_matrix_file is not None and os.path.exists(deform_matrix_file):
         tf_contents = sio.loadmat(deform_matrix_file)

@@ -35,7 +35,15 @@ from matplotlib.quiver import Quiver                       # noqa: E402
 
 
 def timeIt(fn, reps=3):
-    """Mean ms per call, one warm-up call excluded."""
+    """Mean ms per call, one warm-up call excluded.
+
+    Args:
+        fn (callable): Function to time (called with no arguments).
+        reps (int): Timed repetitions (default 3).
+
+    Returns:
+        float: Mean milliseconds per call.
+    """
     fn()
     t = time.perf_counter()
     for _ in range(reps):
@@ -44,7 +52,17 @@ def timeIt(fn, reps=3):
 
 
 def buildRun(nVox, nt=2, nIvl=3, seed=0):
-    """A synthetic solved run of roughly ``nVox`` ROI voxels."""
+    """A synthetic solved run of roughly ``nVox`` ROI voxels.
+
+    Args:
+        nVox (int): Approximate number of ROI voxels.
+        nt (int): Time steps per interval (default 2).
+        nIvl (int): Number of intervals (default 3).
+        seed (int): Random seed (default 0).
+
+    Returns:
+        tuple: ``(res, Lag)``: a synthetic solve result and its runGLAD output.
+    """
     from cerr.uromt.analyze import runGLAD
     side = int(round((nVox / 0.5) ** (1.0 / 3.0)))
     n = (side, side, max(4, side // 2))
@@ -65,7 +83,15 @@ def buildRun(nVox, nt=2, nIvl=3, seed=0):
 
 
 def viewerStub(res, Lag):
-    """The overlay builder bound onto a plain object (no Qt needed)."""
+    """The overlay builder bound onto a plain object (no Qt needed).
+
+    Args:
+        res (dict): Solve result.
+        Lag (dict): runGLAD output.
+
+    Returns:
+        object: Stub with the viewer's urOMT overlay methods bound to it.
+    """
     from cerr.viewer.pycerr_gui.main_window import PyCerrViewer
 
     class _Stub:
@@ -85,6 +111,14 @@ def viewerStub(res, Lag):
 
 
 def main(argv=None):
+    """Command-line entry point: time the urOMT overlay builders on a synthetic run.
+
+    Args:
+        argv (list[str] or None): Arguments; None uses sys.argv.
+
+    Returns:
+        int: Exit code (0).
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--paths", type=int, default=60000,
                     help="approximate ROI voxel count (= pathline count)")

@@ -59,6 +59,14 @@ def dcmIsocenterToCerr(isoDcm_mm, planC, scanNum: int):
     Uses the scan's ``cerrToDcmTransM`` (pyCERR xyz cm -> DICOM mm); falls
     back to the simple HFS relation used by ``beam2MCdose.m``
     (x/10, -y/10, -z/10) if the matrix is unavailable.
+
+    Args:
+        isoDcm_mm (array-like): Isocenter in DICOM patient coordinates (mm).
+        planC (cerr.plan_container.PlanC): Plan container.
+        scanNum (int): Scan whose transform is used.
+
+    Returns:
+        tuple: ``(x, y, z)`` in pyCERR virtual coordinates (cm).
     """
     iso = np.asarray(isoDcm_mm, dtype=np.float64).ravel()
     transM = getattr(planC.scan[scanNum], 'cerrToDcmTransM', None)

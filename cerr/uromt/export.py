@@ -119,9 +119,12 @@ def saveVectorFieldNii(field, n, bbox, planC, scanNum, outDir, prefix):
             row (y) axis, 1 the column (x) axis, 2 the slice (z) axis (the urOMT
             convention, as returned by ``result["u"][t].mean(axis=2)`` or
             ``Eul["flux"][t]``).
-        n (list): ROI grid dims; ``bbox`` the ROI bounding box; ``planC`` /
-            ``scanNum`` give the scan geometry; ``outDir`` / ``prefix`` the
-            output location.
+        n (list): ROI grid dims.
+        bbox (tuple): ROI bounding box (rStart, rEnd, cStart, cEnd, sStart, sEnd) in scan voxels.
+        planC (cerr.plan_container.PlanC): plan container (scan geometry).
+        scanNum (int): index of the scan whose grid the files are written on.
+        outDir (str): output directory (created if needed).
+        prefix (str): file-name prefix.
 
     Returns:
         list[str]: the three written paths (``..._vrow``, ``_vcol``, ``_vslice``)

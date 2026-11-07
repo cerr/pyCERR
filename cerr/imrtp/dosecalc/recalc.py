@@ -55,7 +55,19 @@ def structDoseMetric(planC, structNum: int, doseNum: int,
                      metric: str = 'meanDose', x: float = 98.0,
                      binWidth: float = 0.01) -> float:
     """DVH metric of a structure for a given dose (Dx / meanDose helpers
-    used by ``call_doseRecal.m`` for clinical-dose scaling)."""
+    used by ``call_doseRecal.m`` for clinical-dose scaling).
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        structNum (int): Index into planC.structure.
+        doseNum (int): Index into planC.dose.
+        metric (str): 'meanDose' (default) or 'Dx'.
+        x (float): Percent volume for 'Dx' (default 98).
+        binWidth (float): DVH bin width in Gy (default 0.01).
+
+    Returns:
+        float: The metric in Gy.
+    """
     dosesV, volsV, isErr = dvhMod.getDVH(structNum, doseNum, planC)
     doseBinsV, volsHistV = dvhMod.doseHist(dosesV, volsV, binWidth)
     m = metric.lower()

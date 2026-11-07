@@ -17,6 +17,16 @@ from random import randint
 
 
 def getFileMeta(dataType) -> FileMetaDataset:
+    """File meta information for a new DICOM object of the given type.
+
+    Args:
+        dataType (str): 'CT', 'MR', 'PT', 'NM', 'US', 'SC', 'RTSTRUCT', 'RTDOSE', 'RTPLAN' or
+            'REG'.
+
+    Returns:
+        pydicom.dataset.FileMetaDataset: The file meta with the matching SOP class and a new
+            instance UID.
+    """
     file_meta = FileMetaDataset()
     file_meta.FileMetaInformationGroupLength = 202
     file_meta.FileMetaInformationVersion = b"\x00\x01"
@@ -52,6 +62,15 @@ def getFileMeta(dataType) -> FileMetaDataset:
 
 
 def addEquipmentTags(ds: FileDataset, equipDict):
+    """Set the General Equipment tags (manufacturer 'pyCERR').
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+        equipDict (dict): Currently unused.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.Manufacturer = "pyCERR"
     ds.ManufacturerModelName = "pyCERR"
@@ -63,6 +82,15 @@ def addEquipmentTags(ds: FileDataset, equipDict):
     return ds
 
 def addStudyTags(ds: FileDataset, studyDict):
+    """Set the General Study tags.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+        studyDict (dict): StudyDate, StudyTime, StudyDescription, StudyInstanceUID and StudyID.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.StudyDate = studyDict["StudyDate"]
     ds.StudyTime = studyDict["StudyTime"]
@@ -73,6 +101,15 @@ def addStudyTags(ds: FileDataset, studyDict):
     return ds
 
 def addSeriesTags(ds: FileDataset, seriesDict):
+    """Set the General Series tags (with a new SeriesInstanceUID).
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+        seriesDict (dict): Modality, SeriesDate, SeriesTime, SeriesDescription and SeriesNumber.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.Modality = seriesDict['Modality']
     ds.SeriesDate = seriesDict['SeriesDate'] # dt.strftime("%Y%m%d")
@@ -84,6 +121,16 @@ def addSeriesTags(ds: FileDataset, seriesDict):
     return ds
 
 def addPatientTags(ds: FileDataset, patDict):
+    """Set the Patient tags.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+        patDict (dict): PatientName, PatientID, PatientBirthDate, PatientSex, PatientAge,
+            PatientSize and PatientWeight.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     ds.PatientName = patDict["PatientName"]
     ds.PatientID = patDict["PatientID"]
     ds.PatientBirthDate = patDict["PatientBirthDate"]
@@ -94,6 +141,15 @@ def addPatientTags(ds: FileDataset, patDict):
     return ds
 
 def addContentTags(ds: FileDataset, contentDict):
+    """Set the content tags (date and time now).
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+        contentDict (dict): ContentDescription and ContentLabel.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.ContentCreatorName = ''
     ds.ContentDate = dt.strftime("%Y%m%d")
@@ -105,6 +161,14 @@ def addContentTags(ds: FileDataset, contentDict):
 
 
 def addSOPCommonTags(ds: FileDataset):
+    """Set the SOP Common tags (character set, creation date/time, SOP class and instance UIDs from the file meta).
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset to update.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.SpecificCharacterSet = "ISO_IR 192"  # "ISO_IR 100"
     ds.InstanceCreationDate = dt.strftime("%Y%m%d")
@@ -121,6 +185,11 @@ def addSOPCommonTags(ds: FileDataset):
 
 def addGeneralImageTags(ds: FileDataset):
     # ds.InstanceNumber # 0020,0013
+    """Placeholder for the General Image tags; does nothing yet.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset.
+    """
     pass
 
 def addImagePlaneTags(ds: FileDataset):
@@ -130,20 +199,44 @@ def addImagePlaneTags(ds: FileDataset):
     # ds.WindowCenter # optional, for scan
     # ds.WindowWidth # optional, for scan
     # ds.SliceThickness # optional, for scan
+    """Placeholder for the Image Plane tags; does nothing yet.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset.
+    """
     pass
 
 def addImagePixelTags(ds: FileDataset):
+    """Placeholder for the Image Pixel tags; does nothing yet.
+
+    Args:
+        ds (pydicom.dataset.FileDataset): Dataset.
+    """
     pass
 
 
 def addRefFORTags(ds_refFOR: Sequence):
     #ds_refFOR.FrameOfReference
     #s_refFOR.RTReferencedStudySequence = Sequence()
+    """Placeholder for Referenced Frame of Reference tags; does nothing yet.
+
+    Args:
+        ds_refFOR (pydicom.sequence.Sequence): Sequence.
+    """
     pass
 
 
 def addStructureSetTags(ds: FileDataset, structureDict):
     # https://dicom.nema.org/dicom/2013/output/chtml/part03/sect_A.19.html
+    """Set the Structure Set tags (label, description, instance number; date and time now).
+
+    Args:
+        ds (pydicom.dataset.FileDataset): RTSTRUCT dataset to update.
+        structureDict (dict): StructureSetLabel, StructureSetDescription and InstanceNumber.
+
+    Returns:
+        pydicom.dataset.FileDataset: ``ds``.
+    """
     dt = datetime.now()
     ds.StructureSetLabel = structureDict['StructureSetLabel'] # 3006,0002 Structure Set Label
     ds.StructureSetTime = dt.strftime("%H%M%S.%f") # 3006,0008 Structure Set Date

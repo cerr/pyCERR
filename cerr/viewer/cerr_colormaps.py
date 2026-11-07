@@ -4227,12 +4227,27 @@ _DATA = {
 CERR_COLORMAP_NAMES = list(_DATA.keys())
 
 def get_cmap(name):
-    """Return a matplotlib ListedColormap for a CERR colormap name."""
+    """Return a matplotlib ListedColormap for a CERR colormap name.
+
+    Args:
+        name (str): CERR colormap name.
+
+    Returns:
+        matplotlib.colors.ListedColormap: The colormap.
+    """
     arr = np.clip(_DATA[name], 0.0, 1.0)
     return ListedColormap(arr, name=name)
 
 def get_lut(name, n=256):
-    """Return an (n,3) uint8 lookup table for a CERR colormap name."""
+    """Return an (n,3) uint8 lookup table for a CERR colormap name.
+
+    Args:
+        name (str): CERR colormap name.
+        n (int): Number of entries (default 256).
+
+    Returns:
+        np.ndarray(dtype=uint8): (n x 3) RGB values in 0-255.
+    """
     arr = np.clip(_DATA[name], 0.0, 1.0)
     pts = np.linspace(0, len(arr) - 1, n)
     idx = np.arange(len(arr))

@@ -93,7 +93,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.setPlanC(planC)
 
     def setPlanC(self, planC):
-        """Attach an existing pyCERR plan container and display it."""
+        """Attach an existing pyCERR plan container and display it.
+
+        Args:
+            planC (cerr.plan_container.PlanC): Plan to display (None clears the viewer's
+                per-plan state).
+        """
         self.planC = planC
         self.wlByScan.clear()        # scan indices refer to a new plan now
         self.dispByScan.clear()
@@ -107,12 +112,21 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 f"{len(planC.structure)} structure(s), {len(planC.dose)} dose(s)")
 
     def getPlanC(self):
-        """Return the current (possibly updated) plan container."""
+        """Return the current (possibly updated) plan container.
+
+        Returns:
+            cerr.plan_container.PlanC: The plan container shown in the viewer, including
+                anything imported or edited in it.
+        """
         return self.planC
 
     # ----------------------------------------------- external (IMRTP) API ---
     def display_dose(self, doseNum):
-        """Refresh from planC and show dose ``doseNum`` (called by IMRTP)."""
+        """Refresh from planC and show dose ``doseNum`` (called by IMRTP).
+
+        Args:
+            doseNum (int): Index into planC.dose to show after refreshing the lists from planC.
+        """
         self.after_load(keep_view=True)          # pick up newly added dose
         if self.planC is not None and 0 <= doseNum < len(self.planC.dose):
             self.doseCombo.setCurrentIndex(doseNum + 1)   # +1 for "None"
@@ -122,7 +136,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def setBeams(self, beams):
         """Display IMRTP beam overlays (2D + 3D). ``beams`` is a list of
-        {"polylines": [Nx3 arrays], "color": (r, g, b)} dicts; [] clears."""
+        {"polylines": [Nx3 arrays], "color": (r, g, b)} dicts; [] clears.
+
+        Args:
+            beams (list[dict]): Beam overlays, each with 'polylines' (list of (N x 3) arrays in
+                cm), 'color' (r, g, b) and optionally 'apex' and 'corners'. An empty list clears
+                them.
+        """
         self.beams = list(beams) if beams else []
         self.refresh_views()
 
@@ -144,7 +164,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         With ``keep_view`` the current slice locators, pan/zoom and window are
         preserved instead of resetting to the image centre - used when scrubbing
         co-registered longitudinal time points (e.g. urOMT), so the locators stay
-        on the structure the user navigated to."""
+        on the structure the user navigated to.
+
+        Args:
+            scanNum (int): Index into planC.scan.
+            keep_view (bool): Keep the slice positions, pan/zoom and window instead of resetting
+                them (default False).
+        """
         scanNum = int(scanNum)
         if keep_view and scanNum != self.scanNum:
             self.scanCombo.blockSignals(True)
@@ -162,16 +188,30 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.scanCombo.setCurrentIndex(scanNum)
 
     def set_dose(self, doseNum):
-        """Select the displayed dose; doseNum < 0 (or None) hides dose."""
+        """Select the displayed dose; doseNum < 0 (or None) hides dose.
+
+        Args:
+            doseNum (int or None): Index into planC.dose; None or a negative value hides the
+                dose.
+        """
         idx = 0 if doseNum is None or doseNum < 0 else int(doseNum) + 1
         self.doseCombo.setCurrentIndex(idx)
 
     def set_dose_alpha(self, alpha):
-        """Dose colorwash opacity, 0..1."""
+        """Dose colorwash opacity, 0..1.
+
+        Args:
+            alpha (float): Opacity of the dose colorwash, 0 to 1.
+        """
         self.alphaSlider.setValue(int(round(float(alpha) * 100)))
 
     def set_window_level(self, center, width):
-        """Manual window center/width for the base scan."""
+        """Manual window center/width for the base scan.
+
+        Args:
+            center (float): Window center (e.g. HU for CT).
+            width (float): Window width.
+        """
         self.centerSpin.setValue(float(center))
         self.widthSpin.setValue(float(width))
 
@@ -370,7 +410,25 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         among the paths seeded on the displayed slice (N=1 = one path per ROI
         voxel of that slice), in 3-D it thins the seeds in all three directions
         (N=2 = one eighth of the ROI). It is display-only - Part 4 integrates
-        every ROI voxel once, so changing N never re-integrates."""
+        every ROI voxel once, so changing N never re-integrates.
+
+        Args:
+            index (int): Index into planC.urOMT.
+            view (str): 'speed', 'rate', 'peclet', 'velocity', 'flux' or 'pathlines' (default
+                'speed').
+            alpha (float): Overlay opacity, 0 to 1 (default 0.6).
+            interval (int): Time interval whose maps, flux and velocity are shown (clipped to
+                the run's intervals; default 0).
+            subsample (int): Show every N-th arrow/pathline (default 1).
+            grow (float): Fraction (0 to 1) of each pathline drawn, for animation (default 1.0).
+            lengthScale (float): Display multiplier for arrow and pathline length (default 1.0).
+            lineWidth (float): Stroke width of arrows and pathlines (default 2.0).
+            pathSpfs (int or None): Pathline density; None uses ``subsample``.
+            pathColorBy (str): How the colour quantity is reduced: 'mean', 'median' (default),
+                'max' or 'along'.
+            colorBy (str): Quantity that colours paths and vectors: 'speed' (default),
+                'effSpeed', 'peclet', 'rate', 'rho' or 'flux'.
+        """
         from cerr.uromt import viz
         from cerr.uromt.analyze import runGLAD
         runs = getattr(self.planC, "urOMT", None) or []
@@ -678,6 +736,30 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         Because the sampling grid is coarser than the scan, a slice that carries
         no sampled plane shows the NEAREST one - the arrows stay on screen while
         scrolling instead of blinking on and off.
+
+        Args:
+            deformNum (int): Index into planC.deform.
+            scanNum (int or None): Scan whose grid the field is drawn on; None uses the current
+                base scan.
+            resolution (list or None): Sampling spacing [dx, dy, dz] in cm (0 = native); None
+                picks one.
+            structNum (int or None): Restrict sampling to this structure.
+            surfFlag (bool): With structNum, sample only the structure's surface (default
+                False).
+            subtractMedian (bool): Remove the median displacement to show local deformation
+                (default False).
+            alpha (float): Arrow opacity, 0 to 1 (default 0.9).
+            subsample (int): Draw every N-th sampled arrow (default 1).
+            lengthScale (float): Multiplier for the drawn arrow length (default 1.0).
+            lineWidth (float): Arrow stroke width (default 2.0).
+            colorBy (str): 'length', 'dx', 'dy', 'dz', 'dx_signed', 'dy_signed' or 'dz_signed'
+                (default 'length').
+            trueScale (bool): Draw arrows at their real length in cm (default True); False
+                scales the longest arrow to a fixed fraction of the view.
+
+        Returns:
+            dict or None: The overlay description stored on the viewer, or None if the
+                deformation does not exist or has no vector field.
         """
         from cerr.registration.register import getDvfGrid
         from cerr.dataclasses.deform import hasDvfMatrix
@@ -1052,28 +1134,57 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                           arrow_length_ratio=hRatio, alpha=op)
 
     def set_window_preset(self, name):
-        """Apply a named CT window preset (see CT_WINDOW_PRESETS)."""
+        """Apply a named CT window preset (see CT_WINDOW_PRESETS).
+
+        Args:
+            name (str): A key of CT_WINDOW_PRESETS, e.g. 'Lung' or 'Soft Tissue'.
+        """
         self.presetCombo.setCurrentText(name)
 
     def set_scan_colormap(self, name):
+        """Set the colormap of the base scan (one of SCAN_CMAPS).
+
+        Args:
+            name (str): Colormap name, e.g. 'gray', 'bone' or 'hot'.
+        """
         self.scanCmapCombo.setCurrentText(name)
 
     def set_scan_opacity(self, alpha):
+        """Set the opacity of the base scan.
+
+        Args:
+            alpha (float): Opacity, 0 to 1.
+        """
         self.scanAlphaSlider.setValue(int(round(float(alpha) * 100)))
 
     def set_orientation(self, winId, orientation):
-        """Set which orientation a window (A/B/C/D) displays (or VIEW_3D)."""
+        """Set which orientation a window (A/B/C/D) displays (or VIEW_3D).
+
+        Args:
+            winId (str): View window 'A', 'B', 'C' or 'D'.
+            orientation (str): 'Axial', 'Sagittal', 'Coronal' or VIEW_3D.
+        """
         self._set_axis_view(winId, orientation)
 
     def set_slice(self, orientation, k):
-        """Move the window showing ``orientation`` to slice index ``k``."""
+        """Move the window showing ``orientation`` to slice index ``k``.
+
+        Args:
+            orientation (str): 'Axial', 'Sagittal' or 'Coronal'.
+            k (int): Slice index (clipped to the valid range).
+        """
         wid = self._window_for(orientation)
         if wid is not None:
             n = self._slice_count(orientation)
             self.views[wid].slider.setValue(int(np.clip(k, 0, n - 1)))
 
     def set_structures_visible(self, which):
-        """Show structures: 'all', 'none', or a list of structure indices."""
+        """Show structures: 'all', 'none', or a list of structure indices.
+
+        Args:
+            which (str or list[int]): 'all', 'none', or indices into planC.structure to show
+                (all others hidden).
+        """
         if which == "all":
             self._set_all_structs(True)
             return
@@ -1090,7 +1201,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views()
 
     def goto_structure(self, strNum):
-        """Center all views on a structure's center of mass."""
+        """Center all views on a structure's center of mass.
+
+        Args:
+            strNum (int): Index into planC.structure.
+        """
         self.goto_struct_center(int(strNum))
 
     def _view_under_cursor(self):
@@ -1105,6 +1220,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     def eventFilter(self, obj, event):
         # Arrow keys step the slice of the 2D view under the mouse (hover-based
         # navigation, independent of which widget has keyboard focus).
+        """Qt event filter: arrow keys step the slice of the 2D view under the cursor.
+
+        Args:
+            obj (QtCore.QObject): Object that received the event.
+            event (QtCore.QEvent): The event.
+
+        Returns:
+            bool: True when an arrow key was handled (the event is consumed).
+        """
         if event.type() == QtCore.QEvent.Type.KeyPress and event.key() in (
                 Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
             view = self._view_under_cursor()
@@ -1117,18 +1241,43 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         return super().eventFilter(obj, event)
 
     def set_crosshairs(self, on):
+        """Show or hide the crosshair lines in the 2D views.
+
+        Args:
+            on (bool): Show crosshairs.
+        """
         self.actXhair.setChecked(bool(on))
 
     def set_orientation_labels(self, on):
+        """Show or hide the orientation labels (A/P, R/L, S/I) in the views.
+
+        Args:
+            on (bool): Show labels.
+        """
         self.actOrient.setChecked(bool(on))
 
     def set_structure_dots(self, on):
+        """Draw contour vertices as dots.
+
+        Args:
+            on (bool): Show vertex dots.
+        """
         self.dotsChk.setChecked(bool(on))
 
     def set_contour_linewidth(self, width):
+        """Set the line width of structure contours.
+
+        Args:
+            width (float): Line width in points.
+        """
         self.lineWidthSpin.setValue(float(width))
 
     def set_lock_views(self, on):
+        """Lock windows showing the same orientation to the same slice.
+
+        Args:
+            on (bool): Lock views.
+        """
         self.actLock.setChecked(bool(on))
 
     # -------------------------------------------------------- screenshots ----
@@ -1142,6 +1291,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
           an orientation ("Axial"/"Sagittal"/"Coronal"/"3D") - that view
           "3d"     - the 3D view (whichever window shows it)
         Returns the path written.
+
+        Args:
+            path (str): Output file; the format follows the extension (e.g. .png).
+            target (str): 'window', 'views', 'A'-'D', an orientation ('Axial', 'Sagittal',
+                'Coronal', '3D') or '3d' (default 'window').
+            dpi (int): Resolution for 2D figure captures (default 150).
+
+        Returns:
+            str: ``path``.
         """
         target = str(target)
         QtWidgets.QApplication.processEvents()
@@ -1178,6 +1336,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         ``dvf_length`` and ``dvf_true_scale`` keywords - see
         :meth:`RegQaDialog.configure` and
         :meth:`PyCerrViewer.set_dvf_overlay`.
+
+        Args:
+            base (int or None): Index of the base (fixed) scan.
+            moving (int or None): Index of the moving scan.
+            mode (str): 'Mirrorscope' (default), 'Sidebyside', 'AlternateGrid' or 'Toggle'.
+            size (float or None): Mirror-box or checkerboard tile size in cm.
+            base_frac (float or None): Base-scan weight for 'Toggle' (0 to 1).
+            dvfKwargs (dict): Deformation-overlay options (deform, dvf_region, dvf_step,
+                dvf_color_by, dvf_every, dvf_length, dvf_true_scale).
+
+        Returns:
+            RegQaDialog: The registration QA dialog.
         """
         if self.planC is None or len(self.planC.scan) < 2:
             raise ValueError("Registration QA needs at least two scans.")
@@ -1194,7 +1364,18 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def compute_dvh(self, doseNum=None, structNums=None, num_bins=400):
         """Compute cumulative DVHs. Returns (doseAxis_Gy, {name: volPct}),
-        each structure interpolated onto a shared dose axis (0..global max)."""
+        each structure interpolated onto a shared dose axis (0..global max).
+
+        Args:
+            doseNum (int or None): Index into planC.dose; None uses the displayed dose (or dose
+                0).
+            structNums (int, list[int] or None): Structures to include; None means all.
+            num_bins (int): Number of dose bins (default 400).
+
+        Returns:
+            tuple: ``(doseAxis, table)``: the dose axis in Gy and a dict structure name ->
+                cumulative volume (%) on that axis.
+        """
         planC = self.planC
         if planC is None or not planC.dose:
             raise ValueError("A dose is required to compute DVHs.")
@@ -1235,7 +1416,17 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def export_dvh(self, path, doseNum=None, structNums=None, num_bins=400):
         """Compute cumulative DVHs and write them to a CSV (wide format:
-        Dose(Gy), <struct>, ...). Returns (doseAxis, {name: volPct})."""
+        Dose(Gy), <struct>, ...). Returns (doseAxis, {name: volPct}).
+
+        Args:
+            path (str): Output CSV file.
+            doseNum (int or None): As in :meth:`compute_dvh`.
+            structNums (int, list[int] or None): As in :meth:`compute_dvh`.
+            num_bins (int): Number of dose bins (default 400).
+
+        Returns:
+            tuple: ``(doseAxis, table)`` as returned by :meth:`compute_dvh`.
+        """
         import csv
         axis, table = self.compute_dvh(doseNum=doseNum, structNums=structNums,
                                        num_bins=num_bins)
@@ -1250,6 +1441,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         # release VTK render windows cleanly to avoid shutdown crashes
+        """Qt close event: release the 3D (VTK) widgets before the window closes.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         for v in self.views.values():
             if v.vtk_widget is not None:
                 try:
@@ -1762,6 +1958,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.statusBar().showMessage(msg)
 
     def import_dicom(self, path=None):
+        """Import a DICOM directory into the current plan.
+
+        Args:
+            path (str or None): Directory to import; None asks with a folder dialog.
+        """
         if not path:
             path = QtWidgets.QFileDialog.getExistingDirectory(
                 self, "Select DICOM directory")
@@ -1772,7 +1973,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def import_dicom_files(self, fileList):
         """Import only the given DICOM file(s), not their whole directory -
-        e.g. a dropped RTSTRUCT, so we don't pull in the rest of the folder."""
+        e.g. a dropped RTSTRUCT, so we don't pull in the rest of the folder.
+
+        Args:
+            fileList (list[str]): DICOM files to import.
+        """
         fileList = [f for f in fileList if f]
         if not fileList:
             return
@@ -1828,14 +2033,29 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------- drag & drop ------
     def dragEnterEvent(self, event):
+        """Qt drag-enter event: accept drags that carry files or folders.
+
+        Args:
+            event (QtGui.QDragEnterEvent): The event.
+        """
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
     def dragMoveEvent(self, event):
+        """Qt drag-move event: accept drags that carry files or folders.
+
+        Args:
+            event (QtGui.QDragMoveEvent): The event.
+        """
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
     def dropEvent(self, event):
+        """Qt drop event: load the dropped DICOM folders, DICOM files and other files (see :meth:`load_path`).
+
+        Args:
+            event (QtGui.QDropEvent): The event.
+        """
         paths = [u.toLocalFile() for u in event.mimeData().urls()
                  if u.toLocalFile()]
         event.acceptProposedAction()
@@ -1873,7 +2093,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         """Load a dropped/opened path: a DICOM directory, a NIfTI file
         (.nii/.nii.gz - scan, or dose/structure by name heuristic when a scan
         is loaded), a single DICOM file (only that file is imported), or a
-        .pkl plan container."""
+        .pkl plan container.
+
+        Args:
+            path (str): DICOM directory, NIfTI file, single DICOM file or .pkl plan container.
+        """
         path = str(path)
         low = path.lower()
         try:
@@ -1997,12 +2221,16 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             _show_error(self, "Import error", str(e))
 
     def import_nii_scan(self):
+        """Ask for a NIfTI file and import it as a scan.
+        """
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Select NIfTI scan", filter="NIfTI (*.nii *.nii.gz)")
         if f:
             self._load_nii_as(f, "scan")
 
     def import_nii_dose(self):
+        """Ask for a NIfTI file and import it as a dose on the current scan.
+        """
         if self.planC is None or not self.planC.scan:
             _show_info(self, "pyCERR", "Load a scan first.")
             return
@@ -2012,6 +2240,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._load_nii_as(f, "dose")
 
     def import_nii_struct(self):
+        """Ask for a NIfTI label mask and import it as structures on the current scan.
+        """
         if self.planC is None or not self.planC.scan:
             _show_info(self, "pyCERR", "Load a scan first.")
             return
@@ -2021,6 +2251,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._load_nii_as(f, "segmentation")
 
     def open_pkl(self):
+        """Ask for a pickled plan container (.pkl) and display it, replacing the current plan.
+        """
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Open planC pickle", filter="Pickle (*.pkl)")
         if not f:
@@ -2048,6 +2280,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         instead of appending to this one. The planC object itself is not
         modified - the viewer only lets go of it - so a planC passed to
         show() stays usable from the calling script.
+
+        Args:
+            confirm (bool): Ask the user before clearing (default True).
         """
         if self.planC is None:
             return
@@ -2132,6 +2367,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                                      "or NIfTI file to begin (File menu).")
 
     def save_pkl(self):
+        """Ask for a file name and pickle the current plan container to it.
+        """
         if self.planC is None:
             return
         f, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -2148,24 +2385,32 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------ export ----
     def export_scan_nii(self):
+        """Open the dialog that exports scans to NIfTI.
+        """
         if self.planC is None or not self.planC.scan:
             _show_info(self, "Export scan", "No scan to export.")
             return
         ScanDoseExportDialog(self, "scan").show()
 
     def export_dose_nii(self):
+        """Open the dialog that exports doses to NIfTI.
+        """
         if self.planC is None or not self.planC.dose:
             _show_info(self, "Export dose", "No dose to export.")
             return
         ScanDoseExportDialog(self, "dose").show()
 
     def export_struct_nii(self):
+        """Open the dialog that exports structures to NIfTI.
+        """
         if self.planC is None or not self.planC.structure:
             _show_info(self, "Export structures", "No structures to export.")
             return
         StructureExportDialog(self, "nii").show()
 
     def export_struct_dicom(self):
+        """Open the dialog that exports structures to DICOM RTSTRUCT.
+        """
         if self.planC is None or not self.planC.structure:
             _show_info(self, "Export structures", "No structures to export.")
             return
@@ -2189,7 +2434,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.setWindowTitle(title)
 
     def after_load(self, keep_view=False):
-        """Refresh combo boxes / lists after planC changes."""
+        """Refresh combo boxes / lists after planC changes.
+
+        Args:
+            keep_view (bool): Keep the current slices and view instead of resetting them
+                (default False).
+        """
         if self.planC is None or not self.planC.scan:
             self.setWindowTitle("pyCERR Viewer")
             return
@@ -2523,6 +2773,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------- callbacks --
     def on_scan_changed(self, idx):
+        """Slot: the base-scan selector changed; load that scan's geometry and redraw.
+
+        Args:
+            idx (int): Index into planC.scan.
+        """
         if self.planC is None or idx < 0:
             return
         self.scanNum = idx
@@ -2543,11 +2798,21 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views()
 
     def on_dose_changed(self, idx):
+        """Slot: the dose selector changed; show that dose (index 0 is 'None').
+
+        Args:
+            idx (int): Combo-box index (dose index + 1).
+        """
         self.doseNum = idx - 1
         self._build_dose_interp()
         self.refresh_views()
 
     def on_alpha(self, val):
+        """Slot: the dose-opacity slider moved.
+
+        Args:
+            val (int): Opacity in percent.
+        """
         self.doseAlpha = val / 100.0
         self._fast_layer_style("dose")
 
@@ -2678,12 +2943,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             cb.setMarkers([])
 
     def on_dose_disp_mode(self, idx):
+        """Slot: switch the dose display between colorwash (0) and isodose lines (1).
+
+        Args:
+            idx (int): Combo-box index.
+        """
         self.doseDispMode = "isodose" if idx == 1 else "colorwash"
         self._update_isodose_enabled()
         self._update_isodose_ticks()
         self.refresh_views()
 
     def on_isodose_levels(self):
+        """Slot: read the comma-separated isodose levels from the text box and redraw.
+        """
         txt = self.isoLevelsEdit.text().replace(";", ",")
         try:
             levels = sorted({float(t) for t in txt.split(",") if t.strip()})
@@ -2699,11 +2971,21 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.refresh_views()
 
     def on_isodose_units(self, units):
+        """Slot: set the units of the isodose levels.
+
+        Args:
+            units (str): '% of max', '% of Rx' or 'Gy'.
+        """
         self.isodoseUnits = units
         self._update_isodose_ticks()
         self.refresh_views()
 
     def on_isodose_width(self, val):
+        """Slot: set the isodose line width.
+
+        Args:
+            val (float): Line width in points.
+        """
         self.isodoseWidth = float(val)
         if self.doseDispMode == "isodose":
             self.refresh_views()
@@ -2755,11 +3037,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def on_plane_opacity(self, val):
         # opacity of the 3D urOMT result overlay (driven from the urOMT dialog)
+        """Slot: set the opacity of the slice planes in the 3D view.
+
+        Args:
+            val (int): Opacity in percent.
+        """
         self.plane3dOpacity = val / 100.0
         self._refresh_3d_views()
 
     def on_dose_cmap(self, name):
-        """Set the dose colorwash colormap from the panel combo."""
+        """Set the dose colorwash colormap from the panel combo.
+
+        Args:
+            name (str): Colormap name.
+        """
         if not name:
             return
         self.colorbar._set_cmap(name)
@@ -2860,6 +3151,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         cb.update()
 
     def on_scan_cmap(self, name):
+        """Slot: set the colormap of the scan selected in the display panel.
+
+        Args:
+            name (str): Colormap name.
+        """
         tgt = self._dlg_target()
         self._set_scan_display(tgt, cmap=name)
         self._sync_scan_colorbar_window()
@@ -2869,6 +3165,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.refresh_views()
 
     def on_scan_alpha(self, val):
+        """Slot: set the opacity of the scan selected in the display panel.
+
+        Args:
+            val (int): Opacity in percent.
+        """
         tgt = self._dlg_target()
         self._set_scan_display(tgt, alpha=val / 100.0)
         if tgt == self.scanNum:
@@ -2877,6 +3178,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.refresh_views()             # overlay opacity: overlays redrawn
 
     def on_preset(self, name):
+        """Slot: apply a CT window preset to the scan selected in the display panel.
+
+        Args:
+            name (str): Key of CT_WINDOW_PRESETS.
+        """
         preset = CT_WINDOW_PRESETS.get(name)
         if preset is None:
             return
@@ -2901,6 +3207,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             sp.setSingleStep(step)
 
     def on_manual_wl(self, *_):
+        """Slot: apply the window center/width typed in the panel (sets the preset to 'Manual').
+
+        Args:
+            _: Ignored signal values.
+        """
         tgt = self._dlg_target()
         self._set_scan_window(tgt, self.centerSpin.value(),
                               self.widthSpin.value())
@@ -2914,6 +3225,12 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self.refresh_views()
 
     def on_slice_changed(self, winId, val):
+        """Slot: a view's slice slider moved; update that view (and locked views of the same orientation).
+
+        Args:
+            winId (str): View window 'A'-'D'.
+            val (int): New slice index.
+        """
         orientation = self.views[winId].orientation
         self.slices[winId] = val
         self.lastSlice[orientation] = val
@@ -2939,6 +3256,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             self._timer3d.start(150)
 
     def on_lock_toggled(self, on):
+        """Slot: turn view locking on or off; when on, windows of the same orientation jump to the last-used slice.
+
+        Args:
+            on (bool): Lock views.
+        """
         self.lockViews = on
         if not on or self.planC is None or not self.planC.scan:
             return
@@ -2953,6 +3275,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views()
 
     def on_crosshair_toggled(self, on):
+        """Slot: show or hide the crosshair lines.
+
+        Args:
+            on (bool): Show crosshairs.
+        """
         self.showCrosshairs = on
         for view in self.views.values():
             for ln in (view.xline, view.yline):
@@ -2961,6 +3288,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             view.canvas.draw_idle()
 
     def on_orientation_toggled(self, on):
+        """Slot: show or hide the orientation labels.
+
+        Args:
+            on (bool): Show labels.
+        """
         self.showOrientation = on
         self.refresh_views()
 
@@ -2970,7 +3302,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         Clicking an unchecked item turns upsampling on at that target (the
         finest in-plane voxel spacing / ``factor``; 1.0 = finest, 1.5x / 2x go
         finer/smoother) and unchecks the others; clicking the checked item
-        turns upsampling off. Cached slices are dropped and the views redraw."""
+        turns upsampling off. Cached slices are dropped and the views redraw.
+
+        Args:
+            factor (float): Upsampling target relative to the finest in-plane spacing (1.0, 1.5
+                or 2).
+            act (QtGui.QAction): The menu item that was clicked.
+        """
         on = act.isChecked()
         self.upsampleDisplay = on
         if on:
@@ -2982,6 +3320,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views()
 
     def reset_all_views(self):
+        """Undo pan and zoom in every view and redraw.
+        """
         for view in self.views.values():
             view.user_limits = None
             view._pan = None
@@ -2990,7 +3330,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------- layouts ----
     def set_layout(self, name):
-        """Switch the arrangement of view windows (View > Layout)."""
+        """Switch the arrangement of view windows (View > Layout).
+
+        Args:
+            name (str): 'single', 'two', 'default', 'columns' or 'grid'.
+        """
         self._apply_layout(name)
         # Keep the contouring tool working across the layout change instead of
         # blocking it: re-bind to the new layout's axial view.
@@ -3239,6 +3583,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 "measure; right-click > Draw Ruler again to clear.")
 
     def on_ruler_changed(self, orient):
+        """Slot: show the endpoints and length of the ruler drawn in a view on the status bar.
+
+        Args:
+            orient (str): View window id holding the ruler.
+        """
         view = self.views[orient]
         if view.ruler is None:
             return
@@ -3260,6 +3609,13 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.refresh_views(only=orient)
 
     def on_cursor_moved(self, winId, xd, yd):
+        """Slot: the mouse moved over a 2D view; show the position and the scan/dose values under it.
+
+        Args:
+            winId (str): View window 'A'-'D'.
+            xd (float): Horizontal data coordinate in the view (cm).
+            yd (float): Vertical data coordinate in the view (cm).
+        """
         if self.planC is None:
             return
         orientation = self.views[winId].orientation
@@ -3339,15 +3695,30 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # --------------------------------------------------- structure options --
     def on_struct_dots(self, on):
+        """Slot: show or hide contour vertex dots.
+
+        Args:
+            on (bool): Show dots.
+        """
         self.showStructDots = on
         self.refresh_views()
 
     def on_struct_linewidth(self, val):
+        """Slot: set the contour line width.
+
+        Args:
+            val (float): Line width in points.
+        """
         self.structLineWidth = float(val)
         self.refresh_views()
 
     def on_struct_double_click(self, item):
-        """Center all views on the double-clicked structure's centroid."""
+        """Center all views on the double-clicked structure's centroid.
+
+        Args:
+            item (QtWidgets.QListWidgetItem): The clicked structure item (its UserRole data is
+                the structure index).
+        """
         strNum = item.data(Qt.ItemDataRole.UserRole)
         if strNum is None:
             return
@@ -3448,7 +3819,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def goto_struct_center(self, strNum):
         """Navigate the three orthogonal views to the structure's center of
-        mass (its isocenter slice in each plane)."""
+        mass (its isocenter slice in each plane).
+
+        Args:
+            strNum (int): Index into planC.structure.
+        """
         mask = self._struct_mask(strNum)
         if mask is None or mask.shape != self.scan3M.shape or not mask.any():
             self.statusBar().showMessage(
@@ -3650,6 +4025,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             p.remove()
 
     def refresh_views(self, only=None):
+        """Redraw the 2D views (and refresh the 3D volume after global changes).
+
+        Args:
+            only (str or None): Redraw just this view window; None redraws all active windows.
+        """
         if self.planC is None or not self.planC.scan:
             return
         if only is None:           # global change -> auto-refresh the 3D volume
@@ -4726,7 +5106,15 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     def on_crosshair_dragged(self, winId, xdata, ydata, dragV, dragH):
         """Dragging a crosshair line in one view scrolls the perpendicular
-        views to the dragged in-plane location."""
+        views to the dragged in-plane location.
+
+        Args:
+            winId (str): View window being dragged in.
+            xdata (float): Horizontal data coordinate (cm).
+            ydata (float): Vertical data coordinate (cm).
+            dragV (bool): The vertical crosshair line is being dragged.
+            dragH (bool): The horizontal crosshair line is being dragged.
+        """
         if self.planC is None or not self.planC.scan:
             return
         orient = self.views[winId].orientation
@@ -4848,6 +5236,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------- DVH tool ---
     def show_dvh_dialog(self):
+        """Open the DVH dialog (needs a dose and at least one structure).
+        """
         if self.planC is None or not self.planC.structure or not self.planC.dose:
             _show_info(
                 self, "DVH", "A dose and at least one structure are required.")
@@ -4993,6 +5383,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         dlg.render_scene()
 
     def show_controls(self):
+        """Show a help box listing the mouse and keyboard controls.
+        """
         _show_info(
             self, "Controls",
             "Mouse:\n"
@@ -5010,6 +5402,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             "Tools > DVH for dose-volume histograms.")
 
     def show_about(self):
+        """Show the About box with the pyCERR version.
+        """
         _show_info(
             self, "About pyCERR Viewer",
             "<b>pyCERR Viewer</b><br>"

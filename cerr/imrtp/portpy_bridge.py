@@ -97,6 +97,12 @@ def doseGridRefImage(dij):
     The dose grid is axis-aligned (identity direction); its voxel order in
     ``(z, y, x)`` (C-order over ``dimensions`` reversed) matches the row
     order of ``dij.physical_dose``.
+
+    Args:
+        dij (pyRadPlan Dij): Result of the dose-influence calculation.
+
+    Returns:
+        SimpleITK.Image: Empty float32 image with the dose grid's origin, spacing and size.
     """
     _requireIO()
     dg = dij.dose_grid
@@ -193,17 +199,29 @@ def writePortpyDataset(planC, outDir: str, patientId: str,
         bodyStructNum: structure to use as the calc box (optimization
             voxels).  Default: a structure named BODY/External/SKIN if
             present, else the union of ``structNums``.
-        gantryAngles / couchAngles / collimatorAngles / isoCenter: beam
-            geometry.  Default: read from ``planC.beams[0]`` treatment beams;
-            isoCenter falls back to the PTV/target centroid.
-        energyMV / machineName: beam labels stored in the metadata.
-        beamletWidthMm / beamletHeightMm: beamlet size (multiples of 2.5).
+        gantryAngles: gantry angles in degrees.  Default: read from
+            ``planC.beams[0]`` treatment beams.
+        couchAngles: couch angles in degrees (default: from ``planC.beams[0]``).
+        collimatorAngles: collimator angles in degrees (default: from ``planC.beams[0]``).
+        isoCenter: isocenter, DICOM LPS mm (default: from ``planC.beams[0]``,
+            falling back to the PTV/target centroid).
+        energyMV: beam energy label stored in the metadata (default '6X').
+        machineName: machine label stored in the metadata (default 'pyCERR').
+        beamletWidthMm: beamlet width in mm (multiple of 2.5).
+        beamletHeightMm: beamlet height in mm (multiple of 2.5).
         fieldHalfWidthMm: half-size of the nominal square beamlet field.
         influence: optional ``{beamId: {'sparse': Nx3 array, 'tol': float,
             'beamlet_id': array, 'position_x_mm': .., 'position_y_mm': ..,
             'width_mm': .., 'height_mm': ..}}`` attaching the dose-influence
             matrix (later phases).  When None, a geometry-only dataset with
             nominal beamlets and no ``A`` is written.
+        gridRefImg: optional SimpleITK image defining the voxel grid; the CT is
+            resampled onto it (e.g. pyRadPlan's dose grid from :func:`doseGridRefImage`).
+        rowIndexMap: optional ``(z, y, x)`` array of influence-matrix row indices
+            on that grid (from :func:`influenceFromPyRadPlan`); voxels outside the
+            calc box are set to -1.
+        numRows: number of influence-matrix rows; accepted for symmetry with
+            :func:`influenceFromPyRadPlan` and currently unused.
 
     Returns:
         str: path to the patient folder (``outDir/patientId``).
@@ -311,6 +329,10 @@ def writePortpyDataset(planC, outDir: str, patientId: str,
 def influenceFromPyRadPlan(dij, stf):
     """Split a pyRadPlan ``dij`` into PortPy per-beam influence + geometry.
 
+    Args:
+        dij (pyRadPlan Dij): Dose-influence matrix and grid.
+        stf (pyRadPlan SteeringInformation): Beam and beamlet geometry.
+
     Returns:
         tuple ``(influence, rowIndexMap, numRows)`` where ``influence`` is
         the ``{beamId: {...}}`` dict consumed by :func:`writePortpyDataset`
@@ -379,6 +401,24 @@ def writePortpyFromPyRadPlan(planC, dij, stf, outDir: str, patientId: str,
     ``dij``/``stf`` come from ``cerr.imrtp.pyradplan_bridge.calcDoseInfluence``.
     The PortPy voxel grid is pyRadPlan's dose grid so the influence-matrix
     rows line up with the optimization voxels.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        dij (pyRadPlan Dij): From calcDoseInfluence.
+        stf (pyRadPlan SteeringInformation): From calcDoseInfluence.
+        outDir (str): Parent directory of the patient folder.
+        patientId (str): PortPy patient id (folder name).
+        scanNum (int): CT scan index (default 0).
+        structNums (list[int] or None): Structures to export (default all).
+        bodyStructNum (int or None): Structure used as the calc box.
+        gantryAngles (list[float] or None): Gantry angles; default from ``stf``.
+        couchAngles (list[float] or None): Couch angles; default from ``stf``.
+        isoCenter (list or None): Isocenter (DICOM LPS mm); default from ``stf``.
+        energyMV (str): Energy label (default '6X').
+        machineName (str): Machine label (default 'pyCERR').
+
+    Returns:
+        str: Path to the patient folder.
     """
     _requireIO()
     influence, rowIndexMap, numRows = influenceFromPyRadPlan(dij, stf)
@@ -405,6 +445,11 @@ def influenceFromQIB(im, planC, scanNum: int = 0):
     have been filled by ``generateQIBInfluence``.  QIB stores, per beam, a
     structure-major list of pencil-beam beamlets; each carries scan-grid
     ``(row, col, slice)`` C-order voxel indices and float dose values.
+
+    Args:
+        im (IMRTProblem): Problem with QIB beamlets computed.
+        planC (cerr.plan_container.PlanC): Plan container.
+        scanNum (int): Scan index (default 0).
 
     Returns:
         tuple ``(influence, rowIndexMap, numRows)`` -- see
@@ -490,6 +535,20 @@ def writePortpyFromQIB(planC, im, outDir: str, patientId: str,
 
     ``im`` must have QIB beamlets computed (``generateQIBInfluence``).  This
     path needs no pyRadPlan.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        im (IMRTProblem): Problem with QIB beamlets computed.
+        outDir (str): Parent directory of the patient folder.
+        patientId (str): PortPy patient id (folder name).
+        scanNum (int): CT scan index (default 0).
+        structNums (list[int] or None): Structures to export (default all).
+        bodyStructNum (int or None): Structure used as the calc box.
+        energyMV (str): Energy label (default '6X').
+        machineName (str): Machine label (default 'pyCERR').
+
+    Returns:
+        str: Path to the patient folder.
     """
     _requireIO()
     influence, rowIndexMap, numRows = influenceFromQIB(im, planC, scanNum)
@@ -620,7 +679,9 @@ def buildOptParams(targetName: str, prescriptionGy: float,
         targetName: target structure name (e.g. 'PTV').
         prescriptionGy: total prescription dose (Gy).
         oarObjectives: ``{oar_name: overdose_limit_gy}``.
-        targetWeight / oarWeight / smoothnessWeight: objective weights.
+        targetWeight: weight of the target objectives (default 1e5).
+        oarWeight: weight of each OAR objective (default 1e4).
+        smoothnessWeight: weight of the fluence smoothness term (default 10).
 
     Returns:
         dict with an ``objective_functions`` list (and empty ``constraints``).
@@ -646,6 +707,16 @@ def buildClinicalCriteria(dataDir: str, patientId: str, prescriptionGy: float,
 
     Writes a minimal criteria JSON into the patient folder and loads it, so
     no bundled protocol is required.
+
+    Args:
+        dataDir (str): PortPy data directory.
+        patientId (str): Patient id (folder name).
+        prescriptionGy (float): Total prescription dose in Gy.
+        numFractions (int): Number of fractions.
+        diseaseSite (str): Disease-site label (default 'pyCERR').
+
+    Returns:
+        portpy.photon.ClinicalCriteria: Criteria loaded from the written JSON.
     """
     import portpy.photon as pp
     cc = {
@@ -700,6 +771,21 @@ def optimizeAndImport(planC, dataDir: str, patientId: str,
 
     The dataset must already be written (e.g. by
     :func:`writePortpyFromPyRadPlan` or :func:`writePortpyFromQIB`).
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        dataDir (str): PortPy data directory.
+        patientId (str): Patient id (folder name).
+        prescriptionGy (float): Total prescription dose in Gy.
+        numFractions (int): Number of fractions (default 1).
+        scanNum (int): Scan the dose is imported on (default 0).
+        targetName (str): Target structure name (default 'PTV').
+        oarObjectives (dict or None): ``{oar_name: overdose_limit_gy}``.
+        solver (str): CVXPY solver name (default 'SCS').
+        isBev (bool): Passed to portpy.photon.InfluenceMatrix as is_bev (default True).
+        beamletWidthMm (float or None): Beamlet width override in mm.
+        beamletHeightMm (float or None): Beamlet height override in mm.
+        fractionGroupID (str): Name given to the imported dose (default 'portpy').
 
     Returns:
         tuple ``(sol, doseNum, planC)`` -- PortPy solution dict, index of the

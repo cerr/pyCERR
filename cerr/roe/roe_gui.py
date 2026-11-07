@@ -516,9 +516,11 @@ class ROEGui(QMainWindow):
     # ======================================================================
 
     def on_model_selected(self, row: int):
-        """
-        Called when user clicks a model in the list.
+        """Called when user clicks a model in the list.
         Saves the current structure mapping, then repopulates for the new model.
+
+        Args:
+            row (int): Index of the clicked model in the model list.
         """
         # Persist whatever is currently displayed before switching away
         self._save_struct_assignments(self._selected_model_row)
@@ -545,13 +547,16 @@ class ROEGui(QMainWindow):
         self._struct_assignments[model_row] = selections
 
     def populate_structure_table(self, model: dict, model_row: int = -1):
-        """
-        Fill the structure mapping table for the selected model.
+        """Fill the structure mapping table for the selected model.
         Column 0: required structure name (read-only).
         Column 1: QComboBox of available structures from planC.
 
         Previously saved selections for *model_row* are restored; auto-match
         is only used for rows that have no saved choice yet.
+
+        Args:
+            model (dict): The model definition.
+            model_row (int): The model's row, used to restore saved selections (default -1).
         """
         required = _get_struct_list(model)
         available = self._avail_struct_names()
@@ -585,10 +590,12 @@ class ROEGui(QMainWindow):
         self.struct_table.blockSignals(False)
 
     def populate_param_table(self, model: dict):
-        """
-        Populate the model parameters table.
+        """Populate the model parameters table.
         Only show leaf parameters (not 'structures') that have a 'val' key.
         Params with a 'desc' dict get a QComboBox; otherwise QLineEdit.
+
+        Args:
+            model (dict): The model definition.
         """
         params = model.get("parameters", {})
 
@@ -689,12 +696,14 @@ class ROEGui(QMainWindow):
     # ======================================================================
 
     def get_structure_assignments(self) -> Dict[int, List[int]]:
-        """
-        Read the structure mapping table and return a dict:
+        """Read the structure mapping table and return a dict:
             model_index (in self.models) → list of planC structure indices.
 
         For models not currently selected (and therefore not shown in the
         struct_table), we fall back to automatic name matching.
+
+        Returns:
+            dict: Model index -> list of planC structure indices.
         """
         assignments: Dict[int, List[int]] = {}
         available = self._avail_struct_names()
@@ -744,6 +753,10 @@ class ROEGui(QMainWindow):
 
         Parameters
         ----------
+        model : dict
+            The model definition (from the model JSON files).
+        dose_num : int
+            Index into planC.dose.
         assigned_names : optional list of structure names chosen by the user in
             the structure-assignment table.  When provided, used in preference
             over the model JSON's own structure names.
@@ -1235,9 +1248,11 @@ class ROEGui(QMainWindow):
             pass
 
     def update_slider_line(self, slider_value: int):
-        """
-        Draw (or move) a vertical dashed crosshair at the slider position.
+        """Draw (or move) a vertical dashed crosshair at the slider position.
         Also annotates the value.
+
+        Args:
+            slider_value (int): Slider position.
         """
         mode = self.mode_combo.currentIndex()
         if mode in (_MODE_BED, _MODE_TCP):
@@ -1289,8 +1304,10 @@ class ROEGui(QMainWindow):
     # ======================================================================
 
     def switch_plot_mode(self, index: int):
-        """
-        Reconfigure slider range and visibility for the selected plot mode.
+        """Reconfigure slider range and visibility for the selected plot mode.
+
+        Args:
+            index (int): Selected plot mode (scale, delta, BED or TCP).
         """
         if index == _MODE_SCALE:
             self.slider.setMinimum(50)

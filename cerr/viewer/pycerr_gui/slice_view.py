@@ -90,6 +90,11 @@ class SliceView(QtWidgets.QWidget):
 
     @property
     def is3d(self):
+        """Whether this window shows the 3D view.
+
+        Returns:
+            bool: True for the 3D view.
+        """
         return self.orientation == VIEW_3D
 
     # --------------------------------------------------- crosshair blitting --
@@ -148,12 +153,21 @@ class SliceView(QtWidgets.QWidget):
 
     @property
     def uses_vtk(self):
+        """Whether this window shows 3D through the pyvista/VTK widget.
+
+        Returns:
+            bool: True when 3D is drawn with VTK.
+        """
         return self.is3d and self.vtk_widget is not None
 
     def set_projection(self, to3d):
         """Swap between the 2D matplotlib canvas and the 3D display.
         The 3D display is a GPU-accelerated pyvista/VTK widget when
-        available, else a matplotlib Axes3D fallback."""
+        available, else a matplotlib Axes3D fallback.
+
+        Args:
+            to3d (bool): Show the 3D display (True) or the 2D canvas (False).
+        """
         if to3d and HAS_PYVISTA:
             if self.vtk_widget is None:
                 self.vtk_widget = _VtkView(self)
@@ -319,6 +333,8 @@ class SliceView(QtWidgets.QWidget):
             self.strokeFinished.emit(self.winId, pts)
 
     def cancel_polygon(self):
+        """Abandon the polygon being drawn and remove its preview line.
+        """
         self._poly = None
         if self._poly_line is not None:
             try:
@@ -520,7 +536,11 @@ class SliceView(QtWidgets.QWidget):
 
     # ------------------------------------------------------------- ruler ----
     def ruler_length(self):
-        """In-plane length of the current ruler in cm (data units are cm)."""
+        """In-plane length of the current ruler in cm (data units are cm).
+
+        Returns:
+            float: Length in cm (0.0 when there is no ruler).
+        """
         if self.ruler is None:
             return 0.0
         (x0, y0), (x1, y1) = self.ruler
@@ -551,6 +571,8 @@ class SliceView(QtWidgets.QWidget):
             self._update_ruler_artists()
 
     def clear_ruler(self):
+        """Remove the ruler and its label from the view.
+        """
         for art in (self._ruler_line, self._ruler_text):
             if art is not None:
                 try:
@@ -563,6 +585,12 @@ class SliceView(QtWidgets.QWidget):
         self.canvas.draw_idle()
 
     def set_range(self, nslices, current):
+        """Set the slice slider's range and position without emitting a change.
+
+        Args:
+            nslices (int): Number of slices.
+            current (int): Slice index to show.
+        """
         self.slider.blockSignals(True)
         self.slider.setMaximum(max(nslices - 1, 0))
         self.slider.setValue(current)

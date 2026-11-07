@@ -99,6 +99,13 @@ class GeometryPreview(FigureCanvasQTAgg):
 
     # -- drawing -----------------------------------------------------------
     def refresh(self, planC, im, currentBeam):
+        """Redraw the gantry preview: the CT slice through the isocenter (when available), the gantry circle and the beams, with the selected beam highlighted.
+
+        Args:
+            planC (cerr.plan_container.PlanC): Plan container.
+            im (IMRTProblem): The IMRT problem whose beams are drawn.
+            currentBeam (int): Index of the selected beam (-1 for none).
+        """
         ax = self.ax
         ax.clear()
         ax.set_facecolor('black')
@@ -197,7 +204,17 @@ def beamGeometry(beam, im, planC):
     compute the per-slice beam cross-section in the 2D views).
 
     Mirrors Matlab CERR's beam's-eye-view geometry: gantry in the axial
-    plane (couch 0), source at SAD from the isocenter."""
+    plane (couch 0), source at SAD from the isocenter.
+
+    Args:
+        beam (Beam): An IMRTP beam.
+        im (IMRTProblem): The problem the beam belongs to.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        dict or None: ``{'polylines', 'apex', 'corners'}``, or None when the isocenter cannot be
+            resolved.
+    """
     try:
         iso = imp.resolveIsocenter(beam, im, planC)
         if any(isinstance(v, str) for v in (iso.x, iso.y, iso.z)):
@@ -244,7 +261,16 @@ def beamGeometry(beam, im, planC):
 
 
 def beamPolylines(beam, im, planC):
-    """Backward-compatible: just the polylines of :func:`beamGeometry`."""
+    """Backward-compatible: just the polylines of :func:`beamGeometry`.
+
+    Args:
+        beam (Beam): An IMRTP beam.
+        im (IMRTProblem): The problem the beam belongs to.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        list[np.ndarray]: The beam's polylines (empty when its geometry cannot be computed).
+    """
     geo = beamGeometry(beam, im, planC)
     return geo['polylines'] if geo else []
 
@@ -288,6 +314,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         # remove beam overlays from the viewer when IMRTP closes
+        """Qt close event: remove this window's beam overlays from the viewer.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         if self.viewer is not None:
             try:
                 self.viewer.setBeams([])
@@ -510,13 +541,25 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------ helpers
     def statusbarMsg(self, msg):
+        """Show a message in the window's status line.
+
+        Args:
+            msg (str): Message.
+        """
         self.statusText.setText(str(msg))
 
     def waitbar(self, frac):
+        """Set the progress bar and let the GUI update.
+
+        Args:
+            frac (float): Progress, 0 to 1 (clipped).
+        """
         self.waitBar.setValue(int(round(100 * max(0.0, min(1.0, frac)))))
         QtWidgets.QApplication.processEvents()
 
     def markStale(self):
+        """Mark the IM problem as changed since its last dose calculation (title and ``im.isFresh``).
+        """
         self.setWindowTitle(STALE_TITLE)
         self.im.isFresh = False
 
@@ -545,6 +588,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self._updateViewerBeams()   # keep BEV overlays in sync with geometry
 
     def refreshScan(self):
+        """Refill the scan selector from planC and select the problem's associated scan.
+        """
         self.scanPop.blockSignals(True)
         self.scanPop.clear()
         for i, s in enumerate(self.planC.scan):
@@ -564,6 +609,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.addStructPop.blockSignals(False)
 
     def refreshStructs(self):
+        """Refill the goals table (structures, target flag, margins, sample rates) from the problem.
+        """
         tbl = self.goalTable
         tbl.blockSignals(True)
         tbl.clearContents()
@@ -616,6 +663,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         tbl.blockSignals(False)
 
     def refreshBeams(self):
+        """Refill the beam list from the problem and highlight the current beam.
+        """
         tbl = self.beamList
         tbl.blockSignals(True)
         tbl.setRowCount(len(self.im.beams))
@@ -679,9 +728,13 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             self.statusbarMsg('Could not draw beams: %s' % e)
 
     def refreshPreview(self):
+        """Redraw the gantry geometry preview.
+        """
         self.preview.refresh(self.planC, self.im, self.currentBeam)
 
     def refreshBeamParams(self):
+        """Show the current beam's parameters in the beam panel (disabled when no beam is selected).
+        """
         haveBeam = 0 <= self.currentBeam < len(self.im.beams)
         beam = self.im.beams[self.currentBeam] if haveBeam else None
         for i, fName in enumerate(imp.BEAM_FIELD_NAMES):
@@ -712,6 +765,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             ed.blockSignals(False)
 
     def refreshIMParams(self):
+        """Show the problem's dose-calculation parameters in the IM panel.
+        """
         p = self.im.params
         vals = {('algorithm',): p.algorithm, ('DoseTerm',): p.DoseTerm,
                 ('ScatterMethod',): p.ScatterMethod,
@@ -733,6 +788,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             ed.blockSignals(False)
 
     def refreshMCParams(self):
+        """Show the problem's VMC++ Monte Carlo parameters in the MC panel.
+        """
         vmc = self.im.params.VMC
         for pName, ed in self.mcWidgets.items():
             ed.blockSignals(True)
@@ -753,6 +810,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.mcBox.setVisible('VMC' in alg)
 
     def refreshBrowser(self):
+        """Refill the list of IM problems stored in planC (plus an entry for a new one).
+        """
         imList = imp.getIMList(self.planC)
         self.browsePop.blockSignals(True)
         self.browsePop.clear()
@@ -782,6 +841,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         setattr(obj, fName[-1], value)
 
     def beamParamChanged(self, fName):
+        """Slot: copy an edited beam parameter into the current beam and mark the problem stale.
+
+        Args:
+            fName (str): Beam field name (one of BEAM_FIELD_NAMES).
+        """
         if not (0 <= self.currentBeam < len(self.im.beams)):
             return
         beam = self.im.beams[self.currentBeam]
@@ -829,10 +893,14 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
                    if self.bpWidgets[k][0] is not None)
 
     def autoCheckChanged(self):
+        """Slot: an 'auto' checkbox changed; refresh the beam panel.
+        """
         self.refreshBeamParams()
 
     # -------------------------------------------------------------- beams
     def newBeam(self):
+        """Add a beam: a copy of the current beam at gantry 0, or a default beam if none is selected.
+        """
         nB = len(self.im.beams)
         if 0 <= self.currentBeam < nB:
             beam = copy.deepcopy(self.im.beams[self.currentBeam])
@@ -851,6 +919,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.refreshBeamParams()
 
     def newEquispaced(self):
+        """Ask for a count and starting angle and add that many equally spaced beams.
+        """
         n, ok = QtWidgets.QInputDialog.getInt(
             self, 'Beam Creation', 'Add how many equispaced beams?', 5, 1, 50)
         if not ok:
@@ -870,6 +940,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.refreshBeamParams()
 
     def delBeam(self):
+        """Delete the current beam and renumber the rest.
+        """
         if not (0 <= self.currentBeam < len(self.im.beams)):
             return
         del self.im.beams[self.currentBeam]
@@ -882,6 +954,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.refreshBeamParams()
 
     def selectBeam(self):
+        """Slot: the beam-list selection changed; make that beam current.
+        """
         rows = self.beamList.selectionModel().selectedRows()
         if rows:
             self.currentBeam = rows[0].row()
@@ -890,6 +964,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
             self.refreshBeamParams()
 
     def previewAngleChanged(self, angle):
+        """Slot: the gantry angle was dragged in the preview; update the current beam.
+
+        Args:
+            angle (float): Gantry angle in degrees.
+        """
         if not (0 <= self.currentBeam < len(self.im.beams)):
             return
         beam = self.im.beams[self.currentBeam]
@@ -907,11 +986,18 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.refreshBeamParams()
 
     def previewDragFinished(self):
+        """Slot: a preview drag ended; refresh the beam list and the viewer's beam overlays.
+        """
         self.refreshBeams()
         self._updateViewerBeams()   # gantry angle changed -> redraw beams
 
     # --------------------------------------------------------------- scan
     def selScan(self, scanIdx):
+        """Slot: associate the problem with another scan (clears goals and beamlets).
+
+        Args:
+            scanIdx (int): Index into planC.scan.
+        """
         if scanIdx == self.im.assocScanNum(self.planC):
             return
         self.im.assocScanUID = self.planC.scan[scanIdx].scanUID
@@ -926,6 +1012,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
 
     # --------------------------------------------------------------- goals
     def addGoal(self, relStrNum):
+        """Slot: add a structure as a goal.
+
+        Args:
+            relStrNum (int): Index of the structure in the selector (negative does nothing).
+        """
         if relStrNum < 0:
             return
         imp.addGoal(self.im, relStrNum, self.planC)
@@ -934,6 +1025,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.addStructPop.setCurrentIndex(-1)
 
     def delGoal(self, goalNum):
+        """Delete a goal (clears all beamlets).
+
+        Args:
+            goalNum (int): Index into im.goals.
+        """
         if not (0 <= goalNum < len(self.im.goals)):
             return
         del self.im.goals[goalNum]
@@ -943,6 +1039,12 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.refreshStructs()
 
     def pbMarginText(self, goalNum, editor):
+        """Slot: set a goal's pencil-beam margin from its editor.
+
+        Args:
+            goalNum (int): Index into im.goals.
+            editor (QtWidgets.QLineEdit): The edited cell.
+        """
         val = _num(editor.text())
         if val is None:
             return
@@ -952,6 +1054,12 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.markStale()
 
     def strSampleRate(self, goalNum, editor):
+        """Slot: set a goal's in-plane sample rate from its editor.
+
+        Args:
+            goalNum (int): Index into im.goals.
+            editor (QtWidgets.QLineEdit): The edited cell.
+        """
         val = _num(editor.text())
         if val is None:
             return
@@ -961,6 +1069,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.markStale()
 
     def targBoxClicked(self, goalNum):
+        """Slot: toggle whether a goal is a target.
+
+        Args:
+            goalNum (int): Index into im.goals.
+        """
         w = self.goalTable.cellWidget(goalNum, 1)
         chk = w.findChild(QtWidgets.QCheckBox)
         self.im.goals[goalNum].isTarget = 'Yes' if chk.isChecked() else 'No'
@@ -975,6 +1088,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------- params
     def imParamChanged(self, pName):
+        """Slot: copy an edited dose-calculation parameter into the problem.
+
+        Args:
+            pName (tuple): Parameter path (one of PARAM_NAMES), e.g. ('Scatter', 'Threshold').
+        """
         ed = self.ipWidgets[pName]
         text = ed.currentText() if isinstance(ed, QtWidgets.QComboBox) \
             else ed.text()
@@ -992,6 +1110,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.markStale()
 
     def mcParamChanged(self, pName):
+        """Slot: copy an edited VMC++ parameter into the problem.
+
+        Args:
+            pName (tuple): Parameter path (one of MC_PARAM_NAMES).
+        """
         ed = self.mcWidgets[pName]
         text = ed.currentText() if isinstance(ed, QtWidgets.QComboBox) \
             else ed.text()
@@ -1002,6 +1125,11 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------ browser
     def browseIM(self, idx):
+        """Slot: show a stored IM problem, or start a new one.
+
+        Args:
+            idx (int): Index into planC's IM list; past the end starts a new problem.
+        """
         imList = imp.getIMList(self.planC)
         if idx < len(imList):
             self.im = imList[idx]
@@ -1015,6 +1143,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self._refreshAll()
 
     def deleteIM(self):
+        """Delete the selected IM problem from planC after confirmation.
+        """
         imList = imp.getIMList(self.planC)
         idx = self.browsePop.currentIndex()
         if idx >= len(imList):
@@ -1032,6 +1162,8 @@ class IMRTPGuiWindow(QtWidgets.QMainWindow):
         self.statusbarMsg('IM set deleted.')
 
     def renameIM(self):
+        """Rename the current IM problem from the name box.
+        """
         newName = self.renameEdit.text().strip()
         if newName:
             self.im.name = newName

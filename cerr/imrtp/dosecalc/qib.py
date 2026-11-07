@@ -49,6 +49,14 @@ def getPBConsts(depthsV: np.ndarray, energy: float, qib: QIBDataS):
     Port of ``GetPBConsts.m`` with flag ``'nearest'`` (the branch used by
     ``generateQIBInfluence.m``).  Depths in g/cm^2 (radiological), clipped
     at the 50 cm dosimetry limit.
+
+    Args:
+        depthsV (np.ndarray): Radiological depths in g/cm^2.
+        energy (float): Nominal energy in MV (6 or 18).
+        qib (QIBDataS): Kernel data from loadPBData.
+
+    Returns:
+        tuple: ``(A_zV, a_zV, B_zV, b_zV)``, one value per depth.
     """
     energy = int(round(float(energy)))
     if energy == 6:
@@ -122,9 +130,13 @@ def getQIBDose(posU: np.ndarray, radDepthV: np.ndarray,
                      points, cm.
         radDepthV:   radiological depths (g/cm^2) -- unused by the lookup
                      itself but kept for signature parity.
-        widthUX/Y:   beamlet widths at each point's source distance, cm.
+        widthUX:     beamlet widths along Xb at each point's source distance, cm.
+        widthUY:     beamlet widths along Yb at each point's source distance, cm.
         qib:         kernel data from :func:`loadPBData`.
-        A_zV..b_zV:  depth constants from :func:`getPBConsts`.
+        A_zV:        Ahnesjo A constant at each point's depth (from :func:`getPBConsts`).
+        a_zV:        Ahnesjo a constant at each point's depth (from :func:`getPBConsts`).
+        B_zV:        Ahnesjo B constant at each point's depth (from :func:`getPBConsts`).
+        b_zV:        Ahnesjo b constant at each point's depth (from :func:`getPBConsts`).
         energy:      nominal beam energy (6 / 18 MV).
         how2Compute: one of ``'primary'``, ``'scatter'``,
                      ``'nogauss+scatter'`` (a.k.a. ``'primary+scatter'``),
@@ -239,6 +251,13 @@ def applyIMRTCompression(params, doseV: np.ndarray) -> np.ndarray:
     Port of ``applyIMRTCompression.m``; ``params`` is an
     :class:`~cerr.imrtp.imrtp_problem.IMParams` (uses ``ScatterMethod``,
     ``Scatter.Threshold`` and ``Scatter.RandomStep``).
+
+    Args:
+        params (IMParams): Uses ScatterMethod, Scatter.Threshold and Scatter.RandomStep.
+        doseV (np.ndarray): Beamlet dose values.
+
+    Returns:
+        np.ndarray: Copy of doseV with low-dose scatter removed or thinned.
     """
     doseV = np.asarray(doseV, dtype=np.float64).copy()
     if doseV.size == 0:
@@ -294,6 +313,13 @@ def rtogVectors2Gantry(rtogVectorsM: np.ndarray,
 
     Port of ``RTOGVectors2Gantry.m``.  Gantry frame: Xb in-plane,
     Yb out-of-plane (along -z), Zb along the beam axis.
+
+    Args:
+        rtogVectorsM (np.ndarray): (N x 3) vectors in the RTOG frame.
+        gantryAngle (float): Gantry angle in degrees.
+
+    Returns:
+        np.ndarray: (N x 3) vectors in the gantry frame.
     """
     c = math.cos(math.radians(gantryAngle))
     s = math.sin(math.radians(gantryAngle))
@@ -310,6 +336,14 @@ def gantry2RTOGVectors(gantryVectorsM: np.ndarray, gantryAngle: float,
     """Rotate gantry-frame vectors back into the RTOG frame.
 
     Port of ``gantry2RTOGVectors.m`` (including couch rotation).
+
+    Args:
+        gantryVectorsM (np.ndarray): (N x 3) vectors in the gantry frame.
+        gantryAngle (float): Gantry angle in degrees.
+        couchAngle (float): Couch angle in degrees (default 0).
+
+    Returns:
+        np.ndarray: (N x 3) vectors in the RTOG frame.
     """
     c = math.cos(math.radians(gantryAngle))
     s = math.sin(math.radians(gantryAngle))

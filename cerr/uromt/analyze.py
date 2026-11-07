@@ -234,6 +234,16 @@ def runEULAIntervals(result, maskOnly=True, pecletFloor=None):
       above, which are averages. Note this makes ``flux`` scale with ``nt``, so
       it is only comparable between runs that use the same sub-step count.
       The same convention applies to the r-weighted flux (``EulerRFlux``).
+
+    Args:
+        result (dict): solveUROMT output.
+        maskOnly (bool): Zero the maps outside the ROI mask (default True).
+        pecletFloor (float or None): Floor on |diffusion| in the Peclet ratio; default the run's
+            setting.
+
+    Returns:
+        dict: Per-interval lists of ROI-grid maps keyed 'speed', 'effSpeed', 'rate', 'peclet',
+            'flux', 'rho' and the grid metadata.
     """
     n = [int(v) for v in result["n"]]
     h = [float(v) for v in result["spacing"]]
@@ -618,6 +628,13 @@ def alignSpeedToVertices(sp, nVert):
     ``runGLAD`` samples the speed at the position *before* each move, so there
     are ``nVert - 1`` samples for ``nVert`` recorded positions. Repeating the
     first sample keeps sample *i* aligned with the vertex it was measured at.
+
+    Args:
+        sp (array-like): Speed samples along one pathline.
+        nVert (int): Number of pathline vertices.
+
+    Returns:
+        np.ndarray: One value per vertex.
     """
     sp = np.asarray(sp, dtype=float).ravel()
     if sp.size == 0:
@@ -633,6 +650,13 @@ def alignStreamToVertices(arr, nVert):
     The array form of :func:`alignSpeedToVertices` - ``runGLAD`` samples every
     quantity at the position *before* each move, giving ``nVert - 1`` samples
     for ``nVert`` recorded positions, so the last column is repeated.
+
+    Args:
+        arr (np.ndarray): (M, nSample) samples, one row per pathline.
+        nVert (int): Number of vertices per pathline.
+
+    Returns:
+        np.ndarray: (M, nVert) samples.
     """
     arr = np.asarray(arr, dtype=float)
     if arr.ndim != 2 or arr.shape[1] == nVert:
@@ -649,6 +673,14 @@ def pathStats(Lag, quantity="speed"):
     Reads the precomputed ``Lag['stats']``; falls back to reducing the stream
     (and to the legacy ``sstream``/``pestream`` keys of runs stored before the
     per-quantity streams existed), so older stored runs keep displaying.
+
+    Args:
+        Lag (dict): runGLAD output.
+        quantity (str): Quantity name, e.g. 'speed' (default) or 'peclet'.
+
+    Returns:
+        dict or None: ``{'mean', 'median', 'max'}`` arrays (one value per path), or None if the
+            quantity is not available.
     """
     stats = Lag.get("stats") or {}
     if quantity in stats:
@@ -667,6 +699,13 @@ def streamOf(Lag, quantity="speed"):
     Falls back to the legacy per-path lists (``sstream`` for speed, ``pestream``
     for Peclet) so runs stored before the generalization still colour by those
     two quantities.
+
+    Args:
+        Lag (dict): runGLAD output.
+        quantity (str): Quantity name (default 'speed').
+
+    Returns:
+        np.ndarray or None: (M, nSample) samples, or None.
     """
     st = (Lag.get("streams") or {}).get(quantity)
     if st is not None:
@@ -683,6 +722,13 @@ def segmentValues(Lag, quantity="speed"):
     (M, nVert-1) array, computed on first request and cached in
     ``Lag['segVals']`` - one such array per quantity is ~17 MB at breast scale,
     so they are built for the displayed quantity only.
+
+    Args:
+        Lag (dict): runGLAD output (the result is cached in it).
+        quantity (str): Quantity name (default 'speed').
+
+    Returns:
+        np.ndarray or None: (M, nVert-1) per-segment values, or None.
     """
     cache = Lag.setdefault("segVals", {})
     if quantity in cache:
@@ -709,6 +755,13 @@ def scalePathline(pts, scale):
     far it reaches - the length equivalent of the vector overlay's arrow-length
     scale. Use it to stop long excursions from crossing the whole field of view.
     ``scale == 1`` is a no-op.
+
+    Args:
+        pts (np.ndarray): (steps x 3) pathline vertices.
+        scale (float): Scale factor about the first vertex.
+
+    Returns:
+        np.ndarray: The scaled vertices (the input when scale is 1).
     """
     pts = np.asarray(pts, dtype=float)
     scale = float(scale)
@@ -725,6 +778,12 @@ def pathSpeedStats(streams):
     per path in Python costs ~1.5 s for a 66k-path ROI - enough to make the
     cheap-to-draw flat colouring slower overall than the per-vertex gradient it
     was meant to beat.
+
+    Args:
+        streams (np.ndarray or list): (M, nVert) array, or a list of per-path arrays.
+
+    Returns:
+        dict: ``{'mean', 'median', 'max'}`` arrays, one value per path.
     """
     if isinstance(streams, np.ndarray) and streams.ndim == 2:
         if not streams.size:

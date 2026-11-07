@@ -76,6 +76,13 @@ def beam2MCdose(im, planC, whichBeam: int,
     MLC leaf sequences, transmission, wedge and source model) and run the
     selected Monte-Carlo solver, returning the per-beam IM dosimetry and
     beamlet weights.
+
+    Args:
+        im (IMRTProblem): The problem.
+        planC (cerr.plan_container.PlanC): Plan container.
+        whichBeam (int): Beam index.
+        params (MCRecompParams or None): Monte Carlo settings (default MCRecompParams()).
+        statusCallback (callable or None): Progress callback.
     """
     params = params or MCRecompParams()
     solver = 'DPM' if params.MCsolver == MC_SOLVER_DPM else 'VMC++'
@@ -93,6 +100,11 @@ def calcDoseByBeamMeterset(planC, nhist: float, batch: int):
     Intended port of ``calcDoseByBeamMeterset.m`` (DPM path of
     ``call_doseRecal.m``): reads the per-beam MC dose files written by the
     DPM solver and sums them weighted by the beam metersets.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        nhist (float): Number of histories per beam.
+        batch (int): Number of batches.
     """
     raise NotImplementedError(
         'DPM dose summation has not been ported to pyCERR. See '
@@ -100,7 +112,13 @@ def calcDoseByBeamMeterset(planC, nhist: float, batch: int):
 
 
 def dpmEngine(im, planC, statusCallback=None):
-    """PLACEHOLDER engine entry ('DPM') for the cerr.imrtp registry."""
+    """PLACEHOLDER engine entry ('DPM') for the cerr.imrtp registry.
+
+    Args:
+        im (IMRTProblem): The problem.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): Progress callback.
+    """
     raise NotImplementedError(
         "The 'DPM' Monte-Carlo engine is a placeholder. Port beam2MCdose.m "
         'from %s or register your own engine via '
@@ -109,7 +127,13 @@ def dpmEngine(im, planC, statusCallback=None):
 
 
 def vmcEngine(im, planC, statusCallback=None):
-    """PLACEHOLDER engine entry ('VMC++') for the cerr.imrtp registry."""
+    """PLACEHOLDER engine entry ('VMC++') for the cerr.imrtp registry.
+
+    Args:
+        im (IMRTProblem): The problem.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): Progress callback.
+    """
     raise NotImplementedError(
         "The 'VMC++' Monte-Carlo engine is a placeholder. Port "
         'generateVMCInfluence.m / beam2MCdose.m from %s or register your '

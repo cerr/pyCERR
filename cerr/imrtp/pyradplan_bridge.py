@@ -98,6 +98,13 @@ def ctFromScan(planC, scanNum: int = 0):
     Uses ``Scan.getSitkImage`` (DICOM patient space, mm, true HU with the
     CT offset applied) and reorients to axis-aligned LPS so pyRadPlan's ray
     tracer behaves for scans with a flipped ``imageOrientationPatient``.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        scanNum (int): Index of the CT in planC.scan (default 0).
+
+    Returns:
+        pyRadPlan CT: The CT.
     """
     _requirePyRadPlan()
     img = planC.scan[scanNum].getSitkImage()
@@ -121,6 +128,9 @@ def cstFromStructs(planC, ct, structNums: Optional[Sequence[int]] = None,
         targetStructNums: structures to mark as ``TARGET``; all others are
             ``OAR``. Structures with a SquaredDeviation/SquaredUnderdosing
             objective are auto-promoted to targets when this is None.
+
+    Returns:
+        pyRadPlan StructureSet: The structure set (cst).
     """
     _requirePyRadPlan()
     if structNums is None:
@@ -152,6 +162,13 @@ def targetCentroidMm(planC, structNums: Sequence[int]) -> np.ndarray:
 
     Used as an isocenter fallback when the RTPLAN stores a degenerate
     ([0, 0, 0]) isocenter.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        structNums (list[int]): Structure indices whose union is used.
+
+    Returns:
+        np.ndarray: (3,) centroid in DICOM LPS mm.
     """
     _requirePyRadPlan()
     union = None
@@ -170,6 +187,10 @@ def beamGeometryFromBeams(planC, beamsNum: int = 0) -> dict:
     control point of each TREATMENT beam supplies gantry angle, couch
     (PatientSupportAngle) angle, isocenter (DICOM LPS mm) and nominal
     energy; radiation type comes from the beam sequence.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container with RTPLAN beams.
+        beamsNum (int): Index into planC.beams (default 0).
 
     Returns:
         dict with keys ``gantry_angles``, ``couch_angles``, ``iso_center``
@@ -252,9 +273,10 @@ def planFromPlanC(planC, scanNum: int = 0, beamsNum: Optional[int] = 0,
         scanNum: index of the CT scan in ``planC.scan``.
         beamsNum: index into ``planC.beams`` (None to use explicit angles).
         objectives: ``{structNum: [Objective, ...]}`` optimization objectives.
-        structNums / targetStructNums: see :func:`cstFromStructs`.
-        gantryAngles / couchAngles: explicit beam angles in degrees
-            (override RTPLAN).
+        structNums: structures to convert; see :func:`cstFromStructs`.
+        targetStructNums: structures marked as targets; see :func:`cstFromStructs`.
+        gantryAngles: explicit gantry angles in degrees (override RTPLAN).
+        couchAngles: explicit couch angles in degrees (override RTPLAN).
         isoCenter: explicit isocenter(s), DICOM LPS mm; a single 3-vector or
             an (nBeams x 3) array. Default: RTPLAN isocenter, or the target
             center-of-mass when no RTPLAN is used.
@@ -329,6 +351,11 @@ def planFromPlanC(planC, scanNum: int = 0, beamsNum: Optional[int] = 0,
 def calcDoseInfluence(ct, cst, pln):
     """Generate steering geometry and the beamlet dose-influence matrix.
 
+    Args:
+        ct (pyRadPlan CT): From :func:`ctFromScan`.
+        cst (pyRadPlan StructureSet): From :func:`cstFromStructs`.
+        pln (pyRadPlan Plan): From :func:`planFromPlanC`.
+
     Returns:
         tuple: ``(stf, dij)`` -- pyRadPlan SteeringInformation and Dij.
         ``dij.physical_dose`` holds the sparse (voxels x beamlets)
@@ -349,6 +376,14 @@ def doseArrayFromSitk(doseImg, planC, scanNum: int):
     reorientation applied in :func:`ctFromScan`. It is then permuted to
     pyCERR order, the inverse of ``Scan.getSitkImage``: (z, y, x) DICOM
     slice order -> (row, col, slice) in pyCERR slice order.
+
+    Args:
+        doseImg (SimpleITK.Image): Dose on the pyRadPlan CT grid.
+        planC (cerr.plan_container.PlanC): Plan container.
+        scanNum (int): Index of the scan whose grid the dose is returned on.
+
+    Returns:
+        np.ndarray: Dose on the scan grid (rows x cols x slices).
     """
     from cerr.dataclasses.scan import flipSliceOrderFlag
     refImg = planC.scan[scanNum].getSitkImage()
@@ -397,6 +432,16 @@ def optimizeAndImportDose(planC, ct, cst, stf, dij, pln, scanNum: int = 0,
                           fractionGroupID: str = 'pyRadPlan'):
     """Run fluence optimization and store the resulting dose in planC.
 
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        ct (pyRadPlan CT): The CT.
+        cst (pyRadPlan StructureSet): Structures with objectives.
+        stf (pyRadPlan SteeringInformation): From :func:`calcDoseInfluence`.
+        dij (pyRadPlan Dij): From :func:`calcDoseInfluence`.
+        pln (pyRadPlan Plan): The plan.
+        scanNum (int): Scan the dose is imported on (default 0).
+        fractionGroupID (str): Name given to the imported dose (default 'pyRadPlan').
+
     Returns:
         tuple: ``(w, doseNum, planC)`` -- optimized beamlet weight vector,
         index of the imported dose in ``planC.dose`` and the container.
@@ -422,6 +467,17 @@ def calcBeamletDoseAndImport(planC, w=None, scanNum: int = 0,
     ``planC.beams[beamsNum]`` and imports the dose for beamlet weights
     ``w`` (unit weights when None) into ``planC.dose``.
 
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        w (np.ndarray or None): Beamlet weights; None uses unit weights.
+        scanNum (int): CT scan index (default 0).
+        beamsNum (int): Index into planC.beams (default 0).
+        bixelWidth (float): Beamlet width at isocenter in mm (default 5).
+        machine (str): pyRadPlan machine name (default 'Generic').
+        structNums (list[int] or None): Structures to convert (default all on the scan).
+        targetStructNums (list[int] or None): Structures marked as targets.
+        fractionGroupID (str): Name given to the imported dose (default 'pyRadPlan').
+
     Returns:
         tuple: ``(dij, stf, doseNum, planC)``.
     """
@@ -445,13 +501,29 @@ def calcBeamletDoseAndImport(planC, w=None, scanNum: int = 0,
 # --------------------------------------------------------------------------
 
 def squaredDeviation(dRef: float, priority: float = 100.0):
-    """Target objective: penalize deviation from ``dRef`` Gy."""
+    """Target objective: penalize deviation from ``dRef`` Gy.
+
+    Args:
+        dRef (float): Reference dose in Gy.
+        priority (float): Objective weight (default 100).
+
+    Returns:
+        pyRadPlan SquaredDeviation: The objective.
+    """
     _requirePyRadPlan()
     return SquaredDeviation(d_ref=dRef, priority=priority)
 
 
 def squaredOverdosing(dMax: float, priority: float = 100.0):
-    """OAR objective: penalize dose above ``dMax`` Gy."""
+    """OAR objective: penalize dose above ``dMax`` Gy.
+
+    Args:
+        dMax (float): Maximum dose in Gy.
+        priority (float): Objective weight (default 100).
+
+    Returns:
+        pyRadPlan SquaredOverdosing: The objective.
+    """
     _requirePyRadPlan()
     # pyRadPlan names this parameter ``d_max`` (not ``d_ref``); passing the
     # wrong keyword is silently ignored and leaves the default 30 Gy in place.
@@ -459,13 +531,29 @@ def squaredOverdosing(dMax: float, priority: float = 100.0):
 
 
 def squaredUnderdosing(dMin: float, priority: float = 100.0):
-    """Target objective: penalize dose below ``dMin`` Gy."""
+    """Target objective: penalize dose below ``dMin`` Gy.
+
+    Args:
+        dMin (float): Minimum dose in Gy.
+        priority (float): Objective weight (default 100).
+
+    Returns:
+        pyRadPlan SquaredUnderdosing: The objective.
+    """
     _requirePyRadPlan()
     # pyRadPlan names this parameter ``d_min`` (not ``d_ref``).
     return SquaredUnderdosing(d_min=dMin, priority=priority)
 
 
 def meanDose(dRef: float = 0.0, priority: float = 1.0):
-    """OAR objective: penalize mean dose."""
+    """OAR objective: penalize mean dose.
+
+    Args:
+        dRef (float): Reference mean dose in Gy (default 0).
+        priority (float): Objective weight (default 1).
+
+    Returns:
+        pyRadPlan MeanDose: The objective.
+    """
     _requirePyRadPlan()
     return MeanDose(d_ref=dRef, priority=priority)

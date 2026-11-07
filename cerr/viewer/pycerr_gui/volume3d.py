@@ -132,7 +132,11 @@ class Volume3DDialog(QtWidgets.QDialog):
         no re-resample or re-upload. The scan and dose are two independent
         volume actors ("scan" and "dose"), so each restyles on its own. A
         rebuild is scheduled (debounced) only when the target actor is not
-        present yet and needs to be added."""
+        present yet and needs to be added.
+
+        Args:
+            layer (str): 'scan' or 'dose'.
+        """
         pl = self.plotter
         try:
             if layer == "dose":
@@ -634,6 +638,11 @@ class Volume3DDialog(QtWidgets.QDialog):
                 pass
 
     def closeEvent(self, event):
+        """Qt close event: release the 3D plotter and detach from the viewer.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         if getattr(self.viewer, "_volume3dDialog", None) is self:
             self.viewer._volume3dDialog = None
         # Release the VTK render window / GL context while the widget is still

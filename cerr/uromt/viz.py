@@ -110,6 +110,15 @@ def capTipFraction(frac, maxLen, ceiling=None):
     the longest rather than the median is what makes the ceiling hard: every
     head is then at or below it, not just the typical one. ``ceiling`` defaults
     to :func:`_headCeiling` with no overlay, i.e. the fallback.
+
+    Args:
+        frac (float): Requested arrowhead size as a fraction of each arrow's length.
+        maxLen (float): Length of the longest arrow in the scene (cm).
+        ceiling (float or None): Maximum head size in cm; None uses the default ceiling.
+
+    Returns:
+        float: The fraction, reduced so the longest arrow's head stays under the ceiling (at
+            least 1e-3).
     """
     frac = float(frac)
     maxLen = float(maxLen)
@@ -369,6 +378,20 @@ def showVelocity(planC, result, structNum=None, interval=0, step=None,
 
     Displays the interval's start-frame scan (and the ROI structure, if given)
     with the velocity vectors. Returns the napari viewer.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        result (dict): solveUROMT output.
+        structNum (int or None): ROI structure to show.
+        interval (int): Time interval (default 0).
+        step (int or None): Sub-step within the interval; None uses the time mean.
+        subsample (int): Keep every N-th voxel (default 2).
+        speedPctile (float): Show only vectors above this speed percentile (default 60).
+        lengthScale (float): Arrow length multiplier (default 1).
+        displayMode (str): napari display mode, '2d' or '3d' (default '3d').
+
+    Returns:
+        napari.Viewer: The viewer.
     """
     from cerr.viewer.pycerr_napari import showNapari        # lazy (Qt/GL)
     vd = velocityVectors(result, interval=interval, step=step,
@@ -396,7 +419,26 @@ def fieldVectors(field3N, n, bbox, mask=None, scanNum=0, subsample=2,
                  featureName="magnitude", maxVectors=20000):
     """Generic ROI-grid (3,N) vector field -> napari ``vectors_dict`` (scan
     voxel coords). Used for the Eulerian flux field; mirrors
-    :func:`velocityVectors`."""
+    :func:`velocityVectors`.
+
+    Args:
+        field3N (np.ndarray): (3, N) vector field on the ROI grid.
+        n (list[int]): ROI grid size.
+        bbox (tuple): ROI bounding box (rStart, rEnd, cStart, cEnd, sStart, sEnd) in scan
+            voxels.
+        mask (np.ndarray or None): ROI mask on the ROI grid; None keeps every voxel.
+        scanNum (int): Scan the vectors belong to (default 0).
+        subsample (int): Keep every N-th voxel (default 2).
+        magPctile (float): Show only vectors above this magnitude percentile (default 60).
+        lengthScale (float): Arrow length multiplier (default 1).
+        sizeFactor (float): Resize factor used by the run (default 1).
+        doResize (int): Whether the run was computed at reduced resolution (default 0).
+        featureName (str): Name of the per-vector feature (default 'magnitude').
+        maxVectors (int): Maximum number of vectors (default 20000).
+
+    Returns:
+        dict: napari ``vectors_dict`` (vectors and features in scan voxel coordinates).
+    """
     n = [int(v) for v in n]
     rs_, _, cs_, _, ss_, _ = bbox
     sf = float(sizeFactor) if doResize else 1.0
@@ -433,7 +475,17 @@ def fieldVectors(field3N, n, bbox, mask=None, scanNum=0, subsample=2,
 
 
 def eulerianFluxVectors(Eul, subsample=2, magPctile=60.0, lengthScale=1.0):
-    """napari ``vectors_dict`` for the Eulerian mean-flux field (Part 5)."""
+    """napari ``vectors_dict`` for the Eulerian mean-flux field (Part 5).
+
+    Args:
+        Eul (dict): runEULA output.
+        subsample (int): Keep every N-th voxel (default 2).
+        magPctile (float): Magnitude percentile threshold (default 60).
+        lengthScale (float): Arrow length multiplier (default 1).
+
+    Returns:
+        dict: napari ``vectors_dict`` of the mean flux.
+    """
     return fieldVectors(Eul["flux"], Eul["n"], Eul["bbox"], mask=Eul["mask"],
                         scanNum=_scanNumOf(Eul), subsample=subsample,
                         magPctile=magPctile, lengthScale=lengthScale,
@@ -448,7 +500,18 @@ def eulerianMapToScan(Eul, field="speed", scanShape=None, planC=None,
     When the run was computed at reduced resolution (``do_resize``), the ROI map
     is smaller than its bounding box, so it is zoomed back up to the bbox extent
     (mirrors :func:`fieldToScan`) before insertion - otherwise the assignment
-    broadcasts a half-size array into the full-size bbox slice and raises."""
+    broadcasts a half-size array into the full-size bbox slice and raises.
+
+    Args:
+        Eul (dict): runEULA output.
+        field (str): 'speed' (default), 'rate', 'peclet' or 'fluxmag'.
+        scanShape (tuple or None): Shape of the scan array; taken from planC when None.
+        planC (cerr.plan_container.PlanC or None): Plan container (for the scan shape).
+        scanNum (int or None): Scan index; default the run's scan.
+
+    Returns:
+        np.ndarray: Scan-sized float array, zero outside the ROI bounding box.
+    """
     from scipy.ndimage import zoom
     # Any quantity is embeddable, not just the three original maps: the key is
     # "<field>3" unless the field has a legacy alias.
@@ -480,6 +543,15 @@ def pathlineTracks(Lag, colorBy="speed", maxTracks=2000, minVertices=3):
     Returns ``(data, properties)`` where ``data`` is (K, 5) columns
     ``[track_id, t, row, col, slice]`` in scan voxel coords and ``properties``
     holds a per-vertex feature (``speed`` or ``peclet``) for colouring.
+
+    Args:
+        Lag (dict): runGLAD output.
+        colorBy (str): 'speed' (default) or 'peclet'.
+        maxTracks (int): Maximum number of pathlines (default 2000).
+        minVertices (int): Drop paths with fewer vertices (default 3).
+
+    Returns:
+        tuple: ``(data, properties)`` for a napari Tracks layer.
     """
     rs_, _, cs_, _, ss_, _ = Lag["bbox"]
     feat = {"speed": Lag["sstream"], "peclet": Lag["pestream"]}[colorBy]
@@ -523,7 +595,19 @@ def _scanAffine(out):
 def fieldToScan(field3N, n, bbox, scanShape, sizeFactor=1.0, doResize=0):
     """Embed an ROI-grid (3,N) vector field into three full scan-grid arrays,
     one per component (axis 0=row/y, 1=col/x, 2=slice/z), for overlaying on the
-    main viewer. Zero outside the ROI bbox; resized ROIs are zoomed to fit."""
+    main viewer. Zero outside the ROI bbox; resized ROIs are zoomed to fit.
+
+    Args:
+        field3N (np.ndarray): (3, N) vector field on the ROI grid.
+        n (list[int]): ROI grid size.
+        bbox (tuple): ROI bounding box in scan voxels.
+        scanShape (tuple): Shape of the scan array.
+        sizeFactor (float): Resize factor used by the run (default 1).
+        doResize (int): Whether the run was computed at reduced resolution (default 0).
+
+    Returns:
+        list[np.ndarray]: Three scan-sized arrays (row, col, slice components).
+    """
     from scipy.ndimage import zoom
     n = [int(v) for v in n]
     rs_, re_, cs_, ce_, ss_, se_ = bbox
@@ -549,6 +633,15 @@ def pathlinesToScanVox(Lag, sizeFactor=1.0, doResize=0, perVertex=False):
     flat-shaded by its mean. ``runGLAD`` records one speed per integration
     sub-step and one extra position (the seed), so the per-vertex array is
     padded at the head to match the vertex count.
+
+    Args:
+        Lag (dict): runGLAD output.
+        sizeFactor (float): Resize factor used by the run (default 1).
+        doResize (int): Whether the run was computed at reduced resolution (default 0).
+        perVertex (bool): Also return per-vertex speeds (default False).
+
+    Returns:
+        tuple: ``(segs, vals)``, or ``(segs, vals, perVertexVals)`` with perVertex.
     """
     rs_, _, cs_, _, ss_, _ = Lag["bbox"]
     off = np.array([rs_, cs_, ss_], dtype=float)
@@ -594,6 +687,13 @@ def scalePathline(pts, scale):
     far it reaches - the length equivalent of the vector overlay's arrow-length
     scale. Use it to stop long excursions from crossing the whole field of view.
     ``scale == 1`` is a no-op.
+
+    Args:
+        pts (np.ndarray): (steps x 3) pathline vertices.
+        scale (float): Scale factor about the first vertex.
+
+    Returns:
+        np.ndarray: The scaled vertices (the input when scale is 1).
     """
     pts = np.asarray(pts, dtype=float)
     scale = float(scale)
@@ -614,6 +714,14 @@ def growPathline(pts, vals, frac):
     the arc length drawn at a given ``frac`` is proportional to that path's
     speed, and fast paths visibly outrun slow ones. This is deliberate - it is
     the physically meaningful animation.
+
+    Args:
+        pts (np.ndarray): (steps x 3) pathline vertices.
+        vals (np.ndarray or None): Per-vertex values to truncate the same way.
+        frac (float): Fraction of vertices to keep (clipped to 0-1).
+
+    Returns:
+        tuple: ``(pts, vals)`` truncated.
     """
     n = int(np.asarray(pts).shape[0])
     if n == 0:
@@ -664,6 +772,19 @@ def overlayTo3D(ov, xV, yV, zV, maxArrows=None, maxPaths=None,
 
     Pure NumPy (no Qt / pyvista), so the coordinate mapping and arrow scaling are
     headless-testable; the GUI 3-D renderers only consume the result.
+
+    Args:
+        ov (dict or None): Cached overlay from PyCerrViewer.set_uromt_overlay.
+        xV (np.ndarray): Scan x (column) coordinates, cm.
+        yV (np.ndarray): Scan y (row) coordinates, cm.
+        zV (np.ndarray): Scan z (slice) coordinates, cm.
+        maxArrows (int or None): Maximum number of arrows (None: no cap).
+        maxPaths (int or None): Maximum number of pathlines (None: no cap).
+        lengthScale (float): Arrow and pathline length multiplier (default 1).
+
+    Returns:
+        dict or None: 3D geometry (points, vectors or polylines and their colour values), or
+            None when ``ov`` is None.
     """
     if ov is None:
         return None
@@ -825,6 +946,23 @@ def drawUROMTOverlay(ax, ov, k, hV, vV, extent, slicer, hAxis, vAxis,
     view; ``slicer`` slices a full scan-grid array for the current slice. The
     vector ``subsample`` defaults to 1 (one arrow per voxel); ``ov['subsample']``
     overrides it.
+
+    Args:
+        ax (matplotlib.axes.Axes): The slice axes to draw on.
+        ov (dict): Cached overlay from PyCerrViewer.set_uromt_overlay.
+        k (int): Slice index.
+        hV (np.ndarray): Horizontal coordinates of the slice.
+        vV (np.ndarray): Vertical coordinates of the slice.
+        extent (list): Image extent [left, right, bottom, top] of the slice.
+        slicer (callable): Extracts the 2D slice from a scan-sized array.
+        hAxis (int): Scan axis shown horizontally.
+        vAxis (int): Scan axis shown vertically.
+        thruAxis (int): Scan axis through the slice.
+        scanShape (tuple): Shape of the scan array.
+        alpha (float): Overlay opacity (default 0.6).
+        subsample (int or None): Arrow thinning; default from ``ov``.
+        cmap (str): Colormap (default 'turbo').
+        colorbar (bool): Draw a colorbar legend (default True).
     """
     view = ov.get("view")
     # A signed quantity (rate r, which is a source *or* a sink) needs a
@@ -1084,6 +1222,7 @@ def drawUROMTSlice(fig, result, Eul=None, Lag=None, view="speed", axis=2,
         bg (np.ndarray): grayscale background on the ROI grid (e.g. mean concentration).
         cmap (str): colormap for the overlay.
         subsample (int): vector thinning (default scales with grid size).
+        interval (int): Time interval whose maps are shown (default 0).
 
     Returns:
         matplotlib.axes.Axes: the populated axes.
@@ -1170,6 +1309,17 @@ def drawUROMT3D(fig, result, Eul=None, Lag=None, view="pathlines",
     Args:
         view (str): 'pathlines' | 'velocity' | 'flux' | 'speed' | 'rate' | 'peclet'.
         maxItems (int): cap on pathlines / scatter points / arrows.
+        fig (matplotlib.figure.Figure): Figure to draw on (cleared).
+        result (dict): solveUROMT output.
+        Eul (dict or None): runEULA output (for map and flux views).
+        Lag (dict or None): runGLAD output (for the pathlines view).
+        cmap (str): Colormap (default 'turbo').
+        subsample (int or None): Thinning of arrows and points.
+        elev (float): Camera elevation in degrees (default 20).
+        azim (float): Camera azimuth in degrees (default -60).
+
+    Returns:
+        matplotlib.axes.Axes: The 3D axes.
     """
     from mpl_toolkits.mplot3d.art3d import Line3DCollection  # lazy
     import matplotlib
@@ -1257,7 +1407,24 @@ def showEulerian(planC, Eul, field="speed", scanNum=None, structNum=None,
                  fluxVectors=True, subsample=2, magPctile=60.0,
                  lengthScale=1.0, displayMode="3d", colormap="turbo"):
     """Overlay an Eulerian map (speed/rate/peclet) and, optionally, the mean
-    flux vectors on the scan/ROI in napari (Part 5). Returns the viewer."""
+    flux vectors on the scan/ROI in napari (Part 5). Returns the viewer.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        Eul (dict): runEULA output.
+        field (str): 'speed' (default), 'rate' or 'peclet'.
+        scanNum (int or None): Scan to show; default the run's scan.
+        structNum (int or None): ROI structure to show.
+        fluxVectors (bool): Also show the mean flux vectors (default True).
+        subsample (int): Vector thinning (default 2).
+        magPctile (float): Vector magnitude percentile threshold (default 60).
+        lengthScale (float): Arrow length multiplier (default 1).
+        displayMode (str): napari display mode (default '3d').
+        colormap (str): Colormap of the map (default 'turbo').
+
+    Returns:
+        napari.Viewer: The viewer.
+    """
     from cerr.viewer.pycerr_napari import showNapari        # lazy (Qt/GL)
     sn = _scanNumOf(Eul) if scanNum is None else scanNum
     vd = eulerianFluxVectors(Eul, subsample=subsample, magPctile=magPctile,
@@ -1279,7 +1446,21 @@ def showEulerian(planC, Eul, field="speed", scanNum=None, structNum=None,
 def showLagrangian(planC, Lag, colorBy="speed", scanNum=None, structNum=None,
                    maxTracks=2000, displayMode="3d", colormap="turbo"):
     """Display Lagrangian transport pathlines as a napari Tracks layer coloured
-    by speed or Peclet (Part 5). Returns the viewer."""
+    by speed or Peclet (Part 5). Returns the viewer.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        Lag (dict): runGLAD output.
+        colorBy (str): 'speed' (default) or 'peclet'.
+        scanNum (int or None): Scan to show; default the run's scan.
+        structNum (int or None): ROI structure to show.
+        maxTracks (int): Maximum number of pathlines (default 2000).
+        displayMode (str): napari display mode (default '3d').
+        colormap (str): Track colormap (default 'turbo').
+
+    Returns:
+        napari.Viewer: The viewer.
+    """
     from cerr.viewer.pycerr_napari import showNapari        # lazy (Qt/GL)
     sn = _scanNumOf(Lag) if scanNum is None else scanNum
     structNums = [] if structNum is None else [structNum]

@@ -16,6 +16,16 @@ org_root = '1.3.6.1.4.1.9590.100.1.2.'
 
 def getDcmTagVals(doseNum, planC, seriesOpts={}):
 
+    """Collect the patient, study and series tags for exporting a dose, from its associated scan.
+
+    Args:
+        doseNum (int): Index into planC.dose.
+        planC (cerr.plan_container.PlanC): Plan container.
+        seriesOpts (dict): Optional overrides: 'seriesDescription', 'SeriesDate', 'SeriesTime'.
+
+    Returns:
+        tuple: ``(pat_tags, study_tags, series_tags)`` dicts.
+    """
     doseObj = planC.dose[doseNum]
     assocScanNum = scn.getScanNumFromUID(doseObj.assocScanUID, planC)
     sInfo = planC.scan[assocScanNum].scanInfo[0]

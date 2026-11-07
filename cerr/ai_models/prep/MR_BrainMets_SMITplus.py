@@ -25,7 +25,16 @@ REQUIRED_INPUTS = {
 
 
 def cropToStructure(images, structure, margin=0):
-    """Crop images to the bounding box of the largest connected component in `structure`."""
+    """Crop images to the bounding box of the largest connected component in `structure`.
+
+    Args:
+        images (list[SimpleITK.Image]): Images to crop.
+        structure (SimpleITK.Image): Binary mask.
+        margin (int): Margin in voxels around the bounding box (default 0).
+
+    Returns:
+        list[SimpleITK.Image]: The cropped images (unchanged if the mask is empty).
+    """
     cc = sitk.ConnectedComponentImageFilter().Execute(structure)
     lssif = sitk.LabelShapeStatisticsImageFilter(); lssif.Execute(cc)
     if lssif.GetNumberOfLabels() == 0:
@@ -49,7 +58,15 @@ def cropToStructure(images, structure, margin=0):
 
 
 def loadSynthStripper(modelDir, gpu):
-    """Apply mri_synthstrip.py."""
+    """Apply mri_synthstrip.py.
+
+    Args:
+        modelDir (str): Directory containing mri_synthstrip.py and synthstrip.1.pt.
+        gpu (bool): Run on the GPU.
+
+    Returns:
+        SynthStrip: The loaded skull-stripping model.
+    """
     synthstripPath = os.path.join(modelDir, 'mri_synthstrip.py')
     weightsPath = os.path.join(modelDir, 'synthstrip.1.pt')
     if not os.path.isfile(synthstripPath):
@@ -66,7 +83,14 @@ def loadSynthStripper(modelDir, gpu):
 
 
 def skullStrip(rawFile, strippedFile, maskFile, stripper):
-    """Run N4 correction + resample + SynthStrip + crop on a raw T1c NIfTI file."""
+    """Run N4 correction + resample + SynthStrip + crop on a raw T1c NIfTI file.
+
+    Args:
+        rawFile (str): Raw T1c NIfTI file.
+        strippedFile (str): Output skull-stripped NIfTI file.
+        maskFile (str): Output brain-mask NIfTI file.
+        stripper (SynthStrip): Model from loadSynthStripper.
+    """
     rawMr = sitk.Cast(sitk.ReadImage(rawFile), sitk.sitkFloat64)
 
     # --- N4 bias correction: fit on 2mm downsample, apply log-bias to full res ---

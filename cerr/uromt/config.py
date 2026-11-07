@@ -33,6 +33,13 @@ def parseYesNo(value, default=False):
     Accepts ``'yes'/'no'`` (and ``y/n``, ``true/false``, ``on/off``), the
     numbers 0/1, booleans, and ``None`` (-> ``default``). Anything else raises,
     so a typo cannot silently read as "off".
+
+    Args:
+        value (str, bool, int, float or None): The setting.
+        default (bool): Value for None (default False).
+
+    Returns:
+        bool: The interpreted value.
     """
     if value is None:
         return bool(default)
@@ -49,7 +56,14 @@ def parseYesNo(value, default=False):
 
 
 def getUseGPU(cfg):
-    """Resolve the ``useGPU`` setting off a config object (legacy: ``gpu``)."""
+    """Resolve the ``useGPU`` setting off a config object (legacy: ``gpu``).
+
+    Args:
+        cfg (object): Config object.
+
+    Returns:
+        bool: Whether to use the GPU.
+    """
     v = getattr(cfg, "useGPU", None)
     if v is None:
         v = getattr(cfg, "gpu", None)
@@ -59,6 +73,12 @@ def getUseGPU(cfg):
 def getNumThreads(cfg):
     """Resolve the ``numThreads`` setting off a config object (legacy:
     ``threads``). ``0`` means auto; see :func:`cerr.uromt.kernels.setNumThreads`.
+
+    Args:
+        cfg (object): Config object.
+
+    Returns:
+        int: Thread count (0 = automatic).
     """
     v = getattr(cfg, "numThreads", None)
     if v is None:
@@ -145,7 +165,14 @@ class UROMTConfig:
 
     def selectedTimeIndices(self, nScans):
         """1-based first_time:time_jump:last_time -> 0-based positions into the
-        supplied scan list (mirrors getData's frame selection)."""
+        supplied scan list (mirrors getData's frame selection).
+
+        Args:
+            nScans (int): Number of scans supplied.
+
+        Returns:
+            list[int]: 0-based positions of the selected time points.
+        """
         t = self.settings.get("time", {}) or {}
         first = int(t.get("first_time", 1))
         jump = int(t.get("time_jump", 1))
@@ -174,6 +201,16 @@ def buildConfig(scanNumV=None, structNum=None, settingsFile=None, **overrides):
     e.g. ``buildConfig(scans, roi, useGPU='yes', maxUiter=3, fft_pad=0)``.
     Unknown keys raise, so a typo cannot silently do nothing; the legacy names
     ``gpu``/``threads`` are accepted as aliases for ``useGPU``/``numThreads``.
+
+    Args:
+        scanNumV (list[int] or None): Scans (time points) to use; None orders all scans by
+            acquisition time.
+        structNum (int or None): ROI structure; None uses the whole scan.
+        settingsFile (str or None): Model-settings JSON; None uses the defaults.
+        overrides (dict): Individual settings that replace the file's values.
+
+    Returns:
+        UROMTConfig: The configuration.
     """
     settings = loadModelSettings(settingsFile)
     overrides = _applyAliases(dict(overrides))

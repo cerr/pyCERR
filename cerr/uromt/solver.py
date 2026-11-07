@@ -36,6 +36,17 @@ def gnBlockUr(rho0, u0, r0, par, drhoN, tag=""):
 
     CPU only - scipy's L-BFGS-B works on host arrays. The ``useGPU`` setting
     applies to :func:`gnBlockExact` (``solver='gn'``, the default).
+
+    Args:
+        rho0 (np.ndarray): Density at the start of the interval (length N).
+        u0 (np.ndarray): Initial velocity (3N*nt).
+        r0 (np.ndarray): Initial relative source (N*nt).
+        par (dict): From paramInit.
+        drhoN (np.ndarray): Target density at the end of the interval.
+        tag (str): Label used in progress messages (default '').
+
+    Returns:
+        dict: ``u``, ``r``, ``rho``, the objective components and the optimizer result.
     """
     if par.get("bk") is not None and par["bk"].isGpu:
         raise ValueError("solver='lbfgs' does not support useGPU='yes'; use "
@@ -107,6 +118,16 @@ def gnBlockExact(rho0, u0, r0, par, drhoN, tag="", lmbda0=None, maxLM=6,
         maxLM (int): max Levenberg retries per outer step (only meaningful when
             damping is enabled).
         maxLs (int): max backtracking line-search trials per CG solve.
+        rho0 (np.ndarray): Density at the start of the interval (length N).
+        u0 (np.ndarray): Initial velocity (3N*nt).
+        r0 (np.ndarray): Initial relative source (N*nt).
+        par (dict): From paramInit.
+        drhoN (np.ndarray): Target density at the end of the interval.
+        tag (str): Label used in progress messages (default '').
+
+    Returns:
+        dict: ``u``, ``r``, ``rho`` (host arrays), ``Gamma``, ``Gamma1``-``Gamma4``, ``nfev``,
+            ``time`` and ``tag``.
     """
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     alpha, beta = par["alpha"], par["beta"]
@@ -375,6 +396,13 @@ def runUROMT(cfg, statusCallback=None):
 
     Renamed so it is not confused with :func:`cerr.uromt.runUROMT`, the
     whole-pipeline wrapper that starts from a planC.
+
+    Args:
+        cfg (UROMTConfig): Configuration.
+        statusCallback (callable or None): Progress callback.
+
+    Returns:
+        dict: The solveUROMT result.
     """
     warnings.warn("cerr.uromt.solver.runUROMT is deprecated; use "
                   "cerr.uromt.solver.solveUROMT (Part 2) or "

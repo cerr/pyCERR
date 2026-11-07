@@ -100,7 +100,15 @@ def runUROMT(planC, structNum=None, scanNumV=None, settingsFile=None,
 
 
 def runUROMTPipeline(*args, **kwargs):
-    """Deprecated alias for :func:`runUROMT`."""
+    """Deprecated alias for :func:`runUROMT`.
+
+    Args:
+        args (tuple): Positional arguments for runUROMT.
+        kwargs (dict): Keyword arguments for runUROMT.
+
+    Returns:
+        The value returned by runUROMT.
+    """
     warnings.warn("runUROMTPipeline is deprecated; use cerr.uromt.runUROMT.",
                   DeprecationWarning, stacklevel=2)
     return runUROMT(*args, **kwargs)

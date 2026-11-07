@@ -164,7 +164,12 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
     # ------------------------------------------------------------ public ----
     def setHistogram(self, samples):
         """Set (or clear, with None) the intensity samples whose distribution is
-        drawn above a horizontal bar. Large arrays are subsampled for speed."""
+        drawn above a horizontal bar. Large arrays are subsampled for speed.
+
+        Args:
+            samples (array-like or None): Intensity values to histogram; None clears the
+                histogram.
+        """
         if samples is None:
             self._histSamples = None
         else:
@@ -177,7 +182,11 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
 
     def setMarkers(self, vals):
         """Show tick marks across the bar at the given axis values (e.g. the
-        selected isodose levels). Pass an empty list to clear."""
+        selected isodose levels). Pass an empty list to clear.
+
+        Args:
+            vals (list[float]): Axis values to mark.
+        """
         self.markerVals = [float(v) for v in vals]
         self._update_markers()
 
@@ -210,7 +219,16 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
 
         When ``cbarRange``/``dispRange`` are omitted the corresponding range is
         reset to the full axis. Callers that only widen the axis and want to
-        preserve the current handle positions should pass them explicitly."""
+        preserve the current handle positions should pass them explicitly.
+
+        Args:
+            axisMin (float): Lower end of the axis.
+            axisMax (float): Upper end of the axis.
+            cbarRange (list or None): [low, high] of the colormap (yellow) range; None uses the
+                full axis.
+            dispRange (list or None): [low, high] of the display (cyan) range; None uses the
+                full axis.
+        """
         self.axisMin = float(axisMin)
         self.axisMax = max(float(axisMax), self.axisMin + 1e-6)
         self.cbarRange = list(cbarRange) if cbarRange is not None \
@@ -393,10 +411,20 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
 
     # -------------------------------------------------------- Qt overrides --
     def resizeEvent(self, ev):
+        """Qt resize event: redraw the bar for the new size.
+
+        Args:
+            ev (QtGui.QResizeEvent): The event.
+        """
         super().resizeEvent(ev)
         self._rebuild()
 
     def showEvent(self, ev):
+        """Qt show event: redraw the bar.
+
+        Args:
+            ev (QtGui.QShowEvent): The event.
+        """
         super().showEvent(ev)
         self._rebuild()
 
@@ -418,6 +446,11 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         return best
 
     def mousePressEvent(self, ev):
+        """Start dragging the range handle under the cursor (left button).
+
+        Args:
+            ev (QtGui.QMouseEvent): The event.
+        """
         if ev.button() != Qt.MouseButton.LeftButton:
             return
         pos = self.mapToScene(ev.position().toPoint())
@@ -427,6 +460,11 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
 
     # ----------------------------------------------------- context menu -----
     def contextMenuEvent(self, ev):
+        """Right-click menu: choose the colormap and other bar options.
+
+        Args:
+            ev (QtGui.QContextMenuEvent): The event.
+        """
         menu = QtWidgets.QMenu(self)
 
         cmapMenu = menu.addMenu("Colormap")
@@ -519,6 +557,11 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
         self.rangesChanged.emit()
 
     def mouseMoveEvent(self, ev):
+        """Drag the active handle, or update the cursor when hovering over one.
+
+        Args:
+            ev (QtGui.QMouseEvent): The event.
+        """
         pos = self.mapToScene(ev.position().toPoint())
         if self._drag:
             self._move_to(pos)
@@ -527,11 +570,21 @@ class RangeColorbarWidget(QtWidgets.QGraphicsView):
                            else Qt.CursorShape.ArrowCursor)
 
     def mouseReleaseEvent(self, _ev):
+        """Finish a drag and emit rangesChanged.
+
+        Args:
+            _ev (QtGui.QMouseEvent): The event (unused).
+        """
         if self._drag:
             self._drag = None
             self.rangesChanged.emit()
 
     def mouseDoubleClickEvent(self, _ev):
+        """Reset both ranges to the full axis.
+
+        Args:
+            _ev (QtGui.QMouseEvent): The event (unused).
+        """
         self._reset_ranges()
 
     def _move_to(self, pos):
@@ -559,6 +612,11 @@ class DoseColorbarWidget(RangeColorbarWidget):
     _KIND = "dose"
 
     def setDose(self, doseMax):
+        """Set the bar's axis to 0..doseMax and reset its ranges.
+
+        Args:
+            doseMax (float): Maximum dose.
+        """
         self._dataMin, self._dataMax = 0.0, max(float(doseMax), 1e-6)
         self.setRange(0.0, max(float(doseMax), 1e-6))
 
@@ -574,6 +632,14 @@ class ScanColorbarWidget(RangeColorbarWidget):
     _HORIZONTAL = True
 
     def setScan(self, center, width, dataMin, dataMax):
+        """Set the axis to cover the scan data and the window, and the colormap range to the window.
+
+        Args:
+            center (float): Window center.
+            width (float): Window width.
+            dataMin (float): Minimum scan value.
+            dataMax (float): Maximum scan value.
+        """
         lo = center - width / 2.0
         hi = center + width / 2.0
         self._dataMin, self._dataMax = float(dataMin), float(dataMax)
@@ -584,7 +650,12 @@ class ScanColorbarWidget(RangeColorbarWidget):
 
     def setWindow(self, center, width):
         """Update only the colormap (yellow) range from a window, widening the
-        axis if needed and preserving the user's display (cyan) range."""
+        axis if needed and preserving the user's display (cyan) range.
+
+        Args:
+            center (float): Window center.
+            width (float): Window width.
+        """
         lo = center - width / 2.0
         hi = center + width / 2.0
         eps = self._span() * 1e-3

@@ -14,14 +14,16 @@ from cerr.ai_models.install_utils import validateModelNum
 
 
 def main(modelNum, installDir, userInputs, verbose=False):
-    """
-        Run pretrained AI model.
+    """Run pretrained AI model.
 
     Args:
         modelNum (int): Model number to install (see model_installer for available models)
         installDir (str): Path to model install dir.
         userInputs: Dictionary of arguments provided by the user.
         verbose (bool): [optional, default:False] Print stdout if True.
+
+    Returns:
+        subprocess.CompletedProcess: Result of running the model.
     """
     installPath = Path(installDir)
     modelName = validateModelNum(modelNum)
@@ -183,13 +185,15 @@ def runSubprocessPrep(modelBase, prepScript, userInputs, verbose=False):
 
 
 def buildCommand(modelPath, userInputs):
-    """
-        Reads the model's run specification YAML file and constructs the
+    """Reads the model's run specification YAML file and constructs the
         subprocess command to run the model, based on user inputs.
 
     Args:
         modelPath (pathlib.Path): Path to the installed model.
         userInputs: Dictionary of arguments provided by the user.
+
+    Returns:
+        tuple: ``(fullCmd, bashExe)``: the shell command and the bash executable to run it with.
     """
 
     runSpec = (modelPath / 'run_spec.yaml')

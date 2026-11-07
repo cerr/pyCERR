@@ -54,6 +54,9 @@ def maxThreads():
 
     Fixed by numba when it is first imported (from ``NUMBA_NUM_THREADS`` or the
     CPU count), and cannot be raised at run time.
+
+    Returns:
+        int: numba's thread limit for this process.
     """
     return int(numba.config.NUMBA_NUM_THREADS)
 
@@ -69,6 +72,12 @@ def setNumThreads(threads):
     imported.
 
     Returns the effective thread count.
+
+    Args:
+        threads (int): Requested thread count; <= 0 picks the default.
+
+    Returns:
+        int: The thread count in use.
     """
     cap = maxThreads()
     want = int(threads or 0)
@@ -86,12 +95,23 @@ def setNumThreads(threads):
 
 
 def numAccum():
-    """Number of scatter accumulator partitions, following the thread count."""
+    """Number of scatter accumulator partitions, following the thread count.
+
+    Returns:
+        int: Number of accumulator rows.
+    """
     return max(1, min(int(get_num_threads()), _MAX_ACC))
 
 
 def accumBuffer(N):
-    """Allocate the scatter accumulator for a length-``N`` grid."""
+    """Allocate the scatter accumulator for a length-``N`` grid.
+
+    Args:
+        N (int): Grid length.
+
+    Returns:
+        np.ndarray: Uninitialised (numAccum() x N) float64 array.
+    """
     return np.empty((numAccum(), int(N)), dtype=np.float64)
 
 
@@ -103,6 +123,28 @@ def cornerIndexKernel(posX, posY, posZ, hx, hy, hz, n1, n2, n3,
 
     Mirrors the numpy clipping exactly, including the degenerate singleton axis
     (``n = 1``), where the lower index clamps to -1 and carries weight 0.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        posX (np.ndarray): x of the departure points (physical units).
+        posY (np.ndarray): y of the departure points.
+        posZ (np.ndarray): z of the departure points.
+        hx (float): Grid spacing along x.
+        hy (float): Grid spacing along y.
+        hz (float): Grid spacing along z.
+        n1 (int): Grid size along x.
+        n2 (int): Grid size along y.
+        n3 (int): Grid size along z.
+
+    Returns:
+        None: results are written into cols, ex, fx, ey, fy, ez and fz.
     """
     nx = n1 - 2
     ny = n2 - 2
@@ -141,7 +183,20 @@ def cornerIndexKernel(posX, posY, posZ, hx, hy, hz, n1, n2, n3,
 
 @njit(parallel=True, cache=True, nogil=True)
 def interpKernel(field, cols, ex, fx, ey, fy, ez, fz, out):
-    """``out = S @ field`` - trilinear sample at the departure points."""
+    """``out = S @ field`` - trilinear sample at the departure points.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        field (np.ndarray): Grid values (length N).
+        out (np.ndarray): Output, one value per point (overwritten).
+    """
     for i in prange(out.shape[0]):
         ezi = ez[i]
         fzi = fz[i]
@@ -158,7 +213,21 @@ def interpKernel(field, cols, ex, fx, ey, fy, ez, fz, out):
 
 @njit(parallel=True, cache=True, nogil=True)
 def interpTKernel(field, cols, ex, fx, ey, fy, ez, fz, acc, out):
-    """``out = S' @ field`` - the mass-conserving push-forward scatter."""
+    """``out = S' @ field`` - the mass-conserving push-forward scatter.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        acc (np.ndarray): Scatter accumulator from accumBuffer, (numAccum() x N), overwritten.
+        field (np.ndarray): Values at the points.
+        out (np.ndarray): Output grid values, length N (overwritten).
+    """
     N = out.shape[0]
     nacc = acc.shape[0]
     for t in prange(nacc):                       # zero the accumulators
@@ -197,7 +266,23 @@ def interpTKernel(field, cols, ex, fx, ey, fy, ez, fz, acc, out):
 
 @njit(parallel=True, cache=True, nogil=True)
 def derivKernel(field, cols, ex, fx, ey, fy, ez, fz, ihx, ihy, ihz, out):
-    """``out[d] = D_d @ field`` - d(S@field)/d{x,y,z} per point, shape (3, N)."""
+    """``out[d] = D_d @ field`` - d(S@field)/d{x,y,z} per point, shape (3, N).
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        ihx (float): 1 / grid spacing along x.
+        ihy (float): 1 / grid spacing along y.
+        ihz (float): 1 / grid spacing along z.
+        field (np.ndarray): Grid values (length N).
+        out (np.ndarray): (3 x M) output derivatives (overwritten).
+    """
     for i in prange(out.shape[1]):
         f000 = field[cols[0, i]]
         f001 = field[cols[1, i]]
@@ -246,6 +331,30 @@ def tangentStepKernel(srcR, dRk, fac, dprev, m, du0, du1, du2, dt,
     previously walked the same ``cols``/weight arrays (~19 MB per step) twice
     and materialized a (3, N) scratch array for ``m .* du_d``. One pass reads
     them once and needs no scratch.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        ihx (float): 1 / grid spacing along x.
+        ihy (float): 1 / grid spacing along y.
+        ihz (float): 1 / grid spacing along z.
+        acc (np.ndarray): Scatter accumulator from accumBuffer, (numAccum() x N), overwritten.
+        srcR (np.ndarray): Source factor per voxel for this step.
+        dRk (np.ndarray): Source-direction perturbation for this step.
+        fac (np.ndarray): Factor (1 + dt*r*chi) per voxel.
+        dprev (np.ndarray): Density perturbation from the previous step.
+        m (np.ndarray): Weighted density (1 + dt*r*chi) * rho_{k-1}.
+        du0 (np.ndarray): Velocity perturbation, x component.
+        du1 (np.ndarray): Velocity perturbation, y component.
+        du2 (np.ndarray): Velocity perturbation, z component.
+        dt (float): Time step.
+        out (np.ndarray): Output density perturbation, length N (overwritten).
     """
     N = out.shape[0]
     nacc = acc.shape[0]
@@ -319,6 +428,27 @@ def adjointStepKernel(b, m, srcR, fac, dt, cols, ex, fx, ey, fy, ez, fz,
     reduction the derivative needs - so computing them together costs barely
     more than either alone, and neither ``S@b`` nor the (3, N) derivative array
     ever has to be materialized.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        ihx (float): 1 / grid spacing along x.
+        ihy (float): 1 / grid spacing along y.
+        ihz (float): 1 / grid spacing along z.
+        b (np.ndarray): Adjoint variable for this step (length N).
+        m (np.ndarray): Weighted density (1 + dt*r*chi) * rho_{k-1}.
+        srcR (np.ndarray): Source factor per voxel.
+        fac (np.ndarray): Factor (1 + dt*r*chi) per voxel.
+        dt (float): Time step.
+        gUk (np.ndarray): Output velocity gradient for step k, length 3N (overwritten).
+        gRk (np.ndarray): Output source gradient for step k (overwritten).
+        carry (np.ndarray): Output adjoint passed to step k-1 (overwritten).
     """
     N = b.shape[0]
     for i in prange(N):
@@ -361,7 +491,24 @@ def adjointStepKernel(b, m, srcR, fac, dt, cols, ex, fx, ey, fy, ez, fz,
 
 @njit(parallel=True, cache=True, nogil=True)
 def derivTKernel(v, cols, ex, fx, ey, fy, ez, fz, ihx, ihy, ihz, acc, out):
-    """``out = sum_d D_d' @ v[d]`` - the adjoint of :func:`derivKernel`."""
+    """``out = sum_d D_d' @ v[d]`` - the adjoint of :func:`derivKernel`.
+
+    Args:
+        cols (np.ndarray(int64)): (8 x M) flat indices of each point's 8 surrounding grid cells
+            (from cornerIndexKernel).
+        ex (np.ndarray): Weight of the lower cell along x per point (1 - fx).
+        fx (np.ndarray): Fractional offset along x per point (weight of the upper cell).
+        ey (np.ndarray): Weight of the lower cell along y (1 - fy).
+        fy (np.ndarray): Fractional offset along y.
+        ez (np.ndarray): Weight of the lower cell along z (1 - fz).
+        fz (np.ndarray): Fractional offset along z.
+        ihx (float): 1 / grid spacing along x.
+        ihy (float): 1 / grid spacing along y.
+        ihz (float): 1 / grid spacing along z.
+        acc (np.ndarray): Scatter accumulator from accumBuffer, (numAccum() x N), overwritten.
+        v (np.ndarray): (3 x M) values per point and direction.
+        out (np.ndarray): Output grid values, length N (overwritten).
+    """
     N = out.shape[0]
     nacc = acc.shape[0]
     for t in prange(nacc):

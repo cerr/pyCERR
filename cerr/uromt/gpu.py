@@ -110,7 +110,11 @@ def _normalizeCg(cgFunc):
 
 
 def isAvailable():
-    """True when cupy is importable and a CUDA device is actually usable."""
+    """True when cupy is importable and a CUDA device is actually usable.
+
+    Returns:
+        bool: True when a CUDA device can be used through cupy.
+    """
     try:
         import cupy
         return cupy.cuda.runtime.getDeviceCount() > 0
@@ -119,7 +123,14 @@ def isAvailable():
 
 
 def asNumpy(a):
-    """Bring an array back to the host (no-op for numpy arrays)."""
+    """Bring an array back to the host (no-op for numpy arrays).
+
+    Args:
+        a (array): numpy or cupy array.
+
+    Returns:
+        np.ndarray: The array on the host.
+    """
     try:
         import cupy
         if isinstance(a, cupy.ndarray):
@@ -376,12 +387,33 @@ class Backend:
         self.isGpu = True
 
     def toHost(self, a):
+        """Copy an array to the host (no-op for numpy arrays).
+
+        Args:
+            a (array): numpy or cupy array.
+
+        Returns:
+            np.ndarray: The array on the host.
+        """
         return asNumpy(a)
 
     def toDevice(self, a):
+        """Convert an array to the backend's array type (cupy on GPU, numpy on CPU).
+
+        Args:
+            a (array-like): The data.
+
+        Returns:
+            array: The backend array.
+        """
         return self.xp.asarray(a)
 
     def describe(self):
+        """Human-readable description of the backend.
+
+        Returns:
+            str: E.g. 'CPU (numba, 8 scatter partitions)' or 'GPU (cupy, <device name>)'.
+        """
         if not self.isGpu:
             from cerr.uromt import kernels
             return "CPU (numba, %d scatter partitions)" % kernels.numAccum()

@@ -7,10 +7,18 @@ from cerr.utils import uid
 import json
 
 def get_empty_list():
-    """Default factory for list fields: a new empty list."""
+    """Default factory for list fields: a new empty list.
+
+    Returns:
+        list: A new empty list.
+    """
     return []
 def get_empty_np_array():
-    """Default factory for array fields: a new empty (0, 0, 0) array."""
+    """Default factory for array fields: a new empty (0, 0, 0) array.
+
+    Returns:
+        np.ndarray: A new empty (0, 0, 0) array.
+    """
     return np.empty((0,0,0))
 
 @dataclass

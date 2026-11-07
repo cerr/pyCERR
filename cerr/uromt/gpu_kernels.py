@@ -192,7 +192,11 @@ _module = None
 
 
 def isSupported():
-    """True when the device can run these kernels (needs double atomicAdd)."""
+    """True when the device can run these kernels (needs double atomicAdd).
+
+    Returns:
+        bool: True for compute capability 6.0 or newer.
+    """
     try:
         import cupy
         cc = cupy.cuda.Device().compute_capability
@@ -202,7 +206,11 @@ def isSupported():
 
 
 def module():
-    """The compiled RawModule (compiled once, on first use)."""
+    """The compiled RawModule (compiled once, on first use).
+
+    Returns:
+        cupy.RawModule: The compiled kernels.
+    """
     global _module
     if _module is None:
         import cupy
@@ -211,5 +219,12 @@ def module():
 
 
 def grid(n):
-    """Launch configuration for ``n`` elements."""
+    """Launch configuration for ``n`` elements.
+
+    Args:
+        n (int): Number of elements.
+
+    Returns:
+        tuple: ``(gridDims, blockDims)`` for a kernel launch.
+    """
     return ((int(n) + _BLOCK - 1) // _BLOCK,), (_BLOCK,)

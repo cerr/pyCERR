@@ -44,12 +44,21 @@ def registerEngine(name: str, fn: Callable):
     """Register a dose engine: ``fn(im, planC, statusCallback) -> dose3M``.
 
     ``dose3M`` must be a numpy array on the associated scan grid
-    (rows x cols x slices), in Gy or arbitrary units."""
+    (rows x cols x slices), in Gy or arbitrary units.
+
+    Args:
+        name (str): Engine name (value of ``im.params.algorithm``).
+        fn (callable): ``fn(im, planC, statusCallback) -> dose3M``.
+    """
     _ENGINES[name] = fn
 
 
 def availableEngines():
-    """Names of registered dose engines (analog of VMCPresent/QIBPresent)."""
+    """Names of registered dose engines (analog of VMCPresent/QIBPresent).
+
+    Returns:
+        list[str]: Engine names.
+    """
     return list(_ENGINES.keys())
 
 
@@ -57,6 +66,12 @@ def runIMRTP(im: imp.IMRTProblem, planC,
              statusCallback: Optional[Callable[[str, float], None]] = None):
     """Compute dose for all beams of ``im`` using the selected engine
     (port of ``IMRTP.m``'s top-level flow).
+
+    Args:
+        im (IMRTProblem): Problem with beams and goals.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): ``statusCallback(message, fraction)`` progress
+            callback.
 
     Returns:
         np.ndarray: total dose on the scan grid (rows x cols x slices).
@@ -94,7 +109,17 @@ def doseToPlanC(dose3M: np.ndarray, im: imp.IMRTProblem, planC,
                 fractionGroupID: Optional[str] = None) -> int:
     """Insert a computed dose into planC (port of ``dose2CERR.m``).
 
-    Returns the new dose index."""
+    Returns the new dose index.
+
+    Args:
+        dose3M (np.ndarray): Dose on the problem's scan grid.
+        im (IMRTProblem): The problem (gives the scan and default name).
+        planC (cerr.plan_container.PlanC): Plan container.
+        fractionGroupID (str or None): Dose name; default ``im.name``.
+
+    Returns:
+        int: Index of the new dose in planC.dose.
+    """
     from cerr import plan_container as pc
     scanNum = im.assocScanNum(planC)
     xV, yV, zV = planC.scan[scanNum].getScanXYZVals()

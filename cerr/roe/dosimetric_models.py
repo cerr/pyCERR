@@ -902,7 +902,12 @@ def mapModelToFile(modelName):
 #=================================================
 
 def checkMissingPredictors(paramDict):
-    """Raise if any predictor has no value (val is None)."""
+    """Raise if any predictor has no value (val is None).
+
+    Args:
+        paramDict (dict): Model parameters, possibly with a 'structures' sub-dict of
+            per-structure parameters.
+    """
     missing = []
     for name, entry in paramDict.items():
         if name.lower() == 'structures':

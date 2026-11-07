@@ -49,6 +49,10 @@ def checkSystemDependencies():
 
 def listModels():
     """List all available models from the model_installer.
+
+    Returns:
+        dict: Model number -> model name.
+
     """
     scriptPath = getScriptPath()
 
@@ -86,6 +90,9 @@ def validateModelNum(modelNum):
 
     Args:
         modelNum (int): model number to validate
+
+    Returns:
+        str: The model's name.
     """
     scriptPath = getScriptPath()
     cmd = buildBashCommand(scriptPath, ["-n", str(modelNum)])

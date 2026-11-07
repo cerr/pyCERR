@@ -346,7 +346,12 @@ class NbViewer:
 
     # ----------------------------------------------------------- drawing ----
     def render_figure(self):
-        """Build and return the matplotlib figure of the three views."""
+        """Build and return the matplotlib figure of the three views.
+
+        Returns:
+            matplotlib.figure.Figure: The figure (axial, sagittal, coronal, plus a dose colorbar
+                when a dose is shown).
+        """
         vmin = self.wCenter.value - self.wWidth.value / 2.0
         vmax = self.wCenter.value + self.wWidth.value / 2.0
         cmap = cerr_get_cmap(self.wCmap.value)
@@ -499,32 +504,78 @@ class NbViewer:
     # ------------------------------------------------------------- API ------
     # Programmatic control (mirrors the desktop pycerr_gui scripting API).
     def set_scan(self, scanNum):
+        """Select the base scan.
+
+        Args:
+            scanNum (int): Index into planC.scan.
+        """
         self.wScan.value = int(scanNum)
 
     def set_window_level(self, center, width):
+        """Set a manual window for the base scan.
+
+        Args:
+            center (float): Window center.
+            width (float): Window width.
+        """
         self.wPreset.value = "--- Manual ---"
         self.wCenter.value = float(center)
         self.wWidth.value = float(width)
 
     def set_window_preset(self, name):
+        """Apply a named CT window preset.
+
+        Args:
+            name (str): Key of CT_WINDOW_PRESETS.
+        """
         self.wPreset.value = name
 
     def set_scan_colormap(self, name):
+        """Set the colormap of the base scan.
+
+        Args:
+            name (str): Colormap name.
+        """
         self.wScanCmap.value = name
 
     def set_scan_opacity(self, alpha):
+        """Set the opacity of the base scan.
+
+        Args:
+            alpha (float): Opacity, 0 to 1.
+        """
         self.wScanAlpha.value = float(alpha)
 
     def set_dose(self, doseNum):
+        """Select the displayed dose; None or a negative value hides the dose.
+
+        Args:
+            doseNum (int or None): Index into planC.dose.
+        """
         self.wDose.value = -1 if doseNum is None or doseNum < 0 else int(doseNum)
 
     def set_dose_alpha(self, alpha):
+        """Set the dose colorwash opacity.
+
+        Args:
+            alpha (float): Opacity, 0 to 1.
+        """
         self.wAlpha.value = float(alpha)
 
     def set_dose_colormap(self, name):
+        """Set the dose colormap.
+
+        Args:
+            name (str): Colormap name.
+        """
         self.wCmap.value = name
 
     def set_structures_visible(self, which):
+        """Show structures: 'all', 'none', or a list of structure indices.
+
+        Args:
+            which (str or list[int]): 'all', 'none' or indices into planC.structure.
+        """
         if which == "all":
             want = set(range(len(self.structChecks)))
         elif which == "none":
@@ -538,25 +589,56 @@ class NbViewer:
         self._redraw()
 
     def set_structure_dots(self, on):
+        """Draw contour vertices as dots.
+
+        Args:
+            on (bool): Show vertex dots.
+        """
         self.wDots.value = bool(on)
 
     def set_contour_linewidth(self, width):
+        """Set the contour line width.
+
+        Args:
+            width (float): Line width in points.
+        """
         self.wLineW.value = float(width)
 
     def set_crosshairs(self, on):
+        """Show or hide the crosshair lines.
+
+        Args:
+            on (bool): Show crosshairs.
+        """
         self.wXhair.value = bool(on)
 
     def set_orientation_labels(self, on):
+        """Show or hide the orientation labels.
+
+        Args:
+            on (bool): Show labels.
+        """
         self.wOrient.value = bool(on)
 
     def set_slice(self, orientation, k):
+        """Move one view to a slice index (clipped to the valid range).
+
+        Args:
+            orientation (str): 'axial'/'ax', 'sagittal'/'sag' or 'coronal'/'cor'
+                (case-insensitive).
+            k (int): Slice index.
+        """
         w = {"ax": self.wAx, "axial": self.wAx, "sag": self.wSag,
              "sagittal": self.wSag, "cor": self.wCor,
              "coronal": self.wCor}[str(orientation).lower()]
         w.value = int(np.clip(k, 0, w.max))
 
     def goto_structure(self, strNum):
-        """Center the three views on a structure's center of mass."""
+        """Center the three views on a structure's center of mass.
+
+        Args:
+            strNum (int): Index into planC.structure (None or negative does nothing).
+        """
         if strNum is None or strNum < 0:
             return
         mask = self._struct_mask(int(strNum))
@@ -569,7 +651,17 @@ class NbViewer:
 
     def compute_dvh(self, doseNum=None, structNums=None, num_bins=400):
         """Cumulative DVHs -> (doseAxis_Gy, {name: volPct}), each interpolated
-        onto a shared 0..max dose axis."""
+        onto a shared 0..max dose axis.
+
+        Args:
+            doseNum (int or None): Index into planC.dose; None uses the displayed dose.
+            structNums (int, list[int] or None): Structures to include; None means all.
+            num_bins (int): Number of dose bins (default 400).
+
+        Returns:
+            tuple: ``(doseAxis, table)``: the dose axis in Gy and a dict structure name ->
+                cumulative volume (%).
+        """
         if doseNum is None:
             doseNum = self.wDose.value
         if doseNum is None or doseNum < 0:
@@ -602,7 +694,17 @@ class NbViewer:
         return axis, table
 
     def export_dvh(self, path, doseNum=None, structNums=None, num_bins=400):
-        """Compute cumulative DVHs and write a wide CSV (Dose(Gy), <struct>...)."""
+        """Compute cumulative DVHs and write a wide CSV (Dose(Gy), <struct>...).
+
+        Args:
+            path (str): Output CSV file.
+            doseNum (int or None): As in :meth:`compute_dvh`.
+            structNums (int, list[int] or None): As in :meth:`compute_dvh`.
+            num_bins (int): Number of dose bins (default 400).
+
+        Returns:
+            tuple: ``(doseAxis, table)`` as returned by :meth:`compute_dvh`.
+        """
         import csv
         axis, table = self.compute_dvh(doseNum=doseNum, structNums=structNums,
                                        num_bins=num_bins)
@@ -616,14 +718,26 @@ class NbViewer:
         return path
 
     def save_screenshot(self, path, dpi=150):
-        """Render the current three-view figure and save it to file."""
+        """Render the current three-view figure and save it to file.
+
+        Args:
+            path (str): Output image file.
+            dpi (int): Resolution (default 150).
+
+        Returns:
+            str: ``path``.
+        """
         fig = self.render_figure()
         fig.savefig(path, dpi=dpi, facecolor="black", bbox_inches="tight")
         plt.close(fig)
         return path
 
     def setPlanC(self, planC):
-        """Swap in a different plan container and rebuild the UI state."""
+        """Swap in a different plan container and rebuild the UI state.
+
+        Args:
+            planC (cerr.plan_container.PlanC): The plan to display.
+        """
         self.planC = planC
         self.maskCache.clear()
         self._build_widgets()
@@ -632,6 +746,11 @@ class NbViewer:
         self._redraw()
 
     def getPlanC(self):
+        """The plan container the viewer shows.
+
+        Returns:
+            cerr.plan_container.PlanC: The current plan container.
+        """
         return self.planC
 
     def refresh(self):
@@ -656,6 +775,23 @@ def showNB(planC, scanNum=0, figWidth=13.0, *,
     (visible structures), ``dose_nums``/``doseNum``, and ``windowPreset`` or
     ``windowCenter`` + ``windowWidth``. List-valued scan/dose use the first
     element; unrecognised keywords are ignored.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan to display.
+        scanNum (int): Base scan (default 0).
+        figWidth (float): Figure width in inches (default 13).
+        scan_nums (int or list or None): Base scan (first element used); overrides scanNum.
+        struct_nums (list[int] or None): Structures to show.
+        structNums (list[int] or None): Same as struct_nums.
+        dose_nums (int or list or None): Dose to show (first element used).
+        doseNum (int or None): Dose to show.
+        windowPreset (str or None): CT window preset name.
+        windowCenter (float or None): Window center (with windowWidth).
+        windowWidth (float or None): Window width (with windowCenter).
+        _ignored (dict): Other keywords, ignored.
+
+    Returns:
+        NbViewer: The viewer.
     """
     def _first(v, default=0):
         if isinstance(v, (list, tuple, np.ndarray)):

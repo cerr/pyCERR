@@ -85,6 +85,9 @@ def loadPBData() -> QIBDataS:
     """Load (and cache) the QIB pencil-beam kernel data.
 
     Port of ``loadPBData.m``.
+
+    Returns:
+        QIBDataS: The kernel data (cached after the first call).
     """
     global _CACHE
     if _CACHE is not None:

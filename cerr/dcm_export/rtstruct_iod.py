@@ -15,6 +15,18 @@ org_root = '1.3.6.1.4.1.9590.100.1.2.'
 
 def getDcmTagVals(structNumV, planC, seriesOpts = {}):
 
+    """Collect the tags for an RTSTRUCT from the structures' associated scan.
+
+    Args:
+        structNumV (list[int]): Structure indices (the first one's scan is used).
+        planC (cerr.plan_container.PlanC): Plan container.
+        seriesOpts (dict): Optional overrides: 'seriesDescription', 'SeriesDate', 'SeriesTime',
+            'StructureSetLabel'.
+
+    Returns:
+        tuple: ``(pat_tags, study_tags, series_tags, equipment_tags, content_tags,
+            struct_set_tags)`` dicts.
+    """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNumV[0]].assocScanUID,planC)
     pat_tags = {"PatientName": planC.scan[assocScanNum].scanInfo[0].patientName,
         "PatientID": planC.scan[assocScanNum].scanInfo[0].patientID,
@@ -86,6 +98,15 @@ def getRefFORSeq(structNumV, planC):
                     # 0008,1150  Referenced SOP Class UID
                     # 0008,1155  Referenced SOP Instance UID
                     # 0008,1160  Referenced Frame Number (currently not implemented)
+    """Referenced Frame of Reference Sequence pointing at the associated scan's study, series and slices.
+
+    Args:
+        structNumV (list[int]): Structure indices.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     refFORSeq = Sequence()
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNumV[0]].assocScanUID,planC)
     dsRefFOR = Dataset()
@@ -118,6 +139,15 @@ def getStructSetROISeq(structNumV, planC):
         # 3006,002C  ROI Volume
         # 3006,0036  ROI Generation Algorithm
         # 3006,0038  ROI Generation Description
+    """Structure Set ROI Sequence: number, name and generation algorithm of each structure.
+
+    Args:
+        structNumV (list[int]): Structure indices (ROI numbers follow this order from 1).
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNumV[0]].assocScanUID,planC)
     strSetROISeq = Sequence()
     roiCount = 0
@@ -135,6 +165,15 @@ def getStructSetROISeq(structNumV, planC):
 
 
 def convertCerrToDcmCoords(pointsM,planC):
+    """Placeholder: returns the points unchanged (the conversion is done in getROIContourSeq).
+
+    Args:
+        pointsM (np.ndarray): Points.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        np.ndarray: ``pointsM``.
+    """
     return pointsM
 
 def getROIContourSeq(structNumV, planC):
@@ -153,6 +192,15 @@ def getROIContourSeq(structNumV, planC):
             # 3006,0045  Contour Offset Vector
             # 3006,0046  Number of Contour Points
             # 3006,0050  Contour Data
+    """ROI Contour Sequence: colour and contour polygons of each structure in DICOM patient coordinates (mm).
+
+    Args:
+        structNumV (list[int]): Structure indices.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     assocScanNum = scn.getScanNumFromUID(planC.structure[structNumV[0]].assocScanUID,planC)
     Image2VirtualPhysicalTransM = planC.scan[assocScanNum].Image2VirtualPhysicalTransM
     Image2PhysicalTransM = planC.scan[assocScanNum].Image2PhysicalTransM
@@ -219,6 +267,15 @@ def getROIObservSeq(structNumV, planC):
         # 3006,00B0  ROI Physical Properties Sequence
             # 3006,00B2 ROI Physical Property
             # 3006 00B4 ROI Physical Property Value
+    """RT ROI Observations Sequence: observation number, ROI number and interpreted type of each structure.
+
+    Args:
+        structNumV (list[int]): Structure indices.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        pydicom.sequence.Sequence: The sequence.
+    """
     rtObsSeq = Sequence()
     roiCount = 0
     for iStr in structNumV:
@@ -245,6 +302,15 @@ def create(structNumV, filePath, planC, seriesOpts = {}):
     # Make sure that all structures in structNumV are associated with the same sane
 
     # Get related UIDs for structNumV
+    """Write structures to a DICOM RTSTRUCT file.
+
+    Args:
+        structNumV (list[int]): Indices into planC.structure; all must be on the same scan.
+        filePath (str): Output file.
+        planC (cerr.plan_container.PlanC): Plan container.
+        seriesOpts (dict): Optional overrides: 'seriesDescription', 'SeriesDate', 'SeriesTime',
+            'StructureSetLabel'.
+    """
     pat_tags, study_tags, series_tags, equiqmt_tags, content_tags, struct_set_tags = \
         getDcmTagVals(structNumV, planC, seriesOpts)
 

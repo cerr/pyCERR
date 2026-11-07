@@ -40,6 +40,8 @@ class DvhDialog(QtWidgets.QDialog):
         lay.addWidget(self.canvas, 1)
 
     def plot(self):
+        """Plot the cumulative DVHs of the checked structures for the selected dose.
+        """
         doseNum = self.doseCombo.currentIndex()
         self.ax.clear()
         plotted = False
@@ -486,6 +488,8 @@ class ContourDialog(QtWidgets.QDialog):
         v.refresh_views()
 
     def delete_slice(self):
+        """Clear the mask on the current slice (undoable).
+        """
         if self.mask3M is None:
             return
         k = self._cur_slice()
@@ -497,7 +501,12 @@ class ContourDialog(QtWidgets.QDialog):
     def copy_adjacent(self, direction):
         """Copy the superior(+1)/inferior(-1) neighbor slice's mask onto the
         current slice (CERR's copy sup/inf). Superior/inferior follow the scan's
-        z direction (+z = inferior in pyCERR coords), not a fixed slice order."""
+        z direction (+z = inferior in pyCERR coords), not a fixed slice order.
+
+        Args:
+            direction (int): +1 copies from the superior neighbour, -1 from the inferior
+                neighbour.
+        """
         if self.mask3M is None:
             return
         k = self._cur_slice()
@@ -516,6 +525,8 @@ class ContourDialog(QtWidgets.QDialog):
         self.viewer.refresh_views()
 
     def undo(self):
+        """Undo the last edit of a slice.
+        """
         if not self._undo:
             return
         k, prev = self._undo.pop()
@@ -524,6 +535,8 @@ class ContourDialog(QtWidgets.QDialog):
 
     # --------------------------------------------------------------- save ---
     def save(self):
+        """Save the drawn mask to planC as a structure named from the name box (default 'ROI').
+        """
         if self.mask3M is None or not np.any(self.mask3M):
             _show_info(
                 self, "Contouring", "The mask is empty - draw something first.")
@@ -550,6 +563,11 @@ class ContourDialog(QtWidgets.QDialog):
 
     # -------------------------------------------------------------- close ---
     def closeEvent(self, event):
+        """Qt close event: ask before discarding unsaved edits, then detach from the viewer.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         if self._dirty and not getattr(self, "_force_close", False):
             def _yes():
                 self._force_close = True
@@ -1145,6 +1163,11 @@ class RegQaDialog(QtWidgets.QDialog):
     MODES = ("Mirrorscope", "Sidebyside", "AlternateGrid", "Toggle")
 
     def mode(self):
+        """The selected registration QA mode.
+
+        Returns:
+            str: 'Mirrorscope', 'Sidebyside', 'AlternateGrid' or 'Toggle'.
+        """
         if self.sbsBtn.isChecked():
             return "Sidebyside"
         if self.gridBtn.isChecked():
@@ -1170,7 +1193,26 @@ class RegQaDialog(QtWidgets.QDialog):
         ``dvf_color_by`` one of 'length' | 'dx' | 'dy' | 'dz' (or their
         '..._signed' forms), ``dvf_every`` the display thinning, ``dvf_length``
         the arrow length multiplier and ``dvf_true_scale`` whether arrows are
-        drawn 1:1."""
+        drawn 1:1.
+
+        Args:
+            base (int or None): Index of the base scan.
+            moving (int or None): Index of the moving scan.
+            mode (str or None): 'Mirrorscope', 'Sidebyside', 'AlternateGrid' or 'Toggle'.
+            size (float or None): Mirror-box or checkerboard tile size in cm.
+            base_frac (float or None): Base weight for 'Toggle', 0 to 1.
+            deform (int, str or None): Index into planC.deform to overlay; -1/None leaves it,
+                'off' turns it off.
+            dvf_region (int or None): Structure index to restrict the DVF sampling to (-1 =
+                whole scan).
+            dvf_resolution (float or None): Sampling grid spacing in cm (0 = automatic).
+            dvf_color_by (str or None): 'length', 'dx', 'dy', 'dz' or a '_signed' component.
+            dvf_every (int or None): Draw every N-th arrow.
+            dvf_length (float or None): Arrow length multiplier.
+            dvf_true_scale (bool or None): Draw arrows at their real length.
+            dvf_surface (bool or None): Sample only the region structure's surface.
+            dvf_subtract_median (bool or None): Remove the median (bulk) displacement.
+        """
         if base is not None:
             self.baseCombo.setCurrentIndex(int(base))   # -> _on_base_changed
         if moving is not None:
@@ -1235,7 +1277,11 @@ class RegQaDialog(QtWidgets.QDialog):
             self.viewer.refresh_views()
 
     def sync_base(self, idx):
-        """Reflect the viewer's active scan as the QA base (no feedback loop)."""
+        """Reflect the viewer's active scan as the QA base (no feedback loop).
+
+        Args:
+            idx (int): Index of the viewer's current scan.
+        """
         self.baseCombo.blockSignals(True)
         self.baseCombo.setCurrentIndex(idx)
         self.baseCombo.blockSignals(False)
@@ -1276,7 +1322,18 @@ class RegQaDialog(QtWidgets.QDialog):
         moving are drawn fully opaque (opacity 1) in Mirrorscope, AlternateGrid
         and Side-by-side, and blended by the fade slider (base weight, moving =
         1 - base) in Toggle. The selected scan opacities are restored when QA is
-        exited (this composite is only used while the QA tool is open)."""
+        exited (this composite is only used while the QA tool is open).
+
+        Args:
+            winId (str): View window 'A'-'D'.
+            img (np.ndarray): The base scan slice shown in that window.
+            hV (np.ndarray): Horizontal coordinates of the slice (cm).
+            vV (np.ndarray): Vertical coordinates of the slice (cm).
+
+        Returns:
+            np.ndarray or None: (rows x cols x 3) RGB composite in 0-1, or None to draw the
+                slice normally.
+        """
         v = self.viewer
         movIdx = self.movCombo.currentIndex()
         res = v._overlay_interp(movIdx)
@@ -1355,7 +1412,11 @@ class RegQaDialog(QtWidgets.QDialog):
 
     def draw_guides(self, view):
         """Side-by-side: a vertical split line. Mirrorscope: the square lens
-        box and its center mirror line."""
+        box and its center mirror line.
+
+        Args:
+            view (SliceView): The view to draw the guides in.
+        """
         mode = self.mode()
         if mode == "Sidebyside":
             s = self.split.get(view.orientation)
@@ -1375,6 +1436,11 @@ class RegQaDialog(QtWidgets.QDialog):
 
     # -------------------------------------------------------------- close ---
     def closeEvent(self, event):
+        """Qt close event: remove the QA split, lens and DVF overlay and redraw the viewer.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         for v in self.viewer.views.values():
             v.qa_split_cb = None
             v._qa_drag = False
@@ -1522,6 +1588,8 @@ class StructureConsensusDialog(QtWidgets.QDialog):
 
     # -------------------------------------------------------------- actions --
     def compute_stats(self):
+        """Compute agreement statistics (cerr.contour.structure_consensus.compareStructures) for the selected structures.
+        """
         from cerr.contour import structure_consensus as sc
         structNumV = self._selected_structs()
         if len(structNumV) < 2:
@@ -1540,6 +1608,8 @@ class StructureConsensusDialog(QtWidgets.QDialog):
                         f"Could not compute statistics:\n{e}")
 
     def create_structure(self):
+        """Create a consensus structure (e.g. STAPLE or majority vote) from the selected structures and add it to planC.
+        """
         from cerr.contour import structure_consensus as sc
         structNumV = self._selected_structs()
         if len(structNumV) < 2:
@@ -1696,6 +1766,8 @@ class GammaDialog(QtWidgets.QDialog):
 
     # -------------------------------------------------------------- compute --
     def compute(self):
+        """Compute the 3D gamma between the selected reference and evaluated doses on the reference dose's scan grid.
+        """
         refNum = self.refCombo.currentIndex()
         evalNum = self.evalCombo.currentIndex()
         if refNum == evalNum:
@@ -1753,6 +1825,8 @@ class GammaDialog(QtWidgets.QDialog):
         self.viewer._done(msg)
 
     def show_map(self):
+        """Add the gamma map to planC as a dose so it can be displayed.
+        """
         if self.gamma3M is None:
             return
         xV, yV, zV = self.planC.scan[self.scanNum].getScanXYZVals()
@@ -1772,6 +1846,8 @@ class GammaDialog(QtWidgets.QDialog):
             _show_error(self, "Gamma 3D", f"Could not add gamma map:\n{e}")
 
     def show_fail(self):
+        """Add the voxels with gamma > 1 to planC as a structure.
+        """
         if self.gamma3M is None:
             return
         failMask = np.nan_to_num(self.gamma3M, nan=0.0) > 1.0

@@ -64,6 +64,15 @@ def qibEngine(im, planC, statusCallback=None):
 
     Computes the beamlet influence over all goal structures and returns
     the unit-weight (open-field) dose on the scan grid.
+
+    Args:
+        im (IMRTProblem): Problem with beams and goals.
+        planC (cerr.plan_container.PlanC): Plan container.
+        statusCallback (callable or None): ``statusCallback(message, fraction)`` progress
+            callback.
+
+    Returns:
+        np.ndarray: Unit-weight dose on the associated scan grid (rows x cols x slices).
     """
     from cerr.dataclasses import structure as structr
     generateQIBInfluence(im, planC, statusCallback)

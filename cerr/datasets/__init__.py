@@ -37,12 +37,20 @@ _REMOTE_DATASETS = {
 
 
 def list_remote_datasets():
-    """Return the names of datasets available via :func:`fetch_sample_data`."""
+    """Return the names of datasets available via :func:`fetch_sample_data`.
+
+    Returns:
+        list[str]: Dataset names.
+    """
     return sorted(_REMOTE_DATASETS)
 
 
 def get_cache_dir():
-    """Return the per-user directory where downloaded datasets are cached."""
+    """Return the per-user directory where downloaded datasets are cached.
+
+    Returns:
+        str: The cache directory (under CERR_DATA_DIR when set).
+    """
     base = os.environ.get("CERR_DATA_DIR")
     if not base:
         if os.name == "nt":

@@ -34,7 +34,15 @@ from cerr.uromt import kernels
 #  Grid & operators (paramInitFunc.m)
 # --------------------------------------------------------------------------- #
 def cellCenteredGrid(n, h):
-    """Cell-centered physical coordinates, flattened Fortran-order."""
+    """Cell-centered physical coordinates, flattened Fortran-order.
+
+    Args:
+        n (list[int]): Grid size [n1, n2, n3].
+        h (list[float]): Grid spacing [h1, h2, h3].
+
+    Returns:
+        tuple: ``(Xc, Yc, Zc)`` cell-centre coordinates, each flattened in Fortran order.
+    """
     g = [(np.arange(ni) + 0.5) * hi for ni, hi in zip(n, h)]
     Xc, Yc, Zc = np.meshgrid(g[0], g[1], g[2], indexing="ij")
     return (Xc.ravel(order="F"), Yc.ravel(order="F"), Zc.ravel(order="F"))
@@ -53,7 +61,15 @@ def _ddx1d(ni, hi):
 def neumannGrad(n, h):
     """Cell-centered gradient with Neumann BC (getCellCenteredGradMatrix 'ccn').
     Stacks the three directional derivatives; ``Grad.T @ Grad`` is the
-    Neumann Laplacian (positive semi-definite)."""
+    Neumann Laplacian (positive semi-definite).
+
+    Args:
+        n (list[int]): Grid size.
+        h (list[float]): Grid spacing.
+
+    Returns:
+        scipy.sparse.csr_matrix: (3N x N) gradient operator.
+    """
     I1, I2, I3 = (sp.identity(ni, format="csr") for ni in n)
     D1, D2, D3 = _ddx1d(n[0], h[0]), _ddx1d(n[1], h[1]), _ddx1d(n[2], h[2])
     G1 = sp.kron(I3, sp.kron(I2, D1))
@@ -173,7 +189,15 @@ def paramInit(cfg):
 
     Optional ``cfg.chi`` (the MATLAB source-indicator ``K``) is stored as an
     (N, nt) array; it elementwise-scales the relative source ``r`` in the
-    forward model and the source penalty. ``None`` -> identity (K = 1)."""
+    forward model and the source penalty. ``None`` -> identity (K = 1).
+
+    Args:
+        cfg (object): urOMT configuration (trueSize, spacing, time steps, weights, chi, threads,
+            GPU flag).
+
+    Returns:
+        dict: The ``par`` dictionary used by the solver.
+    """
     from cerr.uromt.gpu import Backend           # local: optional cupy import
     from cerr.uromt.config import getNumThreads, getUseGPU
     threads = kernels.setNumThreads(getNumThreads(cfg))
@@ -350,7 +374,17 @@ class _TrilinearOp:
 
 def mkOp(par, posX, posY, posZ):
     """Build the trilinear operators for the backend ``par`` was created with
-    (the numba CPU kernels, or the cupy device implementation)."""
+    (the numba CPU kernels, or the cupy device implementation).
+
+    Args:
+        par (dict): From paramInit.
+        posX (array): x of the departure points.
+        posY (array): y of the departure points.
+        posZ (array): z of the departure points.
+
+    Returns:
+        The trilinear operator object (``interp``, ``interpT`` and derivative methods).
+    """
     bk = par.get("bk")
     if bk is None:
         return _TrilinearOp(par, posX, posY, posZ)
@@ -358,7 +392,14 @@ def mkOp(par, posX, posY, posZ):
 
 
 def accumBuffer(par):
-    """The shared scatter accumulator for this ``par`` (created on demand)."""
+    """The shared scatter accumulator for this ``par`` (created on demand).
+
+    Args:
+        par (dict): From paramInit (the buffer is stored as ``par['acc']``).
+
+    Returns:
+        np.ndarray: The (numAccum() x N) accumulator.
+    """
     acc = par.get("acc")
     if acc is None or acc.shape[1] != int(par["N"]):
         acc = kernels.accumBuffer(int(par["N"]))
@@ -420,7 +461,18 @@ def sourceAdvecDiff(rho0, u, r, par, interp=None):
 
     ``interp`` (from :func:`_interpMats`) is reused when the caller already has
     the per-step operators; otherwise they are built on the fly, which is cheap
-    now that nothing is assembled as a sparse matrix."""
+    now that nothing is assembled as a sparse matrix.
+
+    Args:
+        rho0 (np.ndarray): Initial density (length N).
+        u (np.ndarray): Velocity, flattened (3N*nt), Fortran order.
+        r (np.ndarray): Relative source, flattened (N*nt).
+        par (dict): From paramInit.
+        interp (list or None): Per-step trilinear operators; built from u when None.
+
+    Returns:
+        np.ndarray: (N x nt) density after each step.
+    """
     N, nt, dt = par["N"], par["nt"], par["dt"]
     U = u.reshape(3 * N, nt, order="F")
     r = r.reshape(N, nt, order="F")
@@ -466,6 +518,16 @@ def precomputeSensDeriv(rho0, r, par, interp, rho):
     they are cached here rather than rebuilt per matvec.
 
     Returns a dict of per-step lists: ``{"m", "fac", "srcR"}``.
+
+    Args:
+        rho0 (np.ndarray): Initial density.
+        r (np.ndarray): Relative source (N*nt).
+        par (dict): From paramInit.
+        interp (list): Per-step trilinear operators.
+        rho (np.ndarray): (N x nt) density trajectory.
+
+    Returns:
+        dict: {'m', 'fac', 'srcR'}, per-step lists reused by the sensitivity matvecs.
     """
     N, nt, dt = par["N"], par["nt"], par["dt"]
     R = r.reshape(N, nt, order="F")
@@ -488,7 +550,22 @@ def forwardSensitivity(rho0, u, r, du, dr, par, interp=None, rho=None,
     """Tangent-linear model: directional derivative of the density trajectory
     w.r.t. (u, r) in the direction (du, dr). Returns drho (N x nt); the last
     column is ``J @ (du, dr)`` (perturbation of the final density). ``dSlist``
-    (from :func:`precomputeSensDeriv`) reuses the per-step spatial derivatives."""
+    (from :func:`precomputeSensDeriv`) reuses the per-step spatial derivatives.
+
+    Args:
+        rho0 (np.ndarray): Initial density.
+        u (np.ndarray): Velocity (3N*nt).
+        r (np.ndarray): Relative source (N*nt).
+        du (np.ndarray): Velocity direction (3N*nt).
+        dr (np.ndarray): Source direction (N*nt).
+        par (dict): From paramInit.
+        interp (list or None): Per-step trilinear operators.
+        rho (np.ndarray or None): Density trajectory, if already computed.
+        dSlist (dict or None): From precomputeSensDeriv.
+
+    Returns:
+        np.ndarray: (N x nt) density perturbation.
+    """
     N, nt, dt = par["N"], par["nt"], par["dt"]
     U = u.reshape(3 * N, nt, order="F")
     dU = du.reshape(3 * N, nt, order="F")
@@ -529,7 +606,21 @@ def adjointSensitivity(rho0, u, r, wN, par, interp=None, rho=None, dSlist=None):
     """Adjoint of :func:`forwardSensitivity` for a terminal cotangent ``wN`` on
     the final density: returns (Ju, Jr) = J' @ wN in Fortran-flattened layout.
     (No regularization terms - this is purely the forward-map Jacobian.)
-    ``dSlist`` (from :func:`precomputeSensDeriv`) reuses per-step derivatives."""
+    ``dSlist`` (from :func:`precomputeSensDeriv`) reuses per-step derivatives.
+
+    Args:
+        rho0 (np.ndarray): Initial density.
+        u (np.ndarray): Velocity (3N*nt).
+        r (np.ndarray): Relative source (N*nt).
+        wN (np.ndarray): Cotangent on the final density (length N).
+        par (dict): From paramInit.
+        interp (list or None): Per-step trilinear operators.
+        rho (np.ndarray or None): Density trajectory, if already computed.
+        dSlist (dict or None): From precomputeSensDeriv.
+
+    Returns:
+        tuple: ``(Ju, Jr)``, the adjoint products for velocity (3N*nt) and source (N*nt).
+    """
     N, nt, dt = par["N"], par["nt"], par["dt"]
     U = u.reshape(3 * N, nt, order="F")
     if interp is None:
@@ -589,6 +680,18 @@ def getGamma(rho0, u, r, par, drhoN, interp=None, rho=None):
 
     ``rho`` may be supplied when the caller has already evolved the density at
     this (u, r) - the forward solve is then skipped.
+
+    Args:
+        rho0 (np.ndarray): Initial density.
+        u (np.ndarray): Velocity (3N*nt).
+        r (np.ndarray): Relative source (N*nt).
+        par (dict): From paramInit.
+        drhoN (np.ndarray): Target final density.
+        interp (list or None): Per-step trilinear operators.
+        rho (np.ndarray or None): Density trajectory, if already computed.
+
+    Returns:
+        tuple: ``(Gamma, (Gamma1, Gamma2, Gamma3, Gamma4), rho)``.
     """
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     U = u.reshape(3 * N, nt, order="F")
@@ -620,7 +723,20 @@ def gradGamma(rho0, u, r, par, drhoN, interp=None, rho=None):
     Returns (g_u (3N*nt,), g_r (N*nt,)) in Fortran-flattened layout.
 
     ``rho`` may be supplied when the caller has already evolved the density at
-    this (u, r) - the forward solve is then skipped."""
+    this (u, r) - the forward solve is then skipped.
+
+    Args:
+        rho0 (np.ndarray): Initial density.
+        u (np.ndarray): Velocity (3N*nt).
+        r (np.ndarray): Relative source (N*nt).
+        par (dict): From paramInit.
+        drhoN (np.ndarray): Target final density.
+        interp (list or None): Per-step trilinear operators.
+        rho (np.ndarray or None): Density trajectory, if already computed.
+
+    Returns:
+        tuple: ``(g_u, g_r)`` gradients, Fortran-flattened.
+    """
     N, nt, dt, hd = par["N"], par["nt"], par["dt"], par["hd"]
     alpha, beta = par["alpha"], par["beta"]
     U = u.reshape(3 * N, nt, order="F")

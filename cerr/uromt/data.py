@@ -20,7 +20,15 @@ def _frameArray(planC, scanNum):
 
 
 def scanTimeLabel(planC, scanNum):
-    """Short acquisition-time string for a scan (for timepoint labels)."""
+    """Short acquisition-time string for a scan (for timepoint labels).
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        scanNum (int): Index into planC.scan.
+
+    Returns:
+        str: Acquisition time, else series time, else ''.
+    """
     si = planC.scan[scanNum].scanInfo[0]
     return (getattr(si, "acquisitionTime", "") or
             getattr(si, "seriesTime", "") or "")
@@ -38,7 +46,18 @@ def externalBaselineCount(normMethod, baselineFrames, basePts, firstSelPos):
     when the selected window starts at/after the first ``basePts`` frames (so the
     pre-contrast frames lie before the window) - this lets e.g. first=20:2:22
     transport both selected scans instead of eating the first as a baseline.
-    Only matters for ``CC``/``RSE`` normalization."""
+    Only matters for ``CC``/``RSE`` normalization.
+
+    Args:
+        normMethod (str): Normalization method ('CC' or 'RSE' use a baseline).
+        baselineFrames (int): Requested number of external baseline frames.
+        basePts (int): Number of baseline points in the selected window.
+        firstSelPos (int): Position of the first selected frame among all frames.
+
+    Returns:
+        int: Number of leading scans used as an external baseline (0: baseline taken from the
+            window itself).
+    """
     if str(normMethod).upper() not in ("CC", "RSE"):
         return 0
     if int(baselineFrames) > 0:
@@ -51,6 +70,14 @@ def externalBaselineCount(normMethod, baselineFrames, basePts, firstSelPos):
 def smoothSize(m, cap, radices=(2, 3, 5)):
     """Smallest length >= ``m`` (and <= ``cap``) whose only prime factors are
     ``radices``. Returns ``m`` unchanged when no such length fits under the cap.
+
+    Args:
+        m (int): Minimum length.
+        cap (int): Maximum length.
+        radices (tuple): Allowed prime factors (default (2, 3, 5)).
+
+    Returns:
+        int: The length.
     """
     m, cap = int(m), int(cap)
     if m >= cap:
@@ -80,6 +107,15 @@ def fftFriendlyRange(lo, hi, extent, radices=(2, 3, 5)):
     from the structure and brings in real neighbouring image data, so it does
     not clip the ROI; it does change results slightly. Disable with the
     ``fft_pad`` setting.
+
+    Args:
+        lo (int): Start of the range (inclusive).
+        hi (int): End of the range (exclusive).
+        extent (int): Size of the axis.
+        radices (tuple): Allowed prime factors (default (2, 3, 5)).
+
+    Returns:
+        tuple: ``(lo, hi)`` of the grown range.
     """
     lo, hi, extent = int(lo), int(hi), int(extent)
     want = smoothSize(hi - lo, extent, radices)
@@ -123,6 +159,13 @@ def dilateMask(mask, dilate):
     the whole ROI box; the mask decides which voxels the Eulerian/Lagrangian
     maps report, so dilating it widens that reporting support. It is required
     to reproduce the reference maps voxel-for-voxel.
+
+    Args:
+        mask (np.ndarray): 3D binary mask.
+        dilate (int): Radius in voxels (<= 0 returns the mask unchanged).
+
+    Returns:
+        np.ndarray: The dilated mask.
     """
     d = int(dilate)
     if d <= 0:
@@ -151,6 +194,13 @@ def toftsPostProcess(im, cfg):
     the ROI, whereas this runs after the crop, so voxels within
     ``highValueKernel`` of the ROI face see a slightly different neighbourhood.
     On the reference breast data that is a handful of voxels.
+
+    Args:
+        im (np.ndarray): Concentration image.
+        cfg (object): Config with concScale, highValueThreshold, highValueKernel and outputClip.
+
+    Returns:
+        np.ndarray: The processed image (float64).
     """
     im = np.asarray(im, dtype=np.float64)
     scale = float(getattr(cfg, "concScale", 1.0) or 1.0)

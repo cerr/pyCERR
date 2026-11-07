@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `createFieldNameFromParameters`, `finterp2`, `statistics.round`, whose
   docstring now notes it is only correct for x >= -0.5).
 
+### Documentation
+
+- **About 400 docstrings added or completed** in the viewer, IMRTP
+  (PortPy/pyRadPlan bridges, QIB, beam geometry), urOMT, DICOM export, ROE,
+  AI-model utilities, multi-view helpers, datasets and the dataclass factories.
+  Every public function now has a summary and matching `Args`/`Returns`
+  sections. Code is unchanged (verified by comparing the AST with docstrings
+  stripped).
+
 - **Radiomics features on Laws-filtered images.** `texture_utils.processImage`
   accepts the image types `Laws` and `RotationInvariantLaws`, but
   `ibsi1.createFieldNameFromParameters` only knew `lawsconvolution`, so

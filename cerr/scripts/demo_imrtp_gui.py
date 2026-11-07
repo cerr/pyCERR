@@ -24,6 +24,11 @@ from cerr.imrtp import IMRTPGui
 
 
 def syntheticPlan():
+    """Build a small synthetic plan (elliptical body CT with a 'PTV' and a 'Cord' structure) for the IMRTP GUI demo.
+
+    Returns:
+        cerr.plan_container.PlanC: The plan.
+    """
     import nibabel as nib
     import tempfile, os
     ct = (np.zeros((128, 128, 40)) - 1000).astype(np.int16)

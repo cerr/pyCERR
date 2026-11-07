@@ -169,7 +169,15 @@ def initialize_struct_edit_widget() -> FunctionGui:
 
 
 def get_scan_layers(gui):
-    """Filter Image layers based on the scan dataclass"""
+    """Filter Image layers based on the scan dataclass
+
+    Args:
+        gui (object): Widget with a ``viewer`` attribute (napari.Viewer).
+
+    Returns:
+        list[napari.layers.Image]: Image layers whose metadata 'dataclass' is 'scan' (empty if
+            gui has no viewer).
+    """
     if not hasattr(gui, 'viewer'):
         return []
 
@@ -332,15 +340,16 @@ def initialize_struct_export_widget(vwr) -> FunctionGui:
 
 
 def checkerboard_indices(shape, tile_size, evenTiles=True):
-    """
-    Generates row and column indices for a checkerboard pattern.
+    """Generates row and column indices for a checkerboard pattern.
 
     Args:
         shape (tuple): Shape of the 2D array (rows, cols).
         tile_size (int): Size of each square tile.
+        evenTiles (bool): Currently unused; the tiles with (row tile + column tile) even are
+            always returned.
 
     Returns:
-        tuple: Two lists, one for row indices and one for column indices.
+        tuple: Two lists of slice objects, one for the rows and one for the columns of each tile.
                Each list contains tuples of slice objects representing the
                indices for the checkerboard pattern.
     """

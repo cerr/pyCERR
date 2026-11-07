@@ -1019,6 +1019,11 @@ class UROMTDialog(QtWidgets.QDialog):
         self.progress.setText("Overlay cleared.")
 
     def closeEvent(self, event):
+        """Qt close event: stop the animation timer, remove the urOMT overlay and detach from the viewer.
+
+        Args:
+            event (QtGui.QCloseEvent): The close event.
+        """
         self._growTimer.stop()              # never tick into a closed dialog
         self._clearOverlay()                # don't leave a stale overlay behind
         if getattr(self.viewer, "_uromtDialog", None) is self:

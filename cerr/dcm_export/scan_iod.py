@@ -18,7 +18,14 @@ standardModalities = ["CT", "MR", "PT", "US", "NM"]
 
 
 def getScanModality(scanObj):
-    """Return the DICOM modality string (e.g. 'CT', 'MR', 'PT') for a pyCERR Scan object."""
+    """Return the DICOM modality string (e.g. 'CT', 'MR', 'PT') for a pyCERR Scan object.
+
+    Args:
+        scanObj (cerr.dataclasses.scan.Scan): The scan.
+
+    Returns:
+        str: Modality from the image type ('CT' when it is empty).
+    """
     imageType = scanObj.scanInfo[0].imageType
     modality = imageType.upper().replace("SCAN", "").strip()
     if modality == "":
@@ -28,6 +35,16 @@ def getScanModality(scanObj):
 
 def getDcmTagVals(scanNum, planC, seriesOpts={}):
 
+    """Collect the patient, study and series tags for exporting a scan.
+
+    Args:
+        scanNum (int): Index into planC.scan.
+        planC (cerr.plan_container.PlanC): Plan container.
+        seriesOpts (dict): Optional overrides: 'seriesDescription', 'SeriesDate', 'SeriesTime'.
+
+    Returns:
+        tuple: ``(pat_tags, study_tags, series_tags)`` dicts.
+    """
     sInfo = planC.scan[scanNum].scanInfo[0]
     pat_tags = {"PatientName": sInfo.patientName,
                 "PatientID": sInfo.patientID,
@@ -63,6 +80,10 @@ def getDcmTagVals(scanNum, planC, seriesOpts={}):
 
 def getScaledSlice(scanObj, slcNum):
     """Convert a scan slice from pyCERR intensity values back to stored DICOM pixel values.
+
+    Args:
+        scanObj (cerr.dataclasses.scan.Scan): The scan.
+        slcNum (int): Slice index.
 
     Returns:
         tuple: (pixel_array, rescaleSlope, rescaleIntercept, pixelRepresentation)

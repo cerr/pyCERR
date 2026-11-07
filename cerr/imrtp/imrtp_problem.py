@@ -157,7 +157,11 @@ class IMBeam:
     yPBPosV: Optional[np.ndarray] = None
 
     def sourcePos(self):
-        """Return absolute source position [x, y, z] (cm)."""
+        """Return absolute source position [x, y, z] (cm).
+
+        Returns:
+            list[float]: [x, y, z] of the source in cm.
+        """
         iso = self.isocenter
         if any(isinstance(v, str) for v in (iso.x, iso.y, iso.z)):
             raise ValueError("Isocenter must be resolved (numeric) before "
@@ -177,6 +181,11 @@ class IMGoal:
     xySampleRate: int = 2               # in-plane voxel sampling rate
 
     def is_target(self) -> bool:
+        """Whether this goal is a target (``isTarget`` is 'Yes').
+
+        Returns:
+            bool: True for a target.
+        """
         return str(self.isTarget).lower() == 'yes'
 
 
@@ -238,12 +247,25 @@ class IMRTProblem:
 
     # -- convenience -------------------------------------------------------
     def assocScanNum(self, planC) -> Optional[int]:
+        """Index of the problem's associated scan in planC.
+
+        Args:
+            planC (cerr.plan_container.PlanC): Plan container.
+
+        Returns:
+            int or None: Index into planC.scan, or None if not found.
+        """
         try:
             return scn.getScanNumFromUID(self.assocScanUID, planC)
         except Exception:
             return None
 
     def targetGoals(self) -> List[IMGoal]:
+        """The goals marked as targets.
+
+        Returns:
+            list[IMGoal]: Target goals.
+        """
         return [g for g in self.goals if g.is_target()]
 
     def clearBeamlets(self):
@@ -264,6 +286,9 @@ def initIMRTProblem(planC=None) -> IMRTProblem:
     Args:
         planC: optional pyCERR plan container.  When given, the problem is
             associated with the first scan and named ``IM doseSet n+1``.
+
+    Returns:
+        IMRTProblem: The new problem.
     """
     im = IMRTProblem()
     if planC is not None and len(planC.scan) > 0:
@@ -274,7 +299,17 @@ def initIMRTProblem(planC=None) -> IMRTProblem:
 
 
 def createDefaultBeam(beamNum: int, planC=None, scanNum: int = 0) -> IMBeam:
-    """Create a beam populated with GUI defaults (port of createDefaultBeam)."""
+    """Create a beam populated with GUI defaults (port of createDefaultBeam).
+
+    Args:
+        beamNum (int): Beam number (also used in the description 'Beam n').
+        planC (cerr.plan_container.PlanC or None): When given, the isocenter is set to the
+            targets' centre of mass ('COM').
+        scanNum (int): Scan index used with planC (default 0).
+
+    Returns:
+        IMBeam: The beam.
+    """
     beam = IMBeam(beamNum=beamNum,
                   beamDescription='Beam ' + str(beamNum))
     if planC is not None and len(planC.scan) > scanNum:
@@ -287,7 +322,17 @@ def createDefaultBeam(beamNum: int, planC=None, scanNum: int = 0) -> IMBeam:
 
 
 def resolveIsocenter(beam: IMBeam, im: IMRTProblem, planC) -> Isocenter:
-    """Resolve 'COM' isocenter coordinates from the targets' center of mass."""
+    """Resolve 'COM' isocenter coordinates from the targets' center of mass.
+
+    Args:
+        beam (IMBeam): Beam whose isocenter may contain 'COM'.
+        im (IMRTProblem): Problem providing the target goals.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        Isocenter: Numeric isocenter (cm); the beam's own isocenter when no 'COM' entry is
+            present.
+    """
     needsCOM = any(isinstance(v, str) and v.upper() == 'COM'
                    for v in (beam.isocenter.x, beam.isocenter.y, beam.isocenter.z))
     if not needsCOM:
@@ -325,6 +370,16 @@ def conditionBeam(beam: IMBeam, im: IMRTProblem, planC,
         xRel = isodistance * sin(gantry)
         yRel = isodistance * cos(gantry)
         zRel = 0
+
+    Args:
+        beam (IMBeam): Beam to update in place.
+        im (IMRTProblem): The problem the beam belongs to.
+        planC (cerr.plan_container.PlanC): Plan container.
+        autoFields (dict or None): Flags 'isocenter', 'dateOfCreation', 'sourceRel' (default all
+            True) choosing which fields are auto-computed.
+
+    Returns:
+        IMBeam: The same beam.
     """
     autoFields = autoFields if autoFields is not None else {}
 
@@ -345,7 +400,18 @@ def conditionBeam(beam: IMBeam, im: IMRTProblem, planC,
 def addEquispacedBeams(im: IMRTProblem, numBeams: int, startAngle: float,
                        planC=None, templateBeam: Optional[IMBeam] = None):
     """Add ``numBeams`` equispaced beams starting at ``startAngle`` degrees
-    (port of the 'NEWEQUISPACED' GUI command)."""
+    (port of the 'NEWEQUISPACED' GUI command).
+
+    Args:
+        im (IMRTProblem): Problem to add beams to.
+        numBeams (int): Number of beams.
+        startAngle (float): Gantry angle of the first beam in degrees.
+        planC (cerr.plan_container.PlanC or None): Plan container (for default beams).
+        templateBeam (IMBeam or None): Beam to copy for each new beam; None uses default beams.
+
+    Returns:
+        IMRTProblem: ``im``, with the beams appended to ``im.beams``.
+    """
     import copy
     angles = (startAngle + np.arange(numBeams) * 360.0 / numBeams) % 360.0
     for ang in angles:
@@ -365,7 +431,16 @@ def addEquispacedBeams(im: IMRTProblem, numBeams: int, startAngle: float,
 
 def addGoal(im: IMRTProblem, relStrNum: int, planC) -> IMGoal:
     """Append a goal for the relStrNum-th structure (0-based, relative to the
-    structures associated with ``im.assocScanUID``); port of 'ADDGOAL'."""
+    structures associated with ``im.assocScanUID``); port of 'ADDGOAL'.
+
+    Args:
+        im (IMRTProblem): Problem to add the goal to.
+        relStrNum (int): 0-based index among the structures on the problem's scan.
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        IMGoal: The new goal (also appended to ``im.goals``).
+    """
     scanNum = im.assocScanNum(planC)
     strNumsInScan = [i for i, s in enumerate(planC.structure)
                      if scn.getScanNumFromUID(s.assocScanUID, planC) == scanNum]
@@ -384,7 +459,14 @@ def addGoal(im: IMRTProblem, relStrNum: int, planC) -> IMGoal:
 
 def getIMList(planC) -> list:
     """Return the list of IM problems stored on the plan container, creating
-    it if necessary (pyCERR's PlanC has no native ``im`` attribute yet)."""
+    it if necessary (pyCERR's PlanC has no native ``im`` attribute yet).
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+
+    Returns:
+        list[IMRTProblem]: ``planC.im``.
+    """
     if not hasattr(planC, 'im') or planC.im is None:
         planC.im = []
     return planC.im
@@ -393,7 +475,16 @@ def getIMList(planC) -> list:
 def saveIMToPlan(im: IMRTProblem, planC, index: Optional[int] = None) -> int:
     """Store ``im`` on planC; append when index is None, else overwrite.
 
-    Returns the (0-based) index at which the problem was stored."""
+    Returns the (0-based) index at which the problem was stored.
+
+    Args:
+        im (IMRTProblem): Problem to store.
+        planC (cerr.plan_container.PlanC): Plan container.
+        index (int or None): Position to overwrite; None (or past the end) appends.
+
+    Returns:
+        int: 0-based index where it was stored.
+    """
     imList = getIMList(planC)
     if index is None or index >= len(imList):
         imList.append(im)
@@ -403,5 +494,12 @@ def saveIMToPlan(im: IMRTProblem, planC, index: Optional[int] = None) -> int:
 
 
 def asDict(im: IMRTProblem) -> dict:
-    """JSON/pickle-friendly representation of the problem."""
+    """JSON/pickle-friendly representation of the problem.
+
+    Args:
+        im (IMRTProblem): The problem.
+
+    Returns:
+        dict: The problem as nested dicts (dataclasses.asdict).
+    """
     return asdict(im)

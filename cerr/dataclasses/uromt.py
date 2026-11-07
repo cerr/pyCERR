@@ -24,7 +24,11 @@ from cerr.utils import uid
 
 
 def get_empty_dict():
-    """Default factory for dict fields: a new empty dict."""
+    """Default factory for dict fields: a new empty dict.
+
+    Returns:
+        dict: A new empty dict.
+    """
     return {}
 
 

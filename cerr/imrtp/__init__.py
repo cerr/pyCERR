@@ -43,6 +43,14 @@ except Exception as _e:  # pragma: no cover - e.g. scipy missing
 
 def IMRTPGui(*args, **kwargs):
     """Lazy wrapper so that headless installs can import cerr.imrtp without
-    Qt being present."""
+    Qt being present.
+
+    Args:
+        args (tuple): Positional arguments for cerr.imrtp.imrtp_gui.IMRTPGui.
+        kwargs (dict): Keyword arguments for cerr.imrtp.imrtp_gui.IMRTPGui.
+
+    Returns:
+        The value returned by cerr.imrtp.imrtp_gui.IMRTPGui.
+    """
     from .imrtp_gui import IMRTPGui as _gui
     return _gui(*args, **kwargs)

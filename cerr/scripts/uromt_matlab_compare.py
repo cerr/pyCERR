@@ -62,7 +62,15 @@ from cerr.utils.image_proc import affineDiffusion3d
 #  settings / IO helpers
 # --------------------------------------------------------------------------- #
 def loadConcSettings(path=None):
-    """Load the DCE concentration settings JSON (defaults to the bundled one)."""
+    """Load the DCE concentration settings JSON (defaults to the bundled one).
+
+    Args:
+        path (str or None): Settings JSON; None uses the bundled
+            dce_concentration_settings.json.
+
+    Returns:
+        dict: The settings.
+    """
     import json
     if path is None:
         path = os.path.join(os.path.dirname(os.path.dirname(
@@ -73,7 +81,14 @@ def loadConcSettings(path=None):
 
 
 def parseRange(text):
-    """'62:122,210:268,34:79' (1-based, inclusive) -> three 0-based slices."""
+    """'62:122,210:268,34:79' (1-based, inclusive) -> three 0-based slices.
+
+    Args:
+        text (str): Three 1-based inclusive ranges, e.g. '62:122,210:268,34:79'.
+
+    Returns:
+        tuple: Three 0-based ``slice`` objects.
+    """
     parts = text.split(",")
     if len(parts) != 3:
         raise ValueError("--roi needs three colon ranges, e.g. 1:10,1:10,1:5")
@@ -85,7 +100,15 @@ def parseRange(text):
 
 
 def loadMask(path, layout="xyz"):
-    """Load a full-grid ROI mask from NIfTI or .mat as a boolean (x, y, z)."""
+    """Load a full-grid ROI mask from NIfTI or .mat as a boolean (x, y, z).
+
+    Args:
+        path (str): NIfTI (.nii/.nii.gz) or .mat file.
+        layout (str): Axis order of the array in a .mat file (default 'xyz').
+
+    Returns:
+        np.ndarray(dtype=bool): (x, y, z) mask.
+    """
     if path.endswith((".nii", ".nii.gz")):
         import SimpleITK as sitk
         arr = sitk.GetArrayFromImage(sitk.ReadImage(path))   # (z, y, x)
@@ -101,7 +124,16 @@ def loadMask(path, layout="xyz"):
 
 
 def loadFrame(framesDir, prefix, idx):
-    """Load one raw signal frame (variable ``img``, or the sole variable)."""
+    """Load one raw signal frame (variable ``img``, or the sole variable).
+
+    Args:
+        framesDir (str): Directory of frame .mat files.
+        prefix (str): File-name prefix before the frame number.
+        idx (int): Frame number.
+
+    Returns:
+        np.ndarray: The frame (float64).
+    """
     path = os.path.join(framesDir, "%s%d.mat" % (prefix, idx))
     d = sio.loadmat(path)
     key = "img" if "img" in d else [k for k in d if not k.startswith("__")][0]
@@ -109,7 +141,15 @@ def loadFrame(framesDir, prefix, idx):
 
 
 def findRef(refDir, pattern):
-    """First file under refDir (recursively) whose name matches `pattern`."""
+    """First file under refDir (recursively) whose name matches `pattern`.
+
+    Args:
+        refDir (str): Directory to search.
+        pattern (str): Regular expression matched against file names.
+
+    Returns:
+        str or None: Path of the first match (sorted per directory), or None.
+    """
     rx = re.compile(pattern)
     for root, _dirs, files in os.walk(refDir):
         for f in sorted(files):
@@ -119,6 +159,14 @@ def findRef(refDir, pattern):
 
 
 def loadRefArray(path):
+    """Load the first variable of a reference .mat file as a float64 array.
+
+    Args:
+        path (str): .mat file.
+
+    Returns:
+        np.ndarray: The array.
+    """
     d = sio.loadmat(path)
     key = [k for k in d if not k.startswith("__")][0]
     return np.asarray(d[key], dtype=np.float64)
@@ -127,7 +175,14 @@ def loadRefArray(path):
 def parseRecord(refDir):
     """Parse the per-interval gamma table from record.txt.
     Columns: time-ind, ti, tf, gamma, gamma1, gamma2, gamma3, max(u), ...
-    Returns {interval_index (0-based): dict}."""
+    Returns {interval_index (0-based): dict}.
+
+    Args:
+        refDir (str): Reference run directory containing record.txt.
+
+    Returns:
+        dict: Interval index (0-based) -> row values (empty if record.txt is missing).
+    """
     path = os.path.join(refDir, "record.txt")
     if not os.path.exists(path):
         return {}
@@ -169,6 +224,14 @@ def toftsConcentration(signal, baseline, cs):
     reference is a handful of voxels and bounds the disagreement at ~2e-5
     absolute (mean 3e-10, corr 1.00000000) -- negligible, but it is why this is
     not bit-exact.
+
+    Args:
+        signal (np.ndarray): Raw signal frame.
+        baseline (np.ndarray): Baseline (pre-contrast) signal.
+        cs (dict): Concentration settings.
+
+    Returns:
+        np.ndarray: Contrast concentration.
     """
     # Voxels with no pre-contrast signal have no defined enhancement; treat them
     # as zero rather than letting inf/nan through (an inf ratio would otherwise
@@ -204,7 +267,16 @@ def toftsConcentration(signal, baseline, cs):
 
 
 def buildFrames(args, cs, roi):
-    """Concentration frames for the selected time points, cropped to the ROI."""
+    """Concentration frames for the selected time points, cropped to the ROI.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line options.
+        cs (dict): Concentration settings.
+        roi (tuple): Three slices (x, y, z) cropping the ROI box.
+
+    Returns:
+        tuple: ``(frames, idx)``: the cropped concentration frames and the frame numbers used.
+    """
     nBase = int(cs.get("baselineFrames", 1) or 1)
     baseline = np.mean([loadFrame(args.frames_dir, args.frame_prefix, j)
                         for j in range(1, nBase + 1)], axis=0)
@@ -232,7 +304,16 @@ def buildFrames(args, cs, roi):
 # --------------------------------------------------------------------------- #
 def compareMaps(py, ref, mask):
     """Voxel-wise agreement inside `mask`: corr, through-origin slope, median
-    ratio, and the fraction within a factor of two."""
+    ratio, and the fraction within a factor of two.
+
+    Args:
+        py (np.ndarray): pyCERR map.
+        ref (np.ndarray): Reference map.
+        mask (np.ndarray(dtype=bool)): Voxels to compare.
+
+    Returns:
+        dict: ``corr``, ``slope``, ``medR`` and ``w2`` (NaN when either map is constant).
+    """
     a = np.asarray(py)[mask].ravel()
     b = np.asarray(ref)[mask].ravel()
     if a.size == 0 or a.std() < 1e-30 or b.std() < 1e-30:
@@ -260,6 +341,10 @@ def pcSave(planC, path):
     scans/structures/doses/deforms, so it would silently drop ``planC.urOMT`` -
     which is the whole point of saving here. ``plan_container`` exposes no
     pickle writer, hence the direct dump.
+
+    Args:
+        planC (cerr.plan_container.PlanC): Plan container.
+        path (str): Output .pkl file (.h5 is refused).
     """
     import pickle
     if str(path).lower().endswith((".h5", ".hdf5")):
@@ -276,6 +361,13 @@ def concToModelSettings(cs, settings):
     :func:`toftsConcentration`); the planC path leaves it to
     ``cerr.uromt.data.prepareData``, which reads these keys. Keeping the mapping
     in one place is what makes the two paths comparable.
+
+    Args:
+        cs (dict): Concentration settings.
+        settings (dict): urOMT model settings, updated in place.
+
+    Returns:
+        dict: ``settings``.
     """
     method = str(cs.get("method", "tofts")).lower()
     settings["normMethod"] = {"tofts": "CC", "rse": "RSE"}.get(method, "none")
@@ -305,6 +397,15 @@ def runFromDicom(args, cs, settings, roi):
     ``prepareData`` derives the bounding box from the structure, so the grid can
     differ from ``--roi`` and objective values are not directly comparable to
     ``record.txt``. The point of this path is a run the pyCERR viewer can open.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line options.
+        cs (dict): Concentration settings.
+        settings (dict): urOMT model settings.
+        roi (tuple): ROI box slices from --roi.
+
+    Returns:
+        tuple: ``(planC, index)`` where index indexes planC.urOMT.
     """
     import cerr.plan_container as pc
     from cerr.mri_metrics.dce_mri import getScanOrder
@@ -360,6 +461,17 @@ def referenceEulerian(args, cfg, settings, vol, nIvl):
     ``rhoNe`` when ``reinitR=0``, as :func:`main`'s objective mode does) and run
     the same :func:`runEULAIntervals` both sides use. Returns ``None`` when the
     reference fields are missing.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line options.
+        cfg (UROMTConfig): Configuration used for pyCERR's forward model.
+        settings (dict): urOMT model settings.
+        vol (list): Concentration frames.
+        nIvl (int): Number of intervals.
+
+    Returns:
+        dict or None: Per-interval Eulerian maps (as runEULAIntervals), or None when the
+            reference velocities are not found.
     """
     from cerr.uromt.numerics import paramInit, sourceAdvecDiff
     from cerr.uromt.analyze import runEULAIntervals
@@ -410,6 +522,15 @@ def surfaceFluxRows(ei, label, mask=None, ref=None):
 
     Sign convention is outward-positive, so ``net > 0`` means the region loses
     tracer over that interval. ``ref`` is another such dict to ratio against.
+
+    Args:
+        ei (dict): Per-interval Eulerian maps.
+        label (str): Row label.
+        mask (np.ndarray or None): ROI mask.
+        ref (dict or None): Another surface-flux result to ratio against.
+
+    Returns:
+        dict: The surface flux per interval (``influx``, ``outflux``, ``net``).
     """
     from cerr.uromt.analyze import intervalSurfaceFlux
     sf = intervalSurfaceFlux(ei, mask=mask)
@@ -431,6 +552,14 @@ def surfaceFluxRows(ei, label, mask=None, ref=None):
 
 
 def main(argv=None):
+    """Command-line entry point: compare a pyCERR urOMT run against a reference MATLAB run.
+
+    Args:
+        argv (list[str] or None): Arguments; None uses sys.argv.
+
+    Returns:
+        int: Exit code (0 on success).
+    """
     ap = argparse.ArgumentParser(
         description="Compare pyCERR urOMT against a reference MATLAB run.")
     ap.add_argument("--frames-dir", required=True,
