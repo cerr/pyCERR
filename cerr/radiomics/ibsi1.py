@@ -607,7 +607,7 @@ def createFieldNameFromParameters(imageType, settingS):
         cutoffV = ' '.join(map(str, settingS['CutOff_mm']))
         settingsStr = f"sigma_{sigmaV}mm_cutoff_{cutoffV}mm"
         fieldName = f"{imageType}_{settingsStr}"
-    elif imageType == 'gabor':
+    elif imageType in ['gabor', 'gabor3d']:
         voxelSize_mm = ' '.join(map(str, settingS['VoxelSize_mm']))
         settingsStr = f"mm_Sigma{settingS['Sigma_mm']}mm_AR" \
                   f"{settingS['SpatialAspectRatio']}_wavLen{settingS['Wavlength_mm']}mm"
@@ -616,8 +616,12 @@ def createFieldNameFromParameters(imageType, settingS):
             settingsStr += f"_Orient{thetaV}"
         else:
             settingsStr += f"_OrientAvg_{thetaV}"
+        if imageType == 'gabor3d' and 'PlaneAggregation' in settingS:
+            settingsStr += f"_planes{settingS['PlaneAggregation']}"
         fieldName = f"{imageType}_{settingsStr}"
-    elif imageType in ['lawsconvolution','rotationinvariantlawsconvolution']:
+    elif imageType in ['laws', 'rotationinvariantlaws',
+                       'lawsconvolution', 'rotationinvariantlawsconvolution']:
+        # 'laws'/'rotationinvariantlaws' are the names texture_utils.processImage accepts
         settingsStr = f"{settingS['Direction']}_type{settingS['Type']}_norm{settingS['Normalize']}"
         if 'RotationInvariance' in settingS and settingS['RotationInvariance'] and settingS['RotationInvariance']:
                 settingsStr += f"_rot{settingS['RotationInvariance']['Dim']}_agg{settingS['RotationInvariance']['AggregationMethod']}"

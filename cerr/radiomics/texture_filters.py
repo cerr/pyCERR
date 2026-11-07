@@ -302,37 +302,25 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV,\
         inPlaneSizeV[evenIdxV] = inPlaneSizeV[evenIdxV] + 1
         radius = np.floor(inPlaneSizeV / 2)
 
+    # Filter each plane on its own re-oriented copy of the scan, then rotate only that
+    # plane's responses back to (row, col, slice). Transposing the shared scan once per
+    # accumulated response (as before) left the scan in the wrong orientation for the next
+    # plane, so the coronal pass filtered the wrong plane and non-cubic scans failed to stack.
+    toPlane = {'axial': None, 'sagittal': (2, 0, 1), 'coronal': (2, 1, 0)}
+    fromPlane = {'axial': None, 'sagittal': (1, 2, 0), 'coronal': (2, 1, 0)}
     gaborThetaPlanes = dict()
     for nPlane in range(len(planes)):
         plane = planes[nPlane].lower()
-        # Flip scan
-        if plane == 'axial':
-            pass  # do nothing
-        elif plane == 'sagittal':
-            scan3M = np.transpose(scan3M, (2, 0, 1))
-        elif plane == 'coronal':
-            scan3M = np.transpose(scan3M, (2, 1, 0))
+        planeScan3M = scan3M if toPlane[plane] is None else np.transpose(scan3M, toPlane[plane])
 
         # Apply filter
-        gaborThetas, hGabor = gaborFilter(scan3M, sigma, wavelength,\
+        gaborThetas, hGabor = gaborFilter(planeScan3M, sigma, wavelength,\
                               gamma, thetaV, aggS, radius, paddingV)
         for fieldName in gaborThetas.keys():
-            gaborThetaPlanes[(plane + '_') + fieldName] = gaborThetas[fieldName]
-
-        # Re-orient results for cross-plane aggregation
-        for fieldName in gaborThetaPlanes.keys():
-            gabor_plane3M = gaborThetaPlanes[fieldName]
-            if plane == 'axial':
-                # do nothing
-                pass
-            elif plane == 'sagittal':
-                gabor_plane3M = np.transpose(gabor_plane3M, (1, 2, 0))
-                scan3M = np.transpose(scan3M, (1, 2, 0))
-            elif plane == 'coronal':
-                gabor_plane3M = np.transpose(gabor_plane3M, (2, 1, 0))
-                scan3M = np.transpose(scan3M, (2, 1, 0))
-
-        gaborThetaPlanes[fieldName] = gabor_plane3M
+            gabor_plane3M = gaborThetas[fieldName]
+            if fromPlane[plane] is not None:
+                gabor_plane3M = np.transpose(gabor_plane3M, fromPlane[plane])
+            gaborThetaPlanes[(plane + '_') + fieldName] = gabor_plane3M
         hGaborPlane[plane] = hGabor
 
     # Gather results from common settings
@@ -361,12 +349,13 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV,\
             elif aggMethod == 'std':
                 gabor3M = np.std(gaborPlanes4M, axis=0)
 
-        if len(uqSettings) > 1:
-            planesStr = '_'.join(planes)
-            fieldName = f'{uqSettings[key]}_{planesStr}_{aggMethod}'
-            gaborOut[fieldName] = gabor3M
-        else:
-            gaborOut[uqSettings[key]] = gabor3M
+            # one output per setting (e.g. per orientation when orientations are not aggregated)
+            if len(uqSettings) > 1:
+                planesStr = '_'.join(planes)
+                fieldName = f'{uqSettings[key]}_{planesStr}_{aggMethod}'
+                gaborOut[fieldName] = gabor3M
+            else:
+                gaborOut[uqSettings[key]] = gabor3M
     else:
         gaborOut = gaborThetas
 

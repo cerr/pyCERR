@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Radiomics features on Laws-filtered images.** `texture_utils.processImage`
+  accepts the image types `Laws` and `RotationInvariantLaws`, but
+  `ibsi1.createFieldNameFromParameters` only knew `lawsconvolution`, so
+  `computeScalarFeatures` raised `Invalid image type` for every settings file
+  with a Laws (non-energy) filter. Both names are now accepted. Laws energy was
+  not affected.
+- **3D (2.5D) Gabor filter.** `texture_filters.gaborFilter3d` transposed the
+  shared scan once per accumulated response, so the coronal pass filtered the
+  wrong plane, and on any scan whose dimensions differ the plane responses could
+  not be stacked (`ValueError: inhomogeneous shape`). Each plane is now filtered
+  on its own re-oriented copy and rotated back. With several non-aggregated
+  orientations, only the last one was returned; each is now returned. Results
+  now equal the definition (2D Gabor per orthogonal plane, averaged) on cubes and
+  non-cubes; previously they differed even on cubes. `Gabor3d` features also get
+  a field name (with the plane aggregation in it), which was missing.
+Both are tested in `tests/test_filtered_features_end_to_end.py` (6 tests,
+fail before, pass after).
+
 ## [2.5.2] - 2026-11-06
 
 ### Added
