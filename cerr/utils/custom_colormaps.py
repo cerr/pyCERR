@@ -3,6 +3,11 @@ Custom color maps for the Viewer
 """
 
 def starInterp():
+    """The 'starInterp' colormap used by the viewer (blue through to red).
+
+    Returns:
+        list[list[float]]: 255 RGB triplets in [0, 1].
+    """
     cmap = [[0.300000000000000, 0.300000000000000, 1],
             [0.316889763779528, 0.316889763779528, 1],
             [0.333779527559055, 0.333779527559055, 1],

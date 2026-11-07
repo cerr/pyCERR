@@ -34,6 +34,14 @@ def trimeshSurfaceArea(v,f):
     return area
 
 def vectorNorm3d(v):
+    """Euclidean length of each row of an (N x 3) array.
+
+    Args:
+        v (np.ndarray): (N x 3) vectors.
+
+    Returns:
+        np.ndarray: (N,) vector lengths.
+    """
     return np.linalg.norm(v, axis=1)
 
 def eig(a):
@@ -42,10 +50,25 @@ def eig(a):
     Uses ``np.linalg.eigvalsh``: the general ``np.linalg.eig`` returns complex values
     (``x+0j``) for some inputs, which made the axis-length features complex. Tiny
     negative values from rounding (a flat ROI) are clipped to 0 so ``sqrt`` stays real.
+
+    Args:
+        a (np.ndarray): Symmetric (n x n) matrix.
+
+    Returns:
+        np.ndarray: (n,) eigenvalues in ascending order, >= 0.
     """
     return np.clip(np.linalg.eigvalsh(a), 0, None)
 
 def sepsq(a, b):
+    """Squared Euclidean distance between matching columns of two arrays.
+
+    Args:
+        a (np.ndarray): (3 x N) or (3 x 1) coordinates.
+        b (np.ndarray): (3 x N) or (3 x 1) coordinates (broadcast against ``a``).
+
+    Returns:
+        np.ndarray: (N,) squared distances.
+    """
     return np.sum((a - b)**2, axis=0)
 
 def calcMaxDistBetweenPts(ptsM, distType):

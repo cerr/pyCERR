@@ -534,6 +534,10 @@ class Scan:
              None and '' are rejected: an absent option is not a request to skip
              normalization, and silently treating it as either choice would be ambiguous.
 
+        Returns:
+            None: the scan is converted in place (scanArray and per-slice imageUnits, suvType,
+            CTOffset).
+
         Raises:
             ValueError: if suvType is None, '', or not one of the supported types.
 

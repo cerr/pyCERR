@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deformations are loaded from `.h5` files.** `saveToH5` writes
+  `planC.deform`, but `loadFromH5` never read it back, so every deformation
+  vector field was silently lost on a save/load round trip (`loadH5Deform`
+  existed but was not called). `loadH5Deform` also iterated the items unsorted,
+  so with ten or more deformations `Item_10` loaded before `Item_2`. Tested in
+  `tests/test_h5_deform_roundtrip.py`.
+- **Docstrings that described the wrong arguments or results** (code unchanged):
+  `rotationInvariantWaveletFilter` documented Laws arguments (`filterDim`,
+  `normFlag`) and a "Laws filter response"; `waveletFilter` also said it returns
+  a Laws response (it returns a dict of sub-band responses); `calcNGTDM`
+  documented `num_grayscale_levels`, `a` and an "NGLDM matrix" (it returns
+  `s, p, Nvc`); `gaborFilter`/`gaborFilter3d` documented `lambda` (the argument is
+  `wavelength`); `imquantize` documented `bin_width` (it is `binwidth`);
+  `Structure.getContourPolygons`, `createSitkImage` and the module-level
+  `saveJson` documented parameters they no longer take; `Structure.saveJson`
+  said it writes a file and returns None (it returns the JSON string and does
+  not write); `Dose.saveNii` claimed to return 0. Also completed missing
+  `Args`/`Returns` sections in the radiomics, dataclasses, gamma, plan_container
+  and utils modules (e.g. `gammaDose3dForScan`, `padScan`, `getWaveletSubbands`,
+  `createFieldNameFromParameters`, `finterp2`, `statistics.round`, whose
+  docstring now notes it is only correct for x >= -0.5).
+
 - **Radiomics features on Laws-filtered images.** `texture_utils.processImage`
   accepts the image types `Laws` and `RotationInvariantLaws`, but
   `ibsi1.createFieldNameFromParameters` only knew `lawsconvolution`, so

@@ -10,8 +10,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 def get_empty_list():
+    """Default factory for list fields: a new empty list."""
     return []
 def get_empty_np_array():
+    """Default factory for array fields: a new empty (0, 0, 0) array."""
     return np.empty((0,0,0))
 
 @dataclass
@@ -236,6 +238,17 @@ class UniformScanInfo:
     firstZValue: float = 0.0
 
 def deduce_voxel_thickness(scan_info) -> ScanInfo:
+    """Set each slice's voxelThickness from the spacing of the slice z values.
+
+    Interior slices get the mean of the gaps to their two neighbours, the first and last
+    slices the gap to their one neighbour, and a single slice gets 1.
+
+    Args:
+        scan_info (list[ScanInfo]): Per-slice metadata of one scan, ordered by zValue.
+
+    Returns:
+        list[ScanInfo]: The same list, with voxelThickness set on every element.
+    """
     zValsV = np.array([s.zValue for s in scan_info])
     if len(zValsV) == 1:
         voxel_thickness = [1]

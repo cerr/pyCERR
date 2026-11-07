@@ -116,7 +116,7 @@ def ngldmToScalarFeatures(s, numVoxels):
     IBSI definitions https://ibsi.readthedocs.io/en/latest/03_Image_features.html#neighbouring-grey-level-dependence-based-features
 
     Args:
-        s (np.ndarray: NGLDM matrix of size (num_grayscale_levels, max_nbhood_size)
+        s (np.ndarray): NGLDM matrix of size (num_grayscale_levels, max_nbhood_size)
         numVoxels (int): number of voxels in the region of interest used for generating s.
 
     Returns:

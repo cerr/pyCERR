@@ -24,6 +24,7 @@ from cerr.utils import uid
 
 
 def get_empty_dict():
+    """Default factory for dict fields: a new empty dict."""
     return {}
 
 
@@ -39,7 +40,14 @@ class UROMT:
 def getUROMTList(planC):
     """Return ``planC.urOMT`` (the list of :class:`UROMT` runs), creating it if
     the plan container does not have one yet (PlanC has no native ``urOMT``
-    attribute, exactly like ``planC.im``)."""
+    attribute, exactly like ``planC.im``).
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
+    Returns:
+        list[UROMT]: ``planC.urOMT`` (an empty list if it did not exist).
+    """
     if not hasattr(planC, "urOMT") or planC.urOMT is None:
         planC.urOMT = []
     return planC.urOMT
@@ -50,6 +58,16 @@ def buildFromConfig(cfg, result, Eul=None, Lag=None):
 
     Stores the inputs to the solver (settings + the preprocessed concentration
     frames and ROI geometry from ``cfg``) alongside the outputs.
+
+    Args:
+        cfg: Solver configuration object (attributes such as settings, scanNumV, structNum,
+            vol, mask, bbox, spacing are read when present).
+        result (dict): Solver output.
+        Eul (dict): [optional] Eulerian post-processing results.
+        Lag (dict): [optional] Lagrangian post-processing results.
+
+    Returns:
+        UROMT: A new object with a fresh UROMTUID.
     """
     setup = dict(
         settings=getattr(cfg, "settings", {}),
@@ -71,7 +89,16 @@ def buildFromConfig(cfg, result, Eul=None, Lag=None):
 
 def saveUROMTToPlan(planC, uromtObj, index=None):
     """Store ``uromtObj`` on ``planC.urOMT``; append when ``index`` is None,
-    else overwrite. Returns the (0-based) index where it was stored."""
+    else overwrite.
+
+    Args:
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+        uromtObj (UROMT): Object to store.
+        index (int): [optional] Position to overwrite; None (or past the end) appends.
+
+    Returns:
+        int: The 0-based index where it was stored.
+    """
     lst = getUROMTList(planC)
     if index is None or index >= len(lst):
         lst.append(uromtObj)

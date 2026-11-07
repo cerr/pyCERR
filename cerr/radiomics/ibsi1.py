@@ -567,11 +567,22 @@ def getIBSINameMap():
     return classDict, featDict
 
 def createFieldNameFromParameters(imageType, settingS):
-    """
-    Create unique fieldname for radiomics features returned by calcRadiomicsForImgType
-    :param imageType: 'Original' or filtered image type (see processImage.m for valid options)
-    :param settingS: Parameter dictionary for radiomics feature extraction
-    :return: fieldName
+    """Unique field-name prefix for the features of one (filtered) image type.
+
+    Used by :func:`computeScalarFeatures` to name each image type's features, e.g.
+    ``'wavelets_db2_HHL'`` or ``'log_sigma_3_0mm'``.
+
+    Args:
+        imageType (str): 'Original' or a filtered image type accepted by
+            ``texture_utils.processImage`` (case-insensitive).
+        settingS (dict): That image type's parameters from the radiomics settings
+            (``settings['imageType'][imageType]``).
+
+    Returns:
+        str: The field name.
+
+    Raises:
+        ValueError: For an image type with no naming rule.
     """
     imageType = imageType.lower()
     if imageType == 'original':

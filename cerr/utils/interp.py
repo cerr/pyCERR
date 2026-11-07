@@ -178,13 +178,23 @@ def finterp3(xInterpV, yInterpV, zInterpV, field3M, xFieldV, yFieldV, zFieldV, O
 
 
 def finterp2(x, y, z, xi, yi, uniformFlag=0, outOfRangeVal=np.nan):
-    """
-    This Python version of the finterp2 function should now work
-    similarly to the MATLAB version for regularly spaced
-    matrices and uniform grids. The output zi will be a 2D array
-    interpolated from the input z based on the provided xi and yi
-    vectors. The uniformFlag parameter is optional and defaults to 0.
-    The outOfRangeVal parameter is also optional and defaults to np.nan.
+    """Bilinear interpolation of a 2D field (Python port of CERR's finterp2).
+
+    Args:
+        x (np.ndarray): Column coordinates of ``z`` (length nCols).
+        y (np.ndarray): Row coordinates of ``z`` (length nRows).
+        z (np.ndarray): (nRows x nCols) field.
+        xi (np.ndarray): Query column coordinates.
+        yi (np.ndarray): Query row coordinates.
+        uniformFlag (int): 1: ``xi`` and ``yi`` define a grid; positions are found with
+            ``np.interp`` (``x``, ``y`` increasing) and the result is (len(yi) x len(xi)).
+            0 (default): ``x`` and ``y`` must be evenly spaced; ``(xi[k], yi[k])`` are
+            point pairs and the result has one value per pair.
+        outOfRangeVal (float): Value for queries outside ``z`` when ``uniformFlag`` is 1
+            (default NaN). With ``uniformFlag`` 0, out-of-range queries are always NaN.
+
+    Returns:
+        np.ndarray: Interpolated values.
     """
 
     if uniformFlag == 1:

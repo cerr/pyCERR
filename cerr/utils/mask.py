@@ -67,7 +67,7 @@ def getSurfacePoints(mask3M, sampleTrans=1, sampleAxis=1):
     Args:
         mask3M (numpy.ndarray): binary mask representing segmentation
         sampleTrans (int): optional, sample rate in transverse plane
-        sampleAxis 9int): optional, sample rate along slices
+        sampleAxis (int): optional, sample rate along slices
 
     Returns:
         tuple: r,c,s coordinates of surface voxels

@@ -310,12 +310,20 @@ def gammaDose3dForScan(refDoseNum, evalDoseNum, scanNum, planC,
         evalDoseNum (int): evaluated dose index in ``planC.dose``.
         scanNum (int): scan index whose grid the gamma is computed on.
         planC (cerr.plan_container.PlanC): plan container.
-        distAgreement, doseAgreement, thresholdFraction, doseAgreementType,
-        normalizationDose, maxSearchDistance, distSampleRate: see
-            :func:`gammaDose3d` / :func:`gammaDose3dForDoses`.
+        distAgreement (float): Distance-to-agreement criterion in mm (default 3).
+        doseAgreement (float): Dose-difference criterion in percent (default 3).
+        thresholdFraction (float): Voxels whose reference dose is below this fraction of the
+            reference maximum (on the scan grid) are excluded (default 0.2).
+        doseAgreementType (str): 'global' (percent of normalizationDose) or 'local' (percent
+            of each voxel's reference dose). Default 'global'.
+        normalizationDose (float or None): Dose for the global criterion; default the
+            reference maximum.
+        maxSearchDistance (float or None): Search radius in mm; default ``2 * distAgreement``.
+        distSampleRate (int): Search samples per distAgreement along each axis (default 3).
 
     Returns:
-        tuple: ``(gamma3M, passRate)`` on the scan grid.
+        tuple: ``(gamma3M, passRate)`` on the scan grid (gamma3M is NaN where not evaluated;
+        passRate from :func:`gammaPassRate`).
     """
     scan = planC.scan[scanNum]
     xV, yV, zV = scan.getScanXYZVals()

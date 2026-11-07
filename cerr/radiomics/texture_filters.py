@@ -159,7 +159,7 @@ def gaborFilter(scan3M, sigma, wavelength, gamma, thetaV,\
     Args:
         scan3M (np.ndarray): 3D scan matrix.
         sigma (float): Std. deviation Gaussian envelope in no. voxels.
-        lambda (float): wavelength in no. voxels.
+        wavelength (float): Wavelength in no. voxels.
         gamma (float): Spatial aspect ratio
         thetaV (np.array, 1D): Orientations in degrees
         aggS (dict): [optional, default=None] Parameters for averaging responses across orientations.
@@ -271,7 +271,7 @@ def gaborFilter3d(scan3M, sigma, wavelength, gamma, thetaV,\
     Args:
         scan3M (np.ndarray): 3D scan array.
         sigma (int): Std. dev. of Gaussian envelope in no. voxels.
-        lambda (int): Wavelength in no. voxels.
+        wavelength (int): Wavelength in no. voxels.
         gamma (float): Spatial aspect ratio.
         thetaV (list(dtype=float)): Orientations in degrees.
         aggS (dict): Parameters for aggregation of responses across orientations
@@ -772,7 +772,7 @@ def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag,\
         scan3M (np.ndarray): 3D scan.
         mask3M (np.ndarray(dtype=bool)): 3D mask.
         direction (string): Specifying '2d', '3d' or 'All'.
-        filterDim (string: Specifying '3', '5', 'all', or a combination
+        filterDim (string): Specifying '3', '5', 'all', or a combination
                     of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
         normFlag (bool): Flag to normalize kernel coefficients if set to True.
                   Normalization ensures average pixel in filtered image
@@ -784,7 +784,7 @@ def lawsEnergyFilter(scan3M, mask3M, direction, filterDim, normFlag,\
         lawsPadMethod (string): Padding method applied to compute Laws filter response.
         energyKernelSizeV (np.array(dtype=int)): Patch size used to calculate local energy
                       [numRows numCols num_slc] in voxels.
-        energyPadMethod (np.array(dtype=int)): Padding method applied to
+        energyPadMethod (string): Padding method applied to
                    calculate local energy.
         energyPadSizeV (np.array(dtype=int)): Amount padding applied to
                    calculate local energy [numRows numCols num_slc] in voxels.
@@ -850,6 +850,7 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
 
        Args:
             scan3M (np.ndarray): 3D scan.
+            mask3M (np.ndarray(dtype=bool)): 3D mask.
             direction (string): Specifying '2d', '3d' or 'All'.
             filterDim (string): Specifying '3', '5', 'all', or a combination
                         of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
@@ -863,7 +864,7 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
             lawsPadMethod (string): Padding method applied to compute Laws filter response.
             energyKernelSizeV (np.array(dtype=int)): Patch size used to calculate local energy
                       [numRows numCols num_slc] in voxels.
-            energyPadMethod (np.array(dtype=int)): Padding method applied to
+            energyPadMethod (string): Padding method applied to
                    calculate local energy.
             energyPadSizeV (np.array(dtype=int)): Amount padding applied to
                    calculate local energy [numRows numCols num_slc] in voxels.
@@ -889,13 +890,15 @@ def rotationInvariantLawsEnergyFilter(scan3M, mask3M, direction, filterDim,\
 ### Functions for wavelet filtering
 
 def wkeep(z, size, first):
-    """Keep central segment of signal after convolution
-    Args
-        z (np.array)   : Convolved signal
-        size (tuple)   : Dimensions of original signal
-        first: (int)   : Start index
-    Returns
-       Central segment of signal after convolution
+    """Keep the central segment of a signal after convolution (MATLAB ``wkeep``).
+
+    Args:
+        z (np.ndarray): Convolved 1D or 2D signal.
+        size (int or tuple): Length (1D) or [nRows, nCols] (2D) of the segment to keep.
+        first (int or tuple): 1-based start index (1D) or [row, col] start indices (2D).
+
+    Returns:
+        np.ndarray: The kept segment of ``z``.
     """
     if z.ndim == 1: #1D
         last = first + size - 1
@@ -907,6 +910,18 @@ def wkeep(z, size, first):
 
 
 def decomposeLOC(x, lo, hi, first, sizeV):
+    """One level of a 2D wavelet decomposition with given filters (cropped, not downsampled).
+
+    Args:
+        x (np.ndarray): 2D input.
+        lo (np.ndarray): 1D low-pass decomposition filter.
+        hi (np.ndarray): 1D high-pass decomposition filter.
+        first (tuple): 1-based [row, col] start of the central segment kept by :func:`wkeep`.
+        sizeV (tuple): [nRows, nCols] of the kept segment.
+
+    Returns:
+        tuple: ``(ca, ch, cv, cd)`` approximation, horizontal, vertical and diagonal coefficients.
+    """
     # Approximation
     y = convolve2d(x, lo[None,:], mode='full')
     z = convolve2d(y.T, lo[None,:], mode='full').T
@@ -1028,7 +1043,19 @@ def swt2(imgM, level, loD, hiD):
     return a, h, v, d
 
 def getWaveletSubbands(scan3M, waveletName, level=1, dim='3d'):
-    """ getWaveletSubbands
+    """Stationary (undecimated) wavelet sub-bands of a scan.
+
+    Args:
+        scan3M (np.ndarray): 3D scan.
+        waveletName (str): PyWavelets name including the index, e.g. 'haar', 'db2', 'coif1', 'bior1.3'.
+        level (int): Decomposition level (default 1); the sub-bands are taken at this level.
+        dim (str): '2d' (in-plane sub-bands LL, LH, HL, HH) or '3d' (LLL ... HHH). Default '3d'.
+
+    Returns:
+        dict: Sub-band name -> 3D array the size of ``scan3M``. Keys are ``'<band>_<waveletName>'``,
+        e.g. ``'HHL_db2'``.
+
+    Based on code by Martin Vallières:
     Copyright (C) 2017-2019 Martin Vallières
     All rights reserved.
     https://github.com/mvallieres/radiomics-develop
@@ -1157,8 +1184,8 @@ def waveletFilter(vol3M, waveType, direction, level, rotInvFlag=False):
             rotInvFlag (bool) : Set to True for rotation-invariant filtering (default:False).
 
        Returns:
-            out3M (np.ndarray(dtype=float)): Laws filter response aggregated
-                   across orientations as specified.
+            dict: Filter response(s), keyed ``'<waveType>_<direction>'`` (one entry per sub-band when
+                  ``direction`` is 'All'). Each value is a 3D np.ndarray the size of ``vol3M``.
        """
 
     level = int(level)
@@ -1225,17 +1252,14 @@ def rotationInvariantWaveletFilter(scan3M, waveType, direction, level, rotS):
 
    Args:
         scan3M (np.ndarray): 3D scan.
-        direction (string): Specifying '2d', '3d' or 'All'.
-        filterDim (string): Specifying '3', '5', 'all', or a combination
-                    of any 2 (if 2d) or 3 (if 3d) of E3, L3, S3, E5, L5, S5.
-        normFlag (bool): Flag to normalize kernel coefficients if set to True.
-                  Normalization ensures average pixel in filtered image
-                  is as bright as the average pixel in the original image
+        waveType (string): Wavelet name including the index, e.g. 'haar', 'db2', 'coif1', 'bior1.3'.
+        direction (string): Sub-band, e.g. 'HHH', 'LLH' (3D) or 'HH', 'LH' (2D).
+        level (int): Decomposition level (1 or more).
         rotS (dict): Parameters for aggregating filter response across
-              different orientations
+              different orientations, e.g. ``{'Dim': '3D', 'AggregationMethod': 'avg'}``.
 
    Returns:
-        out3M (np.ndarray(dtype=float)): Laws filter response aggregated
+        out3M (np.ndarray(dtype=float)): Wavelet sub-band response aggregated
                across orientations as specified.
    """
 
@@ -1251,7 +1275,15 @@ def rotationInvariantWaveletFilter(scan3M, waveType, direction, level, rotS):
 ### Functions for rotation-invariant filtering and pooling
 
 def getMatchFields(dictIn, *args):
-    """Return vals in list of dictionaries matching input key"""
+    """Values of the given keys of a dictionary, as an array.
+
+    Args:
+        dictIn (dict): Dictionary to read.
+        *args (str): Keys to look up, in order.
+
+    Returns:
+        np.ndarray: ``[dictIn[k] for k in args]``.
+    """
 
     return np.array([dictIn[field] for field in args])
 
@@ -1366,7 +1398,10 @@ def flipSequenceForWavelets(vol3M, index, sign):
     Args:
         vol3M (np.ndarray): 3D scan.
         index (int): Flip index from (0,1,2...,7)
-        sign  : +1 or -1 (-1 to reverse order of flips).
+        sign (int): +1 or -1 (-1 to reverse order of flips).
+
+    Returns:
+        np.ndarray: The flipped array.
     """
 
     if index == 0: #No flip

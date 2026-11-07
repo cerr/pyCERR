@@ -174,6 +174,12 @@ class Structure:
     def convertDcmToCerrVirtualCoords(self,planC):
         """Routine to convert x,y,z coordinates of segmentation from DICOM to pyCERR virtual coordinates. More information
             about virtual coordinates is on the Wiki https://github.com/cerr/pyCERR/wiki/Coordinate-system
+
+        Args:
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object (for the associated scan).
+
+        Returns:
+            Structure: self, with contour points converted (unchanged if the associated scan is not found).
         """
 
         assocScanUID = self.assocScanUID
@@ -280,6 +286,9 @@ class Structure:
     def getSitkImage(self, planC):
         """ Routine to convert pyCERR Structure object to SimpleITK Image object
 
+        Args:
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object.
+
         Returns:
             sitk.Image: SimpleITK Image with value of 1 assigned to segmented pixels
 
@@ -294,7 +303,6 @@ class Structure:
         """This routine returns the list of polygonal coordinates for all the segments of input structutre.
 
         Args:
-            strNum (int): index of structure element in planC.structure
             planC (cerr.plan_container.PlanC): pyCERR's plan container object
             rcsFlag (bool): optional, flag to return polygonal coordinates in row,col,slc units.
                             By default, the polygonal coordinates are returned in physical units of cm.
@@ -359,14 +367,15 @@ class Structure:
         return structDict
 
     def saveJson(self, jsonFileName, planC):
-        """
+        """Serialize this structure to a JSON string.
+
         Args:
-            structNumV (List): List of structure indices to export to JSON format.
-            jsonFileName (str): JSON file name.
-            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+            jsonFileName (str): Currently unused; nothing is written. Use the module-level
+                :func:`saveJson` to write structures to a file.
+            planC (cerr.plan_container.PlanC): Currently unused.
 
         Returns:
-            None
+            str: The structure as indented JSON.
         """
         #ctrSeq = rtstruct_iod.getROIContourSeq([0], planC)
         return json.dumps(self, ensure_ascii=False, indent=4, cls=jsonSerializeStruct)
@@ -612,7 +621,8 @@ def getJsonList(structNumV, planC):
         return strList
 
 def saveJson(structNumV, jsonFileName, planC):
-    """
+    """Write structures to a JSON file (read back with :func:`importJson`).
+
     Args:
         structNumV (List): List of structure indices to export to JSON format.
         jsonFileName (str): JSON file name.
@@ -1057,11 +1067,10 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
 def createSitkImage(mask3M, assocScanNum, planC):
     """
     Args:
-        mask3M (np.ndarray or int or list): binary mask for segmentation which is of the same shape as the associated scan,
-                            Or a list of structure indices from planC.structure
+        mask3M (np.ndarray or list): 3D binary or label mask of the same shape as the associated scan,
+                            or a list of such 3D masks (written as a multi-component image).
         assocScanNum (int): index of scan object within planC.scan to associate the structure
         planC (cerr.plan_container.PlanC): pyCERR's container object
-        structNum (int or None): optional, index of structure object within planC.structure to replace
 
     Returns:
         SimpleITK.Image: SimpleITK Image
@@ -1261,6 +1270,10 @@ def getMatchingIndex(structName, strList, matchCriteria='exact'):
             'EXACT' - returns indices of exact matches
             'FIRSTCHARS' - returns indices where first characters of elements in the list match input structName
             other - returns indices where elements in the list contain input structName as a substring
+
+    Returns:
+        list[int]: Indices of matching names, in order of the input names, without duplicates
+            (empty when nothing matches). Matching is case-insensitive.
 
     Example:
         ::
@@ -1526,6 +1539,9 @@ def structUnion(structNumV, planC, unionStructName=None):
         unionStructName (str or None): Name for the new structure. A descriptive
             default is generated when ``None``.
 
+    Returns:
+        cerr.plan_container.PlanC: planC with the union structure appended.
+
     Example:
         ::
 
@@ -1676,7 +1692,7 @@ def getBsplineSmoothing(structNum, resolutionFactor, smootingFactor, planC, \
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         replaceFlag (bool): when True, contours of the originl structure are replaced by
          smooth contours. If False, a new structure is added to planC.
-        procSructName (str), optional: Name of structure. When not specifid, the original
+        procSructName (str, optional): Name of structure. When not specifid, the original
          structure name is retained.
 
     Returns:

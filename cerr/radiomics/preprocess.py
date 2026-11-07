@@ -22,15 +22,15 @@ from sklearn.feature_extraction.image import extract_patches_2d
 def imquantize(x, num_level=None, xmin=None, xmax=None, binwidth=None):
     """
 
-    Function to quantize an image based on the number of bins (num_level) or the bin width (bin_width).
+    Function to quantize an image based on the number of bins (num_level) or the bin width (binwidth).
     The min and max are computed from the input image image when they are not provided.
 
     Args:
         x (np.ndarray): Input image matrix.
-        num_level (int): [optional, default: Use fixed bin_width] Number of quantization levels.
+        num_level (int): [optional, default: Use fixed binwidth] Number of quantization levels.
         xmin (int): [optional, default: Use min intensity in x] Minimum value for quantization.
         xmax (int): [optional, default: Use max intensity in x] Maximum value for quantization.
-        bin_width (int): [optional, default: Use fixed num_level] Bin width for quantization.
+        binwidth (float): [optional, default: Use fixed num_level] Bin width for quantization.
     Returns:
         np.ndarray(dtype=int): Quantized image.
     """
@@ -353,15 +353,16 @@ def padScan(scan3M, mask3M, method, marginV, cropFlag=True):
                 'periodic' - Image is padded with periodic expansion.
                 'nearest' - Image is padded by using values from nearest neighbors.
                 'mirror' - Image is padded by mirrorig the boundary region as per the margin.
-        marginV (np.array, 1D) specifying amount of padding to be applied
-                [nRows, nCols, nSlices] in voxels.
-        cropFlag: [optional, default:True] bool for flag to crop around mask bounding box
-                  when set to True.
+        marginV (np.array, 1D): Amount of padding to be applied [nRows, nCols, nSlices] in voxels.
+        cropFlag (bool): [optional, default:True] Crop around the mask bounding box when True.
+
     Returns:
-        np.ndarray(dtype=:) outScan3M
-         outMask3M
-          outLimitsV
-        np.ndarray(dtype=int): , maskBoundingBox3M, morphmask3M, gridS, paramS, diagS
+        tuple: ``(outScan3M, outMask3M, outLimitsV)``:
+            outScan3M (np.ndarray): Padded (and, if cropFlag, cropped) scan.
+            outMask3M (np.ndarray(dtype=bool)): Mask on the same grid as outScan3M.
+            outLimitsV (list): [minRow, maxRow, minCol, maxCol, minSlc, maxSlc] in input-voxel indices of
+                the region outScan3M covers, including the margin (indices can fall outside the input
+                for the padding methods).
 
     """
 

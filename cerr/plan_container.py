@@ -245,7 +245,8 @@ def loadFromH5(h5File, initplanC=''):
         initplanC (cerr.plan_container.PlanC): pyCERR's plan container object
 
     Returns:
-        cerr.plan_container.PlanC: pyCERR's plan container object with metadata imported from input H5 file.
+        cerr.plan_container.PlanC: pyCERR's plan container object with the header, scans, structures,
+        doses and deformations imported from the input H5 file.
 
     Example:
         Read a file written by :func:`saveToH5`::
@@ -276,6 +277,9 @@ def loadFromH5(h5File, initplanC=''):
         if 'dose' in f['planC']:
             doseGrp = f['planC']['dose']
             planC = loadH5Dose(doseGrp, planC)
+        if 'deform' in f['planC']:
+            deformGrp = f['planC']['deform']
+            planC = loadH5Deform(deformGrp, planC)
     return planC
 
 def saveH5Header(headerGrp, planC):
@@ -545,7 +549,7 @@ def loadH5Deform(deformGrp, planC):
     deformUIDs = [d.deformUID for d in planC.deform]
     deformItems = deformGrp.keys()
     # Sort deformItems in order item_1, item_2,...
-    scanItems = getSortedItems(list(deformItems))
+    deformItems = getSortedItems(list(deformItems))
     for deformItem in deformItems:
         deformObj = dfrm.Deform()
         if deformGrp[deformItem].attrs['deformUID'] in deformUIDs:
@@ -1545,8 +1549,8 @@ def importDoseArray(dose3M, xV, yV, zV, planC, assocScanNum, doseInfo=None):
         zV (numpy.ndarray): z-coordinates of dose grid
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
         assocScanNum (int): Index of scan associated with dose
-        doseInfo [Optional (dict), default:None]: Dictionary of attributes of cerr.dataclasses.dose.Dose
-            to set on the new dose, e.g. {'fractionGroupID': 'Plan A', 'doseUnits': 'GY'}.
+        doseInfo (dict, optional): Dictionary of attributes of cerr.dataclasses.dose.Dose
+            to set on the new dose (default None), e.g. {'fractionGroupID': 'Plan A', 'doseUnits': 'GY'}.
 
     Returns:
         cerr.plan_container.PlanC: pyCERR's plan container object with dose imported to planC.dose

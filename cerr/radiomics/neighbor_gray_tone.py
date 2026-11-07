@@ -13,13 +13,17 @@ def calcNGTDM(scan_array, patch_size, numGrLevels):
     Args:
         scan_array (np.ndarray(dtype=int)): quantized 3d matrix obtained, for example, from radiomics.preprocess.imquantize_cerr
         patch_size (list): list of length 3 defining patch radius for row, col, slc dimensions.
-        num_grayscale_levels (int): Number of gray levels.
-        a: coarseness parameter
+        numGrLevels (int): Number of gray levels.
 
     Returns:
-        np.ndarray: NGLDM matrix os size (num_grayscale_levels, max_nbhood_size)
+        tuple: ``(s, p, Nvc)``:
+            s (np.ndarray): (numGrLevels x 1) sum of absolute differences between each voxel's
+                gray level and the mean of its neighbourhood, per gray level.
+            p (np.ndarray): (numGrLevels x 1) gray level probabilities over voxels with a valid
+                neighbourhood (IBSI n_i / N_v,c).
+            Nvc (int): number of voxels with a valid neighbourhood.
 
-        The output can be passed to ngldmToScalarFeatures to get NGLDM texture features.
+        The output can be passed to ngtdmToScalarFeatures to get NGTDM texture features.
 
     """
 

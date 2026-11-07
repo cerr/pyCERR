@@ -243,7 +243,7 @@ class Dose:
             niiFileName (str): File name including the full path to save the pyCERR dose object to NifTi file.
 
         Returns:
-            int: 0 when NifTi file is written successfully.
+            None
         """
 
         img = self.getSitkImage()

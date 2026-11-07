@@ -87,6 +87,8 @@ def rlmToScalarFeatures(rlmM, numVoxels):
     Args:
         rlmM (np.ndarray(dtype=int)): run-length matrix of size (nL x L) for rlmType = 1,
                     list of size equal to the number of directions for rlmType = 2.
+        numVoxels (int): number of voxels in the region of interest, used for the run percentage
+                    (None is treated as 1).
 
     Returns:
         dict: dictionary with scalar texture features as its

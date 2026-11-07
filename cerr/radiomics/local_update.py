@@ -83,7 +83,14 @@ def glcmCounts(quantized3M, offsetsM, nL, perDirection):
 
 
 def glcmNormalize(countsM):
-    """Normalize co-occurrence counts per column, as ``calcCooccur`` does (float32)."""
+    """Normalize co-occurrence counts per column, as ``calcCooccur`` does (float32).
+
+    Args:
+        countsM (np.ndarray): Co-occurrence counts, one column per direction.
+
+    Returns:
+        np.ndarray(dtype=float32): Counts divided by each column's sum (empty columns left at 0).
+    """
     m = countsM.astype(np.float32)
     colSum = m.sum(axis=0)
     colSum[colSum == 0] = 1
