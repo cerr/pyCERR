@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-11-09
+
 ### Fixed
 
+- **RTDOSE files that reference plan beams load again.** `loadDose` compared
+  the `ReferencedBeamSequence` itself with 0 (`numBeams > 0`), which raises a
+  `TypeError`, so such a dose could not be loaded; it now checks
+  `len(numBeams) > 0`.
 - **Deformations are loaded from `.h5` files.** `saveToH5` writes
   `planC.deform`, but `loadFromH5` never read it back, so every deformation
   vector field was silently lost on a save/load round trip (`loadH5Deform`
@@ -31,15 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `createFieldNameFromParameters`, `finterp2`, `statistics.round`, whose
   docstring now notes it is only correct for x >= -0.5).
 
-### Documentation
-
-- **About 400 docstrings added or completed** in the viewer, IMRTP
-  (PortPy/pyRadPlan bridges, QIB, beam geometry), urOMT, DICOM export, ROE,
-  AI-model utilities, multi-view helpers, datasets and the dataclass factories.
-  Every public function now has a summary and matching `Args`/`Returns`
-  sections. Code is unchanged (verified by comparing the AST with docstrings
-  stripped).
-
 - **Radiomics features on Laws-filtered images.** `texture_utils.processImage`
   accepts the image types `Laws` and `RotationInvariantLaws`, but
   `ibsi1.createFieldNameFromParameters` only knew `lawsconvolution`, so
@@ -57,6 +54,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a field name (with the plane aggregation in it), which was missing.
 Both are tested in `tests/test_filtered_features_end_to_end.py` (6 tests,
 fail before, pass after).
+
+### Documentation
+
+- **About 400 docstrings added or completed** in the viewer, IMRTP
+  (PortPy/pyRadPlan bridges, QIB, beam geometry), urOMT, DICOM export, ROE,
+  AI-model utilities, multi-view helpers, datasets and the dataclass factories.
+  Every public function now has a summary and matching `Args`/`Returns`
+  sections. Code is unchanged (verified by comparing the AST with docstrings
+  stripped).
 
 ## [2.5.2] - 2026-11-06
 
