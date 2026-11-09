@@ -493,7 +493,7 @@ def loadDose(file_list):
                             ReferencedBeamSequence
                         dose_meta.refFractionGroupNumber = ds.ReferencedRTPlanSequence[0].\
                             ReferencedFractionGroupSequence[0].ReferencedFractionGroupNumber
-                        if numBeams > 0:
+                        if len(numBeams) > 0:
                             dose_meta.refBeamNumber = ds.ReferencedRTPlanSequence[0].\
                                 ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0].\
                                 ReferencedBeamNumber
