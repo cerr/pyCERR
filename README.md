@@ -116,11 +116,9 @@ elsewhere, install `PyQt6` and set `QT_API=pyqt6` if PyQt5 is also present
 headless servers and containers need no Qt binding. Launching `pycerr_gui`
 without a Qt binding raises an ImportError naming the install command.
 
-AI segmentation models (`cerr.ai_models`) additionally need `model_installer`,
-which is distributed from GitHub only:
-```bash
-uv pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
-```
+AI segmentation models (`cerr.ai_models`) additionally need `git` and
+[uv](https://docs.astral.sh/uv/) on the PATH: each model repository (such as
+[SMIT](https://github.com/cerr/smit)) is cloned and run in its own uv environment.
 
 ### Install the latest development version
 ```bash
