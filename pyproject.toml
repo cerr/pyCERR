@@ -48,7 +48,7 @@ dependencies = [
     # that dominate its Gauss-Newton CG matvec. ~90x on the derivative operator
     # versus the vectorized numpy form.
     'numba',
-    # Model run specifications (run_spec.yaml) read by cerr.ai_models.
+    # Model registries (models.yaml) read by cerr.ai_models.
     'pyyaml',
 ]
 
@@ -80,10 +80,6 @@ napari = [
     "napari[all]",
     "napari-animation"
 ]
-# NOTE: model_installer is only distributed as a git repo, and PyPI rejects
-# direct URL (git+) dependencies in package metadata. So it is NOT declared as
-# an extra here; install it alongside pyCERR when needed with:
-#   pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
 ants = [
     "antspyx",
 ]

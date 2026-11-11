@@ -2,40 +2,30 @@ AI model inference
 ==================
 
 pyCERR runs pretrained deep-learning segmentation models on scans in a
-``planC`` and brings the results back as structures. It does the parts of an
-AI pipeline that depend on the imaging data rather than the network: reading
-DICOM or NIfTI, preparing the input the model was trained on, mapping the
-output back onto the original scan, cleaning it up and exporting it.
+``planC`` and brings the results back as structures. It reads
+DICOM or NIfTI images, pre-processes them to the input the model was trained on, maps the
+output back onto the original scan, and exports it.
 
 There are two ways to use it:
 
 * **Models from the CERR model library**, through ``cerr.ai_models``.
-  Each model is installed with its weights and its own Python environment,
-  and a run specification tells pyCERR how to prepare inputs, call the model
-  and import outputs.
+  Each model repository (such as `SMIT <https://github.com/cerr/smit>`_) is
+  cloned with its own Python environment, and its weights are installed
+  separately.
 * **Your own model.** The same pre- and post-processing tools work around any
   network you can call from Python or the command line.
 
 This page covers both, then the pre- and post-processing options in detail.
 
-.. note::
-
-   The model-library commands on this page were not executed when the page
-   was built, because they download model weights. The pre- and
-   post-processing figures were computed from bundled data.
-
-Models from the CERR model library
+The CERR model library
 ----------------------------------
 
-Install the model manager
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Requirements
+~~~~~~~~~~~~
 
-The installer is distributed from GitHub, not PyPI. It needs ``git`` and
-``curl``, and on Windows Git Bash.
-
-.. code-block:: bash
-
-   pip install "model_installer @ git+https://github.com/cerr/model_installer.git"
+Installing a model needs ``git`` and `uv <https://docs.astral.sh/uv/>`_ on
+the ``PATH``. Model weights are not in the repositories; request a download
+link for each model you need from the model maintainers.
 
 List, install and inspect
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,96 +37,91 @@ List, install and inspect
 
    models = install_utils.listModels()        # prints and returns {number: name}
 
-   modelNum = 1
+   model = 'CT_ThoraxOARs_SMITplus'           # or its number: 14
    installDir = '/path/to/models'
-   ai_models.install(modelNum, installDir)    # weights + an isolated environment
+   ai_models.install(model, installDir,
+                     weightsUrl='<link you received>')  # or weightsFile='/path/to/download'
 
-   run_utils.listInputs(modelNum, installDir) # inputs this model expects
+   run_utils.listInputs(model, installDir)    # inputs this model expects
 
-Each model is installed to ``<installDir>/<model name>`` with its own
-``.venv``, so its dependencies (PyTorch, model code) never touch the
-environment pyCERR runs in. Some models are in private repositories; pass
-``credentials='user:token'`` to :func:`ai_models.install
-<cerr.ai_models.install_utils.main>` for those.
+Model names are maintained in ``cerr/ai_models/model_list.py``.
+
+:func:`ai_models.install <cerr.ai_models.install_utils.main>` performs three
+steps:
+
+1. **Clone.** The model's repository is cloned to ``<installDir>/<modelName>``, or
+   updated with ``git pull`` if it is already there.
+2. **Environment.** A uv environment is built in ``<installDir>/<modelName>/.venv``
+   with the Python version in the repository's ``uv_config.txt``, then every
+   ``requirements/*.txt`` is installed in name order with the ``uv_flags``
+   from ``uv_config.txt``. Its dependencies (PyTorch, model code) never touch
+   the environment pyCERR runs in. On macOS, PyTorch is installed from PyPI,
+   since it has no CUDA builds there.
+3. **Weights.** The repository's ``get_weights.py`` downloads (or copies)
+   the weights to ``<installDir>/<modelName>/weights/<weightsFile>.safetensors`` and
+   checks them against the checksum in ``models.yaml``.
+
+Models of one repository share the clone and the environment, so installing
+a second SMIT model only adds its weights. Pass ``forceWeights=True`` to
+replace installed weights, ``rebuildEnv=True`` to rebuild the environment,
+and ``credentials='user:token'`` for a private repository.
 
 Run
 ~~~
 
 .. code-block:: python
 
-   userInputs = {'input_path': '/data/pt1/dicom',     # DICOM directory or NIfTI file
+   userInputs = {'input_path': '/data/pt1/dicom',      # DICOM dir, folder of NIfTI files, or a NIfTI file
                  'output_path': '/data/pt1/ai_output',
-                 'session_path': '/data/pt1/session'} # scratch space
-   ai_models.run(modelNum, installDir, userInputs, verbose=True)
+                 'session_path': '/data/pt1/session'}  # optional scratch space
+   ai_models.run(model, installDir, userInputs, verbose=True)
 
-:func:`ai_models.run <cerr.ai_models.run_utils.main>` performs four steps:
+:func:`ai_models.run <cerr.ai_models.run_utils.main>` runs the model in its
+environment as
 
-1. **Pre-process.** Loads the input into a ``planC``, transforms the scan as
-   the model requires and writes it to ``<session_path>/input``.
-2. **Infer.** Calls the model's entry point in its own environment.
-3. **Post-process.** Imports the model output onto the processed scan, maps
-   it back to the original scan, cleans it up and exports it.
-4. **Export.** To ``output_path``: a DICOM RTSTRUCT for DICOM input, a NIfTI
-   label map for NIfTI input.
+.. code-block:: bash
 
-Additional keys in ``userInputs`` are passed to the model, for example
-``'gpu': 0``. ``listInputs`` shows which a model accepts.
+   run_segmentation.py --model <modelName> --data_dir <input_path> --results_dir <output_path>
+
+and the model writes, for each case, ``<case>_seg.nii.gz`` (a label map on the
+input scan's grid) and ``labels.json`` (label value to structure name) to
+``output_path``; for DICOM input also ``<case>_<modelName>_RTSTRUCT.dcm``.
+A single NIfTI file is first copied to ``<session_path>/input``. If the
+model's entrypoint defines a ``--session_dir`` option, ``session_path`` is
+passed to it`; otherwise it is used only by pyCERR.
+
+Additional keys in ``userInputs`` are passed to the model as
+``--<key> <value>`` (``True`` passes ``--<key>`` alone), for example
+``'use_tta': True`` or ``'device': 'cpu'``. ``'gpu': 1`` selects a GPU
+through ``CUDA_VISIBLE_DEVICES``. ``listInputs`` shows the options a model
+accepts.
 
 To import a model's outputs into a ``planC`` you already hold:
 
 .. code-block:: python
 
-   planC = run_utils.importSeg(modelNum, installDir, '/data/pt1/ai_output', scanNum, planC)
+   planC = run_utils.importSeg(model, installDir, '/data/pt1/ai_output', scanNum, planC)
 
-The run specification
-~~~~~~~~~~~~~~~~~~~~~
+Pass ``caseName`` when ``output_path`` holds the results of several cases.
 
-Each installed model has a ``run_spec.yaml`` that drives the steps above. Its
-structure, with illustrative values:
+A model that writes several label maps per case lists them in the ``labels``
+of its ``models.yaml`` entry (or ``labels.json``);``importSeg`` loads all of them, ``.dcm`` files as RTSTRUCTs and ``.nii.gz``
+files with the pattern's labels.
 
-.. code-block:: yaml
+Pre- and post-processing for a model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   preprocessing:
-     script: CT_LungOAR_incrMRRN.py      # in cerr/ai_models/prep, or the model dir
-     mode: in_process                    # or: subprocess
-   execution:
-     entrypoint: model_wrapper/run_inference.py
-     arguments:
-       - {name: input_path,  type: positional, required: true}
-       - {name: output_path, type: positional, required: true}
-       - {name: gpu, type: flag, flag_string: --gpu, default: 0, required: false}
-   postprocessing:
-     script: CT_LungOAR_incrMRRN.py      # in cerr/ai_models/post
-   outputs:
-     "*_AI_seg.nii.gz": {Lung_Left: 1, Lung_Right: 2, Heart: 3}
+If ``cerr/ai_models/prep/<modelName>.py`` or
+``cerr/ai_models/post/<modelName>.py`` exists, ``run`` calls it before or after
+the model (``input_path`` is then one case: a DICOM directory or a NIfTI file).
+The post-processed segmentation is written to ``output_path`` in place of the
+model's output, under the same file names and in the same format:
+``<case>_seg.nii.gz`` and ``labels.json``, or ``<case>_<modelName>_RTSTRUCT.dcm``
+for DICOM input. With pre-processing only, the model's output is copied from the
+session directory to ``output_path``. Either way ``importSeg`` reads
+``output_path`` as for any other model.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Field
-     - Meaning
-   * - ``preprocessing.mode``
-     - ``in_process``: a Python module in ``cerr/ai_models/prep`` runs inside
-       pyCERR. ``subprocess``: a script in the model directory runs in the
-       model's environment as ``script --image <nii> --out_dir <dir> --gpu <n>``,
-       for steps that need the model's libraries (such as skull stripping).
-   * - ``execution.entrypoint``
-     - The model's inference script, relative to the model directory.
-   * - ``execution.arguments``
-     - How each ``userInputs`` entry becomes a command-line argument:
-       ``positional`` (value only), ``flag`` (``flag_string value``) or
-       ``boolean_flag`` (``flag_string`` when true).
-   * - ``postprocessing.script``
-     - A Python module in ``cerr/ai_models/post``.
-   * - ``outputs``
-     - For :func:`~cerr.ai_models.run_utils.importSeg`: a file pattern and the
-       structure name for each label.
-
-Adding pre- and post-processing for a model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-An in-process pre-processing module defines ``REQUIRED_INPUTS`` and
+A pre-processing module defines ``REQUIRED_INPUTS`` and
 ``processInputData``:
 
 .. code-block:: python
@@ -160,13 +145,14 @@ A post-processing module defines ``postProcAndImportSeg``:
 .. code-block:: python
 
    def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
-       """Import the model output from outDir, map it to scanNum, clean it up
-       and export it to userInputs['output_path']."""
+       """Import the model output from outDir, map it to scanNum and clean it up."""
        ...
-       return planC
+       return planC, structNumV
 
-``cerr/ai_models/prep/CT_LungOAR_incrMRRN.py`` and
-``cerr/ai_models/post/CT_LungOAR_incrMRRN.py`` are complete, short examples.
+``structNumV`` lists the output structures; ``run`` writes those whose names are
+in the model's labels.
+
+``cerr/ai_models/prep/MR_Rectum_GTV_SMIT.py`` is a complete, short example.
 
 Running your own model
 ----------------------
@@ -389,7 +375,7 @@ size to match the gaps you expect.
 See also
 --------
 
-* Model library and installer: https://github.com/cerr/model_installer
+* SMIT model repository: https://github.com/cerr/smit
 * Notebooks: ``03_autosegmentation`` in https://github.com/cerr/pyCERR-Notebooks.
 * API reference: :doc:`../cerr.ai_models`, :doc:`../cerr.utils`.
 * Figure script: ``docs/_figure_scripts/ai_pipeline.py``.

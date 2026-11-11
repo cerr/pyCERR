@@ -28,12 +28,12 @@ def cropToStructure(images, structure, margin=0):
     """Crop images to the bounding box of the largest connected component in `structure`.
 
     Args:
-        images (list[SimpleITK.Image]): Images to crop.
+        images (list[SimpleITK.Image]): Images to crop, on the grid of structure.
         structure (SimpleITK.Image): Binary mask.
-        margin (int): Margin in voxels around the bounding box (default 0).
+        margin (int, optional): margin in voxels around the bounding box (default: 0).
 
     Returns:
-        list[SimpleITK.Image]: The cropped images (unchanged if the mask is empty).
+        list[SimpleITK.Image]: Cropped images (the input images if the mask is empty).
     """
     cc = sitk.ConnectedComponentImageFilter().Execute(structure)
     lssif = sitk.LabelShapeStatisticsImageFilter(); lssif.Execute(cc)
@@ -61,11 +61,11 @@ def loadSynthStripper(modelDir, gpu):
     """Apply mri_synthstrip.py.
 
     Args:
-        modelDir (str): Directory containing mri_synthstrip.py and synthstrip.1.pt.
-        gpu (bool): Run on the GPU.
+        modelDir (str): directory with mri_synthstrip.py and the synthstrip.1.pt weights.
+        gpu (bool): run SynthStrip on the GPU.
 
     Returns:
-        SynthStrip: The loaded skull-stripping model.
+        mri_synthstrip.SynthStrip: skull-stripping model.
     """
     synthstripPath = os.path.join(modelDir, 'mri_synthstrip.py')
     weightsPath = os.path.join(modelDir, 'synthstrip.1.pt')
@@ -87,9 +87,9 @@ def skullStrip(rawFile, strippedFile, maskFile, stripper):
 
     Args:
         rawFile (str): Raw T1c NIfTI file.
-        strippedFile (str): Output skull-stripped NIfTI file.
+        strippedFile (str): Output NIfTI file for the skull-stripped, cropped image.
         maskFile (str): Output brain-mask NIfTI file.
-        stripper (SynthStrip): Model from loadSynthStripper.
+        stripper (SynthStrip): Skull-stripping model (see loadSynthStripper).
     """
     rawMr = sitk.Cast(sitk.ReadImage(rawFile), sitk.sitkFloat64)
 

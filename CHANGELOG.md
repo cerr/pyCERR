@@ -66,6 +66,29 @@ fail before, pass after).
 
 ## [2.5.2] - 2026-11-06
 
+### Changed
+
+- **`cerr.ai_models` installs and runs models from their repositories
+  instead of through `model_installer`** `model_installer` is no longer needed; `git` and
+  [uv](https://docs.astral.sh/uv/) are.
+  - Models can be selected by name, e.g. `ai_models.install('CT_ThoraxOARs_SMITplus')`.
+    Models are logged in `cerr/ai_models/model_list.py`.
+  - `install` clones the repository to `<installDir>/<model>` (or pulls it if
+    already there), builds one uv environment in its `.venv` from
+    `uv_config.txt` and `requirements/*.txt`, as `model_installer -p U` did,
+    and installs the model's weights with the repository's `get_weights.py`
+    (`weightsUrl`, `weightsFile`, or the source listed in `models.yaml`).
+    Models of one repository share the clone and the environment. On macOS
+    the PyTorch CUDA index is left out so that torch installs from PyPI.
+  - `ai_models.run(model, installDir, userInputs)` calls the repository's
+    `run_segmentation.py --model <name> --data_dir <input_path>
+    --results_dir <output_path>`; other `userInputs` keys may be passed as
+    `--<key> <value>`
+  - `run_utils.importSeg` reads `<id>_seg.nii.gz` with the label names in
+    `labels.json`, or the `<id>_<model>_RTSTRUCT.dcm` written for DICOM input.
+  - Models no longer have a `run_spec.yaml`. Pre- and post-processing scripts
+    in `cerr/ai_models/prep` and `post` are used when named after the model.
+
 ### Added
 
 - **`cerr.radiomics.local_update.LocalFeatureUpdater`**: features of an ROI
