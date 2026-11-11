@@ -1,3 +1,6 @@
+"""Postprocessing for MR_BrainMets_SMITplus:
+import each metastasis as a separately named structure, using the model's label-to-structure map.
+"""
 import glob
 import os
 import json
@@ -5,7 +8,6 @@ import yaml
 import numpy as np
 from cerr import plan_container as pc
 from cerr.dataclasses import structure as cerrStr
-from cerr.dcm_export import rtstruct_iod
 
 
 def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
@@ -16,18 +18,17 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
         procScanNum (int): Scan index of the skull-stripped scan in planC (the
                             grid seg.nii.gz is on).
         scanNum (int): Scan index of the original scan in planC.
-        userInputs (dict): Must contain 'input_path' (original input), 'model_dir'
-                            (installed model directory, for run_spec.yaml) and
-                            'output_path' or 'session_output' (final delivery dir).
+        userInputs (dict): Must contain 'model_dir' (installed model directory, for run_spec.yaml).
         outDir (str): Directory containing model output (session_output/),
                        including seg.nii.gz / seg_in_raw.nii.gz and the
                        structure-to-label-map JSON.
 
     Returns:
-        planC: Updated plan container with AI GTVs.
+        tuple: (planC, structNumV)
+            planC      - updated plan container;
+            structNumV - list of the indices of the output structures in planC; run_utils.main
+                         writes them to output_path in place of the model's output.
     """
-    inputPath = userInputs['input_path']
-    outputPath = userInputs.get('output_path') or userInputs.get('session_output')
     modelDir = userInputs['model_dir']
 
     runSpecFile = os.path.join(modelDir, 'run_spec.yaml')
@@ -45,7 +46,7 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
 
     if not labelsDict:
         # No lesions detected
-        return planC
+        return planC, []
 
     # Copy to original MR if available, otherwise use the stripped/cropped-space.
     rawSegFiles = glob.glob(os.path.join(niiSegDir, '*_img_in_raw.nii.gz'))
@@ -71,16 +72,4 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
     else:
         structsToExportV = structNumV
 
-    # Export
-    ptID = os.path.basename(inputPath.rstrip('/\\'))
-    if os.path.isdir(inputPath):
-        os.makedirs(outputPath, exist_ok=True)
-        structFileName = f"{ptID}_MR_BrainMets_SMITplus_AI_seg.dcm"
-        structFilePath = os.path.join(outputPath, structFileName)
-        exportOpts = {'seriesDescription': 'AI Generated'}
-        rtstruct_iod.create(structsToExportV, structFilePath, planC, exportOpts)
-    else:
-        structNiiFile = os.path.join(outputPath, f"{ptID}_MR_BrainMets_SMITplus_AI_seg.nii.gz")
-        pc.saveNiiStructure(structNiiFile, labelsDict, planC, strNumV=structsToExportV)
-
-    return planC
+    return planC, [int(s) for s in structsToExportV]

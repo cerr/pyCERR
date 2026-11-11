@@ -1,3 +1,6 @@
+"""Postprocessing for CT_LungOAR_incrMRRN:
+import the lung OAR label map, copy each structure to the original scan, and keep its largest connected component.
+"""
 import os
 import glob
 import numpy as np
@@ -5,7 +8,6 @@ from cerr import plan_container as pc
 from cerr.dataclasses import scan as cerrScn
 from cerr.dataclasses import structure as cerrStr
 from cerr.utils import mask
-from cerr.dcm_export import rtstruct_iod
 
 
 STR_TO_LABEL_MAP = {
@@ -26,16 +28,15 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
         planC: pyCERR plan container from processInputData.
         procScanNum (int): Scan index of resized scan in planC.
         scanNum (int): Scan index of original scan in planC.
-        userInputs (dict): Must contain
-            'input_path'  - original input path (DICOM dir or NIfTI file)
-            'output_path' - directory for final output
+        userInputs (dict): userInputs of the run (not used).
         outDir (str): Directory containing model NIfTI output (session_path/output/).
 
     Returns:
-        planC: Updated plan container with imported and post-processed structures.
+        tuple: (planC, structNumV)
+            planC      - updated plan container;
+            structNumV - list of the indices of the output structures in planC; run_utils.main
+                         writes them to output_path in place of the model's output.
     """
-    inputPath = userInputs['input_path']
-    outputPath = userInputs['output_path']
     numLabel = len(STR_TO_LABEL_MAP)
     numComponents = 1
 
@@ -72,19 +73,4 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
         name = planC.structure[s].structureName
         print(f"struct {s}: name={name!r}  type={type(name)}")
 
-    # Export
-    ptID = os.path.basename(inputPath.rstrip('/'))
-    if os.path.isdir(inputPath):
-        # to DICOM RTSTRUCT
-        os.makedirs(outputPath, exist_ok=True)
-        structFileName = f"{ptID}_CT_LungOAR_incrMRRN_AI_seg.dcm"
-        structFilePath = os.path.join(outputPath, structFileName)
-        exportOpts = {'seriesDescription': 'AI Generated'}
-        rtstruct_iod.create(structsToExportV, structFilePath, planC, exportOpts)
-    else:
-        # to NIfTI
-        labelDict = {v: k for k, v in STR_TO_LABEL_MAP.items()}
-        structNiiFile = os.path.join(outputPath, f"{ptID}_CT_LungOAR_incrMRRN_AI_seg.nii.gz")
-        pc.saveNiiStructure(structNiiFile, labelDict, planC, strNumV=structsToExportV)
-
-    return planC
+    return planC, [int(s) for s in structsToExportV]

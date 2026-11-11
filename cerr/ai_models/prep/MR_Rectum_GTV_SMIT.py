@@ -1,4 +1,9 @@
+"""Preprocessing for MR_Rectum_GTV_SMIT:
+load the input MR scan (DICOM directory or NIfTI file) and export it to the session directory for inference,
+keeping the input's own voxel grid and orientation.
+"""
 import os
+import re
 from cerr import plan_container as pc
 from cerr.utils.ai_pipeline import getScanNumFromIdentifier
 
@@ -51,7 +56,7 @@ def processInputData(userInputs):
     procScanNum = scanNum
 
     # Export scan to session dir input
-    ptID = os.path.basename(inputPath.rstrip('/\\'))
+    ptID = re.sub(r'\.nii(\.gz)?$', '', os.path.basename(inputPath.rstrip('/\\')))  # Remove extension from case name
     scanNiiFile = os.path.join(modInputPath, f"{ptID}_scan_3D.nii.gz")
     planC.scan[scanNum].saveNii(scanNiiFile)
 

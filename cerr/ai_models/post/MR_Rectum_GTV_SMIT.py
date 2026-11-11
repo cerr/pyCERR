@@ -1,10 +1,12 @@
+"""Postprocessing for MR_Rectum_GTV_SMIT:
+import the GTV segmentation, keep its largest connected component, and fill holes.
+"""
 import os
 import glob
 import numpy as np
 from cerr import plan_container as pc
 from cerr.dataclasses import structure as cerrStr
 from cerr.utils import mask as maskUtils
-from cerr.dcm_export import rtstruct_iod
 
 
 STR_TO_LABEL_MAP = {1: "GTV"}
@@ -18,16 +20,15 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
         planC: pyCERR plan container from processInputData.
         procScanNum (int): Index of the (processed) scan used for inference in planC.
         scanNum (int): Index of the original scan in planC.
-        userInputs (dict): Must contain
-            'input_path'  - original input path (DICOM dir or NIfTI file)
-            'output_path' - directory for final output
+        userInputs (dict): userInputs of the run (not used).
         outDir (str): Directory containing the model output (NIfTI) (outDir: session_path/output/).
 
     Returns:
-        planC: Updated plan container with the post-processed GTV structure.
+        tuple: (planC, structNumV)
+            planC      - updated plan container;
+            structNumV - list of the indices of the output structures in planC; run_utils.main
+                         writes them to output_path in place of the model's output.
     """
-    inputPath = userInputs['input_path']
-    outputPath = userInputs['output_path']
     numComponents = 1
 
     # Find NIfTI output
@@ -54,19 +55,4 @@ def postProcAndImportSeg(planC, procScanNum, scanNum, userInputs, outDir):
 
     structsToExportV = np.array([gtvStructNum])
 
-    # Export
-    ptID = os.path.basename(inputPath.rstrip('/\\'))
-
-    if os.path.isdir(inputPath):
-        # to DICOM RTSTRUCT
-        os.makedirs(outputPath, exist_ok=True)
-        structFileName = f"{ptID}_MR_Rectum_GTV_SMIT_AI_seg.dcm"
-        structFilePath = os.path.join(outputPath, structFileName)
-        exportOpts = {'seriesDescription': 'AI Generated'}
-        rtstruct_iod.create(structsToExportV, structFilePath, planC, exportOpts)
-    else:
-        # to NIfTI
-        structNiiFile = os.path.join(outputPath, f"{ptID}_MR_Rectum_GTV_SMIT_AI_seg.nii.gz")
-        pc.saveNiiStructure(structNiiFile, LABEL_TO_STR_MAP, planC, strNumV=structsToExportV)
-
-    return planC
+    return planC, [int(s) for s in structsToExportV]
