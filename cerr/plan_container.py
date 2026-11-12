@@ -122,10 +122,17 @@ def addToH5Grp(h5Grp,structDict,key):
     elif isinstance(structDict[key], (int, float, np.number)):
         h5Grp.attrs[key] = structDict[key]
     elif isinstance(structDict[key], (list, np.ndarray)):
-        dt = np.array(structDict[key]).dtype
-        shp = np.array(structDict[key]).shape
-        h5Grp.create_dataset(key, shp, dtype=dt, data=structDict[key],
-                             compression="gzip", compression_opts=4)
+        arr = np.array(structDict[key])
+        if arr.dtype.kind in ("U", "S") or (arr.dtype.kind == "O" and arr.size
+                                             and all(isinstance(x, (str, bytes)) for x in arr.flat)):
+            # Several strings (e.g. dose deidentificationMethodDescription built with np.append):
+            # h5py cannot store numpy's fixed-width unicode ('<U..'), so write variable-length UTF-8.
+            strs = np.array([x.decode("utf-8") if isinstance(x, bytes) else str(x) for x in arr.flat],
+                            dtype=object).reshape(arr.shape)
+            h5Grp.create_dataset(key, arr.shape, dtype=h5py.string_dtype("utf-8"), data=strs)
+        else:
+            h5Grp.create_dataset(key, arr.shape, dtype=arr.dtype, data=structDict[key],
+                                 compression="gzip", compression_opts=4)
     return h5Grp
 
 
@@ -468,7 +475,11 @@ def readAttribsAndDsets(obj, h5Grp, excludeKeys=[]):
     h5StructDsets = list(h5Grp.keys())
     for structAttrib in structFields:
         if structAttrib in h5StructDsets:
-            setattr(obj, structAttrib, h5Grp[structAttrib][:])
+            dset = h5Grp[structAttrib]
+            if h5py.check_string_dtype(dset.dtype) is not None:
+                setattr(obj, structAttrib, np.array(dset.asstr()[()]).astype(str))   # strings back as str
+            else:
+                setattr(obj, structAttrib, dset[:])
 
     return obj
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`saveToH5` fails on metadata holding several strings.** `addToH5Grp` wrote
+  lists and arrays with their numpy type, and h5py cannot store numpy's
+  fixed-width unicode, so a DICOM export whose dose (or other object) has e.g.
+  several de-identification method descriptions could not be saved:
+  `TypeError: No conversion path for dtype: dtype('<U70')`. This also broke
+  anything that passes planC through an `.h5` file. Text arrays are now written
+  as variable-length UTF-8 and read back as `str`. Tested in
+  `tests/test_h5_string_arrays.py` (fails before, passes after).
+
 ## [2.5.3] - 2026-11-09
 
 ### Fixed
