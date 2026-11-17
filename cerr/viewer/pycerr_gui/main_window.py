@@ -3416,6 +3416,11 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                     self._slice_count(self.views[wid].orientation) - 1)
             self._load_scan_geometry(reset_slices=False)
             self.refresh_views()
+            # The new layout's panes get their final sizes only when Qt next runs
+            # its event loop. Draw again then: drawn only now, each pane keeps the
+            # limits fitted to its old size, so a scan can look cropped or shrunk
+            # until something else redraws it.
+            QtCore.QTimer.singleShot(0, self.refresh_views)
 
     # ------------------------------------------- per-axis menu (CERR-style) -
     def _reset_axis_sel(self):
