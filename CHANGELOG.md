@@ -16,7 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TypeError: No conversion path for dtype: dtype('<U70')`. This also broke
   anything that passes planC through an `.h5` file. Text arrays are now written
   as variable-length UTF-8 and read back as `str`. Tested in
-  `tests/test_h5_string_arrays.py` (fails before, passes after).
+  `tests/test_h5_string_arrays.py.
+
+- **Viewer: a scan looks cropped or shrunk after changing the layout.**
+  `set_layout` (View > Layout) redrew the panes before Qt had given them their
+  new sizes, so each pane kept axis limits fitted to its old size: switching
+  e.g. from the default layout to "two" left the sagittal pane showing the scan
+  as a small, partly cut-off box until something else redrew it (changing the
+  scan or slice). The panes are now drawn again once the new layout is in place.
 
 ## [2.5.3] - 2026-11-09
 
