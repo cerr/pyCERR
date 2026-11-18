@@ -46,3 +46,8 @@ ENV/
 
 # Local test artifacts written to the repo root
 /scan_from_cerr.nii.gz
+
+# Private: example scripts and training data for fine-tuning local models.
+# Not released; a private skill build can include the examples (see
+# tools/build_pycerr_skill.py --examples/--out), written outside the repo.
+training_data/

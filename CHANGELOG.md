@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Agent skill for pyCERR (`skills/pycerr/`).** A `SKILL.md` folder in the
+  Agent Skills layout that LLM agents (Claude, and other tools that read the
+  format) can load to use pyCERR correctly: the planC model, units and axes,
+  a task-to-function table with checked signatures, DVH/radiomics/texture
+  recipes, common pitfalls, the desktop viewer's scripting API, and copies of
+  the user guide. `scripts/check_pycerr_names.py` flags any `cerr.*` name in a
+  script that does not exist in the installed pyCERR.
+  `tools/build_pycerr_skill.py` refreshes the copied docs and checks the
+  skill's code against the package.
+
 ### Fixed
 
 - **`saveToH5` fails on metadata holding several strings.** `addToH5Grp` wrote

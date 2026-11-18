@@ -107,6 +107,20 @@ Structure contour points are stored as polygon vertices (DICOM format). Rasteriz
 
 Radiomics feature extraction is IBSI-compliant (International Biomarker Standardization Initiative). The `cerr/datasets/` directory contains the IBSI phantoms and reference values used in `tests/test_ibsi1_features.py` and `test_ibsi2_features.py` to validate correctness. Settings are passed via JSON files in `cerr/radiomics/settings/`.
 
+## Agent skill (`skills/pycerr/`)
+
+`skills/pycerr/` is an Agent Skills folder (`SKILL.md` + `references/` + `scripts/`) that tells
+LLM agents how to use pyCERR. `SKILL.md`, `references/viewer_desktop.md` and
+`scripts/check_pycerr_names.py` are edited by hand; the other files in `references/` are copies
+of `docs/` made by `tools/build_pycerr_skill.py` - edit `docs/`, not the copies.
+
+- When an API the skill names changes (a signature in its task table, a viewer method, units or
+  defaults), update `SKILL.md` in the same commit.
+- `python tools/build_pycerr_skill.py --check` refreshes the copies and checks every `cerr.*` name
+  in the skill's code against the installed package.
+- `training_data/` is private and git-ignored. Never copy its examples into `skills/`; the build
+  script refuses to write a skill with examples inside the repository.
+
 ## CI
 
 GitHub Actions (`.github/workflows/python-package.yml`) runs linting and pytest on Python 3.9–3.12 (Ubuntu). Tests download reference data from external URLs; network access is required for the test suite.
@@ -132,7 +146,7 @@ Never `git push --force` either branch — both are published on a public reposi
 
 The package version is not written anywhere in the source: `setuptools_scm` derives it from the nearest git tag reachable from the checked-out commit (`vX.Y.Z` → `X.Y.Z`; commits after a tag report `X.Y.(Z+1).devN`). The release tag therefore has to sit on the commit shared by `testing` and `main`.
 
-1. On `testing`, move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [X.Y.Z] - date` heading, commit ("Release X.Y.Z") and push.
+1. On `testing`, move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [X.Y.Z] - date` heading. Run `python tools/build_pycerr_skill.py --check` (it must report all names found) and bump the "checked against pyCERR" version in `skills/pycerr/SKILL.md`. Commit ("Release X.Y.Z") and push.
 2. Promote: `./tools/sync-branches.sh --push`.
 3. Tag the shared commit and publish:
 
