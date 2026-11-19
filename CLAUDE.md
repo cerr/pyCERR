@@ -123,7 +123,7 @@ of `docs/` made by `tools/build_pycerr_skill.py` - edit `docs/`, not the copies.
 
 ## CI
 
-GitHub Actions (`.github/workflows/python-package.yml`) runs linting and pytest on Python 3.9–3.12 (Ubuntu). Tests download reference data from external URLs; network access is required for the test suite.
+GitHub Actions (`.github/workflows/python-package.yml`) runs linting and pytest on Python 3.9–3.13 (Ubuntu), the versions `requires-python` and the classifiers in `pyproject.toml` declare. Tests download reference data from external URLs; network access is required for the test suite.
 
 ## Branch Flow
 

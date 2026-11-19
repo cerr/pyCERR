@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tools/build_pycerr_skill.py` refreshes the copied docs and checks the
   skill's code against the package.
 
+### Changed
+
+- **Python 3.9 or newer is required** (`requires-python = ">=3.9"`, was
+  `>=3.8`). Python 3.8 is end-of-life and was no longer tested; the CI matrix
+  and the docs already covered 3.9-3.13. The package metadata now lists the
+  supported versions, so pip on Python 3.8 picks the last release that
+  allowed it instead of installing one that may not work.
+
 ### Fixed
 
 - **`saveToH5` fails on metadata holding several strings.** `addToH5Grp` wrote
