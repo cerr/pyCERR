@@ -9,7 +9,7 @@ pyCERR (`pip install pycerr`, imported as `cerr`) keeps everything known about
 one patient in a single plan container, `planC`. Almost every function takes a
 `planC`, and the ones that add something return an updated one.
 
-This skill was checked against **pyCERR 2.5.3**. Check the installed version
+This skill was checked against **pyCERR 2.5.4**. Check the installed version
 with `importlib.metadata.version("pycerr")`.
 
 ## How to work
