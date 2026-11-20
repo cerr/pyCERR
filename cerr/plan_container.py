@@ -1100,6 +1100,37 @@ def loadNiiScan(nii_file_name, imageType ="CT SCAN", direction='LPS', initplanC=
         planC.scan.append(scan)
     return planC
 
+def loadNrrdScan(nrrd_file_name, imageType ="CT SCAN", direction='LPS', initplanC=''):
+    """This routine imports scan from NRRD file into planC
+
+    NRRD files are read with the same SimpleITK reader as NIfTI, so this routine passes the
+    file to :func:`loadNiiScan`. See it for the voxel-order and coordinate conventions.
+
+    Args:
+        nrrd_file_name (str): path of NRRD file containing the scan
+        imageType (str): type of scan. e.g. 'CT SCAN', 'MR SCAN', 'PT SCAN'
+        direction (str or None): optional, the orientation to reorder the scan's voxels to,
+                         as a 3-letter DICOM orientation code, e.g. 'LPS' (default), 'RAS'.
+                         Pass '' or None to keep the voxel order stored in the file.
+        initplanC (cerr.plan_container.PlanC): optional, pyCERR's plan container object to append the scan
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with scan imported to planC.scan[-1]
+
+    Example:
+        Load the CT of a directory of NRRD files::
+
+            import glob, os
+            from cerr import plan_container as pc
+
+            ctFile = glob.glob(os.path.join(nrrdDir, '*_IMG_CT.nrrd'))[0]
+            planC = pc.loadNrrdScan(ctFile, imageType='CT SCAN')
+
+    """
+    return loadNiiScan(nrrd_file_name, imageType=imageType, direction=direction,
+                       initplanC=initplanC)
+
+
 def loadNiiDose(nii_file_name, assocScanNum, planC, fractionGroupID = "RT-dose"):
     """Load a dose distribution from a NIfTI file into planC.
 

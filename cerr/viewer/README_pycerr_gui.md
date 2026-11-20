@@ -48,7 +48,7 @@ depend on them.
 | CERR GUI                          | pyCERR Viewer                                              |
 |-----------------------------------|------------------------------------------------------------|
 | File > Import DICOM               | File > Import DICOM directory (`pc.loadDcmDir`)            |
-| Drag & drop                       | Drop a DICOM folder, NIfTI (`.nii/.nii.gz`) or `.pkl` onto the window to load it |
+| Drag & drop                       | Drop a DICOM folder, NIfTI (`.nii/.nii.gz`), NRRD (`.nrrd`) or `.pkl` onto the window to load it |
 | Axial/Sagittal/Coronal viewports  | 3 linked views, sliders + mouse-wheel slice navigation     |
 | Pan / zoom                        | Drag to pan, right-drag up/down to zoom, double-click or `R` to reset |
 | Per-axis ScanSet/DoseSet/StructSet menu | Right-click a view: choose the scan, dose & structures shown in that view |
@@ -70,7 +70,9 @@ depend on them.
 | Refresh / clear                   | File > Refresh from planC; File > Clear scene (Ctrl+Shift+N) unloads all data and closes the tool windows |
 
 Also supports NIfTI import: scan (`loadNiiScan`), dose (`loadNiiDose`),
-and label masks (`loadNiiStructure`).
+and label masks (`loadNiiStructure`). NRRD files (`.nrrd`) are read through the
+same SimpleITK reader — a scan goes through `loadNrrdScan`, while dose and label
+masks use the `loadNii*` routines, which read any format SimpleITK supports.
 
 ## Patient orientation markers
 Each 2D view shows the patient orientation at its edge midpoints — **L**eft,
