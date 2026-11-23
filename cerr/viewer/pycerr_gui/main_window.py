@@ -16,6 +16,10 @@ try:
 except ImportError:  # pragma: no cover
     HAS_CONTOURPY = False
 
+IMAGE_EXTS = (".nii", ".nii.gz", ".nrrd")
+IMAGE_FILTER = "NIfTI / NRRD (*.nii *.nii.gz *.nrrd)"
+
+
 class PyCerrViewer(QtWidgets.QMainWindow):
     def __init__(self, planC=None):
         super().__init__()
@@ -26,7 +30,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         self.setPalette(_theme_palette())
         self.setStyleSheet(_THEME_STYLESHEET)
         self.setWindowIcon(pycerr_icon())
-        self.setAcceptDrops(True)    # drag-drop DICOM dirs / NIfTI / .pkl
+        self.setAcceptDrops(True)    # drag-drop DICOM dirs / NIfTI / NRRD / .pkl
 
         self.planC = None
         self.scanNum = 0
@@ -1460,9 +1464,9 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         m = self.menuBar()
         fileM = m.addMenu("&File")
         fileM.addAction("Import &DICOM directory...", self.import_dicom)
-        fileM.addAction("Import &NIfTI scan...", self.import_nii_scan)
-        self.actNiiDose = fileM.addAction("Import NIfTI d&ose...", self.import_nii_dose)
-        self.actNiiStr = fileM.addAction("Import NIfTI &structure(s)...",
+        fileM.addAction("Import &NIfTI/NRRD scan...", self.import_nii_scan)
+        self.actNiiDose = fileM.addAction("Import NIfTI/NRRD d&ose...", self.import_nii_dose)
+        self.actNiiStr = fileM.addAction("Import NIfTI/NRRD &structure(s)...",
                                          self.import_nii_struct)
         fileM.addSeparator()
         exportM = fileM.addMenu("&Export")
@@ -2083,20 +2087,20 @@ class PyCerrViewer(QtWidgets.QMainWindow):
     @staticmethod
     def _drop_priority(path):
         low = os.path.basename(path).lower()
-        if low.endswith((".nii", ".nii.gz")) and any(
+        if low.endswith(IMAGE_EXTS) and any(
                 k in low for k in ("dose", "mask", "label", "seg", "struct",
                                    "roi")):
-            return 1                  # dose/structure NIfTIs load last
+            return 1                  # dose/structure images load last
         return 0
 
     def load_path(self, path):
-        """Load a dropped/opened path: a DICOM directory, a NIfTI file
-        (.nii/.nii.gz - scan, or dose/structure by name heuristic when a scan
-        is loaded), a single DICOM file (only that file is imported), or a
+        """Load a dropped/opened path: a DICOM directory, a NIfTI or NRRD file
+        (.nii/.nii.gz/.nrrd - scan, or dose/structure by name heuristic when a
+        scan is loaded), a single DICOM file (only that file is imported), or a
         .pkl plan container.
 
         Args:
-            path (str): DICOM directory, NIfTI file, single DICOM file or .pkl plan container.
+            path (str): DICOM directory, NIfTI/NRRD file, single DICOM file or .pkl plan container.
         """
         path = str(path)
         low = path.lower()
@@ -2113,7 +2117,7 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                 self._reset_axis_sel()
                 self.after_load()
                 self._done(f"Loaded {path}")
-            elif low.endswith((".nii", ".nii.gz")):
+            elif low.endswith(IMAGE_EXTS):
                 self._load_nii(path)
             elif low.endswith(".dcm"):
                 self.import_dicom_files([path])
@@ -2125,10 +2129,19 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             _show_error(self, "Load error", str(e))
 
     def _nii_grid_dims(self, path):
-        """First three header dimensions of a NIfTI file, or None."""
+        """First three header dimensions of a NIfTI or NRRD file, or None."""
         try:
             import nibabel as nib
             return tuple(int(d) for d in nib.load(path).shape[:3])
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            # nibabel does not read NRRD; SimpleITK reads the header only
+            import SimpleITK as sitk
+            reader = sitk.ImageFileReader()
+            reader.SetFileName(str(path))
+            reader.ReadImageInformation()
+            return tuple(int(d) for d in reader.GetSize()[:3])
         except Exception:  # noqa: BLE001
             return None
 
@@ -2155,9 +2168,10 @@ class PyCerrViewer(QtWidgets.QMainWindow):
                               f"with current scan {self.scanNum})")
 
     def _load_nii(self, path):
-        """Load a NIfTI file. With no scan loaded it can only be a scan; when
-        a scan exists, ask the user whether the file is a scan, a dose or a
-        segmentation (label mask), preselecting a guess from the filename."""
+        """Load a NIfTI or NRRD file. With no scan loaded it can only be a
+        scan; when a scan exists, ask the user whether the file is a scan, a
+        dose or a segmentation (label mask), preselecting a guess from the
+        filename."""
         if self.planC is None or not self.planC.scan:
             self._load_nii_as(path, "scan")
             return
@@ -2170,7 +2184,8 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             guess = "scan"
         box = QtWidgets.QMessageBox(self)
         box.setIcon(QtWidgets.QMessageBox.Icon.Question)
-        box.setWindowTitle("Import NIfTI")
+        box.setWindowTitle("Import NRRD" if path.lower().endswith(".nrrd")
+                           else "Import NIfTI")
         box.setText(f"Load {os.path.basename(path)} as:")
         btns = {}
         for kind in ("scan", "dose", "segmentation"):
@@ -2193,25 +2208,27 @@ class PyCerrViewer(QtWidgets.QMainWindow):
         box.activateWindow()
 
     def _load_nii_as(self, path, kind):
-        """Load a NIfTI file as the given kind: 'scan', 'dose' or
+        """Load a NIfTI or NRRD file as the given kind: 'scan', 'dose' or
         'segmentation'."""
+        fmt = "NRRD" if path.lower().endswith(".nrrd") else "NIfTI"
         try:
             if kind == "dose":
                 assocScan, note = self._assoc_scan_for_nii(path)
-                self._busy("Loading NIfTI dose ...")
+                self._busy(f"Loading {fmt} dose ...")
                 self.planC = pc.loadNiiDose(path, assocScan, self.planC)
                 self.after_load(keep_view=True)
                 self._done(f"Loaded dose {path}{note}")
             elif kind == "segmentation":
                 assocScan, note = self._assoc_scan_for_nii(path)
-                self._busy("Loading NIfTI structure(s) ...")
+                self._busy(f"Loading {fmt} structure(s) ...")
                 self.planC = pc.loadNiiStructure(path, assocScan, self.planC)
                 self.after_load(keep_view=True)
                 self._done(f"Loaded structures from {path}{note}")
             else:
-                self._busy("Loading NIfTI scan ...")
-                self.planC = pc.loadNiiScan(path, imageType="CT SCAN",
-                                            initplanC=self.planC or "")
+                self._busy(f"Loading {fmt} scan ...")
+                loadScan = pc.loadNrrdScan if fmt == "NRRD" else pc.loadNiiScan
+                self.planC = loadScan(path, imageType="CT SCAN",
+                                      initplanC=self.planC or "")
                 self.after_load()
                 # show the newly imported scan instead of resetting to scan 0
                 self.scanCombo.setCurrentIndex(len(self.planC.scan) - 1)
@@ -2221,32 +2238,32 @@ class PyCerrViewer(QtWidgets.QMainWindow):
             _show_error(self, "Import error", str(e))
 
     def import_nii_scan(self):
-        """Ask for a NIfTI file and import it as a scan.
+        """Ask for a NIfTI or NRRD file and import it as a scan.
         """
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select NIfTI scan", filter="NIfTI (*.nii *.nii.gz)")
+            self, "Select NIfTI / NRRD scan", filter=IMAGE_FILTER)
         if f:
             self._load_nii_as(f, "scan")
 
     def import_nii_dose(self):
-        """Ask for a NIfTI file and import it as a dose on the current scan.
+        """Ask for a NIfTI or NRRD file and import it as a dose on the current scan.
         """
         if self.planC is None or not self.planC.scan:
             _show_info(self, "pyCERR", "Load a scan first.")
             return
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select NIfTI dose", filter="NIfTI (*.nii *.nii.gz)")
+            self, "Select NIfTI / NRRD dose", filter=IMAGE_FILTER)
         if f:
             self._load_nii_as(f, "dose")
 
     def import_nii_struct(self):
-        """Ask for a NIfTI label mask and import it as structures on the current scan.
+        """Ask for a NIfTI or NRRD label mask and import it as structures on the current scan.
         """
         if self.planC is None or not self.planC.scan:
             _show_info(self, "pyCERR", "Load a scan first.")
             return
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select NIfTI label mask", filter="NIfTI (*.nii *.nii.gz)")
+            self, "Select NIfTI / NRRD label mask", filter=IMAGE_FILTER)
         if f:
             self._load_nii_as(f, "segmentation")
 

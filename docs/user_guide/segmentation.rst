@@ -188,14 +188,18 @@ the parotid, masseter and mandible contours. The result feeds the
 
    from cerr.segmentation import models
 
-   paramDict = {'structNameDict': {'parotid': ['Left Parotid', 'Right Parotid'],
-                                   'masseter': ['Left masseter', 'Right masseter'],
-                                   'mandible': ['Mandible']}}
+   paramDict = {'structNameDict': {'left_parotid': 'Left Parotid',
+                                   'right_parotid': 'Right Parotid',
+                                   'left_masseter': 'Left masseter',
+                                   'right_masseter': 'Right masseter',
+                                   'mandible': 'Mandible'}}
    mask4M, labelDict, planC = models.run('SCRR', planC, scanNum, paramDict)
 
-``structNameDict`` maps each anatomical role to the names used in your
-``planC``. The output structures are added to ``planC``, and ``mask4M`` holds
-them as a stack with ``labelDict`` giving the index of each.
+``structNameDict`` maps each anatomical role to the name used in your
+``planC``: each side is derived from its own parotid and masseter, together
+with the mandible. The output structures (``leftSCRR``, ``rightSCRR``) are
+added to ``planC``, and ``mask4M`` holds them as a stack with ``labelDict``
+giving the index of each.
 
 Contouring by hand
 ------------------
