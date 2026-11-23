@@ -190,6 +190,23 @@ class Scan:
         # CERR slice ordering is opposite of DICOM
         if flipSliceOrderFlag(self):
             sitkArray = np.flip(sitkArray, axis = 0)
+        _, originXyz, spacing, direction = self.getSitkGeometry()
+        img = sitk.GetImageFromArray(sitkArray)
+        img.SetOrigin(originXyz)
+        img.SetSpacing(spacing)
+        img.SetDirection(direction)
+        return img
+
+    def getSitkGeometry(self):
+        """ Routine to obtain the SimpleITK image geometry of the pyCERR Scan object, without building
+        the image (e.g. to resample onto the scan grid with sitk.ResampleImageFilter).
+
+        Returns:
+            tuple: size (x, y, z), origin (mm), spacing (mm) and direction cosines (row-major),
+                as set on the image returned by getSitkImage.
+
+        """
+        numRows, numCols, numSlcs = self.getScanSize()
         originXyz = list(np.matmul(self.Image2PhysicalTransM, np.asarray([0,0,0,1]).T)[:3] * 10)
         xV, yV, zV = self.getScanXYZVals()
         dx = np.abs(xV[1] - xV[0]) * 10
@@ -202,11 +219,7 @@ class Scan:
         # Get row-major directions for ITK
         dir_cosine_mat = np.hstack((img_ori.reshape(3,2,order="F"),slice_normal.reshape(3,1)))
         direction = dir_cosine_mat.reshape(9,order='C')
-        img = sitk.GetImageFromArray(sitkArray)
-        img.SetOrigin(originXyz)
-        img.SetSpacing(spacing)
-        img.SetDirection(direction)
-        return img
+        return [int(numCols), int(numRows), int(numSlcs)], originXyz, spacing, direction
 
 
     def getScanXYZVals(self):

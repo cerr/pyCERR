@@ -897,6 +897,8 @@ def importNii(file_list, assocScanNum, planC, labels_dict=None):
     struct_list = []
     numStructs = len(planC.structure)
     numAdded = 0
+    # Scan grid to resample masks onto (its geometry only: building the scan image is slow)
+    scanSize, scanOrigin, scanSpacing, scanDirection = planC.scan[assocScanNum].getSitkGeometry()
     for file in file_list:
         reader = sitk.ImageFileReader()
         reader.SetFileName(file)
@@ -905,10 +907,12 @@ def importNii(file_list, assocScanNum, planC, labels_dict=None):
         image = reader.Execute()
 
         # Get mask on scan grid
-        scanImage = planC.scan[assocScanNum].getSitkImage()
         extrapVal = 0
         resample = sitk.ResampleImageFilter()
-        resample.SetReferenceImage(scanImage)
+        resample.SetSize(scanSize)
+        resample.SetOutputOrigin(scanOrigin)
+        resample.SetOutputSpacing(scanSpacing)
+        resample.SetOutputDirection(scanDirection)
         resample.SetInterpolator(getattr(sitk,'sitkNearestNeighbor'))
         resample.SetDefaultPixelValue(extrapVal)
 
@@ -970,10 +974,17 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
         cerr.plan_container.PlanC: pyCERR's container object with updated planC.structure attribute
     """
 
-    # Pad mask to account for boundary edges
-    # uint8 rather than int64 keeps the copy small; only voxels == 1 are contoured below
-    paddedMask3M = np.pad(np.asarray(mask3M == 1, dtype=np.uint8), ((1, 1), (1, 1), (0, 0)),
-                          'constant', constant_values=0)
+    # Only voxels == 1 are contoured. Contour just the rows and columns the mask covers
+    # (padded by one voxel to account for boundary edges), and only slices it occupies:
+    # the same contours as on the whole slice, at a fraction of the cost for large scans.
+    binMask3M = np.asarray(mask3M == 1)
+    slcHasMask = binMask3M.any(axis=(0, 1))
+    rowsV = np.flatnonzero(binMask3M.any(axis=(1, 2)))
+    colsV = np.flatnonzero(binMask3M.any(axis=(0, 2)))
+    rowMin, colMin = (rowsV[0], colsV[0]) if rowsV.size else (0, 0)
+    rowMax, colMax = (rowsV[-1], colsV[-1]) if rowsV.size else (-1, -1)
+    paddedMask3M = np.pad(binMask3M[rowMin:rowMax + 1, colMin:colMax + 1, :].astype(np.uint8),
+                          ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0)
     dt = datetime.now()
     if isinstance(structNum,(int, float, np.integer, np.floating)):
         struct_meta = planC.structure[structNum]
@@ -990,10 +1001,7 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     struct_meta.roiNumber = ""
     contour_list = np.empty((0),Contour)
     numSlcs = len(planC.scan[assocScanNum].scanInfo)
-    dim = paddedMask3M.shape
-    for slc in range(dim[2]):
-        if not np.any(paddedMask3M[:,:,slc]):
-            continue
+    for slc in np.flatnonzero(slcHasMask):
         # if upsamplingRate > 1:
         #     img = sitk.GetImageFromArray(paddedMask3M[:,:,slc].astype(float))
         #     resample = sitk.ResampleImageFilter()
@@ -1043,8 +1051,8 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
             #     colV = np.interp(contour[:, 1] , upsampColV, origColV, 0, 0) - 1
             #     rowV = np.interp(contour[:, 0] , upsampRowV, origRowV, 0, 0) - 1
             # else:
-            colV = contour[:, 1] - 1 # - 1 to account for padding
-            rowV = contour[:, 0] - 1 # - 1 to account for padding
+            colV = contour[:, 1] - 1 + colMin # - 1 to account for padding, + offset of the cropped region
+            rowV = contour[:, 0] - 1 + rowMin
             slcV = np.ones_like(rowV) * slcNum
             ptsM = np.asarray((colV,rowV,slcV))
             ptsM = np.vstack((ptsM, np.ones((1, ptsM.shape[1]))))
@@ -1063,6 +1071,26 @@ def importStructureMask(mask3M, assocScanNum, structName, planC, structNum=None)
     planC.structure[structNum].convertDcmToCerrVirtualCoords(planC)
     planC.structure[structNum].rasterSegments = rs.generateRastersegs(planC.structure[structNum], planC)
     return planC
+
+def _maskToSitkImage(mask3M, assocScanNum, planC):
+    """SimpleITK image of a 3D mask in DICOM slice order: uint8 for labels below 256,
+    float32 otherwise. Values are truncated to integers, as before.
+
+    The array is cast straight to uint8 when the labels fit, rather than via int64
+    """
+    maxLabelVal = mask3M.max()
+    if maxLabelVal < 256:
+        sitkArray = np.transpose(mask3M.astype(np.uint8), (2, 0, 1)) # z,y,x order
+    else:
+        sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1))
+    # CERR slice ordering is opposite of DICOM
+    if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
+        sitkArray = np.flip(sitkArray, axis = 0)
+    img = sitk.GetImageFromArray(sitkArray)
+    if maxLabelVal >= 256:
+        img = sitk.Cast(img, sitk.sitkFloat32)
+    return img
+
 
 def createSitkImage(mask3M, assocScanNum, planC):
     """
@@ -1092,16 +1120,7 @@ def createSitkImage(mask3M, assocScanNum, planC):
 
     # 3-d vs 4-d
     if isinstance(mask3M, np.ndarray) and len(mask3M.shape) == 3:
-        sitkArray = np.transpose(mask3M.astype(int), (2, 0, 1)) # z,y,x order
-        # CERR slice ordering is opposite of DICOM
-        if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
-            sitkArray = np.flip(sitkArray, axis = 0)
-        img = sitk.GetImageFromArray(sitkArray)
-        maxLabelVal = mask3M.max()
-        if maxLabelVal < 256:
-            img = sitk.Cast(img, sitk.sitkUInt8)
-        else:
-            img = sitk.Cast(img, sitk.sitkFloat32)
+        img = _maskToSitkImage(mask3M, assocScanNum, planC)
         img.SetOrigin(originXyz)
         img.SetSpacing(spacing)
         img.SetDirection(direction)
@@ -1110,15 +1129,7 @@ def createSitkImage(mask3M, assocScanNum, planC):
         # Extract each 3D slice from the numpy array
         for ind in range(len(mask3M)):
             # Get the 3D slice and convert it to a SimpleITK image
-            vol3M = np.transpose(mask3M[ind].astype(int), (2, 0, 1)) # z,y,x order
-            # CERR slice ordering is opposite of DICOM
-            if scn.flipSliceOrderFlag(planC.scan[assocScanNum]):
-                vol3M = np.flip(vol3M, axis = 0)
-            volImg = sitk.GetImageFromArray(vol3M)
-            if mask3M[ind].max() < 256:
-                volImg = sitk.Cast(volImg, sitk.sitkUInt8)
-            else:
-                volImg = sitk.Cast(volImg, sitk.sitkFloat32)
+            volImg = _maskToSitkImage(mask3M[ind], assocScanNum, planC)
             volImg.SetOrigin(originXyz)
             volImg.SetSpacing(spacing)
             volImg.SetDirection(direction)

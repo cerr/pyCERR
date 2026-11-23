@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Structure masks import faster.** `importStructureMask` contoured every row
+  and column of each slice; it now contours the mask's bounding box (padded by
+  one voxel) on the slices the mask occupies and restores the row/column
+  offset, giving the same contours — checked against the uncropped result on
+  the shipped radiomics phantom in `tests/test_import_structure_mask.py`.
+  `importNii` no longer builds a full SimpleITK image of the scan just to
+  describe the grid it resamples a mask onto: the new `Scan.getSitkGeometry()`
+  returns that geometry, read once rather than per file. `createSitkImage`
+  casts masks straight to uint8 when the labels fit instead of going via
+  int64.
+
 ## [2.5.4] - 2026-11-19
 
 ### Added
