@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`SCRR` derives each parotid's stem-cell rich region from that side's own
+  structures** (`cerr.segmentation.models.parotidSCRRFn`). `structNameDict`
+  now takes one structure name per key, under `left_parotid`,
+  `right_parotid`, `left_masseter`, `right_masseter` and `mandible`, replacing
+  the `parotid`/`masseter`/`mandible` lists (**breaking change**). Both
+  parotids and both masseters used to be merged into one mask each, and the
+  mandible was split at the middle column of the image, which took the wrong
+  side for an off-centre patient; the junction is now the parotid voxel
+  closest to touching that side's masseter and the mandible, by distance in
+  mm, with no split.
 - **Structure masks import faster.** `importStructureMask` contoured every row
   and column of each slice; it now contours the mask's bounding box (padded by
   one voxel) on the slices the mask occupies and restores the row/column
@@ -19,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returns that geometry, read once rather than per file. `createSitkImage`
   casts masks straight to uint8 when the labels fit instead of going via
   int64.
+
+### Fixed
+
+- **The SCRR ellipsoid and centre shift were applied to the wrong axes.**
+  Semi-axes and shifts given as `x`/`y` (left-right, anterior-posterior) were
+  passed to the mask's rows and columns the other way round, and the
+  right-side shift was positive, moving that side medially instead of
+  laterally. Spacing now comes from the LPS-oriented mask, so anisotropic
+  in-plane voxels are also handled.
 
 ## [2.5.4] - 2026-11-19
 

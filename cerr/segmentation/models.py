@@ -2,6 +2,7 @@
 
 import SimpleITK as sitk
 import numpy as np
+from scipy import ndimage
 import logging
 from cerr import plan_container as pc
 from cerr.dataclasses import scan as cerrScn
@@ -15,7 +16,15 @@ def parotidSCRRFn(planC, scanNum, paramDict):
     """This routine extracts Stem Cell Rich Regions (SCRR) from parotid gland masks.
 
     Uses anatomical landmarks (parotid, masseter, mandible) to identify
-    and extract regions of interest containing stem cell populations.
+    and extract regions of interest containing stem cell populations
+    (Steenbakkers et al. 2021). For each side:
+        - level: the slice of that parotid's center of gravity;
+        - junction of that parotid, masseter and the mandible on that slice: the parotid
+          voxels closest to touching both the masseter and the mandible (smallest larger
+          distance, in mm, to the two), and their center if several are equally close;
+        - SCRR center: the junction shifted 0.5 cm lateral and 0.5 cm posterior;
+        - SCRR: the ellipsoid of semi-axes 1 cm (anterior-posterior, left-right) and 2 cm
+          (cranial-caudal) around the center, within the parotid.
     
     Args:
         planC (cerr.plan_container.PlanC): pyCERR's plan container object
@@ -23,12 +32,16 @@ def parotidSCRRFn(planC, scanNum, paramDict):
         paramDict (dict, optional): dictionary specifying model parameters.
                 Valid keys:
                 structNameDict (dict): (Required) Mapping of expected structures to their names in planC.structure.
-                                    Required keys: "parotid", "masseter", "mandible"
-                                    structNameDict = {'parotid': ['Left Parotid', 'Right Parotid'],
-                                         'masseter': ['Left masseter','Right masseter'],
-                                         'mandible': ['Mandible']}
-                marginsMm (dict, optional): margin values in mm with keys "x", "y", "z"
-                shiftMm (dict, optional): centroid shift values with keys "L" and "R"
+                                    Required keys: "left_parotid", "right_parotid", "left_masseter",
+                                    "right_masseter", "mandible"
+                                    structNameDict = {'left_parotid': 'Left Parotid', 'right_parotid': 'Right Parotid',
+                                         'left_masseter': 'Left masseter', 'right_masseter': 'Right masseter',
+                                         'mandible': 'Mandible'}
+                marginsMm (dict, optional): semi-axes of the ellipsoid in mm, with keys "x" (left-right),
+                                    "y" (anterior-posterior) and "z" (cranial-caudal).
+                shiftMm (dict, optional): shift of the center from the junction in mm, per side ("L", "R"),
+                                    with keys "x" (+ toward the patient's left), "y" (+ posterior) and "z"
+                                    (not applied), i.e. LPS directions.
 
     Returns:
         mask4M (np.ndarray, 4D)          : Stack of output 3D binary masks.
@@ -42,9 +55,10 @@ def parotidSCRRFn(planC, scanNum, paramDict):
     """
     # Default parameters
     defaultParamDict = {'marginsMm': {"x": 10.0, "y": 10.0, "z": 20.0},
+                        # 0.5 cm lateral and 0.5 cm posterior (LPS: +x left, +y posterior)
                         'shiftMm': {
                             "L": {"x": 5.0, "y": 5.0, "z": 0.0},
-                            "R": {"x": 5.0, "y": -5.0, "z": 0.0},
+                            "R": {"x": -5.0, "y": 5.0, "z": 0.0},
                         },
                         'side': "L",
                         'pixelValue': 1
@@ -70,42 +84,39 @@ def parotidSCRRFn(planC, scanNum, paramDict):
         """This routine extracts SCRR for a single side (left or right).
 
         Args:
-            parotidMask3M (numpy.ndarray): 3D binary mask of parotid in LPS orientation
-            masseterMask3M (numpy.ndarray): 3D binary mask of masseter in LPS orientation
-            mandibleMask3M (numpy.ndarray): 3D binary mask of mandible in LPS orientation
-            spacing (numpy.ndarray): voxel spacing (x, y, z) in mm
+            parotidMask3M (numpy.ndarray): 3D binary mask of this side's parotid in LPS orientation
+            masseterMask3M (numpy.ndarray): 3D binary mask of this side's masseter in LPS orientation
+            mandibleMask3M (numpy.ndarray): 3D binary mask of the mandible in LPS orientation
+            spacing (tuple): voxel spacing (x, y, z) in mm of the LPS-oriented masks
             side (str): "L" for left, "R" for right
-            marginsMm (dict): margin values in mm with keys "x", "y", "z"
-            shiftMm (dict): centroid shift values with keys "L" and "R"
+            marginsMm (dict): ellipsoid semi-axes in mm, keys "x" (left-right), "y" (anterior-posterior), "z"
+            shiftMm (dict): center shift in mm per side ("L", "R"), keys "x" (+ left), "y" (+ posterior)
             pixelValue (int): value to assign to extracted SCRR voxels
 
         Returns:
             numpy.ndarray: 3D mask of extracted SCRR region
         """
-        # Find center of gravity of parotid
+        # Level: the slice of this parotid's center of gravity
         centerGravity = _calculateCenterOfGravity(parotidMask3M)
 
-        # Split mandible into left and right at the z-slice of center of gravity
-        leftMandibleMask, rightMandibleMask = _splitStructure2D(mandibleMask3M[:, :, centerGravity[-1]])
+        # Junction of this parotid, its masseter and the mandible on that slice. The mandible
+        # isn't split into sides: the part nearest this parotid is on the same side.
+        intersection = _findJunction(parotidMask3M, masseterMask3M, mandibleMask3M,
+                                     centerGravity[-1], spacing)
 
-        # Select appropriate mandible side
-        mandibleSide = leftMandibleMask if side == "L" else rightMandibleMask
-
-        # Find intersection point of parotid, masseter, and mandible
-        intersection = _findIntersection(parotidMask3M, mandibleSide, masseterMask3M, centerGravity)
-
-        # Convert margins from mm to voxels
+        # Convert margins from mm to voxels. Masks are in LPS orientation, indexed (row, col, slc):
+        # rows run anterior-posterior (y), columns left-right (x), slices cranial-caudal (z).
         marginsVoxels = (
-            marginsMm["x"] / spacing[0],
             marginsMm["y"] / spacing[1],
+            marginsMm["x"] / spacing[0],
             marginsMm["z"] / spacing[2],
         )
 
-        # Apply centroid shift
+        # Apply centroid shift (x: + toward the patient's left; y: + posterior)
         shift = shiftMm[side]
         shiftedCentroid = intersection + np.array([
-            shift["x"] / spacing[0],
             shift["y"] / spacing[1],
+            shift["x"] / spacing[0],
             0,
         ])
 
@@ -151,6 +162,7 @@ def parotidSCRRFn(planC, scanNum, paramDict):
         Returns:
             numpy.ndarray: 3D binary mask in LPS orientation (row, col, slc)
             str: original DICOM orientation string
+            tuple: voxel spacing (x, y, z) in mm of the LPS-oriented mask
         """
         if isinstance(inds, (int, float)):
             inds = [inds]
@@ -172,7 +184,38 @@ def parotidSCRRFn(planC, scanNum, paramDict):
                 sitk.GetArrayFromImage(lpsImage), (1, 2, 0)
             )
 
-        return mask3M, originalOrient
+        return mask3M, originalOrient, lpsImage.GetSpacing()
+
+
+    def _getMasks(structNameDict, planC):
+        """This routine returns the masks the SCRR is derived from, in LPS orientation:
+        the left and right parotids and masseters, and the mandible.
+
+        Args:
+            structNameDict (dict): structure names (see parotidSCRRFn), keyed by
+                "left_parotid", "right_parotid", "left_masseter", "right_masseter" and
+                "mandible".
+            planC (cerr.plan_container.PlanC): pyCERR's plan container object
+
+        Returns:
+            dict: 3D binary masks keyed as structNameDict
+            str: original DICOM orientation string
+            tuple: voxel spacing (x, y, z) in mm of the LPS-oriented masks
+            int: index of a parotid in planC.structure (for its scan)
+
+        Raises:
+            ValueError: a structure isn't found in planC
+        """
+        def inds(key):
+            found = _getMatchingInds([structNameDict[key]], planC)
+            if not found:
+                raise ValueError(f"No matching structure found for {key}: {structNameDict[key]!r}")
+            return found
+
+        masks, originalOrient = {}, None
+        for key in ("left_parotid", "right_parotid", "left_masseter", "right_masseter", "mandible"):
+            masks[key], originalOrient, spacing = _getLpsMask(inds(key), planC)
+        return masks, originalOrient, spacing, inds("left_parotid")[0]
 
 
     def _reorientMask(mask3M, originalOrient, planC, scanNum):
@@ -206,7 +249,7 @@ def parotidSCRRFn(planC, scanNum, paramDict):
             contour (numpy.ndarray): 3D binary mask array
 
         Returns:
-            numpy.ndarray: (x, y, z) coordinates of the centroid
+            numpy.ndarray: (row, col, slc) of the centroid, rounded down to whole voxels
 
         Raises:
             ValueError: if contour is empty
@@ -221,126 +264,69 @@ def parotidSCRRFn(planC, scanNum, paramDict):
         return center.astype(int)
 
 
-    def _splitStructure2D(mask):
-        """This routine splits a 2D mask into left and right halves at the midline.
+    def _findJunction(parotidMask3M, masseterMask3M, mandibleMask3M, zSlice, spacing):
+        """This routine finds the junction of the parotid, masseter and mandible on a slice.
 
-        Used for splitting mandible into left and right components.
-
-        Args:
-            mask (numpy.ndarray): 2D binary mask array
-
-        Returns:
-            tuple: (leftMask, rightMask) as numpy arrays
-        """
-        height, width = mask.shape
-        splitCol = width // 2
-
-        leftMask = mask.copy()
-        leftMask[:, :splitCol] = 0
-
-        rightMask = mask.copy()
-        rightMask[:, splitCol:] = 0
-
-        return leftMask, rightMask
-
-
-    def _findClosestPointToStructures(parotidMask, masseterMask, mandibleMask):
-        """This routine finds the point with minimum total distance to all three structures.
-
-        Prioritizes points within the parotid mask.
+        The junction is where the three structures meet: the parotid voxels closest to
+        touching both the masseter and the mandible, i.e. with the smallest larger distance
+        (in mm) to the two. Where several voxels are equally close (e.g. along a shared
+        boundary), their center is used.
 
         Args:
-            parotidMask (numpy.ndarray): 2D binary mask of parotid
-            masseterMask (numpy.ndarray): 2D binary mask of masseter
-            mandibleMask (numpy.ndarray): 2D binary mask of mandible
+            parotidMask3M (numpy.ndarray): 3D parotid mask in LPS orientation (row, col, slc)
+            masseterMask3M (numpy.ndarray): 3D masseter mask in LPS orientation
+            mandibleMask3M (numpy.ndarray): 3D mandible mask in LPS orientation
+            zSlice (int): slice to find the junction on
+            spacing (tuple): voxel spacing (x, y, z) in mm of the LPS-oriented masks
 
         Returns:
-            numpy.ndarray: 2D coordinates [x, y] of the optimal point
+            numpy.ndarray: [row, col, slc] of the junction (row and col may be fractional)
 
         Raises:
-            ValueError: if any mask is empty
+            ValueError: if a structure is empty on this slice
         """
-        parotidCoords = np.argwhere(parotidMask)
-        masseterCoords = np.argwhere(masseterMask)
-        mandibleCoords = np.argwhere(mandibleMask)
+        parotid2M = parotidMask3M[:, :, zSlice].astype(bool)
+        masseter2M = masseterMask3M[:, :, zSlice].astype(bool)
+        mandible2M = mandibleMask3M[:, :, zSlice].astype(bool)
+        for name, mask2M in (("Parotid", parotid2M), ("Masseter", masseter2M), ("Mandible", mandible2M)):
+            if not mask2M.any():
+                raise ValueError(f"{name} mask is empty on this slice")
 
-        if len(parotidCoords) == 0:
-            raise ValueError("Parotid mask is empty on this slice")
-        if len(masseterCoords) == 0:
-            raise ValueError("Masseter mask is empty on this slice")
-        if len(mandibleCoords) == 0:
-            raise ValueError("Mandible mask is empty on this slice")
+        # Distance (mm) from each voxel to the nearest masseter and mandible voxel; rows run
+        # anterior-posterior (y spacing), columns left-right (x spacing)
+        sampling = (spacing[1], spacing[0])
+        distMasseter2M = ndimage.distance_transform_edt(~masseter2M, sampling=sampling)
+        distMandible2M = ndimage.distance_transform_edt(~mandible2M, sampling=sampling)
+        closeness2M = np.where(parotid2M, np.maximum(distMasseter2M, distMandible2M), np.inf)
+        junctionCoords = np.argwhere(np.isclose(closeness2M, closeness2M.min()))
+        junction = junctionCoords.mean(axis=0)
+        logger.info(f"Junction at {junction} on slice {zSlice}, {closeness2M.min():.1f} mm from "
+                    f"masseter and mandible ({len(junctionCoords)} voxel(s))")
 
-        minDistances = []
-        for point in parotidCoords:
-            distToMasseter = np.min(np.linalg.norm(masseterCoords - point, axis=1))
-            distToMandible = np.min(np.linalg.norm(mandibleCoords - point, axis=1))
-            totalDist = distToMasseter + distToMandible
-            minDistances.append(totalDist)
-
-        bestIdx = np.argmin(minDistances)
-
-        return parotidCoords[bestIdx]
-
-
-    def _findIntersection(parotidMask, mandibleMask, masseterMask, centerGravity):
-        """This routine finds the intersection point of three anatomical structures.
-
-        If no intersection exists, finds the point with minimum total distance
-        to all three structures, preferring points within the parotid mask.
-
-        Args:
-            parotidMask (numpy.ndarray): 3D parotid gland mask
-            mandibleMask (numpy.ndarray): 2D mandible mask (single slice)
-            masseterMask (numpy.ndarray): 3D masseter muscle mask
-            centerGravity (numpy.ndarray): center of gravity coordinates [x, y, z]
-
-        Returns:
-            numpy.ndarray: 3D coordinates [x, y, z] of the intersection or closest point
-        """
-        zSlice = centerGravity[-1]
-
-        parotidSlice = parotidMask[:, :, zSlice].astype(bool)
-        masseterSlice = masseterMask[:, :, zSlice].astype(bool)
-
-        intersection = np.logical_and(
-            np.logical_and(parotidSlice, masseterSlice), mandibleMask
-        )
-
-        intersectionCoords = np.argwhere(intersection)
-
-        if intersectionCoords.size > 0:
-            logger.info(f"Intersection found at coordinates: {intersectionCoords}")
-            result = intersectionCoords[0]
-        else:
-            logger.info("No intersection found. Calculating closest point to all three structures...")
-            result = _findClosestPointToStructures(
-                parotidSlice, masseterSlice, mandibleMask
-            )
-
-        return np.append(result, zSlice)
+        return np.append(junction, zSlice)
 
 
     def _createVolume(center, shape, margins):
         """This routine creates an ellipsoid volume around a center point.
 
         Args:
-            center (numpy.ndarray): 3D coordinates [x, y, z] of ellipsoid center
-            shape (tuple): shape of the output volume
-            margins (tuple): semi-axes lengths (x, y, z) in voxels
+            center (numpy.ndarray): [row, col, slc] of the ellipsoid center
+            shape (tuple): shape of the output volume (rows, cols, slcs)
+            margins (tuple): semi-axes lengths (row, col, slc) in voxels
 
         Returns:
             numpy.ndarray: binary volume with ellipsoid region set to 1
         """
-        xMargin, yMargin, zMargin = margins
+        rowMargin, colMargin, slcMargin = margins
 
-        xCoords, yCoords, zCoords = np.indices(shape)
+        rowCoords, colCoords, slcCoords = np.indices(shape)
 
-        xCentered = xCoords - center[0]
-        yCentered = yCoords - center[1]
-        zCentered = zCoords - center[2]
+        rowCentered = rowCoords - center[0]
+        colCentered = colCoords - center[1]
+        slcCentered = slcCoords - center[2]
 
-        mask = ((xCentered / xMargin) ** 2 + (yCentered / yMargin) ** 2 + (zCentered / zMargin) ** 2) <= 1
+        mask = ((rowCentered / rowMargin) ** 2 + (colCentered / colMargin) ** 2
+                + (slcCentered / slcMargin) ** 2) <= 1
 
         logger.info(f"Created ellipsoid volume with center at {center} and margins {margins}")
 
@@ -361,45 +347,23 @@ def parotidSCRRFn(planC, scanNum, paramDict):
 
         return overlappingVolume
 
-    # Get structure indices
-    parotidInds = _getMatchingInds(structNameDict["parotid"], planC)
-    masseterInds = _getMatchingInds(structNameDict["masseter"], planC)
-    mandibleInd = _getMatchingInds(structNameDict["mandible"], planC)
-
-    if not parotidInds:
-        raise ValueError(
-            f"No matching structures found for parotid names: {structNameDict['parotid']}"
-        )
-    if not masseterInds:
-        raise ValueError(
-            f"No matching structures found for masseter names: {structNameDict['masseter']}"
-        )
-    if not mandibleInd:
-        raise ValueError(
-            f"No matching structure found for mandible name: {structNameDict['mandible']}"
-        )
+    # Get masks in LPS orientation: left and right parotids and masseters, and the mandible
+    # spacing: voxel spacing (x, y, z) in mm of the LPS-oriented masks, matching their axes
+    masks, originalOrient, spacing, parotidInd = _getMasks(structNameDict, planC)
 
     # Derive scanNum from structure if not provided
     if scanNum is None:
-        scanNum = cerrScn.getScanNumFromUID(
-            planC.structure[parotidInds[0]].assocScanUID, planC
-        )
-    spacing = planC.scan[scanNum].getScanSpacing() * 10     # Get voxel spacing in mm
+        scanNum = cerrScn.getScanNumFromUID(planC.structure[parotidInd].assocScanUID, planC)
 
-    # Get masks in LPS orientation
-    parotidMask3M, originalOrient = _getLpsMask(parotidInds, planC)
-    masseterMask3M, _ = _getLpsMask(masseterInds, planC)
-    mandibleMask3M, _ = _getLpsMask(mandibleInd, planC)
-
-    # Extract left parotid SCRR
+    # Extract left parotid SCRR, centred at the level of the left parotid's centre of gravity
     leftSCRR = _extractSingleSCRR(
-        parotidMask3M, masseterMask3M, mandibleMask3M,
+        masks["left_parotid"], masks["left_masseter"], masks["mandible"],
         spacing, "L", marginsMm, shiftMm, pixelValue=1
     )
 
-    # Extract right parotid SCRR
+    # Extract right parotid SCRR, centred at the level of the right parotid's centre of gravity
     rightSCRR = _extractSingleSCRR(
-        parotidMask3M, masseterMask3M, mandibleMask3M,
+        masks["right_parotid"], masks["right_masseter"], masks["mandible"],
         spacing, "R", marginsMm, shiftMm, pixelValue=2
     )
 
