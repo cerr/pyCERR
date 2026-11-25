@@ -1195,6 +1195,65 @@ def loadNiiStructure(nii_file_name, assocScanNum, planC, labels_dict=None):
     return planC
 
 
+def loadNrrdDose(nrrd_file_name, assocScanNum, planC, fractionGroupID = "RT-dose"):
+    """Load a dose distribution from an NRRD file into planC.
+
+    NRRD files are read with the same SimpleITK reader as NIfTI, so this routine passes the
+    file to :func:`loadNiiDose`.
+
+    Args:
+        nrrd_file_name (str): Path to the NRRD file containing the dose array.
+        assocScanNum (int): Index into ``planC.scan`` of the scan associated
+            with this dose distribution.
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to
+            which the dose will be appended.
+        fractionGroupID (str): Optional label for the fraction group.
+            Defaults to ``'RT-dose'``.
+
+    Returns:
+        cerr.plan_container.PlanC: The updated plan container with the dose
+            appended to ``planC.dose``.
+
+    Example:
+        Attach a dose stored as NRRD to scan 0::
+
+            from cerr import plan_container as pc
+
+            planC = pc.loadNrrdDose('dose.nrrd', 0, planC)
+            doseNum = len(planC.dose) - 1
+
+    """
+    return loadNiiDose(nrrd_file_name, assocScanNum, planC, fractionGroupID=fractionGroupID)
+
+
+def loadNrrdStructure(nrrd_file_name, assocScanNum, planC, labels_dict=None):
+    """This routine imports segmentation from an NRRD file into planC
+
+    NRRD files are read with the same SimpleITK reader as NIfTI, so this routine passes the
+    file to :func:`loadNiiStructure`.
+
+    Args:
+        nrrd_file_name (str): path of NRRD file containing the structure/s
+        assocScanNum (int): index of scan from planC.scan associated with segmentation
+        planC (cerr.plan_container.PlanC): pyCERR's plan container object to append structure/s
+        labels_dict (dict): optional, dictionary mapping structure names to labels. e.g. {'GTV':1, 'Lung_total':2}.
+            When omitted, every non-zero label in the file is imported as 'Label <value>'.
+
+    Returns:
+        cerr.plan_container.PlanC: pyCERR's plan container object with structure/s imported to planC.structure
+
+    Example:
+        Import an NRRD label map as named structures on scan 0::
+
+            from cerr import plan_container as pc
+
+            labelDict = {'GTV_P': 1, 'GTV_N': 2}        # structure name -> label value
+            planC = pc.loadNrrdStructure('labels.nrrd', 0, planC, labelDict)
+
+    """
+    return loadNiiStructure(nrrd_file_name, assocScanNum, planC, labels_dict=labels_dict)
+
+
 def loadNiiVf(dvf_file, baseScanNum, planC):
     """This routine loads deformation vector field from file into planC
 
