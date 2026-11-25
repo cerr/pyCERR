@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **NRRD dose and structure import.** `loadNrrdDose` and
+  `loadNrrdStructure` complete the NRRD set beside `loadNrrdScan`; each
+  passes the file to its NIfTI counterpart, which reads NRRD through the
+  same SimpleITK reader.
+- **`SCRR` can also add the ellipsoids it cuts each region from.**
+  `paramDict['ellipsoids'] = True` adds `leftSCRR_ellipsoid` and
+  `rightSCRR_ellipsoid` to `planC`; they are not part of `mask4M` or
+  `labelDict`. Defaults to `False`.
+
 ### Changed
 
 - **`SCRR` derives each parotid's stem-cell rich region from that side's own

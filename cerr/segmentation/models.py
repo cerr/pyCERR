@@ -42,6 +42,10 @@ def parotidSCRRFn(planC, scanNum, paramDict):
                 shiftMm (dict, optional): shift of the center from the junction in mm, per side ("L", "R"),
                                     with keys "x" (+ toward the patient's left), "y" (+ posterior) and "z"
                                     (not applied), i.e. LPS directions.
+                ellipsoids (bool, optional): also add the ellipsoids the SCRRs were cut from to
+                                    planC, as "leftSCRR_ellipsoid" and "rightSCRR_ellipsoid"
+                                    (e.g. to review the placement of a clipped SCRR). They are
+                                    not included in mask4M or labelDict. Defaults to False.
 
     Returns:
         mask4M (np.ndarray, 4D)          : Stack of output 3D binary masks.
@@ -61,7 +65,8 @@ def parotidSCRRFn(planC, scanNum, paramDict):
                             "R": {"x": -5.0, "y": 5.0, "z": 0.0},
                         },
                         'side': "L",
-                        'pixelValue': 1
+                        'pixelValue': 1,
+                        'ellipsoids': False
     }
 
     if paramDict is None:
@@ -74,6 +79,7 @@ def parotidSCRRFn(planC, scanNum, paramDict):
     structNameDict = paramDict["structNameDict"]
     marginsMm = paramDict["marginsMm"]
     shiftMm = paramDict["shiftMm"]
+    addEllipsoids = paramDict["ellipsoids"]
 
     labelDict = {"leftSCRR": 1, "rightSCRR": 2}
     outputNames = list(labelDict.keys())
@@ -94,7 +100,8 @@ def parotidSCRRFn(planC, scanNum, paramDict):
             pixelValue (int): value to assign to extracted SCRR voxels
 
         Returns:
-            numpy.ndarray: 3D mask of extracted SCRR region
+            tuple: (scrr, ellipsoid), 3D masks of the extracted SCRR region and of the
+                ellipsoid it was cut from (the SCRR is the part of it inside the parotid)
         """
         # Level: the slice of this parotid's center of gravity
         centerGravity = _calculateCenterOfGravity(parotidMask3M)
@@ -130,7 +137,7 @@ def parotidSCRRFn(planC, scanNum, paramDict):
 
         logger.info(f"Extracted SCRR for side {side}")
 
-        return scrr
+        return scrr, ellipsoidVolume
 
 
     def _getMatchingInds(namesList, planC):
@@ -356,13 +363,13 @@ def parotidSCRRFn(planC, scanNum, paramDict):
         scanNum = cerrScn.getScanNumFromUID(planC.structure[parotidInd].assocScanUID, planC)
 
     # Extract left parotid SCRR, centred at the level of the left parotid's centre of gravity
-    leftSCRR = _extractSingleSCRR(
+    leftSCRR, leftEllipsoid = _extractSingleSCRR(
         masks["left_parotid"], masks["left_masseter"], masks["mandible"],
         spacing, "L", marginsMm, shiftMm, pixelValue=1
     )
 
     # Extract right parotid SCRR, centred at the level of the right parotid's centre of gravity
-    rightSCRR = _extractSingleSCRR(
+    rightSCRR, rightEllipsoid = _extractSingleSCRR(
         masks["right_parotid"], masks["right_masseter"], masks["mandible"],
         spacing, "R", marginsMm, shiftMm, pixelValue=2
     )
@@ -377,6 +384,14 @@ def parotidSCRRFn(planC, scanNum, paramDict):
     planC = pc.importStructureMask(rightSCRRmask3M > 0, scanNum, outputNames[1], planC)
 
     logger.info("Extracted left and right parotid SCRR structures")
+
+    # Optionally import the ellipsoids
+    if addEllipsoids:
+        for ellipsoid, name in ((leftEllipsoid, outputNames[0] + "_ellipsoid"),
+                                (rightEllipsoid, outputNames[1] + "_ellipsoid")):
+            mask3M = _reorientMask(ellipsoid, originalOrient, planC, scanNum)
+            planC = pc.importStructureMask(mask3M > 0, scanNum, name, planC)
+        logger.info("Added the SCRR ellipsoids as structures")
 
     return mask4M, labelDict, planC
 
